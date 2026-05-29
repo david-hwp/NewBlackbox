@@ -250,6 +250,30 @@ public class BProcessManagerService implements ISystemService {
         }
     }
 
+    public void killAllOtherProcesses(String keepPackageName, int userId) {
+        synchronized (mProcessLock) {
+            List<ProcessRecord> toKill = new ArrayList<>();
+            for (ProcessRecord record : mPidsSelfLocked) {
+                if (!record.getPackageName().equals(keepPackageName)) {
+                    toKill.add(record);
+                }
+            }
+            for (ProcessRecord record : toKill) {
+                record.kill();
+                Map<String, ProcessRecord> process = mProcessMap.get(record.buid);
+                if (process != null) {
+                    process.remove(record.processName);
+                    if (process.isEmpty()) {
+                        mProcessMap.remove(record.buid);
+                    }
+                }
+                mPidsSelfLocked.remove(record);
+                BNotificationManagerService.get().deletePackageNotification(record.getPackageName(), record.userId);
+            }
+            Slog.d(TAG, "Single instance mode: killed " + toKill.size() + " other process(es), keeping " + keepPackageName);
+        }
+    }
+
     public List<ProcessRecord> getPackageProcessAsUser(String packageName, int userId) {
         synchronized (mProcessMap) {
             int buid = BUserHandle.getUid(userId, BPackageManagerService.get().getAppId(packageName));
