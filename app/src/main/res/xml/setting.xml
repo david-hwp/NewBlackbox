@@ -31,6 +31,11 @@
                 app:title="@string/disable_flag_secure"
                 app:summary="@string/disable_flag_secure_summary" />
 
+        <SwitchPreferenceCompat
+                app:key="single_instance_mode"
+                app:title="@string/single_instance_mode"
+                app:summary="@string/single_instance_mode_summary" />
+
         <Preference
                 android:key="send_logs"
                 android:title="Send Logs"

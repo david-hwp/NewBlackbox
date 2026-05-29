@@ -44,6 +44,13 @@ class SettingFragment : PreferenceFragmentCompat() {
             disableFlagSecurePreference
         }
 
+        invalidHideState {
+            val singleInstancePreference: Preference = (findPreference("single_instance_mode")!!)
+            val mSingleInstanceMode = AppManager.mBlackBoxLoader.singleInstanceMode()
+            singleInstancePreference.setDefaultValue(mSingleInstanceMode)
+            singleInstancePreference
+        }
+
         initSendLogs()
     }
 
@@ -79,6 +86,9 @@ class SettingFragment : PreferenceFragmentCompat() {
                 }
                 "disable_flag_secure" -> {
                     AppManager.mBlackBoxLoader.invalidDisableFlagSecure(tmpHide)
+                }
+                "single_instance_mode" -> {
+                    AppManager.mBlackBoxLoader.invalidSingleInstanceMode(tmpHide)
                 }
             }
 
