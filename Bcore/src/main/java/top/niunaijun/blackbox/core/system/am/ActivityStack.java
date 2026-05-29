@@ -18,6 +18,7 @@ import android.os.Message;
 import android.os.RemoteException;
 import android.util.Log;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
@@ -376,6 +377,36 @@ public class ActivityStack {
                     }
                 }
             }
+        }
+    }
+
+    public void finishAllActivitiesExcept(String keepPackageName, int userId) {
+        synchronized (mTasks) {
+            List<TaskRecord> emptyTasks = new ArrayList<>();
+            for (TaskRecord task : mTasks.values()) {
+                List<ActivityRecord> toRemove = new ArrayList<>();
+                for (ActivityRecord activity : task.activities) {
+                    if (!activity.info.packageName.equals(keepPackageName)) {
+                        activity.finished = true;
+                        if (activity.processRecord != null && activity.processRecord.bActivityThread != null) {
+                            try {
+                                activity.processRecord.bActivityThread.finishActivity(activity.token);
+                            } catch (RemoteException e) {
+                                // Process may already be dead
+                            }
+                        }
+                        toRemove.add(activity);
+                    }
+                }
+                task.activities.removeAll(toRemove);
+                if (task.activities.isEmpty()) {
+                    emptyTasks.add(task);
+                }
+            }
+            for (TaskRecord task : emptyTasks) {
+                mTasks.remove(task.id);
+            }
+            Slog.d(TAG, "Single instance mode: finished activities for " + emptyTasks.size() + " tasks except " + keepPackageName);
         }
     }
 

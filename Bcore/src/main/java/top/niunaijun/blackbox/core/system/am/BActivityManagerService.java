@@ -340,6 +340,13 @@ public class BActivityManagerService extends IBActivityManagerService.Stub imple
         }
     }
 
+    public void finishAllActivitiesExcept(String keepPackageName, int userId) {
+        UserSpace userSpace = getOrCreateSpaceLocked(userId);
+        synchronized (userSpace.mStack) {
+            userSpace.mStack.finishAllActivitiesExcept(keepPackageName, userId);
+        }
+    }
+
     @Override
     public int startActivityAms(int userId, Intent intent, String resolvedType, IBinder resultTo, String resultWho, int requestCode, int flags, Bundle options) throws RemoteException {
         UserSpace space = getOrCreateSpaceLocked(userId);

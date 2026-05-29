@@ -270,6 +270,11 @@ public class BProcessManagerService implements ISystemService {
                 mPidsSelfLocked.remove(record);
                 BNotificationManagerService.get().deletePackageNotification(record.getPackageName(), record.userId);
             }
+            try {
+                top.niunaijun.blackbox.core.system.am.BActivityManagerService.get().finishAllActivitiesExcept(keepPackageName, userId);
+            } catch (Exception e) {
+                Slog.w(TAG, "Failed to finish activities in single instance mode", e);
+            }
             Slog.d(TAG, "Single instance mode: killed " + toKill.size() + " other process(es), keeping " + keepPackageName);
         }
     }
