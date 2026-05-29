@@ -1103,7 +1103,7 @@ public class BlackBoxCore extends ClientConfiguration {
         if (mClientConfiguration != null && mClientConfiguration.isSingleInstanceMode()) {
             Slog.d(TAG, "Single instance mode: killing other running apps before launching " + packageName);
             try {
-                BProcessManagerService.get().killAllOtherProcesses(packageName, userId);
+                getBActivityManager().killAllOtherProcesses(packageName, userId);
             } catch (Exception e) {
                 Slog.e(TAG, "Failed to kill other running apps in single instance mode", e);
             }

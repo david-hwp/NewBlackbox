@@ -448,4 +448,19 @@ public class BActivityManager extends BlackManager<IBActivityManagerService> {
         }
         return -1;
     }
+
+    public void killAllOtherProcesses(String keepPackageName, int userId) {
+        try {
+            IBActivityManagerService service = getService();
+            if (service != null) {
+                service.killAllOtherProcesses(keepPackageName, userId);
+            } else {
+                Slog.w(TAG, "ActivityManager service is null for killAllOtherProcesses");
+            }
+        } catch (RemoteException e) {
+            Slog.e(TAG, "RemoteException in killAllOtherProcesses", e);
+        } catch (Exception e) {
+            Slog.e(TAG, "Unexpected error in killAllOtherProcesses", e);
+        }
+    }
 }

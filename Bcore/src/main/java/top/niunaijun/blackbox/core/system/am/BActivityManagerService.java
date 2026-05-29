@@ -348,6 +348,11 @@ public class BActivityManagerService extends IBActivityManagerService.Stub imple
     }
 
     @Override
+    public void killAllOtherProcesses(String keepPackageName, int userId) throws RemoteException {
+        BProcessManagerService.get().killAllOtherProcesses(keepPackageName, userId);
+    }
+
+    @Override
     public int startActivityAms(int userId, Intent intent, String resolvedType, IBinder resultTo, String resultWho, int requestCode, int flags, Bundle options) throws RemoteException {
         UserSpace space = getOrCreateSpaceLocked(userId);
         synchronized (space.mStack) {
