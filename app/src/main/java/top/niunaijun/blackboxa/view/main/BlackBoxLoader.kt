@@ -25,6 +25,8 @@ class BlackBoxLoader {
 
     private var mDisableFlagSecure by AppSharedPreferenceDelegate(App.getContext(), false)
 
+    private var mSingleInstanceMode by AppSharedPreferenceDelegate(App.getContext(), false)
+
     fun hideRoot(): Boolean {
         return try {
             mHideRoot
@@ -56,6 +58,23 @@ class BlackBoxLoader {
             this.mDisableFlagSecure = disable
         } catch (e: Exception) {
             Log.e(TAG, "Error setting disableFlagSecure: ${e.message}")
+        }
+    }
+
+    fun singleInstanceMode(): Boolean {
+        return try {
+            mSingleInstanceMode
+        } catch (e: Exception) {
+            Log.e(TAG, "Error getting singleInstanceMode: ${e.message}")
+            false
+        }
+    }
+
+    fun invalidSingleInstanceMode(enable: Boolean) {
+        try {
+            this.mSingleInstanceMode = enable
+        } catch (e: Exception) {
+            Log.e(TAG, "Error setting singleInstanceMode: ${e.message}")
         }
     }
 
@@ -267,6 +286,15 @@ class BlackBoxLoader {
                                         mDisableFlagSecure
                                     } catch (e: Exception) {
                                         Log.e(TAG, "Error checking disableFlagSecure: ${e.message}")
+                                        false
+                                    }
+                                }
+
+                                override fun isSingleInstanceMode(): Boolean {
+                                    return try {
+                                        mSingleInstanceMode
+                                    } catch (e: Exception) {
+                                        Log.e(TAG, "Error checking singleInstanceMode: ${e.message}")
                                         false
                                     }
                                 }
