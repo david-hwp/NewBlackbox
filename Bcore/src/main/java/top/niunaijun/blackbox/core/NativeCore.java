@@ -61,6 +61,10 @@ public class NativeCore {
                 if (appPackageName != null && appPackageName.equals("com.google.android.webview")){
                     return Process.myUid();
                 }
+
+                if (appPackageName != null && appPackageName.equals("com.hihonor.webview")){
+                    return Process.myUid();
+                }
                 
                 
                 try {

@@ -238,6 +238,8 @@ public class IPackageManagerProxy extends BinderInvocationStub {
     @ProxyMethod("getServiceInfo")
     public static class GetServiceInfo extends MethodHook {
 
+        private static final int FLAG_ISOLATED_PROCESS = 1;
+
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             ComponentName componentName = (ComponentName) args[0];
@@ -245,10 +247,36 @@ public class IPackageManagerProxy extends BinderInvocationStub {
             ServiceInfo serviceInfo = BlackBoxCore.getBPackageManager().getServiceInfo(componentName, flags, BlackBoxCore.getUserId());
             if (serviceInfo != null)
                 return serviceInfo;
+
+            // Check if this is a WebView sandbox service BEFORE isOpenPackage check.
+            // On Honor/Huawei, WebView's sandbox service ComponentName uses the host app
+            // package name (e.g. top.niunaijun.blackbox), NOT the webview provider package.
+            // So isOpenPackage() returns false and we never reach the system query.
+            boolean isSandboxService = isWebViewSandboxService(componentName);
+            if (isSandboxService) {
+                ServiceInfo result = (ServiceInfo) method.invoke(who, args);
+                if (result != null) {
+                    if ((result.flags & FLAG_ISOLATED_PROCESS) != 0) {
+                        result.flags &= ~FLAG_ISOLATED_PROCESS;
+                        Slog.d(TAG, "Removed isolatedProcess flag from WebView sandbox service: " + componentName);
+                    }
+                }
+                return result;
+            }
+
             if (AppSystemEnv.isOpenPackage(componentName)) {
                 return method.invoke(who, args);
             }
             return null;
+        }
+
+        private boolean isWebViewSandboxService(ComponentName componentName) {
+            if (componentName == null) return false;
+            String cls = componentName.getClassName();
+            if (cls == null) return false;
+            // SandboxedProcessService0:0, SandboxedProcessService0:1, etc.
+            // Also match SandboxedProcessService0, SandboxedProcessService1
+            return cls.contains("SandboxedProcessService");
         }
     }
 
