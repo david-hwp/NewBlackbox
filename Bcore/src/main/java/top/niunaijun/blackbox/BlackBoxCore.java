@@ -40,6 +40,7 @@ import top.niunaijun.blackbox.app.configuration.ClientConfiguration;
 import top.niunaijun.blackbox.core.GmsCore;
 import top.niunaijun.blackbox.core.NativeCore;
 import top.niunaijun.blackbox.core.env.BEnvironment;
+import top.niunaijun.blackbox.core.system.BProcessManagerService;
 import top.niunaijun.blackbox.core.system.DaemonService;
 import top.niunaijun.blackbox.core.system.ServiceManager;
 import top.niunaijun.blackbox.core.system.user.BUserHandle;
@@ -1097,8 +1098,17 @@ public class BlackBoxCore extends ClientConfiguration {
 
     public boolean launchApk(String packageName, int userId) {
         onBeforeMainLaunchApk(packageName, userId);
-        
-        
+
+        // Single instance mode: kill other running clone apps before launching
+        if (mClientConfiguration != null && mClientConfiguration.isSingleInstanceMode()) {
+            Slog.d(TAG, "Single instance mode: killing other running apps before launching " + packageName);
+            try {
+                BProcessManagerService.get().killAllOtherProcesses(packageName, userId);
+            } catch (Exception e) {
+                Slog.e(TAG, "Failed to kill other running apps in single instance mode", e);
+            }
+        }
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             if (!hasAllFilesAccess()) {
                 Slog.w(TAG, "All files access not granted for launching: " + packageName);
