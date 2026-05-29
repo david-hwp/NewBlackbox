@@ -88,7 +88,8 @@ dependencies {
 
     implementation 'com.github.tiann:FreeReflection:3.2.2'
 
+    testImplementation 'junit:junit:4.13.2'
 
 
-    
+
 }

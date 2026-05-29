@@ -123,7 +123,65 @@ When syncing patches across branches, cherry-pick in this order to minimize conf
 
 ## Testing
 
-There is minimal automated test coverage. The project is validated through:
+### E2E Automated Testing (via ADB)
+
+The project includes a shell-based E2E test suite in the [`e2e/`](e2e/) directory that automates build, install, launch, and UI validation via `adb`.
+
+#### Quick Start
+
+```bash
+# Run all tests (uses existing APK if available)
+./e2e/run.sh
+
+# Build + reinstall + run all tests
+./e2e/run.sh --build --reinstall
+
+# Run only smoke test
+./e2e/run.sh smoke
+
+# Run Phase 1 single-instance test with clean data
+./e2e/run.sh --clean phase1
+```
+
+#### E2E Test Scripts
+
+| Script | Command | Coverage |
+|--------|---------|----------|
+| Smoke test | `./e2e/run.sh smoke` | Build, install, launch, no crashes, screenshots of main/settings tabs |
+| Phase 1 single-instance | `./e2e/run.sh phase1` | Toggle ON/OFF, setting persistence, process behavior, ActivityStack cleanup |
+
+#### E2E Test Structure
+
+```
+e2e/
+├── run.sh              # Main runner (argument parsing, report generation)
+├── lib/utils.sh        # Shared ADB helpers: install, screenshot, tap, assert_log_contains
+├── tests/
+│   ├── smoke.sh
+│   └── phase1_single_instance.sh
+├── screenshots/        # Auto-captured PNGs per test step
+├── logs/               # Logcat dumps per test run
+└── README.md           # Full guide for adding new tests
+```
+
+#### E2E Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `ADB` | Auto-detected | Path to `adb` executable |
+| `JAVA_HOME` | Auto-detected | JDK 21 for Gradle build |
+
+#### Adding a New E2E Test
+
+1. Create `e2e/tests/my_feature.sh`
+2. Define `run_test()` — use helpers from `lib/utils.sh`
+3. Run: `./e2e/run.sh my_feature`
+
+See [`e2e/README.md`](e2e/README.md) for the full template and coordinate reference.
+
+### Manual Testing
+
+The project is also validated through:
 - Manual APK installation and smoke testing on target devices
 - `JarManagerTest.java` (basic jar loading verification)
 

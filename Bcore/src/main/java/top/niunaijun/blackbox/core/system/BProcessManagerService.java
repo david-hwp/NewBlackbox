@@ -252,31 +252,49 @@ public class BProcessManagerService implements ISystemService {
 
     public void killAllOtherProcesses(String keepPackageName, int userId) {
         synchronized (mProcessLock) {
-            List<ProcessRecord> toKill = new ArrayList<>();
-            for (ProcessRecord record : mPidsSelfLocked) {
-                if (!record.getPackageName().equals(keepPackageName)) {
-                    toKill.add(record);
-                }
-            }
+            List<ProcessRecord> toKill = performKillAllOtherProcessesLocked(keepPackageName);
             for (ProcessRecord record : toKill) {
-                record.kill();
-                Map<String, ProcessRecord> process = mProcessMap.get(record.buid);
-                if (process != null) {
-                    process.remove(record.processName);
-                    if (process.isEmpty()) {
-                        mProcessMap.remove(record.buid);
-                    }
+                try {
+                    BNotificationManagerService.get().deletePackageNotification(record.getPackageName(), record.userId);
+                } catch (Exception e) {
+                    Slog.w(TAG, "Failed to delete notification for " + record.getPackageName(), e);
                 }
-                mPidsSelfLocked.remove(record);
-                BNotificationManagerService.get().deletePackageNotification(record.getPackageName(), record.userId);
             }
             try {
                 top.niunaijun.blackbox.core.system.am.BActivityManagerService.get().finishAllActivitiesExcept(keepPackageName, userId);
             } catch (Exception e) {
                 Slog.w(TAG, "Failed to finish activities in single instance mode", e);
             }
-            Slog.d(TAG, "Single instance mode: killed " + toKill.size() + " other process(es), keeping " + keepPackageName);
         }
+    }
+
+    /**
+     * Core logic for killing all processes except the target package.
+     * Package-private for unit testing. Does NOT touch notifications or ActivityStack.
+     *
+     * @param keepPackageName package to keep alive
+     * @return list of processes that were killed
+     */
+    List<ProcessRecord> performKillAllOtherProcessesLocked(String keepPackageName) {
+        List<ProcessRecord> toKill = new ArrayList<>();
+        for (ProcessRecord record : mPidsSelfLocked) {
+            if (!record.getPackageName().equals(keepPackageName)) {
+                toKill.add(record);
+            }
+        }
+        for (ProcessRecord record : toKill) {
+            record.kill();
+            Map<String, ProcessRecord> process = mProcessMap.get(record.buid);
+            if (process != null) {
+                process.remove(record.processName);
+                if (process.isEmpty()) {
+                    mProcessMap.remove(record.buid);
+                }
+            }
+            mPidsSelfLocked.remove(record);
+        }
+        Slog.d(TAG, "Single instance mode: killed " + toKill.size() + " other process(es), keeping " + keepPackageName);
+        return toKill;
     }
 
     public List<ProcessRecord> getPackageProcessAsUser(String packageName, int userId) {

@@ -1,0 +1,5 @@
+05-30 03:47:24.221 28501 28501 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+05-30 03:47:24.225 28501 28501 I AndroidRuntime: Using default boot image
+05-30 03:47:24.225 28501 28501 I AndroidRuntime: Leaving lock profiling enabled
+05-30 03:47:24.367 28501 28501 D AndroidRuntime: Calling main entry com.android.commands.input.Input
+05-30 03:47:24.417 28501 28501 D AndroidRuntime: Shutting down VM
