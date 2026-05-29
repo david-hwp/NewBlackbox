@@ -31,10 +31,13 @@ public class AppSystemEnv {
         sSystemPackages.add("com.google.android.inputmethod.latin");
         
 
-        
+
         sSystemPackages.add("com.huawei.webview");
 
-        
+
+        sSystemPackages.add("com.hihonor.webview");
+
+
         sSystemPackages.add("com.coloros.safecenter");
 
         
