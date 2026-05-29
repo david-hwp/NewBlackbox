@@ -1,117 +1,182 @@
 #!/usr/bin/env bash
-# e2e/tests/phase1_single_instance.sh — Test Phase 1 single-instance mode
+# e2e/tests/phase1_single_instance.sh — Phase 1 Single-Instance Mode Smoke Test
 #
-# Validates:
-#   1. Single-instance toggle exists in Settings
-#   2. Toggle can be enabled/disabled
-#   3. When enabled, launching same app reuses existing process
-#   4. ActivityStack records are cleaned up correctly
+# Manual test flow:
+#   1. Enable single-instance mode in Settings, restart BlackBox
+#   2. Launch first clone app (e.g. 美团外卖商家版), wait for full load
+#   3. Return to BlackBox, launch second clone app (e.g. 淘宝闪购)
+#   4. Open Recent Tasks (swipe up + hold)
+#   5. EXPECTED: Only BlackBox + second app visible; first app should be gone
+#   6. Tap "X" in BlackBox to kill all running apps (clean state)
+#
+# This script automates log collection and analysis.
 
 set -euo pipefail
 
-# ── Test ───────────────────────────────────────────────────────────────────
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/../lib/utils.sh" 2>/dev/null || {
+    # Fallback if utils.sh not available
+    ADB="${ADB:-adb}"
+    log_info() { echo "[INFO] $*"; }
+    log_ok()   { echo "[OK]   $*"; }
+    log_warn() { echo "[WARN] $*"; }
+    log_err()  { echo "[ERR]  $*"; }
+}
+
+PACKAGE="top.niunaijun.blackbox"
+LOG_DIR="${LOG_DIR:-e2e/logs}"
+mkdir -p "$LOG_DIR"
+
+TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+LOG_FILE="$LOG_DIR/${TIMESTAMP}_phase1_single_instance.log"
+
+# ── Main Test ──────────────────────────────────────────────────────────────
 
 run_test() {
-    log_info "=== Phase 1: Single-Instance Mode Test ==="
+    log_info "=== Phase 1: Single-Instance Mode Smoke Test ==="
+    log_info "Log file: $LOG_FILE"
+    echo ""
 
-    # Step 1: Ensure clean state
-    clear_app_data
+    # Check device
+    if ! $ADB devices | grep -q "device$"; then
+        log_err "No Android device connected. Please connect your phone."
+        exit 1
+    fi
+    log_ok "Device connected"
+
+    # Clear logcat
+    log_info "Clearing logcat buffer..."
+    $ADB logcat -c 2>/dev/null || true
+
+    # Start collecting logs
+    log_info "Starting logcat collection..."
+    $ADB logcat -s "BlackBoxCore" "BProcessManager" "ActivityStack" "BActivityManager" > "$LOG_FILE" &
+    LOGCAT_PID=$!
     sleep 1
 
-    # Step 2: Install app (reinstall to ensure fresh start)
-    local apk
-    apk=$(find_latest_apk)
-    install_apk "$apk"
-    assert_package_installed
-
-    # Step 3: Launch and navigate to Settings
+    # Launch BlackBox
     log_info "Launching BlackBox..."
-    start_app
-    sleep 3
-
-    # Step 4: Navigate to Settings tab via bottom nav
-    log_info "Tapping Settings tab..."
-    tap 730 2150 2>/dev/null || true
+    $ADB shell am start -n "$PACKAGE/top.niunaijun.blackboxa.view.main.MainActivity" 2>/dev/null || true
     sleep 2
 
-    local ss_settings
-    ss_settings=$(take_screenshot "phase1_settings_default")
-    log_ok "Settings (default): $ss_settings"
-    TEST_SCREENSHOT="$(basename "$ss_settings")"
+    # ── Manual steps prompt ──────────────────────────────────────────────
+    cat << 'EOF'
 
-    # Step 5: Toggle single-instance mode ON
-    # The switch is typically near the top of settings. We use UI coordinates.
-    # For MIX 2S (1080x2160), the switch is roughly at (930, 500-700 range)
-    log_info "Toggling single-instance mode ON..."
-    tap 930 600 2>/dev/null || true
+========================================
+MANUAL TEST STEPS
+========================================
+
+Preparation:
+  1. Go to BlackBox Settings
+  2. Enable "Single Instance Mode" switch
+  3. Restart BlackBox when prompted
+
+Test:
+  4. Tap the FIRST clone app (e.g. 美团外卖商家版)
+     → Wait until it FULLY loads (see order page)
+
+  5. Return to BlackBox (BACK gesture)
+
+  6. Tap the SECOND clone app (e.g. 淘宝闪购)
+     → Wait until it appears (login page is fine)
+
+  7. Open Recent Tasks (swipe up from bottom, hold 1s)
+     → EXPECTED: Only BlackBox + second app visible
+     → The FIRST app should NOT appear in Recent Tasks
+
+  8. In BlackBox, tap the "X" button to kill all running apps
+     (creates clean state for next test)
+
+========================================
+EOF
+
+    read -r -p "Press ENTER when all steps are complete..."
+
+    # Stop logcat
+    kill $LOGCAT_PID 2>/dev/null || true
     sleep 1
 
-    local ss_on
-    ss_on=$(take_screenshot "phase1_single_instance_on")
-    log_ok "Single-instance ON: $ss_on"
+    # ── Analysis ─────────────────────────────────────────────────────────
+    echo ""
+    log_info "Analyzing logs..."
+    echo ""
 
-    # Step 6: Go back to main activity
-    press_key 4
-    sleep 1
-
-    # Step 7: Install a test virtual app (if available)
-    # For this test, we verify the setting persists
-    log_info "Verifying setting persisted..."
-    tap 730 2150 2>/dev/null || true
-    sleep 2
-
-    local ss_verify
-    ss_verify=$(take_screenshot "phase1_settings_verify")
-    log_ok "Settings verify: $ss_verify"
-
-    # Step 8: Toggle OFF (restore default)
-    log_info "Toggling single-instance mode OFF (cleanup)..."
-    tap 930 600 2>/dev/null || true
-    sleep 1
-
-    local ss_off
-    ss_off=$(take_screenshot "phase1_single_instance_off")
-    log_ok "Single-instance OFF: $ss_off"
-
-    # Step 9: Check logcat for single-instance related logs
-    log_info "Checking logs for single-instance activity..."
-    if $ADB logcat -d -t 300 | grep -qiE "single.instance|singleInstance|SingleInstance"; then
-        log_ok "Single-instance mode log entries found"
-    else
-        log_warn "No single-instance log entries found (may be filtered or using different tag)"
+    if [ ! -f "$LOG_FILE" ]; then
+        log_err "Log file not found"
+        exit 1
     fi
 
-    # Step 10: Simulate app launch and check process behavior
-    log_info "Testing process launch behavior..."
-    press_key 4
-    sleep 1
-    start_app
-    sleep 2
+    # 1. Check trigger
+    TRIGGER=$(grep -c "Single instance mode: killing other running apps" "$LOG_FILE" || echo 0)
+    if [ "$TRIGGER" -gt 0 ]; then
+        log_ok "Single-instance TRIGGERED ($TRIGGER time(s))"
+        grep "Single instance mode: killing other running apps" "$LOG_FILE" | head -3
+    else
+        log_err "Single-instance NOT triggered — verify setting is ON and app was restarted"
+    fi
+    echo ""
 
-    # Get process count before
-    local pre_count
-    pre_count=$($ADB shell ps | grep "$PACKAGE" | wc -l | tr -d ' ')
-    log_info "Process count before second launch: $pre_count"
+    # 2. Check kill results
+    KILL=$(grep -c "Single instance mode: killed" "$LOG_FILE" || echo 0)
+    if [ "$KILL" -gt 0 ]; then
+        log_ok "Process kill executed ($KILL time(s))"
+        grep "Single instance mode: killed" "$LOG_FILE" | head -3
+    else
+        log_err "No process kill recorded"
+    fi
+    echo ""
 
-    # Launch again (simulate second launch)
-    start_app
-    sleep 2
+    # 3. Check activity finish
+    FINISH=$(grep -c "Single instance mode: finished activities" "$LOG_FILE" || echo 0)
+    if [ "$FINISH" -gt 0 ]; then
+        log_ok "Activity finish executed ($FINISH time(s))"
+        grep "Single instance mode: finished activities" "$LOG_FILE" | head -3
+    else
+        log_warn "No activity finish recorded"
+    fi
+    echo ""
 
-    # Get process count after
-    local post_count
-    post_count=$($ADB shell ps | grep "$PACKAGE" | wc -l | tr -d ' ')
-    log_info "Process count after second launch: $post_count"
+    # 4. Check for cross-process call
+    CROSS=$(grep -c "killAllOtherProcesses" "$LOG_FILE" || echo 0)
+    if [ "$CROSS" -gt 0 ]; then
+        log_ok "Cross-process AIDL call observed ($CROSS time(s))"
+    else
+        log_warn "No AIDL call observed in logs"
+    fi
+    echo ""
 
-    # With single-instance OFF, process count should be same or increased
-    # With single-instance ON, should reuse (same count)
-    log_ok "Process behavior observed: $pre_count → $post_count"
+    # 5. Check errors
+    ERRORS=$(grep -cE "Failed to kill|Failed to finish|RemoteException" "$LOG_FILE" || echo 0)
+    if [ "$ERRORS" -gt 0 ]; then
+        log_err "Errors detected ($ERRORS):"
+        grep -E "Failed to kill|Failed to finish|RemoteException" "$LOG_FILE" | head -5
+    else
+        log_ok "No errors detected"
+    fi
+    echo ""
 
-    # Step 11: Final cleanup
-    capture_logcat "phase1_full"
+    # 6. Show all relevant lines
+    echo "--- All relevant log lines ---"
+    grep -E "Single instance|killAllOtherProcesses|finishAllActivitiesExcept" "$LOG_FILE" | tail -30 || echo "(none)"
+    echo ""
 
-    log_ok "=== Phase 1 Test Complete ==="
+    # ── Summary ──────────────────────────────────────────────────────────
+    echo "========================================"
+    echo "TEST SUMMARY"
+    echo "========================================"
+    printf "%-20s %s\n" "Trigger:" "$([ "$TRIGGER" -gt 0 ] && echo "PASS ✓" || echo "FAIL ✗")"
+    printf "%-20s %s\n" "Process kill:" "$([ "$KILL" -gt 0 ] && echo "PASS ✓" || echo "FAIL ✗")"
+    printf "%-20s %s\n" "Activity finish:" "$([ "$FINISH" -gt 0 ] && echo "PASS ✓" || echo "WARN ⚠")"
+    printf "%-20s %s\n" "AIDL call:" "$([ "$CROSS" -gt 0 ] && echo "PASS ✓" || echo "WARN ⚠")"
+    printf "%-20s %s\n" "Errors:" "$([ "$ERRORS" -eq 0 ] && echo "PASS ✓" || echo "FAIL ✗")"
+    echo ""
+    echo "Full log: $LOG_FILE"
+
+    # Return non-zero if any critical check failed
+    if [ "$TRIGGER" -eq 0 ] || [ "$KILL" -eq 0 ] || [ "$ERRORS" -gt 0 ]; then
+        return 1
+    fi
     return 0
 }
 
-# Execute test
 run_test

@@ -349,7 +349,22 @@ public class BActivityManagerService extends IBActivityManagerService.Stub imple
 
     @Override
     public void killAllOtherProcesses(String keepPackageName, int userId) throws RemoteException {
+        Slog.d(TAG, "killAllOtherProcesses called from Binder, keep=" + keepPackageName + " userId=" + userId);
+        // Step 1: Finish all non-target activities FIRST (while process is alive and bActivityThread is valid)
+        UserSpace userSpace = getOrCreateSpaceLocked(userId);
+        synchronized (userSpace.mStack) {
+            userSpace.mStack.finishAllActivitiesExcept(keepPackageName, userId);
+        }
+        // BActivityThread.finishActivity() posts to Handler — give it time to process
+        // before killing the process, otherwise the finish request is lost
+        try {
+            Thread.sleep(300);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        // Step 2: Kill the processes after activities are finished
         BProcessManagerService.get().killAllOtherProcesses(keepPackageName, userId);
+        Slog.d(TAG, "killAllOtherProcesses completed");
     }
 
     @Override

@@ -1100,7 +1100,9 @@ public class BlackBoxCore extends ClientConfiguration {
         onBeforeMainLaunchApk(packageName, userId);
 
         // Single instance mode: kill other running clone apps before launching
-        if (mClientConfiguration != null && mClientConfiguration.isSingleInstanceMode()) {
+        boolean singleInstance = mClientConfiguration != null && mClientConfiguration.isSingleInstanceMode();
+        Slog.d(TAG, "launchApk: singleInstanceMode=" + singleInstance + " pkg=" + packageName);
+        if (singleInstance) {
             Slog.d(TAG, "Single instance mode: killing other running apps before launching " + packageName);
             try {
                 getBActivityManager().killAllOtherProcesses(packageName, userId);

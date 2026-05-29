@@ -53,6 +53,7 @@ echo ""
 RUN_START=$(start_timer)
 
 check_device || exit 1
+ensure_unlocked
 
 # Initialize report
 REPORT_FILE=$(init_report)

@@ -94,6 +94,111 @@ check_device() {
     log_ok "Device connected: $model (Android $android_ver)"
 }
 
+# ── Screen / Lock State ────────────────────────────────────────────────────
+is_screen_on() {
+    local state
+    state=$($ADB shell dumpsys power 2>/dev/null | grep "Display Power:" | awk '{print $3}')
+    [[ "$state" == "state=ON" ]]
+}
+
+is_locked() {
+    local restricted
+    restricted=$($ADB shell dumpsys window 2>/dev/null | grep "mInputRestricted" | head -1)
+    [[ "$restricted" == *"mInputRestricted=true"* ]]
+}
+
+wake_screen() {
+    if ! is_screen_on; then
+        log_info "Waking screen (power key)..."
+        $ADB shell input keyevent 26   # KEYCODE_POWER
+        sleep 1
+    fi
+}
+
+unlock_swipe() {
+    # Swipe up to dismiss swipe-lock (no PIN/password)
+    # Coordinates: bottom-center → top-center
+    log_info "Swiping to unlock..."
+    $ADB shell input swipe 540 2150 540 300 800
+    sleep 2
+}
+
+# PIN keypad coordinates for MIX 2S (1080×2160)
+# Layout:
+#   1(270,1400)  2(540,1400)  3(810,1400)
+#   4(270,1600)  5(540,1600)  6(810,1600)
+#   7(270,1800)  8(540,1800)  9(810,1800)
+#                0(540,2000)
+tap_digit() {
+    local d="$1"
+    case "$d" in
+        0) tap 540 2000 ;;
+        1) tap 270 1400 ;;
+        2) tap 540 1400 ;;
+        3) tap 810 1400 ;;
+        4) tap 270 1600 ;;
+        5) tap 540 1600 ;;
+        6) tap 810 1600 ;;
+        7) tap 270 1800 ;;
+        8) tap 540 1800 ;;
+        9) tap 810 1800 ;;
+    esac
+    sleep 0.3
+}
+
+unlock_pin_keyevent() {
+    local pin="${1:-0803}"
+    log_info "Entering PIN via keyevent: $pin"
+    local i ch code
+    for ((i=0; i<${#pin}; i++)); do
+        ch="${pin:$i:1}"
+        # KEYCODE_0=7, KEYCODE_1=8, ..., KEYCODE_9=16
+        code=$((7 + ch))
+        $ADB shell input keyevent "$code"
+        sleep 0.5
+    done
+    # KEYCODE_ENTER = 66
+    $ADB shell input keyevent 66
+    sleep 2
+}
+
+ensure_unlocked() {
+    # MIUI (MIX 2S) verified unlock flow:
+    # 1. Ensure screen is off (keyevent 26)
+    # 2. Wake with KEYCODE_WAKEUP (224)
+    # 3. Swipe up from very bottom (long duration)
+    # 4. Enter PIN via keyevent
+    # 5. Press Enter
+
+    if is_screen_on && ! is_locked; then
+        return 0
+    fi
+
+    log_warn "Device is locked; unlocking..."
+
+    # Step 1: Force screen off then wake (resets lock state)
+    $ADB shell input keyevent 26
+    sleep 2
+
+    # Step 2: Wake
+    $ADB shell input keyevent 224
+    sleep 2
+
+    # Step 3: Swipe up (long swipe from bottom)
+    $ADB shell input swipe 540 2150 540 300 800
+    sleep 3
+
+    # Step 4: Enter PIN
+    unlock_pin_keyevent "0803"
+
+    # Step 5: Verify
+    if is_locked; then
+        log_warn "Device still locked — may need manual unlock."
+    else
+        log_ok "Device unlocked"
+    fi
+}
+
 # ── Build ──────────────────────────────────────────────────────────────────
 build_apk() {
     log_info "Building debug APK..."

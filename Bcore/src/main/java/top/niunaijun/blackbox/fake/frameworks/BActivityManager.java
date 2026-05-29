@@ -450,10 +450,13 @@ public class BActivityManager extends BlackManager<IBActivityManagerService> {
     }
 
     public void killAllOtherProcesses(String keepPackageName, int userId) {
+        Slog.d(TAG, "killAllOtherProcesses client: keep=" + keepPackageName + " userId=" + userId);
         try {
             IBActivityManagerService service = getService();
             if (service != null) {
+                Slog.d(TAG, "killAllOtherProcesses: calling Binder service");
                 service.killAllOtherProcesses(keepPackageName, userId);
+                Slog.d(TAG, "killAllOtherProcesses: Binder call completed");
             } else {
                 Slog.w(TAG, "ActivityManager service is null for killAllOtherProcesses");
             }

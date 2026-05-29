@@ -19,3 +19,7 @@
 .cxx
 local.properties
 /app/release/
+
+# E2E test generated files
+/e2e/screenshots/
+/e2e/logs/
