@@ -81,21 +81,69 @@ class AppsRepository {
     fun previewInstallList() {
         try {
             synchronized(mInstalledList) {
-                val installedApplications: List<ApplicationInfo> =
+                var installedApplications: List<ApplicationInfo> =
                         BlackBoxCore.getPackageManager().getInstalledApplications(0)
+
+                Log.d(TAG, "previewInstallList: getInstalledApplications returned ${installedApplications.size} apps")
+
+                // Honor/Huawei/MagicOS restriction: getInstalledApplications may return only self
+                // when "Read installed app list" permission is denied. Fallback to queryIntentActivities.
+                if (installedApplications.size <= 1) {
+                    Log.w(TAG, "previewInstallList: Only ${installedApplications.size} app(s) returned, trying queryIntentActivities fallback")
+                    try {
+                        val pm = BlackBoxCore.getPackageManager()
+                        val intent = android.content.Intent(android.content.Intent.ACTION_MAIN)
+                        intent.addCategory(android.content.Intent.CATEGORY_LAUNCHER)
+                        val resolveInfos = pm.queryIntentActivities(intent, 0)
+                        Log.d(TAG, "previewInstallList: queryIntentActivities returned ${resolveInfos.size} apps")
+
+                        val fallbackApps = mutableListOf<ApplicationInfo>()
+                        val seenPackages = mutableSetOf<String>()
+                        for (ri in resolveInfos) {
+                            val ai = ri.activityInfo?.applicationInfo ?: continue
+                            if (seenPackages.add(ai.packageName)) {
+                                fallbackApps.add(ai)
+                            }
+                        }
+                        if (fallbackApps.size > installedApplications.size) {
+                            Log.d(TAG, "previewInstallList: Using fallback with ${fallbackApps.size} apps")
+                            installedApplications = fallbackApps
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "previewInstallList: Fallback queryIntentActivities failed: ${e.message}")
+                    }
+                }
+
                 val installedList = mutableListOf<AppInfo>()
+
+                var skippedSystem = 0
+                var skippedAbi = 0
+                var skippedBlackBox = 0
+                var skippedNullSource = 0
+                var processedCount = 0
 
                 for (installedApplication in installedApplications) {
                     try {
+                        if (installedApplication.sourceDir.isNullOrBlank()) {
+                            skippedNullSource++
+                            Log.w(TAG, "Skipping app with null/blank sourceDir: ${installedApplication.packageName}")
+                            continue
+                        }
+
                         val file = File(installedApplication.sourceDir)
 
-                        if ((installedApplication.flags and ApplicationInfo.FLAG_SYSTEM) != 0)
-                                continue
+                        if ((installedApplication.flags and ApplicationInfo.FLAG_SYSTEM) != 0) {
+                            skippedSystem++
+                            continue
+                        }
 
-                        if (!AbiUtils.isSupport(file)) continue
+                        if (!AbiUtils.isSupport(file)) {
+                            skippedAbi++
+                            continue
+                        }
 
-                        
                         if (BlackBoxCore.get().isBlackBoxApp(installedApplication.packageName)) {
+                            skippedBlackBox++
                             Log.d(
                                     TAG,
                                     "Filtering out BlackBox app: ${installedApplication.packageName}"
@@ -110,12 +158,13 @@ class AppsRepository {
                                         safeLoadAppLabel(installedApplication),
                                         safeLoadAppIcon(
                                                 installedApplication
-                                        ), 
+                                        ),
                                         installedApplication.packageName,
                                         installedApplication.sourceDir,
                                         isXpModule
                                 )
                         installedList.add(info)
+                        processedCount++
                     } catch (e: Exception) {
                         Log.e(
                                 TAG,
@@ -123,8 +172,16 @@ class AppsRepository {
                         )
                     }
                 }
+                Log.d(TAG, "previewInstallList: skippedSystem=$skippedSystem, skippedAbi=$skippedAbi, " +
+                        "skippedBlackBox=$skippedBlackBox, skippedNullSource=$skippedNullSource, processed=$processedCount")
                 this.mInstalledList.clear()
                 this.mInstalledList.addAll(installedList)
+                Log.d(TAG, "previewInstallList: Final mInstalledList size = ${mInstalledList.size}")
+                if (mInstalledList.isEmpty()) {
+                    Log.w(TAG, "previewInstallList: mInstalledList is empty! " +
+                            "This may be caused by Honor/Huawei/MagicOS 'Read installed app list' permission restriction. " +
+                            "Please go to Settings > Apps > BlackBox > Permissions and enable 'Read installed app list'.")
+                }
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error in previewInstallList: ${e.message}")
