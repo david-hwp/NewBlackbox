@@ -31,7 +31,7 @@ public abstract class ClientConfiguration {
     }
 
     public boolean isSingleInstanceMode() {
-        return false;
+        return true;
     }
 
     public boolean requestInstallPackage(File file, int userId) {
