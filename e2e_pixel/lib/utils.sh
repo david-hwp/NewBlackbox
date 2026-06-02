@@ -175,6 +175,7 @@ stop_app() {
 # ── Screenshots ──
 take_screenshot() {
     local name="${1:-screenshot}"
+    mkdir -p "$SCREENSHOT_DIR"
     local file="$SCREENSHOT_DIR/${TIMESTAMP}_${name}.png"
     $ADB shell screencap -p /sdcard/e2e_tmp.png 2>/dev/null || $ADB shell screencap -p /data/local/tmp/e2e_tmp.png
     $ADB pull /sdcard/e2e_tmp.png "$file" 2>/dev/null || $ADB pull /data/local/tmp/e2e_tmp.png "$file"
@@ -195,6 +196,7 @@ press_key() {
 # ── Log Capture ──
 capture_logcat() {
     local name="${1:-logcat}"
+    mkdir -p "$LOG_DIR"
     local file="$LOG_DIR/${TIMESTAMP}_${name}.log"
     $ADB logcat -d -t 1000 | grep -E "BlackBoxCore|BWebViewEnvironment|WebViewFactoryProxy|IWebViewUpdateServiceProxy|AndroidRuntime|FATAL|BActivityThread" > "$file" 2>/dev/null || true
     echo "$file"
