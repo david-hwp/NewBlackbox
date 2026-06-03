@@ -1,5 +1,6 @@
 package top.niunaijun.blackboxa.view.main
 
+import android.Manifest
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -49,6 +50,16 @@ class MainActivity : LoadingActivity() {
         private const val TAG = "MainActivity"
         private const val STORAGE_PERMISSION_REQUEST_CODE = 1001
         private const val VPN_PERMISSION_REQUEST_CODE = 1002
+        private const val ALL_PERMISSIONS_REQUEST_CODE = 1003
+
+        private val ALL_PERMISSIONS = arrayOf(
+            Manifest.permission.CAMERA,
+            Manifest.permission.RECORD_AUDIO,
+            Manifest.permission.ACCESS_FINE_LOCATION,
+            Manifest.permission.ACCESS_COARSE_LOCATION,
+            Manifest.permission.READ_PHONE_STATE,
+            Manifest.permission.READ_CONTACTS
+        )
 
         fun start(context: Context) {
             val intent = Intent(context, MainActivity::class.java)
@@ -67,6 +78,7 @@ class MainActivity : LoadingActivity() {
             initToolbarSubTitle()
 
             checkStoragePermission()
+            checkAllPermissions()
             checkVpnPermission()
             ensureEngineConnection()
             checkForEngineUpgrade()
@@ -217,6 +229,32 @@ class MainActivity : LoadingActivity() {
         }
     }
 
+    /**
+     * 统一申请分身应用需要的所有运行时权限。
+     * 避免用户在使用分身时逐个遇到权限弹窗。
+     */
+    private fun checkAllPermissions() {
+        try {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                val denied = ALL_PERMISSIONS.filter { perm ->
+                    androidx.core.content.ContextCompat.checkSelfPermission(this, perm) != android.content.pm.PackageManager.PERMISSION_GRANTED
+                }
+                if (denied.isNotEmpty()) {
+                    Log.d(TAG, "Requesting ${denied.size} permissions: ${denied.joinToString()}")
+                    androidx.core.app.ActivityCompat.requestPermissions(
+                        this,
+                        denied.toTypedArray(),
+                        ALL_PERMISSIONS_REQUEST_CODE
+                    )
+                } else {
+                    Log.d(TAG, "All runtime permissions already granted")
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error checking all permissions: ${e.message}")
+        }
+    }
+
     override fun onRequestPermissionsResult(
         requestCode: Int,
         permissions: Array<out String>,
@@ -232,6 +270,18 @@ class MainActivity : LoadingActivity() {
                 Log.d(TAG, "Storage permissions granted")
             } else {
                 Log.w(TAG, "Storage permissions denied")
+            }
+        } else if (requestCode == ALL_PERMISSIONS_REQUEST_CODE) {
+            if (grantResults.isNotEmpty()) {
+                val grantedCount = grantResults.count { it == android.content.pm.PackageManager.PERMISSION_GRANTED }
+                val totalCount = grantResults.size
+                Log.d(TAG, "All permissions result: $grantedCount / $totalCount granted")
+                if (grantedCount < totalCount) {
+                    val deniedPerms = permissions.zip(grantResults.toList())
+                        .filter { it.second != android.content.pm.PackageManager.PERMISSION_GRANTED }
+                        .map { it.first }
+                    Log.w(TAG, "Denied permissions: ${deniedPerms.joinToString()}")
+                }
             }
         }
     }

@@ -144,10 +144,7 @@ public class IPackageManagerProxy extends BinderInvocationStub {
                 if (packageInfo.requestedPermissions != null && packageInfo.requestedPermissionsFlags != null) {
                     for (int i = 0; i < packageInfo.requestedPermissions.length; i++) {
                         String perm = packageInfo.requestedPermissions[i];
-                        if (perm != null && (perm.equals(android.Manifest.permission.RECORD_AUDIO)
-                                || perm.equals("android.permission.FOREGROUND_SERVICE_MICROPHONE")
-                                || perm.equals(android.Manifest.permission.MODIFY_AUDIO_SETTINGS)
-                                || perm.equals(android.Manifest.permission.CAPTURE_AUDIO_OUTPUT))) {
+                        if (perm != null && isAutoGrantedPermission(perm)) {
                             packageInfo.requestedPermissionsFlags[i] |= PackageInfo.REQUESTED_PERMISSION_GRANTED;
                         }
                     }
@@ -442,26 +439,12 @@ public class IPackageManagerProxy extends BinderInvocationStub {
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             String permission = (String) args[0];
             String packageName = (String) args[1];
-            
-            
-            if (isAudioPermission(permission)) {
-                Slog.d(TAG, "SimpleAudioPermissionHook: Granting audio permission: " + permission + " to " + packageName);
+
+            if (isAutoGrantedPermission(permission)) {
+                Slog.d(TAG, "SimpleAudioPermissionHook: Granting permission: " + permission + " to " + packageName);
                 return PackageManager.PERMISSION_GRANTED;
             }
 
-            
-            if (isStorageOrMediaPermission(permission)) {
-                Slog.d(TAG, "SimpleAudioPermissionHook: Granting storage/media permission: " + permission + " to " + packageName);
-                return PackageManager.PERMISSION_GRANTED;
-            }
-            
-            
-            if (isNotificationOrXiaomiPermission(permission)) {
-                Slog.d(TAG, "SimpleAudioPermissionHook: Granting notification/Xiaomi permission: " + permission + " to " + packageName);
-                return PackageManager.PERMISSION_GRANTED;
-            }
-            
-            
             return method.invoke(who, args);
         }
     }
@@ -472,26 +455,12 @@ public class IPackageManagerProxy extends BinderInvocationStub {
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             String permission = (String) args[0];
             String packageName = (String) args[1];
-            
-            
-            if (isAudioPermission(permission)) {
-                Slog.d(TAG, "CheckSelfPermission: Granting audio permission: " + permission + " to " + packageName);
+
+            if (isAutoGrantedPermission(permission)) {
+                Slog.d(TAG, "CheckSelfPermission: Granting permission: " + permission + " to " + packageName);
                 return PackageManager.PERMISSION_GRANTED;
             }
 
-            
-            if (isStorageOrMediaPermission(permission)) {
-                Slog.d(TAG, "CheckSelfPermission: Granting storage/media permission: " + permission + " to " + packageName);
-                return PackageManager.PERMISSION_GRANTED;
-            }
-            
-            
-            if (isNotificationOrXiaomiPermission(permission)) {
-                Slog.d(TAG, "CheckSelfPermission: Granting notification/Xiaomi permission: " + permission + " to " + packageName);
-                return PackageManager.PERMISSION_GRANTED;
-            }
-            
-            
             return method.invoke(who, args);
         }
     }
@@ -502,26 +471,12 @@ public class IPackageManagerProxy extends BinderInvocationStub {
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             String permission = (String) args[0];
             String packageName = (String) args[1];
-            
-            
-            if (isAudioPermission(permission)) {
-                Slog.d(TAG, "ShouldShowRequestPermissionRationale: Not showing rationale for audio permission: " + permission);
+
+            if (isAutoGrantedPermission(permission)) {
+                Slog.d(TAG, "ShouldShowRequestPermissionRationale: Not showing rationale for permission: " + permission);
                 return false;
             }
 
-            
-            if (isStorageOrMediaPermission(permission)) {
-                Slog.d(TAG, "ShouldShowRequestPermissionRationale: Not showing rationale for storage/media permission: " + permission);
-                return false;
-            }
-            
-            
-            if (isNotificationOrXiaomiPermission(permission)) {
-                Slog.d(TAG, "ShouldShowRequestPermissionRationale: Not showing rationale for notification/Xiaomi permission: " + permission);
-                return false;
-            }
-            
-            
             return method.invoke(who, args);
         }
     }
@@ -602,13 +557,13 @@ public class IPackageManagerProxy extends BinderInvocationStub {
     
     private static boolean isNotificationOrXiaomiPermission(String permission) {
         if (permission == null) return false;
-        
-        
+
+
         if (permission.equals("android.permission.POST_NOTIFICATIONS")) {
             return true;
         }
-        
-        
+
+
         if (permission.equals("miui.permission.USE_INTERNAL_GENERAL_API") ||
             permission.equals("miui.permission.OPTIMIZE_POWER") ||
             permission.equals("miui.permission.RUN_IN_BACKGROUND") ||
@@ -619,7 +574,84 @@ public class IPackageManagerProxy extends BinderInvocationStub {
             permission.equals("miui.permission.TURN_SCREEN_ON")) {
             return true;
         }
-        
+
+        return false;
+    }
+
+    /**
+     * 统一自动放行分身应用的所有常见权限检查。
+     * BlackBox 作为虚拟引擎，分身在沙箱中运行，默认授予全部常用权限以避免用户逐个授权。
+     */
+    private static boolean isAutoGrantedPermission(String permission) {
+        if (permission == null) return false;
+
+        // Audio
+        if (isAudioPermission(permission)) return true;
+
+        // Storage / Media
+        if (isStorageOrMediaPermission(permission)) return true;
+
+        // Notification / Xiaomi
+        if (isNotificationOrXiaomiPermission(permission)) return true;
+
+        // Location
+        if (permission.equals(android.Manifest.permission.ACCESS_FINE_LOCATION)
+                || permission.equals(android.Manifest.permission.ACCESS_COARSE_LOCATION)
+                || permission.equals(android.Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+                || permission.equals(android.Manifest.permission.ACCESS_LOCATION_EXTRA_COMMANDS)
+                || permission.equals("android.permission.LOCATION_HARDWARE")) {
+            return true;
+        }
+
+        // Camera
+        if (permission.equals(android.Manifest.permission.CAMERA)
+                || permission.equals("android.permission.FOREGROUND_SERVICE_CAMERA")) {
+            return true;
+        }
+
+        // Phone
+        if (permission.equals(android.Manifest.permission.READ_PHONE_STATE)
+                || permission.equals(android.Manifest.permission.READ_PHONE_NUMBERS)
+                || permission.equals(android.Manifest.permission.CALL_PHONE)
+                || permission.equals(android.Manifest.permission.ANSWER_PHONE_CALLS)
+                || permission.equals(android.Manifest.permission.READ_CALL_LOG)
+                || permission.equals(android.Manifest.permission.PROCESS_OUTGOING_CALLS)) {
+            return true;
+        }
+
+        // Contacts
+        if (permission.equals(android.Manifest.permission.READ_CONTACTS)
+                || permission.equals(android.Manifest.permission.WRITE_CONTACTS)
+                || permission.equals(android.Manifest.permission.GET_ACCOUNTS)) {
+            return true;
+        }
+
+        // SMS
+        if (permission.equals(android.Manifest.permission.SEND_SMS)
+                || permission.equals(android.Manifest.permission.READ_SMS)
+                || permission.equals(android.Manifest.permission.RECEIVE_SMS)) {
+            return true;
+        }
+
+        // Bluetooth
+        if (permission.equals(android.Manifest.permission.BLUETOOTH_SCAN)
+                || permission.equals(android.Manifest.permission.BLUETOOTH_CONNECT)
+                || permission.equals(android.Manifest.permission.BLUETOOTH_ADVERTISE)) {
+            return true;
+        }
+
+        // Sensors
+        if (permission.equals(android.Manifest.permission.BODY_SENSORS)
+                || permission.equals("android.permission.HIGH_SAMPLING_RATE_SENSORS")
+                || permission.equals(android.Manifest.permission.ACTIVITY_RECOGNITION)) {
+            return true;
+        }
+
+        // Phone state / Account (legacy compatibility)
+        if (permission.equals(android.Manifest.permission.ACCOUNT_MANAGER)) {
+            return true;
+        }
+
         return false;
     }
 
