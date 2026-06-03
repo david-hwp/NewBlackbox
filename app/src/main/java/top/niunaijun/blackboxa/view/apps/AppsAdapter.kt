@@ -68,16 +68,26 @@ class AppsAdapter : RVHolderFactory() {
                 setIconSafely(item.icon, item.packageName)
                 
                 
-                binding.name.text = item.name ?: "Unknown App"
-                
-                
+                val displayName = if (!item.shopId.isNullOrBlank()) {
+                    "${item.name}-${item.shopId}"
+                } else {
+                    item.name ?: "Unknown App"
+                }
+                binding.name.text = displayName
+
+                if (!item.shopId.isNullOrBlank()) {
+                    binding.shopId.visibility = View.VISIBLE
+                    binding.shopId.text = item.shopId
+                } else {
+                    binding.shopId.visibility = View.GONE
+                }
+
                 if (item.isXpModule) {
                     binding.cornerLabel.visibility = View.VISIBLE
                 } else {
                     binding.cornerLabel.visibility = View.INVISIBLE
                 }
-                
-                
+
                 isAttached = true
                 
             } catch (e: Exception) {
@@ -141,6 +151,7 @@ class AppsAdapter : RVHolderFactory() {
             try {
                 binding.icon.setImageDrawable(createDefaultIcon())
                 binding.name.text = "Unknown App"
+                binding.shopId.visibility = View.GONE
                 binding.cornerLabel.visibility = View.INVISIBLE
             } catch (e: Exception) {
                 Log.e(TAG, "Error setting safe defaults: ${e.message}")
@@ -154,9 +165,20 @@ class AppsAdapter : RVHolderFactory() {
 
         override fun setContent(item: AppInfo, isSelected: Boolean, payload: Any?) {
             try {
-                
+
                 binding.icon.setImageDrawable(ColorDrawable(DEFAULT_ICON_COLOR))
-                binding.name.text = item.name ?: "Unknown App"
+                val displayName = if (!item.shopId.isNullOrBlank()) {
+                    "${item.name}-${item.shopId}"
+                } else {
+                    item.name ?: "Unknown App"
+                }
+                binding.name.text = displayName
+                if (!item.shopId.isNullOrBlank()) {
+                    binding.shopId.visibility = View.VISIBLE
+                    binding.shopId.text = item.shopId
+                } else {
+                    binding.shopId.visibility = View.GONE
+                }
                 binding.cornerLabel.visibility = View.INVISIBLE
             } catch (e: Exception) {
                 Log.e(TAG, "Error in fallback ViewHolder: ${e.message}")
