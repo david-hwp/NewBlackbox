@@ -38,5 +38,15 @@
             android:textColor="@color/primary_text"
             android:textSize="12sp" />
 
+    <TextView
+            android:id="@+id/shopId"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="1dp"
+            android:textColor="@color/secondary_text"
+            android:textSize="10sp"
+            android:visibility="gone"
+            android:maxLines="1"
+            android:ellipsize="end" />
 
 </LinearLayout>
