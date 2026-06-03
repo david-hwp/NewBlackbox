@@ -827,10 +827,7 @@ public class BPackageManagerService extends IBPackageManagerService.Stub impleme
             if (ps == null) {
                 return;
             }
-            BPackageUserState state = ps.modifyUserState(userId);
-            state.shopId = shopInfo.shopId;
-            state.shopName = shopInfo.shopName;
-            state.platform = shopInfo.platform;
+            ps.setShopInfo(shopInfo, userId);
             ps.save();
             Slog.d(TAG, "Updated shop info for " + packageName + ": " + shopInfo.shopId);
         }
@@ -845,10 +842,7 @@ public class BPackageManagerService extends IBPackageManagerService.Stub impleme
             if (ps == null) {
                 return;
             }
-            BPackageUserState state = ps.modifyUserState(userId);
-            state.shopId = null;
-            state.shopName = null;
-            state.platform = null;
+            ps.clearShopInfo(userId);
             ps.save();
             Slog.d(TAG, "Cleared shop info for " + packageName);
         }
