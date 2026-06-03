@@ -1,16 +1,14 @@
 package top.niunaijun.blackboxa.view.main
 
-import android.content.Intent
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.ViewModelProvider
-import top.niunaijun.blackbox.BlackBoxCore
 import top.niunaijun.blackboxa.util.InjectionUtil
 import top.niunaijun.blackboxa.view.list.ListViewModel
 
 class WelcomeActivity : AppCompatActivity() {
 
-    override fun onNewIntent(intent: Intent?) {
+    override fun onNewIntent(intent: android.content.Intent?) {
         super.onNewIntent(intent)
         jump()
     }

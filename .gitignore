@@ -27,3 +27,13 @@ local.properties
 
 # All E2E directories (e2e_pixel*, e2e_emulator*, e2e_honor*, etc.)
 e2e_*/
+
+# Bundled Engine APK (generated during build)
+app/src/main/assets/engine/
+
+# Engine AIDL build outputs
+engine-aidl/build/
+
+# Planning docs (local only)
+.planning/
+

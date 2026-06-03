@@ -70,6 +70,8 @@ class ListActivity : BaseActivity() {
                 ViewModelProvider(this, InjectionUtil.getListFactory())
                         .get(ListViewModel::class.java)
         val userID = intent.getIntExtra("userID", 0)
+        // Preload app list so that getInstallAppList has data to display
+        viewModel.previewInstalledList()
         viewModel.getInstallAppList(userID)
         viewBinding.toolbarLayout.toolbar.setTitle(R.string.installed_app)
 

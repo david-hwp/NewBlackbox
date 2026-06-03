@@ -12,11 +12,12 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import cbfg.rvadapter.RVAdapter
 import com.afollestad.materialdialogs.MaterialDialog
 import com.ferfalk.simplesearchview.SimpleSearchView
+import android.util.Log
 import top.niunaijun.blackbox.entity.location.BLocation
-import top.niunaijun.blackbox.fake.frameworks.BLocationManager
 import top.niunaijun.blackboxa.R
 import top.niunaijun.blackboxa.bean.FakeLocationBean
 import top.niunaijun.blackboxa.databinding.ActivityListBinding
+import top.niunaijun.blackboxa.engine.EngineProxy
 import top.niunaijun.blackboxa.util.InjectionUtil
 import top.niunaijun.blackboxa.util.inflate
 import top.niunaijun.blackboxa.util.toast
@@ -28,7 +29,7 @@ class FakeManagerActivity : BaseActivity() {
 
     private val viewBinding: ActivityListBinding by inflate()
 
-    
+
     private lateinit var mAdapter: RVAdapter<FakeLocationBean>
 
     private lateinit var viewModel: FakeLocationViewModel
@@ -67,10 +68,15 @@ class FakeManagerActivity : BaseActivity() {
             message(text = getString(R.string.close_app_fake_location,item.name))
             negativeButton(R.string.cancel)
             positiveButton(R.string.done){
-                BLocationManager.disableFakeLocation(currentUserID(),item.packageName)
-                toast(getString(R.string.close_fake_location_success,item.name))
-                item.fakeLocationPattern = BLocationManager.CLOSE_MODE
-                mAdapter.replaceAt(position,item)
+                try {
+                    // Use setPattern with mode 0 (CLOSE_MODE) since disableFakeLocation is not in AIDL
+                    EngineProxy.getLocationManager()?.setPattern(currentUserID(), item.packageName, 0)
+                    toast(getString(R.string.close_fake_location_success,item.name))
+                    item.fakeLocationPattern = 0 // CLOSE_MODE = 0
+                    mAdapter.replaceAt(position,item)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error disabling fake location: ${e.message}")
+                }
             }
         }
     }
@@ -129,7 +135,7 @@ class FakeManagerActivity : BaseActivity() {
                     val longitude = data.getDoubleExtra("longitude", 0.0)
                     val pkg = data.getStringExtra("pkg")
 
-                    viewModel.setPattern(currentUserID(), pkg.toString(), BLocationManager.OWN_MODE)
+                    viewModel.setPattern(currentUserID(), pkg.toString(), 1) // OWN_MODE = 1
                     viewModel.setLocation(currentUserID(), pkg.toString(), BLocation(latitude, longitude))
 
                     toast(getString(R.string.set_location,latitude.toString(), longitude.toString()))

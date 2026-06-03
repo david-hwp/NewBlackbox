@@ -485,8 +485,18 @@
     <uses-permission android:name="android.permission.READ_MEDIA_VISUAL_USER_SELECTED" />
     <uses-permission android:name="android.permission.READ_MEDIA_AURAL_USER_SELECTED" />
 
+    <permission
+        android:name="${applicationId}.permission.BIND_ENGINE"
+        android:protectionLevel="signature" />
+
     <application
+        android:name=".engine.EngineApp"
         android:usesCleartextTraffic="true">
+
+        <service
+            android:name=".engine.BlackBoxEngineService"
+            android:exported="true"
+            android:permission="${applicationId}.permission.BIND_ENGINE" />
         <provider
             android:name="top.niunaijun.blackbox.core.system.SystemCallProvider"
             android:authorities="${applicationId}.blackbox.SystemCallProvider"

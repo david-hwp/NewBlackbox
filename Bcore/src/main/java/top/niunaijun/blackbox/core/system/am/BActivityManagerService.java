@@ -23,6 +23,7 @@ import top.niunaijun.blackbox.core.system.pm.BPackageManagerService;
 import top.niunaijun.blackbox.entity.AppConfig;
 import top.niunaijun.blackbox.entity.UnbindRecord;
 import top.niunaijun.blackbox.entity.am.PendingResultData;
+import top.niunaijun.blackbox.entity.am.PendingResultDataHelper;
 import top.niunaijun.blackbox.entity.am.ReceiverData;
 import top.niunaijun.blackbox.entity.am.RunningAppProcessInfo;
 import top.niunaijun.blackbox.entity.am.RunningServiceInfo;
@@ -190,7 +191,7 @@ public class BActivityManagerService extends IBActivityManagerService.Stub imple
         List<ResolveInfo> resolves = BPackageManagerService.get().queryBroadcastReceivers(intent, GET_META_DATA, null, userId);
 
         if (resolves.isEmpty()) {
-            pendingResultData.build().finish();
+            PendingResultDataHelper.build(pendingResultData).finish();
             Slog.d(TAG, "scheduleBroadcastReceiver empty");
             return;
         }

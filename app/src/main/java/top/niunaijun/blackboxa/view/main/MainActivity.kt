@@ -10,18 +10,27 @@ import android.view.Menu
 import android.view.MenuItem
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.edit
+import androidx.lifecycle.lifecycleScope
 import androidx.viewpager2.widget.ViewPager2
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import com.afollestad.materialdialogs.MaterialDialog
 import com.afollestad.materialdialogs.input.input
-import top.niunaijun.blackbox.BlackBoxCore
 import top.niunaijun.blackboxa.R
 import top.niunaijun.blackboxa.app.App
 import top.niunaijun.blackboxa.app.AppManager
 import top.niunaijun.blackboxa.databinding.ActivityMainBinding
+import top.niunaijun.blackboxa.engine.EngineInstaller
+import top.niunaijun.blackboxa.engine.EngineConnection
+import top.niunaijun.blackboxa.engine.EngineLoader
+import top.niunaijun.blackboxa.engine.EngineProxy
+import top.niunaijun.blackboxa.engine.EngineVersionChecker
 import top.niunaijun.blackboxa.util.Resolution
 import top.niunaijun.blackboxa.util.inflate
 import top.niunaijun.blackboxa.view.apps.AppsFragment
 import top.niunaijun.blackboxa.view.base.LoadingActivity
+import top.niunaijun.blackboxa.view.dialog.EngineUpgradeDialog
 import top.niunaijun.blackboxa.view.fake.FakeManagerActivity
 import top.niunaijun.blackboxa.view.list.ListActivity
 import top.niunaijun.blackboxa.view.setting.SettingActivity
@@ -51,59 +60,140 @@ class MainActivity : LoadingActivity() {
         try {
             super.onCreate(savedInstanceState)
 
-            try {
-                BlackBoxCore.get().onBeforeMainActivityOnCreate(this)
-            } catch (e: Exception) {
-                Log.e(TAG, "Error in onBeforeMainActivityOnCreate: ${e.message}")
-            }
-
             setContentView(viewBinding.root)
             initToolbar(viewBinding.toolbarLayout.toolbar, R.string.app_name)
             initViewPager()
             initFab()
             initToolbarSubTitle()
 
-            
             checkStoragePermission()
-
-            
             checkVpnPermission()
-
-            try {
-                BlackBoxCore.get().onAfterMainActivityOnCreate(this)
-            } catch (e: Exception) {
-                Log.e(TAG, "Error in onAfterMainActivityOnCreate: ${e.message}")
-            }
+            ensureEngineConnection()
+            checkForEngineUpgrade()
         } catch (e: Exception) {
             Log.e(TAG, "Critical error in onCreate: ${e.message}")
-            
             showErrorDialog("Failed to initialize app: ${e.message}")
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Check for upgrades when returning to the app
+        checkForEngineUpgrade()
+    }
+
+    /**
+     * Ensure Engine connection is established.
+     * Called in onCreate to handle the case where Engine was installed
+     * after App.onCreate() already ran (e.g. first-time setup flow).
+     */
+    private fun ensureEngineConnection() {
+        try {
+            if (EngineProxy.isConnected()) {
+                Log.d(TAG, "Engine already connected")
+                return
+            }
+            if (!EngineLoader.isEngineInstalled(this)) {
+                Log.w(TAG, "Engine not installed, skipping connection")
+                return
+            }
+            // Initialize loader and bind
+            EngineLoader.init(this)
+            val connection = EngineConnection()
+            val bound = connection.bind(this)
+            if (bound) {
+                Log.d(TAG, "Engine connection requested from MainActivity")
+            } else {
+                Log.w(TAG, "Failed to bind Engine from MainActivity")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error ensuring Engine connection: ${e.message}")
+        }
+    }
+
+    /**
+     * Check for Engine upgrades and show dialog if available.
+     */
+    private fun checkForEngineUpgrade() {
+        try {
+            lifecycleScope.launch {
+                val upgradeInfo = withContext(Dispatchers.IO) {
+                    EngineVersionChecker.checkForUpgrade(this@MainActivity)
+                }
+
+                upgradeInfo?.let { info ->
+                    // Skip if user already chose to skip this version
+                    if (EngineVersionChecker.isVersionSkipped(this@MainActivity, info.versionCode)) {
+                        Log.d(TAG, "Upgrade version ${info.versionCode} skipped by user")
+                        return@launch
+                    }
+
+                    val currentVersion = EngineInstaller.getInstalledEngineVersion(this@MainActivity)
+                    showUpgradeDialog(info, currentVersion)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error checking for upgrade: ${e.message}")
+        }
+    }
+
+    /**
+     * Show the upgrade dialog.
+     */
+    private fun showUpgradeDialog(upgradeInfo: EngineVersionChecker.UpgradeInfo, currentVersion: Int) {
+        try {
+            // Prevent showing multiple dialogs
+            if (supportFragmentManager.findFragmentByTag("EngineUpgradeDialog") != null) {
+                return
+            }
+
+            EngineUpgradeDialog.show(
+                supportFragmentManager,
+                upgradeInfo,
+                currentVersion,
+                object : EngineUpgradeDialog.UpgradeDialogListener {
+                    override fun onUpgradeNow(versionCode: Int) {
+                        Log.i(TAG, "User chose to upgrade to version $versionCode")
+                        // TODO: Phase 6 - Trigger actual download and install
+                        // lifecycleScope.launch {
+                        //     EngineUpgradeManager.downloadAndInstall(this@MainActivity, upgradeInfo)
+                        // }
+                    }
+
+                    override fun onUpgradeLater(versionCode: Int) {
+                        Log.d(TAG, "User postponed upgrade to version $versionCode")
+                        EngineVersionChecker.skipVersion(this@MainActivity, versionCode)
+                    }
+
+                    override fun onExitApp() {
+                        Log.d(TAG, "User chose to exit app (force upgrade)")
+                        finish()
+                    }
+                }
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "Error showing upgrade dialog: ${e.message}")
         }
     }
 
     private fun checkStoragePermission() {
         try {
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
-                
                 if (!android.os.Environment.isExternalStorageManager()) {
                     Log.w(TAG, "MANAGE_EXTERNAL_STORAGE permission not granted")
                     showStoragePermissionDialog()
                 }
             } else {
-                
                 if (androidx.core.content.ContextCompat.checkSelfPermission(
-                                this,
-                                android.Manifest.permission.WRITE_EXTERNAL_STORAGE
-                        ) != android.content.pm.PackageManager.PERMISSION_GRANTED ||
-                                androidx.core.content.ContextCompat.checkSelfPermission(
-                                        this,
-                                        android.Manifest.permission.READ_EXTERNAL_STORAGE
-                                ) != android.content.pm.PackageManager.PERMISSION_GRANTED
+                        this,
+                        android.Manifest.permission.WRITE_EXTERNAL_STORAGE
+                    ) != android.content.pm.PackageManager.PERMISSION_GRANTED ||
+                    androidx.core.content.ContextCompat.checkSelfPermission(
+                        this,
+                        android.Manifest.permission.READ_EXTERNAL_STORAGE
+                    ) != android.content.pm.PackageManager.PERMISSION_GRANTED
                 ) {
-                    Log.w(
-                            TAG,
-                            "Storage permissions not granted on Android ${android.os.Build.VERSION.SDK_INT}"
-                    )
+                    Log.w(TAG, "Storage permissions not granted on Android ${android.os.Build.VERSION.SDK_INT}")
                     requestLegacyStoragePermission()
                 }
             }
@@ -115,12 +205,12 @@ class MainActivity : LoadingActivity() {
     private fun requestLegacyStoragePermission() {
         try {
             androidx.core.app.ActivityCompat.requestPermissions(
-                    this,
-                    arrayOf(
-                            android.Manifest.permission.READ_EXTERNAL_STORAGE,
-                            android.Manifest.permission.WRITE_EXTERNAL_STORAGE
-                    ),
-                    STORAGE_PERMISSION_REQUEST_CODE
+                this,
+                arrayOf(
+                    android.Manifest.permission.READ_EXTERNAL_STORAGE,
+                    android.Manifest.permission.WRITE_EXTERNAL_STORAGE
+                ),
+                STORAGE_PERMISSION_REQUEST_CODE
             )
         } catch (e: Exception) {
             Log.e(TAG, "Error requesting storage permission: ${e.message}")
@@ -128,16 +218,16 @@ class MainActivity : LoadingActivity() {
     }
 
     override fun onRequestPermissionsResult(
-            requestCode: Int,
-            permissions: Array<out String>,
-            grantResults: IntArray
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == STORAGE_PERMISSION_REQUEST_CODE) {
             if (grantResults.isNotEmpty() &&
-                            grantResults.all {
-                                it == android.content.pm.PackageManager.PERMISSION_GRANTED
-                            }
+                grantResults.all {
+                    it == android.content.pm.PackageManager.PERMISSION_GRANTED
+                }
             ) {
                 Log.d(TAG, "Storage permissions granted")
             } else {
@@ -151,8 +241,7 @@ class MainActivity : LoadingActivity() {
             MaterialDialog(this).show {
                 title(text = "Storage Permission Required")
                 message(
-                        text =
-                                "This app needs 'All Files Access' permission to properly run sandboxed apps. Without this permission, some apps may not work correctly.\n\nPlease grant permission in the next screen."
+                    text = "This app needs 'All Files Access' permission to properly run sandboxed apps. Without this permission, some apps may not work correctly.\n\nPlease grant permission in the next screen."
                 )
                 positiveButton(text = "Grant Permission") { openAllFilesAccessSettings() }
                 negativeButton(text = "Later") { Log.w(TAG, "User postponed storage permission") }
@@ -166,20 +255,16 @@ class MainActivity : LoadingActivity() {
     private fun openAllFilesAccessSettings() {
         try {
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
-                val intent =
-                        Intent(
-                                android.provider.Settings
-                                        .ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION
-                        )
+                val intent = Intent(
+                    android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION
+                )
                 intent.data = Uri.parse("package:$packageName")
                 storagePermissionResult.launch(intent)
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error opening storage settings: ${e.message}")
-            
             try {
-                val intent =
-                        Intent(android.provider.Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
+                val intent = Intent(android.provider.Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
                 storagePermissionResult.launch(intent)
             } catch (e2: Exception) {
                 Log.e(TAG, "Error opening fallback storage settings: ${e2.message}")
@@ -188,30 +273,27 @@ class MainActivity : LoadingActivity() {
     }
 
     private val storagePermissionResult =
-            registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
-                try {
-                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
-                        if (android.os.Environment.isExternalStorageManager()) {
-                            Log.d(TAG, "Storage permission granted!")
-                        } else {
-                            Log.w(TAG, "Storage permission still not granted")
-                        }
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+            try {
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+                    if (android.os.Environment.isExternalStorageManager()) {
+                        Log.d(TAG, "Storage permission granted!")
+                    } else {
+                        Log.w(TAG, "Storage permission still not granted")
                     }
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error handling storage permission result: ${e.message}")
                 }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error handling storage permission result: ${e.message}")
             }
+        }
 
-    
     private fun checkVpnPermission() {
         try {
             val vpnIntent = VpnService.prepare(this)
             if (vpnIntent != null) {
-                
                 Log.d(TAG, "VPN permission not granted, requesting...")
                 vpnPermissionResult.launch(vpnIntent)
             } else {
-                
                 Log.d(TAG, "VPN permission already granted")
             }
         } catch (e: Exception) {
@@ -220,18 +302,17 @@ class MainActivity : LoadingActivity() {
     }
 
     private val vpnPermissionResult =
-            registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-                try {
-                    if (result.resultCode == RESULT_OK) {
-                        Log.d(TAG, "VPN permission granted!")
-                        
-                    } else {
-                        Log.w(TAG, "VPN permission denied by user")
-                    }
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error handling VPN permission result: ${e.message}")
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            try {
+                if (result.resultCode == RESULT_OK) {
+                    Log.d(TAG, "VPN permission granted!")
+                } else {
+                    Log.w(TAG, "VPN permission denied by user")
                 }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error handling VPN permission result: ${e.message}")
             }
+        }
 
     private fun showErrorDialog(message: String) {
         try {
@@ -249,14 +330,13 @@ class MainActivity : LoadingActivity() {
     private fun initToolbarSubTitle() {
         try {
             updateUserRemark(0)
-            
             viewBinding.toolbarLayout.toolbar.getChildAt(1)?.setOnClickListener {
                 try {
                     MaterialDialog(this).show {
                         title(res = R.string.userRemark)
                         input(
-                                hintRes = R.string.userRemark,
-                                prefill = viewBinding.toolbarLayout.toolbar.subtitle
+                            hintRes = R.string.userRemark,
+                            prefill = viewBinding.toolbarLayout.toolbar.subtitle
                         ) { _, input ->
                             try {
                                 AppManager.mRemarkSharedPreferences.edit {
@@ -281,7 +361,7 @@ class MainActivity : LoadingActivity() {
 
     private fun initViewPager() {
         try {
-            val userList = BlackBoxCore.get().users
+            val userList = EngineProxy.getUsers()
             userList.forEach { fragmentList.add(AppsFragment.newInstance(it.id)) }
 
             currentUser = userList.firstOrNull()?.id ?: 0
@@ -292,18 +372,18 @@ class MainActivity : LoadingActivity() {
             viewBinding.viewPager.adapter = mViewPagerAdapter
             viewBinding.dotsIndicator.setViewPager2(viewBinding.viewPager)
             viewBinding.viewPager.registerOnPageChangeCallback(
-                    object : ViewPager2.OnPageChangeCallback() {
-                        override fun onPageSelected(position: Int) {
-                            try {
-                                super.onPageSelected(position)
-                                currentUser = fragmentList[position].userID
-                                updateUserRemark(currentUser)
-                                showFloatButton(true)
-                            } catch (e: Exception) {
-                                Log.e(TAG, "Error in onPageSelected: ${e.message}")
-                            }
+                object : ViewPager2.OnPageChangeCallback() {
+                    override fun onPageSelected(position: Int) {
+                        try {
+                            super.onPageSelected(position)
+                            currentUser = fragmentList[position].userID
+                            updateUserRemark(currentUser)
+                            showFloatButton(true)
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Error in onPageSelected: ${e.message}")
                         }
                     }
+                }
             )
         } catch (e: Exception) {
             Log.e(TAG, "Error in initViewPager: ${e.message}")
@@ -343,7 +423,7 @@ class MainActivity : LoadingActivity() {
 
     fun scanUser() {
         try {
-            val userList = BlackBoxCore.get().users
+            val userList = EngineProxy.getUsers()
 
             if (fragmentList.size == userList.size) {
                 fragmentList.add(AppsFragment.newInstance(fragmentList.size))
@@ -360,7 +440,7 @@ class MainActivity : LoadingActivity() {
     private fun updateUserRemark(userId: Int) {
         try {
             var remark =
-                    AppManager.mRemarkSharedPreferences.getString("Remark$userId", "User $userId")
+                AppManager.mRemarkSharedPreferences.getString("Remark$userId", "User $userId")
             if (remark.isNullOrEmpty()) {
                 remark = "User $userId"
             }
@@ -373,21 +453,21 @@ class MainActivity : LoadingActivity() {
     }
 
     private val apkPathResult =
-            registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
-                try {
-                    if (it.resultCode == RESULT_OK) {
-                        it.data?.let { data ->
-                            val userId = data.getIntExtra("userID", 0)
-                            val source = data.getStringExtra("source")
-                            if (source != null) {
-                                fragmentList[userId].installApk(source)
-                            }
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+            try {
+                if (it.resultCode == RESULT_OK) {
+                    it.data?.let { data ->
+                        val userId = data.getIntExtra("userID", 0)
+                        val source = data.getStringExtra("source")
+                        if (source != null) {
+                            fragmentList[userId].installApk(source)
                         }
                     }
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error handling APK path result: ${e.message}")
                 }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error handling APK path result: ${e.message}")
             }
+        }
 
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {
         try {
@@ -403,11 +483,10 @@ class MainActivity : LoadingActivity() {
         try {
             when (item.itemId) {
                 R.id.main_git -> {
-                    val intent =
-                            Intent(
-                                    Intent.ACTION_VIEW,
-                                    Uri.parse("https://github.com/ALEX5402/NewBlackbox")
-                            )
+                    val intent = Intent(
+                        Intent.ACTION_VIEW,
+                        Uri.parse("https://github.com/ALEX5402/NewBlackbox")
+                    )
                     startActivity(intent)
                 }
                 R.id.main_setting -> {
@@ -418,13 +497,11 @@ class MainActivity : LoadingActivity() {
                     startActivity(intent)
                 }
                 R.id.fake_location -> {
-                    
                     val intent = Intent(this, FakeManagerActivity::class.java)
                     intent.putExtra("userID", 0)
                     startActivity(intent)
                 }
             }
-
             return true
         } catch (e: Exception) {
             Log.e(TAG, "Error handling menu item selection: ${e.message}")

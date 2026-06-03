@@ -35,13 +35,15 @@ object ShortcutUtil {
                     prefill = labelName
                 ) { _, input ->
 
-                    val shortcutInfo: ShortcutInfoCompat =
-                        ShortcutInfoCompat.Builder(context, info.packageName + userID)
-                            .setIntent(intent)
-                            .setShortLabel(input)
-                            .setLongLabel(input)
-                            .setIcon(IconCompat.createWithBitmap(info.icon!!.toBitmap()))
-                            .build()
+                    val iconBitmap = info.icon?.toBitmap()
+                    val shortcutBuilder = ShortcutInfoCompat.Builder(context, info.packageName + userID)
+                        .setIntent(intent)
+                        .setShortLabel(input)
+                        .setLongLabel(input)
+                    if (iconBitmap != null) {
+                        shortcutBuilder.setIcon(IconCompat.createWithBitmap(iconBitmap))
+                    }
+                    val shortcutInfo: ShortcutInfoCompat = shortcutBuilder.build()
 
                     ShortcutManagerCompat.requestPinShortcut(context, shortcutInfo, null)
                     showAllowPermissionDialog(context)

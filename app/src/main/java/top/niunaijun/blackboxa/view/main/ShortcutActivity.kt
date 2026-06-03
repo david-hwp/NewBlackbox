@@ -4,7 +4,7 @@ import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
-import top.niunaijun.blackbox.BlackBoxCore
+import top.niunaijun.blackboxa.engine.EngineProxy
 
 
 class ShortcutActivity:AppCompatActivity() {
@@ -16,7 +16,7 @@ class ShortcutActivity:AppCompatActivity() {
         val userID = intent.getIntExtra("userId",0)
 
         lifecycleScope.launch {
-            BlackBoxCore.get().launchApk(pkg,userID)
+            EngineProxy.launchApk(pkg ?: "",userID)
             finish()
         }
     }

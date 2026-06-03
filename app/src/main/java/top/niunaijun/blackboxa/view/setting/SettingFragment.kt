@@ -3,9 +3,9 @@ package top.niunaijun.blackboxa.view.setting
 import android.os.Bundle
 import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
-import top.niunaijun.blackbox.BlackBoxCore
 import top.niunaijun.blackboxa.R
 import top.niunaijun.blackboxa.app.AppManager
+import top.niunaijun.blackboxa.engine.EngineProxy
 import top.niunaijun.blackboxa.util.toast
 import top.niunaijun.blackboxa.view.gms.GmsManagerActivity
 
@@ -57,8 +57,7 @@ class SettingFragment : PreferenceFragmentCompat() {
     private fun initGms() {
         val gmsManagerPreference: Preference = (findPreference("gms_manager")!!)
 
-        if (BlackBoxCore.get().isSupportGms) {
-
+        if (EngineProxy.isSupportGms()) {
             gmsManagerPreference.setOnPreferenceClickListener {
                 GmsManagerActivity.start(requireContext())
                 true
@@ -75,7 +74,6 @@ class SettingFragment : PreferenceFragmentCompat() {
             val tmpHide = (newValue == true)
             when (preference.key) {
                 "root_hide" -> {
-
                     AppManager.mBlackBoxLoader.invalidHideRoot(tmpHide)
                 }
                 "daemon_enable" -> {
@@ -100,21 +98,12 @@ class SettingFragment : PreferenceFragmentCompat() {
         val sendLogsPreference: Preference? = findPreference("send_logs")
         sendLogsPreference?.setOnPreferenceClickListener {
             it.isEnabled = false
-            BlackBoxCore.get()
-                    .sendLogs(
-                            "Manual Log Upload from Settings",
-                            true,
-                            object : BlackBoxCore.LogSendListener {
-                                override fun onSuccess() {
-                                    activity?.runOnUiThread { sendLogsPreference.isEnabled = true }
-                                }
-
-                                override fun onFailure(error: String?) {
-                                    activity?.runOnUiThread { sendLogsPreference.isEnabled = true }
-                                }
-                            }
-                    )
+            EngineProxy.sendLogs("Manual Log Upload from Settings", true)
             toast("Sending logs... (Check notifications for status)")
+            // Re-enable after a delay since IPC callback is not available
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                sendLogsPreference?.isEnabled = true
+            }, 5000)
             true
         }
     }

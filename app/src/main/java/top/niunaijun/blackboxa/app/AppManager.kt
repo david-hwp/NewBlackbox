@@ -20,15 +20,6 @@ object AppManager {
         }
     }
 
-    @JvmStatic
-    val mBlackBoxCore by lazy {
-        try {
-            mBlackBoxLoader.getBlackBoxCore()
-        } catch (e: Exception) {
-            Log.e(TAG, "Error getting BlackBoxCore: ${e.message}")
-            throw e 
-        }
-    }
 
     @JvmStatic
     val mRemarkSharedPreferences: SharedPreferences by lazy {

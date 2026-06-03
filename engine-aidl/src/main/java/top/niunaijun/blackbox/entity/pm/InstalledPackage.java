@@ -1,32 +1,13 @@
 package top.niunaijun.blackbox.entity.pm;
 
-import android.content.pm.ApplicationInfo;
-import android.content.pm.PackageInfo;
-import android.content.pm.PackageManager;
 import android.os.Parcel;
 import android.os.Parcelable;
 
 import java.util.Objects;
 
-import top.niunaijun.blackbox.BlackBoxCore;
-import top.niunaijun.blackbox.core.system.pm.BPackageManagerService;
-
-
 public class InstalledPackage implements Parcelable {
     public int userId;
     public String packageName;
-
-    public ApplicationInfo getApplication() {
-        return BlackBoxCore.getBPackageManager().getApplicationInfo(packageName, PackageManager.GET_META_DATA, userId);
-    }
-
-    public PackageInfo getPackageInfo() {
-        return BlackBoxCore.getBPackageManager().getPackageInfo(packageName, PackageManager.GET_META_DATA, userId);
-    }
-
-    public ShopInfo getShopInfo() {
-        return BPackageManagerService.get().getShopInfo(packageName, userId);
-    }
 
     @Override
     public int describeContents() {

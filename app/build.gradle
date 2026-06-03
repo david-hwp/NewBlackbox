@@ -51,11 +51,31 @@ android {
             output.outputFileName = "BlackBox_${variant.versionName}_${output.baseName}.apk"
         }
     }
+
+    sourceSets {
+        main {
+            assets {
+                srcDirs += ['src/main/assets']
+            }
+        }
+    }
+}
+
+// Dynamically create copy tasks per variant to handle both debug and release engine APKs
+android.applicationVariants.configureEach { variant ->
+    def copyTask = tasks.register("copyEngineApk${variant.name.capitalize()}", Copy) {
+        from "${project(':Bcore').buildDir}/outputs/apk/${variant.buildType.name}"
+        into "src/main/assets/engine/"
+        include "BlackBoxEngine_*_${variant.buildType.name}.apk"
+        rename { "engine-base.apk" }
+    }
+    copyTask.get().dependsOn ":Bcore:assemble${variant.buildType.name.capitalize()}"
+    variant.preBuildProvider.get().dependsOn copyTask
 }
 
 dependencies {
     implementation fileTree(dir: "libs", include: ["*.jar", "*.aar"])
-    implementation project(':Bcore')
+    implementation project(':engine-aidl')
 
     implementation libs.appcompat
     implementation libs.material

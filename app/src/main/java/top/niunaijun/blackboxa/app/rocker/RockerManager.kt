@@ -12,8 +12,8 @@ import com.imuxuan.floatingview.FloatingView
 import kotlin.math.cos
 import kotlin.math.sin
 import top.niunaijun.blackbox.entity.location.BLocation
-import top.niunaijun.blackbox.fake.frameworks.BLocationManager
 import top.niunaijun.blackboxa.app.App
+import top.niunaijun.blackboxa.engine.EngineProxy
 import top.niunaijun.blackboxa.widget.EnFloatView
 
 
@@ -23,9 +23,9 @@ object RockerManager {
     private const val TAG = "RockerManager"
     private var isInitialized = false
 
-    
-    private const val Ea = 6378137.0 
-    private const val Eb = 6356725.0 
+
+    private const val Ea = 6378137.0
+    private const val Eb = 6356725.0
 
     fun init(application: Application?, userId: Int) {
         try {
@@ -39,15 +39,18 @@ object RockerManager {
                 return
             }
 
-            
+
             if (!checkPermissions(application)) {
                 Log.w(TAG, "Required permissions not granted, RockerManager cannot initialize")
                 Log.w(TAG, "Please grant: ${getRequiredPermissions().joinToString(", ")}")
                 return
             }
 
-            if (!BLocationManager.isFakeLocationEnable()) {
-                Log.d(TAG, "Fake location is not enabled, RockerManager will not initialize")
+            // Check fake location enable via EngineProxy
+            // Note: isFakeLocationEnable is not in the AIDL interface, so we check if location manager is available
+            val locationManager = EngineProxy.getLocationManager()
+            if (locationManager == null) {
+                Log.d(TAG, "Location manager not available, RockerManager will not initialize")
                 return
             }
 
@@ -64,7 +67,7 @@ object RockerManager {
                 return
             }
 
-            
+
             application.registerActivityLifecycleCallbacks(
                     object : BaseActivityLifecycleCallback {
                         override fun onActivityStarted(activity: Activity) {
@@ -136,7 +139,7 @@ object RockerManager {
 
     private fun changeLocation(distance: Float, angle: Float, packageName: String, userId: Int) {
         try {
-            val location = BLocationManager.get().getLocation(userId, packageName)
+            val location = EngineProxy.getLocationManager()?.getLocation(userId, packageName)
             if (location == null) {
                 Log.w(TAG, "No current location found for package: $packageName, userId: $userId")
                 return
@@ -147,11 +150,11 @@ object RockerManager {
                     "Changing location - Distance: ${distance}m, Angle: ${angle}°, Current: ${location.latitude}, ${location.longitude}"
             )
 
-            
+
             val dx = distance * sin(angle * Math.PI / 180.0)
             val dy = distance * cos(angle * Math.PI / 180.0)
 
-            
+
             val ec = Eb + (Ea - Eb) * (90.0 - location.latitude) / 90.0
             val ed = ec * cos(location.latitude * Math.PI / 180)
 
@@ -160,8 +163,8 @@ object RockerManager {
 
             val newLocation = BLocation(newLat, newLng)
 
-            
-            BLocationManager.get().setLocation(userId, packageName, newLocation)
+
+            EngineProxy.getLocationManager()?.setLocation(userId, packageName, newLocation)
 
             Log.d(TAG, "Location updated - New: ${newLat}, ${newLng}")
         } catch (e: Exception) {
@@ -170,15 +173,15 @@ object RockerManager {
         }
     }
 
-    
+
     fun isActive(): Boolean {
         return isInitialized
     }
 
-    
+
     fun checkPermissions(context: Context): Boolean {
         return try {
-            
+
             val hasOverlayPermission = android.provider.Settings.canDrawOverlays(context)
             if (!hasOverlayPermission) {
                 Log.w(
@@ -188,7 +191,7 @@ object RockerManager {
                 return false
             }
 
-            
+
             val hasLocationPermission =
                     context.checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION) ==
                             android.content.pm.PackageManager.PERMISSION_GRANTED
@@ -205,7 +208,7 @@ object RockerManager {
         }
     }
 
-    
+
     fun getRequiredPermissions(): List<String> {
         return listOf(
                 android.Manifest.permission.SYSTEM_ALERT_WINDOW,
@@ -214,7 +217,7 @@ object RockerManager {
         )
     }
 
-    
+
     fun cleanup() {
         try {
             isInitialized = false

@@ -1,6 +1,7 @@
 package top.niunaijun.blackboxa.view.list
 
 import androidx.lifecycle.MutableLiveData
+import top.niunaijun.blackboxa.app.App
 import top.niunaijun.blackboxa.bean.InstalledAppBean
 import top.niunaijun.blackboxa.data.AppsRepository
 import top.niunaijun.blackboxa.view.base.BaseViewModel
@@ -13,7 +14,7 @@ class ListViewModel(private val repo: AppsRepository) : BaseViewModel() {
     val loadingLiveData = MutableLiveData<Boolean>()
 
     fun previewInstalledList() {
-        launchOnUI { repo.previewInstallList() }
+        launchOnUI { repo.previewInstallList(App.getContext()) }
     }
 
     fun getInstallAppList(userID: Int) {

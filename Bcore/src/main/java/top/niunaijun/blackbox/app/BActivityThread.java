@@ -69,6 +69,7 @@ import top.niunaijun.blackbox.core.NativeCore;
 import top.niunaijun.blackbox.core.env.VirtualRuntime;
 import top.niunaijun.blackbox.core.system.user.BUserHandle;
 import top.niunaijun.blackbox.entity.AppConfig;
+import top.niunaijun.blackbox.entity.am.PendingResultDataHelper;
 import top.niunaijun.blackbox.entity.am.ReceiverData;
 
 import top.niunaijun.blackbox.fake.delegate.AppInstrumentation;
@@ -1131,7 +1132,7 @@ public class BActivityThread extends IBActivityThread.Stub {
             BroadcastReceiver mReceiver = null;
             Intent intent = data.intent;
             ActivityInfo activityInfo = data.activityInfo;
-            BroadcastReceiver.PendingResult pendingResult = data.data.build();
+            BroadcastReceiver.PendingResult pendingResult = PendingResultDataHelper.build(data.data);
 
             try {
                 Context baseContext = mInitialApplication.getBaseContext();

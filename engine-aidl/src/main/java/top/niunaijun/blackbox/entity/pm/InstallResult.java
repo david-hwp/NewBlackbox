@@ -2,9 +2,7 @@ package top.niunaijun.blackbox.entity.pm;
 
 import android.os.Parcel;
 import android.os.Parcelable;
-
-import top.niunaijun.blackbox.utils.Slog;
-
+import android.util.Log;
 
 public class InstallResult implements Parcelable {
     public static final String TAG = "InstallResult";
@@ -38,14 +36,14 @@ public class InstallResult implements Parcelable {
         this.msg = msg;
         this.success = false;
         this.packageName = packageName;
-        Slog.d(TAG, msg);
+        Log.d(TAG, msg);
         return this;
     }
 
     public InstallResult installError(String msg) {
         this.msg = msg;
         this.success = false;
-        Slog.d(TAG, msg);
+        Log.d(TAG, msg);
         return this;
     }
 

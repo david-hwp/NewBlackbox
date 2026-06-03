@@ -18,6 +18,7 @@ import top.niunaijun.blackbox.core.system.pm.BPackageManagerService;
 import top.niunaijun.blackbox.core.system.pm.BPackageSettings;
 import top.niunaijun.blackbox.core.system.pm.PackageMonitor;
 import top.niunaijun.blackbox.entity.am.PendingResultData;
+import top.niunaijun.blackbox.entity.am.PendingResultDataHelper;
 import top.niunaijun.blackbox.proxy.ProxyBroadcastReceiver;
 import top.niunaijun.blackbox.utils.Slog;
 
@@ -44,7 +45,7 @@ public class BroadcastManager implements PackageMonitor {
                 case MSG_TIME_OUT:
                     try {
                         PendingResultData data = (PendingResultData) msg.obj;
-                        data.build().finish();
+                        PendingResultDataHelper.build(data).finish();
                         Slog.d(TAG, "Timeout Receiver: " + data);
                     } catch (Throwable ignore) {
                     }

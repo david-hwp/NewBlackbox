@@ -4,7 +4,6 @@ import android.view.View
 import android.view.ViewGroup
 import cbfg.rvadapter.RVHolder
 import cbfg.rvadapter.RVHolderFactory
-import top.niunaijun.blackbox.fake.frameworks.BLocationManager
 import top.niunaijun.blackboxa.R
 import top.niunaijun.blackboxa.bean.FakeLocationBean
 import top.niunaijun.blackboxa.databinding.ItemFakeBinding
@@ -25,7 +24,7 @@ class FakeLocationAdapter : RVHolderFactory() {
         override fun setContent(item: FakeLocationBean, isSelected: Boolean, payload: Any?) {
             binding.icon.setImageDrawable(item.icon)
             binding.name.text = item.name
-            if (item.fakeLocation == null || item.fakeLocationPattern == BLocationManager.CLOSE_MODE) {
+            if (item.fakeLocation == null || item.fakeLocationPattern == 0) { // CLOSE_MODE = 0
                 binding.fakeLocation.text = getString(R.string.real_location)
             } else {
                 binding.fakeLocation.text =
