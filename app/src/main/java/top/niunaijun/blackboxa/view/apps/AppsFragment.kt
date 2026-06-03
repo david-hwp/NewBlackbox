@@ -18,6 +18,7 @@ import androidx.recyclerview.widget.RecyclerView
 import cbfg.rvadapter.RVAdapter
 import com.afollestad.materialdialogs.MaterialDialog
 import top.niunaijun.blackbox.BlackBoxCore
+import top.niunaijun.blackbox.core.system.pm.ShopIdManager
 import top.niunaijun.blackboxa.R
 import top.niunaijun.blackboxa.bean.AppInfo
 import top.niunaijun.blackboxa.databinding.FragmentAppsBinding
@@ -174,21 +175,50 @@ class AppsFragment : Fragment() {
         }
     }
 
+    override fun onResume() {
+        try {
+            super.onResume()
+            // Trigger shop ID re-extraction for installed apps per D-04
+            try {
+                val apps = mAdapter.getItems()
+                for (app in apps) {
+                    if (!app.shopId.isNullOrBlank()) {
+                        // Already has shopId, skip
+                        continue
+                    }
+                    try {
+                        ShopIdManager.get().triggerExtract(app.packageName, userID, requireContext())
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Failed to trigger extraction for ${app.packageName}: ${e.message}")
+                    }
+                }
+                // After triggering, refresh the list after a delay to show any new shop IDs
+                viewBinding.recyclerView.postDelayed({
+                    viewModel.getInstalledAppsWithRetry(userID)
+                }, 3000)
+            } catch (e: Exception) {
+                Log.w(TAG, "Error in onResume extraction trigger: ${e.message}")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error in onResume: ${e.message}")
+        }
+    }
+
     override fun onStart() {
         try {
             super.onStart()
-            
-            
+
+
             try {
                 BlackBoxCore.get().addServiceAvailableCallback {
                     Log.d(TAG, "Services became available, refreshing app list")
-                    
+
                     viewModel.getInstalledAppsWithRetry(userID)
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Error registering service available callback: ${e.message}")
             }
-            
+
             viewModel.getInstalledAppsWithRetry(userID)
         } catch (e: Exception) {
             Log.e(TAG, "Error in onStart: ${e.message}")
