@@ -161,7 +161,10 @@ class AppsRepository {
                                         ),
                                         installedApplication.packageName,
                                         installedApplication.sourceDir,
-                                        isXpModule
+                                        isXpModule,
+                                        null,
+                                        null,
+                                        null
                                 )
                         installedList.add(info)
                         processedCount++
@@ -332,15 +335,25 @@ class AppsRepository {
                         return@forEachIndexed
                     }
 
+                    val shopInfo = try {
+                        blackBoxCore.getBPackageManager().getShopInfo(applicationInfo.packageName, userId)
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Failed to get shop info for ${applicationInfo.packageName}: ${e.message}")
+                        null
+                    }
+
                     val info =
                             AppInfo(
                                     safeLoadAppLabel(applicationInfo),
                                     safeLoadAppIcon(
                                             applicationInfo
-                                    ), 
+                                    ),
                                     applicationInfo.packageName,
                                     applicationInfo.sourceDir ?: "",
-                                    false
+                                    false,
+                                    shopInfo?.shopId,
+                                    shopInfo?.shopName,
+                                    shopInfo?.platform
                             )
 
                     appInfoList.add(info)
