@@ -94,6 +94,20 @@ public class ActivityStack {
         return 0;
     }
 
+    public Intent getLaunchIntent(int userId, Intent intent) {
+        ResolveInfo resolveInfo = BPackageManagerService.get().resolveActivity(intent, GET_ACTIVITIES, null, userId);
+        if (resolveInfo == null || resolveInfo.activityInfo == null) {
+            return null;
+        }
+        ActivityInfo activityInfo = resolveInfo.activityInfo;
+        ActivityRecord record = newActivityRecord(intent, activityInfo, null, userId);
+        Intent shadow = startActivityProcess(userId, intent, activityInfo, record);
+        shadow.addFlags(Intent.FLAG_ACTIVITY_MULTIPLE_TASK);
+        shadow.addFlags(Intent.FLAG_ACTIVITY_NEW_DOCUMENT);
+        shadow.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        return shadow;
+    }
+
     public int startActivityLocked(int userId, Intent intent, String resolvedType, IBinder resultTo, String resultWho, int requestCode, int flags, Bundle options) {
         synchronized (mTasks) {
             synchronizeTasks();

@@ -61,6 +61,12 @@ class BlackBoxEngineService : Service() {
             }
         }
 
+        override fun getLaunchIntent(packageName: String?, userId: Int): android.content.Intent? {
+            return if (packageName != null) {
+                BlackBoxCore.get().getLaunchIntent(packageName, userId)
+            } else null
+        }
+
         override fun launchApk(packageName: String?, userId: Int): Boolean {
             return if (packageName != null) {
                 BlackBoxCore.get().launchApk(packageName, userId)

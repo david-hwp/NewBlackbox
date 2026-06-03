@@ -50,6 +50,19 @@ object EngineProxy {
 
     // === Core APIs ===
 
+    fun getLaunchIntent(packageName: String, userId: Int): android.content.Intent? {
+        if (!isConnected()) {
+            Log.w(TAG, "getLaunchIntent: Engine not connected")
+            return null
+        }
+        return try {
+            mEngine!!.getLaunchIntent(packageName, userId)
+        } catch (e: RemoteException) {
+            Log.e(TAG, "getLaunchIntent failed for $packageName (user=$userId): ${e.message}")
+            null
+        }
+    }
+
     fun launchApk(packageName: String, userId: Int): Boolean {
         if (!isConnected()) {
             Log.w(TAG, "launchApk: Engine not connected")

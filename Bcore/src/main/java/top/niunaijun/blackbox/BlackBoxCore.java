@@ -1096,6 +1096,25 @@ public class BlackBoxCore extends ClientConfiguration {
         return StoragePermissionHelper.REQUEST_CODE_MANAGE_STORAGE;
     }
 
+    public Intent getLaunchIntent(String packageName, int userId) {
+        onBeforeMainLaunchApk(packageName, userId);
+
+        boolean singleInstance = mClientConfiguration != null && mClientConfiguration.isSingleInstanceMode();
+        if (singleInstance) {
+            try {
+                getBActivityManager().killAllOtherProcesses(packageName, userId);
+            } catch (Exception e) {
+                Slog.e(TAG, "Failed to kill other running apps in single instance mode", e);
+            }
+        }
+
+        Intent launchIntentForPackage = getBPackageManager().getLaunchIntentForPackage(packageName, userId);
+        if (launchIntentForPackage == null) {
+            return null;
+        }
+        return getBActivityManager().getLaunchIntent(launchIntentForPackage, userId);
+    }
+
     public boolean launchApk(String packageName, int userId) {
         onBeforeMainLaunchApk(packageName, userId);
 
@@ -1114,15 +1133,15 @@ public class BlackBoxCore extends ClientConfiguration {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             if (!hasAllFilesAccess()) {
                 Slog.w(TAG, "All files access not granted for launching: " + packageName);
-                
+
                 for (AppLifecycleCallback callback : mAppLifecycleCallbacks) {
                     if (callback.onStoragePermissionNeeded(packageName, userId)) {
-                        
+
                         Slog.d(TAG, "Launch cancelled - host app handling permission request");
                         return false;
                     }
                 }
-                
+
                 Slog.w(TAG, "Launching without all files access - some file operations may fail");
             }
         }

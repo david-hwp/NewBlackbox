@@ -1,5 +1,6 @@
 package top.niunaijun.blackboxa.data
 
+import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.net.Uri
 import android.util.Log
@@ -461,8 +462,14 @@ class AppsRepository {
 
     fun launchApk(packageName: String, userId: Int, launchLiveData: MutableLiveData<Boolean>) {
         try {
-            val result = EngineProxy.launchApk(packageName, userId)
-            launchLiveData.postValue(result)
+            val intent = EngineProxy.getLaunchIntent(packageName, userId)
+            if (intent != null) {
+                App.getContext().startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                launchLiveData.postValue(true)
+            } else {
+                Log.w(TAG, "launchApk: getLaunchIntent returned null")
+                launchLiveData.postValue(false)
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Error launching APK: ${e.message}")
             launchLiveData.postValue(false)

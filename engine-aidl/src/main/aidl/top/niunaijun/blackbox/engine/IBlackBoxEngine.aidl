@@ -11,11 +11,13 @@ import top.niunaijun.blackbox.entity.AppConfig;
 import top.niunaijun.blackbox.entity.location.BLocation;
 import top.niunaijun.blackbox.entity.location.BLocationConfig;
 import android.content.pm.ApplicationInfo;
+import android.content.Intent;
 
 interface IBlackBoxEngine {
     int getVersionCode();
     String getVersionName();
 
+    Intent getLaunchIntent(String packageName, int userId);
     boolean launchApk(String packageName, int userId);
     InstallResult installPackageAsUser(String path, int userId);
     void uninstallPackageAsUser(String packageName, int userId);

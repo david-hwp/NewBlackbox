@@ -16,7 +16,10 @@ class ShortcutActivity:AppCompatActivity() {
         val userID = intent.getIntExtra("userId",0)
 
         lifecycleScope.launch {
-            EngineProxy.launchApk(pkg ?: "",userID)
+            val launchIntent = EngineProxy.getLaunchIntent(pkg ?: "", userID)
+            if (launchIntent != null) {
+                startActivity(launchIntent)
+            }
             finish()
         }
     }

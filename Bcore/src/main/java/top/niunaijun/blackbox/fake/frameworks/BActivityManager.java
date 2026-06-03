@@ -84,21 +84,33 @@ public class BActivityManager extends BlackManager<IBActivityManagerService> {
         }
     }
 
+    public android.content.Intent getLaunchIntent(Intent intent, int userId) {
+        try {
+            IBActivityManagerService service = getService();
+            if (service != null) {
+                return service.getLaunchIntent(intent, userId);
+            }
+        } catch (RemoteException e) {
+            Slog.e(TAG, "RemoteException in getLaunchIntent", e);
+        }
+        return null;
+    }
+
     public void startActivity(Intent intent, int userId) {
         int retryCount = 0;
         final int maxRetries = 3;
-        
+
         while (retryCount < maxRetries) {
             try {
                 IBActivityManagerService service = getService();
                 if (service != null) {
                     service.startActivity(intent, userId);
-                    return; 
+                    return;
                 } else {
                     Slog.w(TAG, "ActivityManager service is null, retry " + (retryCount + 1) + "/" + maxRetries);
-                    
+
                     try {
-                        Thread.sleep(200 * (retryCount + 1)); 
+                        Thread.sleep(200 * (retryCount + 1));
                     } catch (InterruptedException ie) {
                         Thread.currentThread().interrupt();
                         break;
@@ -106,23 +118,23 @@ public class BActivityManager extends BlackManager<IBActivityManagerService> {
                 }
             } catch (DeadObjectException e) {
                 Slog.w(TAG, "ActivityManager service died, clearing cache and retrying " + (retryCount + 1) + "/" + maxRetries);
-                clearServiceCache(); 
+                clearServiceCache();
                 try {
-                    Thread.sleep(100); 
+                    Thread.sleep(100);
                 } catch (InterruptedException ie) {
                     Thread.currentThread().interrupt();
                     break;
                 }
             } catch (RemoteException e) {
                 Slog.e(TAG, "RemoteException in startActivity", e);
-                break; 
+                break;
             } catch (Exception e) {
                 Slog.e(TAG, "Unexpected error in startActivity", e);
                 break;
             }
             retryCount++;
         }
-        
+
         Slog.e(TAG, "Failed to start activity after " + maxRetries + " retries");
     }
 

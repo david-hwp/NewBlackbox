@@ -334,6 +334,14 @@ public class BActivityManagerService extends IBActivityManagerService.Stub imple
     }
 
     @Override
+    public Intent getLaunchIntent(Intent intent, int userId) {
+        UserSpace userSpace = getOrCreateSpaceLocked(userId);
+        synchronized (userSpace.mStack) {
+            return userSpace.mStack.getLaunchIntent(userId, intent);
+        }
+    }
+
+    @Override
     public void startActivity(Intent intent, int userId) {
         UserSpace userSpace = getOrCreateSpaceLocked(userId);
         synchronized (userSpace.mStack) {
