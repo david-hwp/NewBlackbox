@@ -225,13 +225,24 @@ object EngineInstaller {
 
     /**
      * Install using PackageInstaller API (Android 5.0+).
+     *
+     * If the engine is already installed, uses MODE_INHERIT_EXISTING (API 29+)
+     * to preserve all virtual app data during upgrade. MODE_FULL_INSTALL would
+     * technically preserve data on most devices, but MODE_INHERIT_EXISTING is
+     * the safest explicit signal to the system that existing data must be kept.
      */
     private fun installWithPackageInstaller(context: Context, apkFile: File): Result<Unit> {
         return try {
             val packageInstaller = context.packageManager.packageInstaller
-            val params = PackageInstaller.SessionParams(
+            val isUpgrade = isEngineInstalled(context)
+            val mode = if (isUpgrade && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                Log.d(TAG, "Engine already installed, using MODE_INHERIT_EXISTING for safe upgrade")
+                PackageInstaller.SessionParams.MODE_INHERIT_EXISTING
+            } else {
+                Log.d(TAG, "Fresh install or API < 29, using MODE_FULL_INSTALL")
                 PackageInstaller.SessionParams.MODE_FULL_INSTALL
-            )
+            }
+            val params = PackageInstaller.SessionParams(mode)
 
             // Set APK size so the system can pre-allocate storage
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {

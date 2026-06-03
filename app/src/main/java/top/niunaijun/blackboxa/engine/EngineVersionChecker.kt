@@ -140,18 +140,18 @@ object EngineVersionChecker {
         builtinVersion: Int,
         appVersion: Int
     ): UpgradeInfo? {
-        // Placeholder: simulate no upgrade available
-        // To test upgrade flow, you can uncomment the following:
-        /*
-        return UpgradeInfo(
-            versionCode = localVersion + 1,
-            versionName = "${localVersion + 1}.0.0",
-            downloadUrl = "https://example.com/engine-${localVersion + 1}.apk",
-            isForce = false,
-            changelog = "Bug fixes and performance improvements",
-            minAppVersion = 400
-        )
-        */
+        // Built-in engine is newer than installed engine -> trigger local upgrade
+        if (builtinVersion > localVersion && localVersion > 0) {
+            Log.i(TAG, "Built-in engine ($builtinVersion) is newer than installed ($localVersion), triggering local upgrade")
+            return UpgradeInfo(
+                versionCode = builtinVersion,
+                versionName = "$builtinVersion",
+                downloadUrl = "", // Local upgrade uses bundled APK, no download needed
+                isForce = true,   // Force upgrade to prevent data loss from manual uninstall
+                changelog = "Engine update with latest features and fixes",
+                minAppVersion = 0
+            )
+        }
         return null
     }
 }

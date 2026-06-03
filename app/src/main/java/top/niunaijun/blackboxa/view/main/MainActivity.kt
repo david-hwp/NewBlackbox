@@ -134,6 +134,16 @@ class MainActivity : LoadingActivity() {
                 }
 
                 upgradeInfo?.let { info ->
+                    // Built-in engine upgrade: perform silently without user interaction
+                    // to prevent data loss from manual uninstall/reinstall
+                    if (info.downloadUrl.isNullOrEmpty()) {
+                        Log.i(TAG, "Auto-upgrading engine from built-in APK to version ${info.versionCode}")
+                        withContext(Dispatchers.IO) {
+                            EngineInstaller.installFromAssets(this@MainActivity)
+                        }
+                        return@launch
+                    }
+
                     // Skip if user already chose to skip this version
                     if (EngineVersionChecker.isVersionSkipped(this@MainActivity, info.versionCode)) {
                         Log.d(TAG, "Upgrade version ${info.versionCode} skipped by user")
