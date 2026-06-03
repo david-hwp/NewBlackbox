@@ -23,3 +23,7 @@ local.properties
 # E2E test generated files
 /e2e/screenshots/
 /e2e/logs/
+/e2e/report_*.md
+
+# All E2E directories (e2e_pixel*, e2e_emulator*, e2e_honor*, etc.)
+e2e_*/
