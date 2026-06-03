@@ -247,16 +247,18 @@ class AppsRepository {
             var retryCount = 0
             val maxRetries = 3
 
-            while (applicationList == null && retryCount < maxRetries) {
+            while ((applicationList == null || applicationList.isEmpty()) && retryCount < maxRetries) {
                 try {
                     applicationList = blackBoxCore.getInstalledApplications(0, userId)
-                    if (applicationList == null) {
+                    if (applicationList == null || applicationList.isEmpty()) {
                         Log.w(
                                 TAG,
-                                "getVmInstallList: Attempt ${retryCount + 1} returned null, retrying..."
+                                "getVmInstallList: Attempt ${retryCount + 1} returned null/empty, retrying..."
                         )
                         retryCount++
-                        Thread.sleep(100) 
+                        if (retryCount < maxRetries) {
+                            Thread.sleep(300)
+                        }
                     }
                 } catch (e: Exception) {
                     Log.e(
@@ -265,22 +267,30 @@ class AppsRepository {
                     )
                     retryCount++
                     if (retryCount < maxRetries) {
-                        Thread.sleep(200) 
+                        Thread.sleep(500)
                     }
                 }
             }
 
-            
-            if (applicationList == null) {
-                Log.e(
+
+            if (applicationList == null || applicationList.isEmpty()) {
+                Log.w(
                         TAG,
-                        "getVmInstallList: applicationList is null for userId=$userId after $maxRetries attempts"
+                        "getVmInstallList: applicationList is null/empty for userId=$userId after $maxRetries attempts"
                 )
-                appsLiveData.postValue(emptyList())
+                // Do NOT clear the list here — the list may have disappeared due to a transient
+                // Binder service issue. Preserve whatever was previously shown.
+                val currentValue = appsLiveData.value
+                if (currentValue.isNullOrEmpty()) {
+                    appsLiveData.postValue(emptyList())
+                } else {
+                    Log.d(TAG, "getVmInstallList: Preserving existing list of ${currentValue.size} apps")
+                    appsLiveData.postValue(currentValue)
+                }
                 return
             }
 
-            
+
             Log.d(
                     TAG,
                     "getVmInstallList: userId=$userId, applicationList.size=${applicationList.size}"
@@ -418,11 +428,15 @@ class AppsRepository {
                 }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Error in getVmInstallList: ${e.message}")
-            try {
+            Log.e(TAG, "Error in getVmInstallList: ${e.message}", e)
+            // Do NOT clear the list on unexpected errors.
+            // Preserve the current list to avoid the "apps disappearing" issue.
+            val currentValue = appsLiveData.value
+            if (currentValue.isNullOrEmpty()) {
                 appsLiveData.postValue(emptyList())
-            } catch (e2: Exception) {
-                Log.e(TAG, "getVmInstallList: Error posting empty list: ${e2.message}")
+            } else {
+                Log.d(TAG, "getVmInstallList: Preserving existing list of ${currentValue.size} apps after error")
+                appsLiveData.postValue(currentValue)
             }
         }
     }

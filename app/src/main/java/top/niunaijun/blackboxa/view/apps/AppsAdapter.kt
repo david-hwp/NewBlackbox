@@ -68,13 +68,17 @@ class AppsAdapter : RVHolderFactory() {
                 setIconSafely(item.icon, item.packageName)
                 
                 
-                val displayName = if (!item.shopId.isNullOrBlank()) {
-                    "${item.name}-${item.shopId}"
-                } else {
-                    item.name ?: "Unknown App"
+                val displayName = when {
+                    // Priority 1: show shop name if available (e.g., 罗家臭豆腐(东瓜山店))
+                    !item.shopName.isNullOrBlank() -> item.shopName
+                    // Priority 2: show app name + shopId if shopId available
+                    !item.shopId.isNullOrBlank() -> "${item.name}-${item.shopId}"
+                    // Fallback: just app name
+                    else -> item.name ?: "Unknown App"
                 }
                 binding.name.text = displayName
 
+                // Show shopId as subtitle when shopName is displayed, or when shopId exists alone
                 if (!item.shopId.isNullOrBlank()) {
                     binding.shopId.visibility = View.VISIBLE
                     binding.shopId.text = item.shopId
@@ -167,10 +171,10 @@ class AppsAdapter : RVHolderFactory() {
             try {
 
                 binding.icon.setImageDrawable(ColorDrawable(DEFAULT_ICON_COLOR))
-                val displayName = if (!item.shopId.isNullOrBlank()) {
-                    "${item.name}-${item.shopId}"
-                } else {
-                    item.name ?: "Unknown App"
+                val displayName = when {
+                    !item.shopName.isNullOrBlank() -> item.shopName
+                    !item.shopId.isNullOrBlank() -> "${item.name}-${item.shopId}"
+                    else -> item.name ?: "Unknown App"
                 }
                 binding.name.text = displayName
                 if (!item.shopId.isNullOrBlank()) {

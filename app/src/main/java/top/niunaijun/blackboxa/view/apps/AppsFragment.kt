@@ -160,9 +160,10 @@ class AppsFragment : Fragment() {
             setOnLongClick()
             return viewBinding.root
         } catch (e: Exception) {
-            Log.e(TAG, "Error in onCreateView: ${e.message}")
-            
-            return View(requireContext())
+            Log.e(TAG, "Error in onCreateView: ${e.message}", e)
+            // Do not return an empty View — that breaks the fragment lifecycle.
+            // Re-throw to surface the error rather than silently breaking the UI.
+            throw e
         }
     }
 
@@ -182,17 +183,16 @@ class AppsFragment : Fragment() {
             try {
                 val apps = mAdapter.getItems()
                 for (app in apps) {
-                    if (!app.shopId.isNullOrBlank()) {
-                        // Already has shopId, skip
-                        continue
-                    }
+                    // Always trigger extraction on resume so that shop ID changes
+                    // (e.g., after switching stores inside the virtual app) are detected.
+                    // ShopIdManager's throttle prevents excessive extraction attempts.
                     try {
                         ShopIdManager.get().triggerExtract(app.packageName, userID, requireContext())
                     } catch (e: Exception) {
                         Log.w(TAG, "Failed to trigger extraction for ${app.packageName}: ${e.message}")
                     }
                 }
-                // After triggering, refresh the list after a delay to show any new shop IDs
+                // After triggering, refresh the list after a delay to show any new shop info
                 viewBinding.recyclerView.postDelayed({
                     viewModel.getInstalledAppsWithRetry(userID)
                 }, 3000)

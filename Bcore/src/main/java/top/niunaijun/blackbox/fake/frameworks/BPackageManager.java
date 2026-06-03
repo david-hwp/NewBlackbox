@@ -548,6 +548,21 @@ public class BPackageManager extends BlackManager<IBPackageManagerService> {
         return null;
     }
 
+    public void updateShopInfo(String packageName, int userId, ShopInfo shopInfo) {
+        try {
+            IBPackageManagerService service = getService();
+            if (service != null) {
+                service.updateShopInfo(packageName, userId, shopInfo);
+            } else {
+                Log.w(TAG, "PackageManager service is null for updateShopInfo, skipping");
+            }
+        } catch (RemoteException e) {
+            Log.e(TAG, "RemoteException in updateShopInfo for " + packageName, e);
+        } catch (Exception e) {
+            Log.e(TAG, "Exception in updateShopInfo for " + packageName, e);
+        }
+    }
+
     public List<PackageInfo> getInstalledPackages(int flags, int userId) {
         try {
             return getService().getInstalledPackages(flags, userId);

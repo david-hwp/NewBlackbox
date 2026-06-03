@@ -8,7 +8,9 @@ import android.os.Process;
 import java.util.HashMap;
 import java.util.Map;
 
+import top.niunaijun.blackbox.BlackBoxCore;
 import top.niunaijun.blackbox.entity.pm.ShopInfo;
+import top.niunaijun.blackbox.fake.frameworks.BPackageManager;
 import top.niunaijun.blackbox.utils.Slog;
 
 /**
@@ -27,7 +29,7 @@ public class ShopIdManager {
     private static final String TAG = "ShopIdManager";
     private static final ShopIdManager sInstance = new ShopIdManager();
 
-    private static final long EXTRACT_THROTTLE_MS = 30000L; // 30 seconds
+    private static final long EXTRACT_THROTTLE_MS = 5000L; // 5 seconds
 
     private final Handler mBgHandler;
     private final Map<String, Long> mLastExtractTime = new HashMap<>();
@@ -75,7 +77,7 @@ public class ShopIdManager {
                     }
                     ShopInfo result = extractor.extract(context, userId);
                     if (result != null) {
-                        BPackageManagerService.get().updateShopInfo(packageName, userId, result);
+                        BPackageManager.get().updateShopInfo(packageName, userId, result);
                     }
                     mLastExtractTime.put(key, System.currentTimeMillis());
                 } catch (Exception e) {
@@ -93,6 +95,6 @@ public class ShopIdManager {
      * @return the stored {@link ShopInfo}, or {@code null} if none
      */
     public ShopInfo getShopInfo(String packageName, int userId) {
-        return BPackageManagerService.get().getShopInfo(packageName, userId);
+        return BPackageManager.get().getShopInfo(packageName, userId);
     }
 }

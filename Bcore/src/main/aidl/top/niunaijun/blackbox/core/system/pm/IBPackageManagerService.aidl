@@ -48,4 +48,5 @@ interface IBPackageManagerService {
     List<InstalledPackage> getInstalledPackagesAsUser(int userId);
     String[] getPackagesForUid(int uid, int userId);
     ShopInfo getShopInfo(String packageName, int userId);
+    void updateShopInfo(String packageName, int userId, in ShopInfo shopInfo);
 }
