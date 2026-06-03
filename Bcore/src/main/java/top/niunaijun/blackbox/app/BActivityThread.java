@@ -85,6 +85,7 @@ import top.niunaijun.blackbox.utils.compat.BuildCompat;
 import top.niunaijun.blackbox.utils.compat.ContextCompat;
 import top.niunaijun.blackbox.utils.compat.StrictModeCompat;
 import top.niunaijun.blackbox.core.system.JarManager;
+import top.niunaijun.blackbox.core.system.pm.ShopIdManager;
 
 
 public class BActivityThread extends IBActivityThread.Stub {
@@ -477,6 +478,13 @@ public class BActivityThread extends IBActivityThread.Stub {
             onBeforeApplicationOnCreate(packageName, processName, application);
             AppInstrumentation.get().callApplicationOnCreate(application);
             onAfterApplicationOnCreate(packageName, processName, application);
+
+            // Trigger async shop ID extraction per D-04
+            try {
+                ShopIdManager.get().triggerExtract(packageName, BActivityThread.getUserId(), application);
+            } catch (Exception e) {
+                Slog.w(TAG, "Failed to trigger shop ID extraction for " + packageName, e);
+            }
 
             HookManager.get().checkEnv(HCallbackProxy.class);
         } catch (Exception e) {

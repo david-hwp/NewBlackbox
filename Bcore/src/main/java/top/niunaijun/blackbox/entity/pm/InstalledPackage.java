@@ -9,6 +9,7 @@ import android.os.Parcelable;
 import java.util.Objects;
 
 import top.niunaijun.blackbox.BlackBoxCore;
+import top.niunaijun.blackbox.core.system.pm.BPackageManagerService;
 
 
 public class InstalledPackage implements Parcelable {
@@ -21,6 +22,10 @@ public class InstalledPackage implements Parcelable {
 
     public PackageInfo getPackageInfo() {
         return BlackBoxCore.getBPackageManager().getPackageInfo(packageName, PackageManager.GET_META_DATA, userId);
+    }
+
+    public ShopInfo getShopInfo() {
+        return BPackageManagerService.get().getShopInfo(packageName, userId);
     }
 
     @Override

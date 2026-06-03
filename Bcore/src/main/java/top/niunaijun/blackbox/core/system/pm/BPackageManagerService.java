@@ -40,6 +40,7 @@ import top.niunaijun.blackbox.core.system.user.BUserManagerService;
 import top.niunaijun.blackbox.entity.pm.InstallOption;
 import top.niunaijun.blackbox.entity.pm.InstallResult;
 import top.niunaijun.blackbox.entity.pm.InstalledPackage;
+import top.niunaijun.blackbox.entity.pm.ShopInfo;
 import top.niunaijun.blackbox.utils.AbiUtils;
 import top.niunaijun.blackbox.utils.FileUtils;
 import top.niunaijun.blackbox.utils.Slog;
@@ -798,6 +799,59 @@ public class BPackageManagerService extends IBPackageManagerService.Stub impleme
 
     public List<BPackageSettings> getBPackageSettings() {
         return new ArrayList<>(mPackages.values());
+    }
+
+    /**
+     * Returns the stored shop info for a package and user, or {@code null} if none.
+     */
+    public ShopInfo getShopInfo(String packageName, int userId) {
+        synchronized (mPackages) {
+            BPackageSettings ps = mPackages.get(packageName);
+            if (ps == null) {
+                return null;
+            }
+            BPackageUserState state = ps.readUserState(userId);
+            if (state.shopId == null) {
+                return null;
+            }
+            return new ShopInfo(state.shopId, state.shopName, state.platform);
+        }
+    }
+
+    /**
+     * Updates (or creates) shop info for a package and user.
+     */
+    public void updateShopInfo(String packageName, int userId, ShopInfo shopInfo) {
+        synchronized (mPackages) {
+            BPackageSettings ps = mPackages.get(packageName);
+            if (ps == null) {
+                return;
+            }
+            BPackageUserState state = ps.modifyUserState(userId);
+            state.shopId = shopInfo.shopId;
+            state.shopName = shopInfo.shopName;
+            state.platform = shopInfo.platform;
+            ps.save();
+            Slog.d(TAG, "Updated shop info for " + packageName + ": " + shopInfo.shopId);
+        }
+    }
+
+    /**
+     * Clears shop info for a package and user.
+     */
+    public void clearShopInfo(String packageName, int userId) {
+        synchronized (mPackages) {
+            BPackageSettings ps = mPackages.get(packageName);
+            if (ps == null) {
+                return;
+            }
+            BPackageUserState state = ps.modifyUserState(userId);
+            state.shopId = null;
+            state.shopName = null;
+            state.platform = null;
+            ps.save();
+            Slog.d(TAG, "Cleared shop info for " + packageName);
+        }
     }
 
     @Override
