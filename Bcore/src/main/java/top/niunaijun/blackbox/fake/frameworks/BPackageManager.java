@@ -24,6 +24,7 @@ import top.niunaijun.blackbox.core.system.pm.IBPackageManagerService;
 import top.niunaijun.blackbox.entity.pm.InstallOption;
 import top.niunaijun.blackbox.entity.pm.InstallResult;
 import top.niunaijun.blackbox.entity.pm.InstalledPackage;
+import top.niunaijun.blackbox.entity.pm.ShopInfo;
 import top.niunaijun.blackbox.utils.TransactionThrottler;
 
 
@@ -529,6 +530,22 @@ public class BPackageManager extends BlackManager<IBPackageManagerService> {
             e.printStackTrace();
         }
         return Collections.emptyList();
+    }
+
+    public ShopInfo getShopInfo(String packageName, int userId) {
+        try {
+            IBPackageManagerService service = getService();
+            if (service != null) {
+                return service.getShopInfo(packageName, userId);
+            } else {
+                Log.w(TAG, "PackageManager service is null for getShopInfo, returning null");
+            }
+        } catch (RemoteException e) {
+            Log.e(TAG, "RemoteException in getShopInfo for " + packageName, e);
+        } catch (Exception e) {
+            Log.e(TAG, "Exception in getShopInfo for " + packageName, e);
+        }
+        return null;
     }
 
     public List<PackageInfo> getInstalledPackages(int flags, int userId) {

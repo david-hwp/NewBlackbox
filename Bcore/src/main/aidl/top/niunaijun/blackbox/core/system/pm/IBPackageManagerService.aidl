@@ -14,6 +14,7 @@ import java.util.List;
 import top.niunaijun.blackbox.entity.pm.InstallResult;
 import top.niunaijun.blackbox.entity.pm.InstallOption;
 import top.niunaijun.blackbox.entity.pm.InstalledPackage;
+import top.niunaijun.blackbox.entity.pm.ShopInfo;
 
 
 interface IBPackageManagerService {
@@ -46,4 +47,5 @@ interface IBPackageManagerService {
     boolean isInstalled(String packageName, int userId);
     List<InstalledPackage> getInstalledPackagesAsUser(int userId);
     String[] getPackagesForUid(int uid, int userId);
+    ShopInfo getShopInfo(String packageName, int userId);
 }
