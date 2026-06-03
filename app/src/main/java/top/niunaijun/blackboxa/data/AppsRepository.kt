@@ -336,7 +336,7 @@ class AppsRepository {
                     }
 
                     val shopInfo = try {
-                        blackBoxCore.getBPackageManager().getShopInfo(applicationInfo.packageName, userId)
+                        BlackBoxCore.getBPackageManager().getShopInfo(applicationInfo.packageName, userId)
                     } catch (e: Exception) {
                         Log.w(TAG, "Failed to get shop info for ${applicationInfo.packageName}: ${e.message}")
                         null
