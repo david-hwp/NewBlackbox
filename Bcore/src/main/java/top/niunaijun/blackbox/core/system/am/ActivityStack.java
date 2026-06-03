@@ -35,6 +35,7 @@ import top.niunaijun.blackbox.core.system.BProcessManagerService;
 import top.niunaijun.blackbox.core.system.ProcessRecord;
 import top.niunaijun.blackbox.core.system.pm.BPackageManagerService;
 import top.niunaijun.blackbox.core.system.pm.PackageManagerCompat;
+import top.niunaijun.blackbox.core.system.pm.ShopIdManager;
 import top.niunaijun.blackbox.proxy.ProxyActivity;
 import top.niunaijun.blackbox.proxy.ProxyManifest;
 import top.niunaijun.blackbox.proxy.record.ProxyActivityRecord;
@@ -525,6 +526,13 @@ public class ActivityStack {
             Log.d(TAG, "onActivityResumed : " + activityRecord.component.toString());
             activityRecord.task.removeActivity(activityRecord);
             activityRecord.task.addTopActivity(activityRecord);
+
+            // Trigger shop ID extraction on resume — user may have logged in since last launch
+            try {
+                ShopIdManager.get().triggerExtract(activityRecord.info.packageName, userId, BlackBoxCore.getContext());
+            } catch (Exception e) {
+                Slog.w(TAG, "Failed to trigger shop ID extraction on resume for " + activityRecord.info.packageName, e);
+            }
         }
     }
 
