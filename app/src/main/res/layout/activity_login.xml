@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/duodian_background"
+    android:gravity="center_horizontal"
+    android:orientation="vertical"
+    android:paddingHorizontal="32dp">
+
+    <!-- Logo 区域 -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="80dp"
+        android:gravity="center"
+        android:orientation="vertical">
+
+        <View
+            android:layout_width="72dp"
+            android:layout_height="72dp"
+            android:background="@drawable/bg_logo_circle" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="@string/duodian_login_title"
+            android:textColor="@color/duodian_primary"
+            android:textSize="28sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="@string/duodian_login_subtitle"
+            android:textColor="@color/duodian_text_secondary"
+            android:textSize="14sp" />
+    </LinearLayout>
+
+    <!-- 手机号输入框 -->
+    <EditText
+        android:id="@+id/etPhone"
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:layout_marginTop="48dp"
+        android:background="@drawable/bg_input_field"
+        android:hint="@string/duodian_phone_hint"
+        android:inputType="phone"
+        android:maxLength="11"
+        android:paddingHorizontal="16dp"
+        android:textColor="@color/duodian_text_primary"
+        android:textColorHint="@color/duodian_text_hint"
+        android:textSize="15sp" />
+
+    <!-- 密码输入框 -->
+    <EditText
+        android:id="@+id/etPassword"
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:layout_marginTop="16dp"
+        android:background="@drawable/bg_input_field"
+        android:hint="@string/duodian_password_hint"
+        android:inputType="textPassword"
+        android:paddingHorizontal="16dp"
+        android:textColor="@color/duodian_text_primary"
+        android:textColorHint="@color/duodian_text_hint"
+        android:textSize="15sp" />
+
+    <!-- 登录按钮 -->
+    <androidx.appcompat.widget.AppCompatButton
+        android:id="@+id/btnLogin"
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:layout_marginTop="32dp"
+        android:background="@drawable/bg_button_primary"
+        android:text="@string/duodian_login_btn"
+        android:textColor="@color/duodian_surface"
+        android:textSize="16sp" />
+
+    <!-- 注册链接 -->
+    <TextView
+        android:id="@+id/tvRegister"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="24dp"
+        android:text="@string/duodian_register_link"
+        android:textColor="@color/duodian_primary"
+        android:textSize="14sp" />
+
+</LinearLayout>

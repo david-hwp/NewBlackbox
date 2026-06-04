@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "算力管家 - Android 应用原型",
+  "entry": "compute-manager-android.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "primary": true,
+  "createdAt": "2026-06-04T17:22:07.773Z",
+  "updatedAt": "2026-06-04T17:22:07.812Z",
+  "designSystemId": "tesla",
+  "metadata": {
+    "identifier": "compute-manager-android",
+    "artifactType": "text/html",
+    "inferred": false
+  }
+}

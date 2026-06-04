@@ -69,4 +69,27 @@
     <string name="disable_gms">Disable Service</string>
     <string name="disable_gms_hint">Clear the current Google service environment? Google service data will be cleared.</string>
     <string name="no_gms">Currently, there is no Google service environment on mobile phones.</string>
+
+    <!-- 多店管家 -->
+    <string name="duodian_app_name">多店管家</string>
+    <string name="duodian_login_title">多店管家</string>
+    <string name="duodian_login_subtitle">多平台店铺管理专家</string>
+    <string name="duodian_phone_hint">请输入手机号</string>
+    <string name="duodian_password_hint">请输入密码</string>
+    <string name="duodian_login_btn">登 录</string>
+    <string name="duodian_register_link">注册账号</string>
+    <string name="duodian_login_empty">请输入手机号和密码</string>
+    <string name="duodian_login_dev">登录功能开发中</string>
+    <string name="duodian_tab_home">首页</string>
+    <string name="duodian_tab_profile">我的</string>
+    <string name="duodian_shop_list">店铺列表</string>
+    <string name="duodian_add_shop">添加店铺</string>
+    <string name="duodian_gift_center">福利中心</string>
+    <string name="duodian_logs">操作日志</string>
+    <string name="duodian_settings">设置</string>
+    <string name="duodian_compute_balance">算力余额</string>
+    <string name="duodian_remaining_days">剩余天数</string>
+    <string name="duodian_auto_renew">自动续费</string>
+    <string name="duodian_platform">平台</string>
+    <string name="duodian_shop_id">店铺ID</string>
 </resources>

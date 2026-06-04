@@ -29,4 +29,12 @@
         <item name="android:windowBackground">@drawable/splash</item>
     </style>
 
+    <style name="Theme.Duodian" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/duodian_primary</item>
+        <item name="colorPrimaryDark">@color/duodian_primary_dark</item>
+        <item name="colorAccent">@color/duodian_accent</item>
+        <item name="android:windowBackground">@color/duodian_background</item>
+        <item name="android:statusBarColor">@color/duodian_primary</item>
+    </style>
+
 </resources>

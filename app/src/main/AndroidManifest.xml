@@ -76,6 +76,28 @@
         <activity android:name=".view.setting.SettingActivity" />
         <activity android:name=".view.gms.GmsManagerActivity" />
 
+        <!-- 多店管家新 Activity -->
+        <activity
+            android:name=".view.login.LoginActivity"
+            android:exported="false"
+            android:theme="@style/Theme.Duodian" />
+        <activity
+            android:name=".view.home.HomeActivity"
+            android:exported="false"
+            android:theme="@style/Theme.Duodian" />
+        <activity
+            android:name=".view.profile.ProfileActivity"
+            android:exported="false"
+            android:theme="@style/Theme.Duodian" />
+        <activity
+            android:name=".view.gift.GiftActivity"
+            android:exported="false"
+            android:theme="@style/Theme.Duodian" />
+        <activity
+            android:name=".view.logs.LogsActivity"
+            android:exported="false"
+            android:theme="@style/Theme.Duodian" />
+
         <!-- Engine Install Activity: Entry point for first-time setup -->
         <activity
             android:name=".view.splash.EngineInstallActivity"
