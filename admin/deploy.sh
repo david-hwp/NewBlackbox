@@ -13,7 +13,7 @@ if [ -n "$ENV_FILE" ]; then
   COMPOSE_ENV_ARGS=(--env-file "$ENV_FILE")
 fi
 
-export DUODIAN_DATA_DIR="${DUODIAN_DATA_DIR:-$HOME/zhanghaoguanjia}"
+export DUODIAN_DATA_DIR="${DUODIAN_DATA_DIR:-$HOME/dianpuguanjia}"
 
 require_cmd() {
   if ! command -v "$1" >/dev/null 2>&1; then

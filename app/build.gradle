@@ -14,7 +14,7 @@ android {
         targetSdk rootProject.ext.targetSdkVersion
         versionCode rootProject.ext.versionCode
         versionName rootProject.ext.versionName
-        buildConfigField "String", "API_BASE_URL", "\"${project.findProperty('DUODIAN_API_BASE_URL') ?: 'http://127.0.0.1:8006/api/'}\""
+        buildConfigField "String", "API_BASE_URL", "\"${project.findProperty('DUODIAN_API_BASE_URL') ?: 'http://dpgj.zrnh.cn/api/'}\""
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
 
