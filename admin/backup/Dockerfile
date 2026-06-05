@@ -1,6 +1,4 @@
-FROM alpine:3.20
-
-RUN apk add --no-cache mariadb-client gzip tzdata
+FROM mysql:8.0
 
 COPY mysql-backup.sh /usr/local/bin/mysql-backup.sh
 
