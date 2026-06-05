@@ -12,18 +12,21 @@
         <el-table-column prop="id" label="ID" width="70" />
         <el-table-column prop="userPhone" label="用户手机号" width="140" />
         <el-table-column prop="content" label="反馈内容" min-width="260" show-overflow-tooltip />
-        <el-table-column label="图片" width="180">
+        <el-table-column label="图片" width="220">
           <template #default="{ row }">
-            <el-space wrap>
-              <el-link
-                v-for="url in imageList(row.imageUrls)"
+            <div v-if="imageList(row.imageUrls).length" class="thumb-list">
+              <button
+                v-for="(url, index) in imageList(row.imageUrls)"
                 :key="url"
-                type="primary"
-                @click="openPrivateFile(url)"
+                class="thumb-button"
+                type="button"
+                @click="openImagePreview(imageList(row.imageUrls), index)"
               >
-                查看
-              </el-link>
-            </el-space>
+                <img v-if="thumbnailUrls[url]" :src="thumbnailUrls[url]" alt="" class="thumb-image" />
+                <span v-else class="thumb-loading">图</span>
+              </button>
+            </div>
+            <span v-else>-</span>
           </template>
         </el-table-column>
         <el-table-column label="日志" width="120">
@@ -58,21 +61,61 @@
         <el-table-column prop="createdAt" label="提交时间" width="180" />
       </el-table>
     </el-card>
+
+    <el-dialog
+      v-model="preview.visible"
+      title="图片预览"
+      width="82vw"
+      class="feedback-image-dialog"
+      @closed="closeImagePreview"
+    >
+      <div class="preview-toolbar">
+        <el-button :icon="ArrowLeft" :disabled="preview.index <= 0" @click="showPrevImage">上一张</el-button>
+        <span class="preview-count">{{ preview.index + 1 }} / {{ preview.urls.length }}</span>
+        <el-button :icon="ArrowRight" :disabled="preview.index >= preview.urls.length - 1" @click="showNextImage">下一张</el-button>
+        <el-divider direction="vertical" />
+        <el-button :icon="ZoomOut" @click="zoomImage(-0.25)">缩小</el-button>
+        <el-button :icon="ZoomIn" @click="zoomImage(0.25)">放大</el-button>
+        <el-button @click="resetZoom">原始</el-button>
+        <el-button type="primary" :icon="Download" @click="downloadPreviewImage">保存到本地</el-button>
+      </div>
+      <div class="preview-stage">
+        <img
+          v-if="preview.objectUrl"
+          :src="preview.objectUrl"
+          class="preview-image"
+          :style="{ transform: `scale(${preview.scale})` }"
+          alt=""
+        />
+        <el-empty v-else description="图片加载中" />
+      </div>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, reactive, onMounted, onBeforeUnmount, watch } from 'vue'
 import { ElMessage } from 'element-plus'
+import { ArrowLeft, ArrowRight, Download, ZoomIn, ZoomOut } from '@element-plus/icons-vue'
 import request from '../utils/request'
 
 const feedbacks = ref([])
 const loading = ref(false)
+const thumbnailUrls = reactive({})
+const objectUrlCache = new Map()
+const preview = reactive({
+  visible: false,
+  urls: [],
+  index: 0,
+  objectUrl: '',
+  scale: 1
+})
 
 const fetchFeedbacks = async () => {
   loading.value = true
   try {
     feedbacks.value = await request.get('/feedbacks')
+    await loadThumbnails(feedbacks.value)
   } finally {
     loading.value = false
   }
@@ -90,8 +133,9 @@ const updateStatus = async (row) => {
 }
 
 const fetchPrivateBlob = async (url) => {
+  const normalizedUrl = normalizeFileUrl(url)
   const token = localStorage.getItem('admin_token')
-  const response = await fetch(url, {
+  const response = await fetch(normalizedUrl, {
     headers: token ? { Authorization: `Bearer ${token}` } : {}
   })
   if (!response.ok) {
@@ -100,13 +144,77 @@ const fetchPrivateBlob = async (url) => {
   return response.blob()
 }
 
-const openPrivateFile = async (url) => {
-  try {
-    const blob = await fetchPrivateBlob(url)
-    window.open(URL.createObjectURL(blob), '_blank')
-  } catch (e) {
-    ElMessage.error(e.message || '文件打开失败')
+const normalizeFileUrl = (url) => {
+  if (!url) return ''
+  if (url.startsWith('http://') || url.startsWith('https://')) return url
+  return url
+}
+
+const getObjectUrl = async (url) => {
+  if (objectUrlCache.has(url)) {
+    return objectUrlCache.get(url)
   }
+  const blob = await fetchPrivateBlob(url)
+  const objectUrl = URL.createObjectURL(blob)
+  objectUrlCache.set(url, objectUrl)
+  return objectUrl
+}
+
+const loadThumbnails = async (rows) => {
+  const urls = Array.from(new Set(rows.flatMap(row => imageList(row.imageUrls))))
+  await Promise.all(urls.map(async (url) => {
+    if (thumbnailUrls[url]) return
+    try {
+      thumbnailUrls[url] = await getObjectUrl(url)
+    } catch (e) {
+      console.warn('thumbnail load failed', e)
+    }
+  }))
+}
+
+const openImagePreview = async (urls, index) => {
+  preview.urls = urls
+  preview.index = index
+  preview.scale = 1
+  preview.visible = true
+  await loadPreviewImage()
+}
+
+const loadPreviewImage = async () => {
+  preview.objectUrl = ''
+  const url = preview.urls[preview.index]
+  if (!url) return
+  try {
+    preview.objectUrl = await getObjectUrl(url)
+  } catch (e) {
+    ElMessage.error(e.message || '图片加载失败')
+  }
+}
+
+const showPrevImage = () => {
+  if (preview.index <= 0) return
+  preview.index -= 1
+}
+
+const showNextImage = () => {
+  if (preview.index >= preview.urls.length - 1) return
+  preview.index += 1
+}
+
+const zoomImage = (delta) => {
+  const nextScale = Number((preview.scale + delta).toFixed(2))
+  preview.scale = Math.max(0.25, Math.min(4, nextScale))
+}
+
+const resetZoom = () => {
+  preview.scale = 1
+}
+
+const closeImagePreview = () => {
+  preview.urls = []
+  preview.index = 0
+  preview.objectUrl = ''
+  preview.scale = 1
 }
 
 const downloadPrivateFile = async (url) => {
@@ -123,6 +231,25 @@ const downloadPrivateFile = async (url) => {
   }
 }
 
+const downloadPreviewImage = () => {
+  const url = preview.urls[preview.index]
+  if (url) {
+    downloadPrivateFile(url)
+  }
+}
+
+watch(() => preview.index, () => {
+  if (preview.visible) {
+    preview.scale = 1
+    loadPreviewImage()
+  }
+})
+
+onBeforeUnmount(() => {
+  objectUrlCache.forEach(objectUrl => URL.revokeObjectURL(objectUrl))
+  objectUrlCache.clear()
+})
+
 onMounted(fetchFeedbacks)
 </script>
 
@@ -131,5 +258,68 @@ onMounted(fetchFeedbacks)
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.thumb-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.thumb-button {
+  width: 46px;
+  height: 46px;
+  border: 1px solid var(--el-border-color);
+  border-radius: 6px;
+  background: var(--el-fill-color-light);
+  padding: 0;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.thumb-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.thumb-loading {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+}
+
+.preview-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.preview-count {
+  color: var(--el-text-color-secondary);
+  min-width: 56px;
+  text-align: center;
+}
+
+.preview-stage {
+  height: 70vh;
+  overflow: auto;
+  display: grid;
+  place-items: center;
+  background: #f5f7fa;
+  border-radius: 6px;
+}
+
+.preview-image {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  transform-origin: center;
+  transition: transform 120ms ease;
 }
 </style>

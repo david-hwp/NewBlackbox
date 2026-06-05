@@ -68,6 +68,9 @@ interface ApiService {
         @Part logFile: MultipartBody.Part?
     ): ApiResponse<FeedbackDto>
 
+    @POST("feedbacks")
+    suspend fun createFeedback(@Body request: FeedbackCreateRequest): ApiResponse<FeedbackDto>
+
     @PUT("users/me/username")
     suspend fun updateUsername(@Body request: UpdateUsernameRequest): ApiResponse<UserDto>
 

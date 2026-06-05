@@ -9,3 +9,10 @@ data class FeedbackDto(
     val status: String,
     val createdAt: String
 )
+
+data class FeedbackCreateRequest(
+    val content: String,
+    val imageUrls: List<String> = emptyList(),
+    val attachmentUrls: List<String> = emptyList(),
+    val logUrl: String? = null
+)
