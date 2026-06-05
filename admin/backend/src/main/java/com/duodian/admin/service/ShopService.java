@@ -44,6 +44,10 @@ public class ShopService {
         return shopRepository.findByUserIdAndShopId(userId, shopId);
     }
 
+    public Optional<Shop> findByUserIdAndShopIdAndPlatform(Long userId, String shopId, String platform) {
+        return shopRepository.findByUserIdAndShopIdAndPlatform(userId, shopId, platform);
+    }
+
     public Optional<Shop> findByUserIdAndCloneInstanceId(Long userId, String cloneInstanceId) {
         return shopRepository.findByUserIdAndCloneInstanceId(userId, cloneInstanceId);
     }

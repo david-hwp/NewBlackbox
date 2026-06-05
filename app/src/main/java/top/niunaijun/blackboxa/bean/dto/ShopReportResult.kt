@@ -7,5 +7,7 @@ data class ShopReportResult(
     val isNew: Boolean,
     val shopCount: Int? = null,
     val platformCount: Int? = null,
-    val cloneInstanceId: String? = null
+    val cloneInstanceId: String? = null,
+    val switchedShop: Boolean = false,
+    val message: String? = null
 )

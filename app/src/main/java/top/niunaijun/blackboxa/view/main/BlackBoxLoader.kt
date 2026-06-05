@@ -22,7 +22,7 @@ class BlackBoxLoader {
 
     private var mDisableFlagSecure by AppSharedPreferenceDelegate(App.getContext(), false)
 
-    private var mSingleInstanceMode by AppSharedPreferenceDelegate(App.getContext(), false)
+    private var mSingleInstanceMode by AppSharedPreferenceDelegate(App.getContext(), true)
 
     fun hideRoot(): Boolean {
         return try {

@@ -1,11 +1,13 @@
 package com.duodian.admin.controller.dto;
 
 public class PlatformInfo {
+    private Long dbId;
     private String id;
     private String name;
     private String packageName;
     private String iconUrl;
     private boolean available;
+    private Integer sortOrder;
 
     public PlatformInfo() {}
 
@@ -15,7 +17,11 @@ public class PlatformInfo {
         this.packageName = packageName;
         this.iconUrl = iconUrl;
         this.available = available;
+        this.sortOrder = 0;
     }
+
+    public Long getDbId() { return dbId; }
+    public void setDbId(Long dbId) { this.dbId = dbId; }
 
     public String getId() { return id; }
     public void setId(String id) { this.id = id; }
@@ -31,4 +37,7 @@ public class PlatformInfo {
 
     public boolean isAvailable() { return available; }
     public void setAvailable(boolean available) { this.available = available; }
+
+    public Integer getSortOrder() { return sortOrder; }
+    public void setSortOrder(Integer sortOrder) { this.sortOrder = sortOrder; }
 }

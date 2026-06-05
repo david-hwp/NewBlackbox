@@ -266,6 +266,19 @@ public class BProcessManagerService implements ISystemService {
         }
     }
 
+    public void killAllOtherProcessesGlobal(String keepPackageName, int keepUserId) {
+        synchronized (mProcessLock) {
+            List<ProcessRecord> toKill = performKillAllOtherProcessesGlobalLocked(keepPackageName, keepUserId);
+            for (ProcessRecord record : toKill) {
+                try {
+                    BNotificationManagerService.get().deletePackageNotification(record.getPackageName(), record.userId);
+                } catch (Exception e) {
+                    Slog.w(TAG, "Failed to delete notification for " + record.getPackageName(), e);
+                }
+            }
+        }
+    }
+
     /**
      * Core logic for killing all processes except the target package.
      * Package-private for unit testing. Does NOT touch notifications or ActivityStack.
@@ -275,19 +288,19 @@ public class BProcessManagerService implements ISystemService {
      */
     List<ProcessRecord> performKillAllOtherProcessesLocked(String keepPackageName) {
         List<ProcessRecord> toKill = new ArrayList<>();
-        Slog.d(TAG, "killAllOtherProcesses: mPidsSelfLocked.size=" + mPidsSelfLocked.size()
+        debugLog("killAllOtherProcesses: mPidsSelfLocked.size=" + mPidsSelfLocked.size()
                 + ", keepPackageName=" + keepPackageName);
         for (int i = 0; i < mPidsSelfLocked.size(); i++) {
             ProcessRecord record = mPidsSelfLocked.get(i);
-            Slog.d(TAG, "killAllOtherProcesses: record[" + i + "] pkg=" + record.getPackageName()
+            debugLog("killAllOtherProcesses: record[" + i + "] pkg=" + record.getPackageName()
                     + " proc=" + record.processName + " pid=" + record.pid + " buid=" + record.buid);
             if (!record.getPackageName().equals(keepPackageName)) {
                 toKill.add(record);
             }
         }
-        Slog.d(TAG, "killAllOtherProcesses: toKill.size=" + toKill.size());
+        debugLog("killAllOtherProcesses: toKill.size=" + toKill.size());
         for (ProcessRecord record : toKill) {
-            Slog.d(TAG, "killAllOtherProcesses: killing pkg=" + record.getPackageName()
+            debugLog("killAllOtherProcesses: killing pkg=" + record.getPackageName()
                     + " proc=" + record.processName + " pid=" + record.pid);
             record.kill();
             Map<String, ProcessRecord> process = mProcessMap.get(record.buid);
@@ -299,8 +312,45 @@ public class BProcessManagerService implements ISystemService {
             }
             mPidsSelfLocked.remove(record);
         }
-        Slog.d(TAG, "Single instance mode: killed " + toKill.size() + " other process(es), keeping " + keepPackageName);
+        debugLog("Single instance mode: killed " + toKill.size() + " other process(es), keeping " + keepPackageName);
         return toKill;
+    }
+
+    List<ProcessRecord> performKillAllOtherProcessesGlobalLocked(String keepPackageName, int keepUserId) {
+        List<ProcessRecord> toKill = new ArrayList<>();
+        debugLog("killAllOtherProcessesGlobal: mPidsSelfLocked.size=" + mPidsSelfLocked.size()
+                + ", keepPackageName=" + keepPackageName + ", keepUserId=" + keepUserId);
+        for (int i = 0; i < mPidsSelfLocked.size(); i++) {
+            ProcessRecord record = mPidsSelfLocked.get(i);
+            boolean isKeepProcess = record.userId == keepUserId
+                    && record.getPackageName().equals(keepPackageName);
+            if (!isKeepProcess) {
+                toKill.add(record);
+            }
+        }
+        for (ProcessRecord record : toKill) {
+            debugLog("killAllOtherProcessesGlobal: killing pkg=" + record.getPackageName()
+                    + " userId=" + record.userId + " proc=" + record.processName + " pid=" + record.pid);
+            record.kill();
+            Map<String, ProcessRecord> process = mProcessMap.get(record.buid);
+            if (process != null) {
+                process.remove(record.processName);
+                if (process.isEmpty()) {
+                    mProcessMap.remove(record.buid);
+                }
+            }
+            mPidsSelfLocked.remove(record);
+        }
+        debugLog("Single instance mode: globally killed " + toKill.size()
+                + " other process(es), keeping " + keepPackageName + " user=" + keepUserId);
+        return toKill;
+    }
+
+    private void debugLog(String message) {
+        try {
+            Slog.d(TAG, message);
+        } catch (RuntimeException ignored) {
+        }
     }
 
     public List<ProcessRecord> getPackageProcessAsUser(String packageName, int userId) {

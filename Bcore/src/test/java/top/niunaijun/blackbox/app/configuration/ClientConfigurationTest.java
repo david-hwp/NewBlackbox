@@ -9,14 +9,14 @@ import static org.junit.Assert.*;
 public class ClientConfigurationTest {
 
     @Test
-    public void testDefaultSingleInstanceModeReturnsFalse() {
+    public void testDefaultSingleInstanceModeReturnsTrue() {
         ClientConfiguration config = new ClientConfiguration() {
             @Override
             public String getHostPackageName() {
                 return "test.package";
             }
         };
-        assertFalse("Default single instance mode should be false", config.isSingleInstanceMode());
+        assertTrue("Default single instance mode should be true", config.isSingleInstanceMode());
     }
 
     @Test

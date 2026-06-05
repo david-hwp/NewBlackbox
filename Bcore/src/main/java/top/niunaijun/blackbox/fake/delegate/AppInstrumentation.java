@@ -135,6 +135,12 @@ public final class AppInstrumentation extends BaseInstrumentationDelegate implem
     }
 
     @Override
+    public void callActivityOnResume(Activity activity) {
+        ActivityCompat.fix(activity);
+        super.callActivityOnResume(activity);
+    }
+
+    @Override
     public void callApplicationOnCreate(Application app) {
         checkHCallback();
         super.callApplicationOnCreate(app);

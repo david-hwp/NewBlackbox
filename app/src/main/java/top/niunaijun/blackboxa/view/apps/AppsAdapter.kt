@@ -11,12 +11,13 @@ import top.niunaijun.blackboxa.bean.AppInfo
 import top.niunaijun.blackboxa.databinding.ItemAppBinding
 import android.util.Log
 import android.graphics.Bitmap
-import android.graphics.Canvas
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.ColorDrawable
 import android.graphics.Color
 import android.view.ViewTreeObserver
-import androidx.recyclerview.widget.RecyclerView
+import top.niunaijun.blackboxa.bean.Platform
+import top.niunaijun.blackboxa.bean.dto.PlatformItemDto
+import top.niunaijun.blackboxa.util.PlatformIconLoader
 
 
 
@@ -65,7 +66,7 @@ class AppsAdapter : RVHolderFactory() {
         override fun setContent(item: AppInfo, isSelected: Boolean, payload: Any?) {
             try {
                 
-                setIconSafely(item.icon, item.packageName)
+                setIconSafely(item)
                 
                 
                 val displayName = when {
@@ -74,7 +75,7 @@ class AppsAdapter : RVHolderFactory() {
                     // Priority 2: show app name + shopId if shopId available
                     !item.shopId.isNullOrBlank() -> "${item.name}-${item.shopId}"
                     // Fallback: just app name
-                    else -> item.name ?: "Unknown App"
+                    else -> item.name
                 }
                 binding.name.text = displayName
 
@@ -100,23 +101,42 @@ class AppsAdapter : RVHolderFactory() {
             }
         }
 
-        private fun setIconSafely(icon: Drawable?, packageName: String) {
+        private fun setIconSafely(item: AppInfo) {
             try {
-                if (icon != null) {
+                if (item.icon != null) {
                     
-                    val optimizedIcon = optimizeIcon(icon)
+                    val optimizedIcon = optimizeIcon(item.icon)
                     binding.icon.setImageDrawable(optimizedIcon)
+                    PlatformIconLoader.applyDisabledState(binding.icon, item.platformAvailable)
                     currentIcon = optimizedIcon
                 } else {
-                    
-                    binding.icon.setImageDrawable(createDefaultIcon())
+                    bindFallbackPlatformIcon(item)
                     currentIcon = null
                 }
             } catch (e: Exception) {
-                Log.w(TAG, "Failed to set icon for $packageName: ${e.message}")
+                Log.w(TAG, "Failed to set icon for ${item.packageName}: ${e.message}")
                 binding.icon.setImageDrawable(createDefaultIcon())
+                PlatformIconLoader.applyDisabledState(binding.icon, item.platformAvailable)
                 currentIcon = null
             }
+        }
+
+        private fun bindFallbackPlatformIcon(item: AppInfo) {
+            val platform = item.platform?.let { Platform.fromId(it) } ?: Platform.MEITUAN
+            val platformItem = PlatformItemDto(
+                platform = platform,
+                displayName = item.name,
+                packageName = item.platformPackageName ?: item.packageName,
+                iconKey = item.platformIconUrl ?: platform.id,
+                available = item.platformAvailable
+            )
+            PlatformIconLoader.bind(
+                imageView = binding.icon,
+                item = platformItem,
+                platform = platform,
+                packageName = item.platformPackageName ?: item.packageName,
+                available = item.platformAvailable
+            )
         }
 
         private fun optimizeIcon(icon: Drawable): Drawable {
@@ -171,10 +191,11 @@ class AppsAdapter : RVHolderFactory() {
             try {
 
                 binding.icon.setImageDrawable(ColorDrawable(DEFAULT_ICON_COLOR))
+                PlatformIconLoader.applyDisabledState(binding.icon, item.platformAvailable)
                 val displayName = when {
                     !item.shopName.isNullOrBlank() -> item.shopName
                     !item.shopId.isNullOrBlank() -> "${item.name}-${item.shopId}"
-                    else -> item.name ?: "Unknown App"
+                    else -> item.name
                 }
                 binding.name.text = displayName
                 if (!item.shopId.isNullOrBlank()) {

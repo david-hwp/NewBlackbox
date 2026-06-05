@@ -9,8 +9,9 @@ import android.widget.TextView
 import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.RecyclerView
 import top.niunaijun.blackboxa.R
-import top.niunaijun.blackboxa.bean.Platform
 import top.niunaijun.blackboxa.bean.Shop
+import top.niunaijun.blackboxa.util.PlatformIconLoader
+import top.niunaijun.blackboxa.util.PlatformRegistry
 
 class ShopListAdapter(
     private val onItemClick: (Int, Shop) -> Unit,
@@ -79,16 +80,14 @@ class ShopListAdapter(
             // 自动续时三角标
             autoRenewTriangle.visibility = if (shop.autoRenew) View.VISIBLE else View.GONE
 
-            // 平台 Logo 图片
-            val logoRes = when (shop.platform) {
-                Platform.MEITUAN -> R.drawable.meituan
-                Platform.TAOBAO -> R.drawable.qianniu
-                Platform.JD -> R.drawable.jd
-                Platform.KUAISHOU -> R.drawable.kuaishou
-                Platform.XIAOHONGSHU -> R.drawable.xiaohongshu
-                Platform.ALI -> R.drawable.koubei
-            }
-            shopLogo.setImageResource(logoRes)
+            val platformItem = PlatformRegistry.get(shop.platform)
+            PlatformIconLoader.bind(
+                imageView = shopLogo,
+                item = platformItem,
+                platform = shop.platform,
+                packageName = shop.packageName ?: platformItem?.packageName,
+                available = platformItem?.available ?: true
+            )
 
             // Card click
             cardView.setOnClickListener {

@@ -2,13 +2,16 @@ package com.duodian.admin.controller;
 
 import com.duodian.admin.config.AuthContext;
 import com.duodian.admin.controller.dto.ApiResponse;
+import com.duodian.admin.controller.dto.ShopRenewResponse;
 import com.duodian.admin.controller.dto.ShopResponse;
 import com.duodian.admin.entity.Shop;
 import com.duodian.admin.entity.User;
+import com.duodian.admin.service.ComputeService;
 import com.duodian.admin.service.ShopService;
 import com.duodian.admin.service.UserService;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @RestController
@@ -17,10 +20,12 @@ public class ShopController {
 
     private final ShopService shopService;
     private final UserService userService;
+    private final ComputeService computeService;
 
-    public ShopController(ShopService shopService, UserService userService) {
+    public ShopController(ShopService shopService, UserService userService, ComputeService computeService) {
         this.shopService = shopService;
         this.userService = userService;
+        this.computeService = computeService;
     }
 
     @GetMapping
@@ -126,6 +131,35 @@ public class ShopController {
             userService.refreshShopStats(ownerId);
         }
         return ApiResponse.success();
+    }
+
+    @PostMapping("/{id}/renew")
+    public ApiResponse<ShopRenewResponse> renew(@PathVariable Long id) {
+        Long userId = AuthContext.getUserId();
+        if (userId == null) {
+            return ApiResponse.error(401, "未登录");
+        }
+        Shop shop = shopService.findById(id)
+                .filter(this::canAccessShop)
+                .orElse(null);
+        if (shop == null) {
+            return ApiResponse.error("店铺不存在");
+        }
+        boolean deducted = computeService.deductComputeForRenewal(
+                userId,
+                shop.getShopId(),
+                shop.getShopName(),
+                shop.getPlatform()
+        );
+        if (!deducted) {
+            return ApiResponse.error(402, "算力余额不足");
+        }
+        shop.setRemainingDays(30);
+        shop.setExpireAt(LocalDateTime.now().plusDays(30));
+        shop.setLastDeductedAt(LocalDateTime.now());
+        Shop saved = shopService.update(shop.getId(), shop);
+        User user = userService.refreshShopStats(userId);
+        return ApiResponse.success(ShopRenewResponse.from(saved, user));
     }
 
     private User getCurrentUser() {

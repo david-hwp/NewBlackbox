@@ -17,6 +17,9 @@ class ShopRepository(api: ApiService) : BaseRepository(api) {
     suspend fun updateShop(id: Long, shop: ShopDto): Result<ShopDto> =
         safeApiCall { api.updateShop(id, shop) }
 
+    suspend fun renewShop(id: Long): Result<ShopRenewResponse> =
+        safeApiCall { api.renewShop(id) }
+
     suspend fun deleteShop(id: Long): Result<Unit> =
         safeApiCall { api.deleteShop(id) }
 

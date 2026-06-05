@@ -2,9 +2,11 @@ package com.duodian.admin.controller;
 
 import com.duodian.admin.config.AuthContext;
 import com.duodian.admin.controller.dto.ApiResponse;
+import com.duodian.admin.controller.dto.ShopRenewResponse;
 import com.duodian.admin.controller.dto.ShopResponse;
 import com.duodian.admin.entity.Shop;
 import com.duodian.admin.entity.User;
+import com.duodian.admin.service.ComputeService;
 import com.duodian.admin.service.ShopService;
 import com.duodian.admin.service.UserService;
 import org.junit.jupiter.api.AfterEach;
@@ -23,7 +25,8 @@ class ShopControllerTest {
 
     private final ShopService shopService = mock(ShopService.class);
     private final UserService userService = mock(UserService.class);
-    private final ShopController controller = new ShopController(shopService, userService);
+    private final ComputeService computeService = mock(ComputeService.class);
+    private final ShopController controller = new ShopController(shopService, userService, computeService);
 
     @AfterEach
     void tearDown() {
@@ -61,6 +64,30 @@ class ShopControllerTest {
         assertThat(response.getCode()).isEqualTo(200);
         assertThat(response.getData()).extracting(ShopResponse::getUserId).containsExactly(1L, 2L);
         verify(shopService).findAll();
+    }
+
+    @Test
+    void renewDeductsComputeAndExtendsOwnExpiredShop() {
+        AuthContext.setUserId(1L);
+        User normalUser = user(1L, "USER");
+        normalUser.setComputeBalance(8);
+        normalUser.setShopCount(1);
+        normalUser.setPlatformCount(1);
+        Shop expiredShop = shop(10L, 1L, "expired");
+        expiredShop.setRemainingDays(0);
+        when(userService.findById(1L)).thenReturn(Optional.of(normalUser));
+        when(shopService.findById(10L)).thenReturn(Optional.of(expiredShop));
+        when(computeService.deductComputeForRenewal(1L, "shop-10", "expired", "jd")).thenReturn(true);
+        when(shopService.update(10L, expiredShop)).thenReturn(expiredShop);
+        when(userService.refreshShopStats(1L)).thenReturn(normalUser);
+
+        ApiResponse<ShopRenewResponse> response = controller.renew(10L);
+
+        assertThat(response.getCode()).isEqualTo(200);
+        assertThat(response.getData().getShop().getRemainingDays()).isEqualTo(30);
+        assertThat(response.getData().getBalance()).isEqualTo(8);
+        assertThat(expiredShop.getExpireAt()).isNotNull();
+        verify(computeService).deductComputeForRenewal(1L, "shop-10", "expired", "jd");
     }
 
     private User user(Long id, String role) {

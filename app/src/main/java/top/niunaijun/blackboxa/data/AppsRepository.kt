@@ -13,6 +13,7 @@ import top.niunaijun.blackboxa.app.AppManager
 import top.niunaijun.blackboxa.bean.AppInfo
 import top.niunaijun.blackboxa.bean.InstalledAppBean
 import top.niunaijun.blackboxa.engine.EngineProxy
+import top.niunaijun.blackboxa.util.PlatformRegistry
 import top.niunaijun.blackboxa.util.MemoryManager
 import top.niunaijun.blackboxa.util.getString
 
@@ -310,6 +311,8 @@ class AppsRepository {
                         null
                     }
 
+                    val platformItem = PlatformRegistry.get(shopInfo?.platform)
+                    val platformAvailable = platformItem?.available ?: true
                     val icon = try {
                         applicationInfo.loadIcon(App.getContext().packageManager)
                     } catch (e: Exception) {
@@ -326,7 +329,10 @@ class AppsRepository {
                             false,
                             shopInfo?.shopId,
                             shopInfo?.shopName,
-                            shopInfo?.platform
+                            shopInfo?.platform,
+                            platformAvailable,
+                            platformItem?.iconKey,
+                            platformItem?.packageName
                         )
 
                     appInfoList.add(info)

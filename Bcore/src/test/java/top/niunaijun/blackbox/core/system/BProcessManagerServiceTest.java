@@ -42,12 +42,16 @@ public class BProcessManagerServiceTest {
     }
 
     private ProcessRecord createProcessRecord(String packageName, String processName, int buid) {
+        return createProcessRecord(packageName, processName, buid, 0);
+    }
+
+    private ProcessRecord createProcessRecord(String packageName, String processName, int buid, int userId) {
         ApplicationInfo info = new ApplicationInfo();
         info.packageName = packageName;
         ProcessRecord record = new ProcessRecord(info, processName);
         record.buid = buid;
-        record.userId = 0;
-        record.pid = 12345; // dummy pid
+        record.userId = userId;
+        record.pid = 0; // keep kill() a no-op in JVM unit tests
         return record;
     }
 
@@ -139,5 +143,38 @@ public class BProcessManagerServiceTest {
         assertEquals("Should have 2 processes left", 2, mPidsSelfLocked.size());
         assertNotNull("AppA should remain in mProcessMap", mProcessMap.get(10001));
         assertNull("AppB should be removed from mProcessMap", mProcessMap.get(10002));
+    }
+
+    @Test
+    public void testKillAllOtherProcessesGlobalKeepsOnlyTargetPackageAndUser() throws Exception {
+        ProcessRecord appA_user0 = createProcessRecord("com.app.a", "com.app.a", 10001, 0);
+        ProcessRecord appA_user1 = createProcessRecord("com.app.a", "com.app.a", 110001, 1);
+        ProcessRecord appB_user0 = createProcessRecord("com.app.b", "com.app.b", 10002, 0);
+
+        mPidsSelfLocked.add(appA_user0);
+        mPidsSelfLocked.add(appA_user1);
+        mPidsSelfLocked.add(appB_user0);
+
+        Map<String, ProcessRecord> appAUser0Processes = new HashMap<>();
+        appAUser0Processes.put("com.app.a", appA_user0);
+        mProcessMap.put(10001, appAUser0Processes);
+
+        Map<String, ProcessRecord> appAUser1Processes = new HashMap<>();
+        appAUser1Processes.put("com.app.a", appA_user1);
+        mProcessMap.put(110001, appAUser1Processes);
+
+        Map<String, ProcessRecord> appBProcesses = new HashMap<>();
+        appBProcesses.put("com.app.b", appB_user0);
+        mProcessMap.put(10002, appBProcesses);
+
+        List<ProcessRecord> killed = service.performKillAllOtherProcessesGlobalLocked("com.app.a", 0);
+
+        assertEquals("Should report 2 killed", 2, killed.size());
+        assertEquals("Should keep only target user process", 1, mPidsSelfLocked.size());
+        assertEquals("Remaining should be appA user0", 0, mPidsSelfLocked.get(0).userId);
+        assertEquals("com.app.a", mPidsSelfLocked.get(0).getPackageName());
+        assertNotNull("Target app/user should remain", mProcessMap.get(10001));
+        assertNull("Same package in another user should be removed", mProcessMap.get(110001));
+        assertNull("Other package should be removed", mProcessMap.get(10002));
     }
 }

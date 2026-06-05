@@ -30,6 +30,15 @@ public class ComputeService {
 
     @Transactional
     public boolean deductCompute(Long userId, String shopId, String shopName, String platform) {
+        return deductCompute(userId, shopId, shopName, platform, "店铺上报扣减: ");
+    }
+
+    @Transactional
+    public boolean deductComputeForRenewal(Long userId, String shopId, String shopName, String platform) {
+        return deductCompute(userId, shopId, shopName, platform, "店铺续期扣减: ");
+    }
+
+    private boolean deductCompute(Long userId, String shopId, String shopName, String platform, String remarkPrefix) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("用户不存在"));
 
@@ -46,7 +55,7 @@ public class ComputeService {
         log.setAmount(1);
         log.setPlatform(platform);
         log.setShopName(shopName);
-        log.setRemark("店铺上报扣减: " + shopId);
+        log.setRemark(remarkPrefix + shopId);
         transactionLogRepository.save(log);
 
         return true;

@@ -16,6 +16,7 @@ import top.niunaijun.blackboxa.data.PlatformRepository
 import top.niunaijun.blackboxa.data.ShopRepository
 import top.niunaijun.blackboxa.data.TokenManager
 import top.niunaijun.blackboxa.network.RetrofitClient
+import top.niunaijun.blackboxa.util.PlatformRegistry
 
 class HomeViewModel : ViewModel() {
 
@@ -112,6 +113,7 @@ class HomeViewModel : ViewModel() {
             result.fold(
                 onSuccess = { platformDtos ->
                     val platforms = platformDtos.map { it.toPlatformItem() }
+                    PlatformRegistry.update(platforms)
                     _platformsLiveData.value = platforms
                     val selected = _selectedPlatformLiveData.value
                     if (selected == null || platforms.none { it.platform == selected && it.available }) {
@@ -201,7 +203,9 @@ class HomeViewModel : ViewModel() {
                             )
                         )
                     }
-                    if (showMessage) {
+                    if (it.switchedShop) {
+                        _operationMessageLiveData.value = it.message ?: "检测到店铺切换，已创建新店铺并扣划算力"
+                    } else if (showMessage) {
                         _operationMessageLiveData.value = if (it.isNew) "店铺已添加" else "店铺已更新"
                     }
                     loadShops()
@@ -245,9 +249,10 @@ class HomeViewModel : ViewModel() {
         }
     }
 
-    fun completePendingShop(pendingShop: Shop, detectedShop: Shop) {
+    fun completePendingShop(pendingShop: Shop, detectedShop: Shop, showMessage: Boolean = pendingShop.isNew) {
         reportShop(
-            detectedShop.copy(cloneInstanceId = detectedShop.cloneInstanceId ?: pendingShop.cloneInstanceId)
+            detectedShop.copy(cloneInstanceId = detectedShop.cloneInstanceId ?: pendingShop.cloneInstanceId),
+            showMessage = showMessage
         )
     }
 
@@ -268,6 +273,32 @@ class HomeViewModel : ViewModel() {
             result.fold(
                 onSuccess = {
                     _operationMessageLiveData.value = "保存成功"
+                    loadShops()
+                },
+                onFailure = { e ->
+                    _loadErrorLiveData.value = e.message
+                }
+            )
+        }
+    }
+
+    fun renewShop(shop: Shop, onSuccess: (Shop) -> Unit) {
+        viewModelScope.launch {
+            val result = shopRepository.renewShop(shop.id)
+            result.fold(
+                onSuccess = {
+                    _computeBalanceLiveData.value = it.balance
+                    tokenManager.getUser()?.let { user ->
+                        tokenManager.saveUser(
+                            user.copy(
+                                computeBalance = it.balance,
+                                shopCount = it.shopCount ?: user.shopCount,
+                                platformCount = it.platformCount ?: user.platformCount
+                            )
+                        )
+                    }
+                    _operationMessageLiveData.value = "续期成功"
+                    onSuccess(it.shop.toShop())
                     loadShops()
                 },
                 onFailure = { e ->

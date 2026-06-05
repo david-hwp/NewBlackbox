@@ -256,7 +256,30 @@ class HomeActivity : AppCompatActivity() {
             return
         }
 
+        if (shop.remainingDays <= 0) {
+            renewExpiredShopBeforeOpen(shop)
+            return
+        }
         openPlatformForShop(shop)
+    }
+
+    private fun renewExpiredShopBeforeOpen(shop: Shop) {
+        if (shop.autoRenew) {
+            viewModel.renewShop(shop) { renewedShop ->
+                openPlatformForShop(renewedShop)
+            }
+            return
+        }
+        MaterialAlertDialogBuilder(this)
+            .setTitle("店铺已到期")
+            .setMessage("是否扣减 1 点算力为该店铺续期 30 天？")
+            .setNegativeButton("取消", null)
+            .setPositiveButton("确认") { _, _ ->
+                viewModel.renewShop(shop) { renewedShop ->
+                    openPlatformForShop(renewedShop)
+                }
+            }
+            .show()
     }
 
     private fun openPlatformForShop(shop: Shop) {
@@ -286,8 +309,8 @@ class HomeActivity : AppCompatActivity() {
             }
             if (shop.isNew) {
                 reportCloneCreated(shop, targetUserId)
-                schedulePendingShopRecognition(shop, targetUserId, showFailureToast = true)
             }
+            schedulePendingShopRecognition(shop, targetUserId, showFailureToast = shop.isNew)
             return
         }
 
@@ -313,9 +336,11 @@ class HomeActivity : AppCompatActivity() {
             val result = EngineProxy.installPackageAsUser(packageName, targetUserId)
             if (result.success) {
                 toast("${platformName} 分身创建成功")
-                if (launchVirtualApp(packageName, targetUserId, platformName) && shop.isNew) {
-                    reportCloneCreated(shop, targetUserId)
-                    schedulePendingShopRecognition(shop, targetUserId, showFailureToast = true)
+                if (launchVirtualApp(packageName, targetUserId, platformName)) {
+                    if (shop.isNew) {
+                        reportCloneCreated(shop, targetUserId)
+                    }
+                    schedulePendingShopRecognition(shop, targetUserId, showFailureToast = shop.isNew)
                 }
             } else {
                 if (!EngineProxy.isConnected()) {
@@ -442,7 +467,7 @@ class HomeActivity : AppCompatActivity() {
         val shopName = shopInfo?.shopName?.takeIf { it.isNotBlank() }
         val shopId = shopInfo?.shopId?.takeIf { it.isNotBlank() }
         if (shopId == null) {
-            if (attempt < SHOP_RECOGNITION_MAX_ATTEMPTS && pendingShop.isNew) {
+            if (attempt < SHOP_RECOGNITION_MAX_ATTEMPTS) {
                 pollPendingShopRecognition(
                     pendingShop,
                     userId,
@@ -471,11 +496,12 @@ class HomeActivity : AppCompatActivity() {
                 shopName = finalShopName,
                 shopId = shopId,
                 platform = platform,
-                remainingDays = 30,
-                autoRenew = false,
+                remainingDays = pendingShop.remainingDays,
+                autoRenew = pendingShop.autoRenew,
                 packageName = packageName,
                 cloneInstanceId = buildCloneInstanceId(pendingShop, packageName, userId)
-            )
+            ),
+            showMessage = pendingShop.isNew
         )
         key?.let { pendingRecognitionKeys.remove(it) }
     }

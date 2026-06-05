@@ -478,4 +478,22 @@ public class BActivityManager extends BlackManager<IBActivityManagerService> {
             Slog.e(TAG, "Unexpected error in killAllOtherProcesses", e);
         }
     }
+
+    public void killAllOtherProcessesGlobal(String keepPackageName, int userId) {
+        Slog.d(TAG, "killAllOtherProcessesGlobal client: keep=" + keepPackageName + " userId=" + userId);
+        try {
+            IBActivityManagerService service = getService();
+            if (service != null) {
+                Slog.d(TAG, "killAllOtherProcessesGlobal: calling Binder service");
+                service.killAllOtherProcessesGlobal(keepPackageName, userId);
+                Slog.d(TAG, "killAllOtherProcessesGlobal: Binder call completed");
+            } else {
+                Slog.w(TAG, "ActivityManager service is null for killAllOtherProcessesGlobal");
+            }
+        } catch (RemoteException e) {
+            Slog.e(TAG, "RemoteException in killAllOtherProcessesGlobal", e);
+        } catch (Exception e) {
+            Slog.e(TAG, "Unexpected error in killAllOtherProcessesGlobal", e);
+        }
+    }
 }

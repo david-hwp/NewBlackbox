@@ -87,6 +87,22 @@ CREATE TABLE IF NOT EXISTS engine_versions (
     INDEX idx_version_code (version_code)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='引擎版本表';
 
+-- 支持平台配置表
+CREATE TABLE IF NOT EXISTS platform_configs (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    platform_id VARCHAR(64) NOT NULL COMMENT '平台标识',
+    name VARCHAR(128) NOT NULL COMMENT '平台名称',
+    package_name VARCHAR(256) COMMENT '应用包名',
+    icon_url VARCHAR(512) COMMENT '平台图标URL',
+    available TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否可用',
+    sort_order INT DEFAULT 0 COMMENT '排序',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_platform_id (platform_id),
+    INDEX idx_available (available),
+    INDEX idx_sort_order (sort_order)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='支持平台配置表';
+
 -- 问题反馈表
 CREATE TABLE IF NOT EXISTS feedbacks (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,

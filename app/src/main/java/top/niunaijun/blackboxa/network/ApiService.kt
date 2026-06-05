@@ -37,6 +37,9 @@ interface ApiService {
     @PUT("shops/{id}")
     suspend fun updateShop(@Path("id") id: Long, @Body request: ShopDto): ApiResponse<ShopDto>
 
+    @POST("shops/{id}/renew")
+    suspend fun renewShop(@Path("id") id: Long): ApiResponse<ShopRenewResponse>
+
     @DELETE("shops/{id}")
     suspend fun deleteShop(@Path("id") id: Long): ApiResponse<Unit>
 

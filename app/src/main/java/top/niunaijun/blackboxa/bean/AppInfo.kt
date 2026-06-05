@@ -11,5 +11,8 @@ data class AppInfo(
     val isXpModule: Boolean,
     val shopId: String? = null,
     val shopName: String? = null,
-    val platform: String? = null
+    val platform: String? = null,
+    val platformAvailable: Boolean = true,
+    val platformIconUrl: String? = null,
+    val platformPackageName: String? = null
 )

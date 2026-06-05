@@ -11,6 +11,7 @@ import android.os.Bundle;
 import android.os.IBinder;
 import android.os.RemoteException;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -374,6 +375,24 @@ public class BActivityManagerService extends IBActivityManagerService.Stub imple
         // Step 2: Kill the processes after activities are finished
         BProcessManagerService.get().killAllOtherProcesses(keepPackageName, userId);
         Slog.d(TAG, "killAllOtherProcesses completed");
+    }
+
+    @Override
+    public void killAllOtherProcessesGlobal(String keepPackageName, int userId) throws RemoteException {
+        Slog.d(TAG, "killAllOtherProcessesGlobal called from Binder, keep=" + keepPackageName + " userId=" + userId);
+        getOrCreateSpaceLocked(userId);
+        for (UserSpace userSpace : new ArrayList<>(mUserSpace.values())) {
+            synchronized (userSpace.mStack) {
+                userSpace.mStack.finishAllActivitiesExceptGlobal(keepPackageName, userId);
+            }
+        }
+        try {
+            Thread.sleep(300);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        BProcessManagerService.get().killAllOtherProcessesGlobal(keepPackageName, userId);
+        Slog.d(TAG, "killAllOtherProcessesGlobal completed");
     }
 
     @Override

@@ -1,161 +1,71 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/bg"
-    android:orientation="horizontal">
+    android:orientation="vertical">
 
-    <!-- 左侧平台栏 -->
-    <FrameLayout
-        android:layout_width="92dp"
-        android:layout_height="match_parent">
+    <!-- 顶部用户信息卡片 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="96dp"
+        android:background="@color/surface"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingHorizontal="16dp"
+        android:paddingVertical="14dp">
+
+        <FrameLayout
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:background="@drawable/bg_app_logo">
+
+            <TextView
+                android:id="@+id/tvHeaderInitial"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:text="多"
+                android:textColor="@color/white"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+        </FrameLayout>
 
         <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:background="@color/sidebar_bg"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:layout_weight="1"
             android:orientation="vertical">
 
-            <!-- 平台列表 -->
-            <androidx.recyclerview.widget.RecyclerView
-                android:id="@+id/rvPlatforms"
-                android:layout_width="match_parent"
-                android:layout_height="0dp"
-                android:layout_weight="1"
-                android:scrollbars="none" />
-
-            <!-- 底部个人中心入口 -->
-            <LinearLayout
-                android:id="@+id/btnMyProfile"
-                android:layout_width="match_parent"
+            <TextView
+                android:id="@+id/tvHeaderUsername"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:gravity="center"
-                android:orientation="vertical"
-                android:paddingVertical="12dp">
+                android:text="@string/duodian_app_name"
+                android:textColor="@color/fg"
+                android:textSize="16sp"
+                android:textStyle="bold" />
 
-                <ImageView
-                    android:layout_width="24dp"
-                    android:layout_height="24dp"
-                    android:src="@drawable/ic_profile"
-                    app:tint="@color/meta" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="2dp"
-                    android:text="我的"
-                    android:textColor="@color/fg_2"
-                    android:textSize="11sp" />
-            </LinearLayout>
+            <TextView
+                android:id="@+id/tvPhoneNumber"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="3dp"
+                android:textColor="@color/meta"
+                android:textSize="12sp" />
         </LinearLayout>
 
-        <!-- 右侧边框线 -->
-        <View
-            android:layout_width="1px"
-            android:layout_height="match_parent"
-            android:layout_gravity="end"
-            android:background="@color/sidebar_border" />
-    </FrameLayout>
-
-    <!-- 右侧内容区 -->
-    <LinearLayout
-        android:layout_width="0dp"
-        android:layout_height="match_parent"
-        android:layout_weight="1"
-        android:orientation="vertical">
-
-        <!-- 顶部栏 -->
         <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="56dp"
-            android:background="@color/surface"
-            android:gravity="center_vertical"
-            android:orientation="horizontal"
-            android:paddingHorizontal="16dp"
-            android:paddingVertical="12dp">
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="end"
+            android:orientation="vertical">
 
-            <!-- 左侧 Logo + 应用名 -->
-            <LinearLayout
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:gravity="center_vertical"
-                android:orientation="horizontal">
-
-                <!-- Logo 方块 -->
-                <FrameLayout
-                    android:layout_width="32dp"
-                    android:layout_height="32dp"
-                    android:background="@drawable/bg_app_logo">
-
-                    <TextView
-                        android:id="@+id/tvHeaderInitial"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_gravity="center"
-                        android:text="多"
-                        android:textColor="@color/white"
-                        android:textSize="12sp"
-                        android:textStyle="bold" />
-                </FrameLayout>
-
-                <TextView
-                    android:id="@+id/tvHeaderUsername"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="8dp"
-                    android:text="@string/duodian_app_name"
-                    android:textColor="@color/fg"
-                    android:textSize="15sp"
-                    android:textStyle="bold" />
-            </LinearLayout>
-
-            <!-- 右侧账号信息 -->
             <LinearLayout
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:gravity="end"
-                android:orientation="vertical">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/my_account"
-                    android:textColor="@color/meta"
-                    android:textSize="10sp" />
-
-                <TextView
-                    android:id="@+id/tvPhoneNumber"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:textColor="@color/fg"
-                    android:textSize="12sp"
-                    android:textStyle="bold" />
-            </LinearLayout>
-        </LinearLayout>
-
-        <!-- 顶部栏底边框 -->
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="1px"
-            android:background="@color/border" />
-
-        <!-- 算力信息条 -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="40dp"
-            android:background="@color/surface"
-            android:gravity="center_vertical"
-            android:orientation="horizontal"
-            android:paddingHorizontal="16dp"
-            android:paddingVertical="8dp">
-
-            <LinearLayout
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
                 android:gravity="center_vertical"
                 android:orientation="horizontal">
 
@@ -173,109 +83,170 @@
                     android:layout_marginStart="6dp"
                     android:fontFamily="monospace"
                     android:textColor="@color/accent_green"
-                    android:textSize="16sp"
+                    android:textSize="20sp"
                     android:textStyle="bold" />
             </LinearLayout>
 
             <TextView
                 android:id="@+id/btnLogs"
                 android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
+                android:layout_height="32dp"
+                android:layout_marginTop="8dp"
                 android:background="@drawable/bg_button_outline"
+                android:gravity="center"
                 android:paddingHorizontal="12dp"
-                android:paddingVertical="5dp"
                 android:text="@string/transaction_logs"
                 android:textColor="@color/fg_2"
                 android:textSize="12sp" />
         </LinearLayout>
-
-        <!-- 算力信息条底边框 -->
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="1px"
-            android:background="@color/border" />
-
-        <!-- 搜索框 -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="40dp"
-            android:layout_marginHorizontal="12dp"
-            android:layout_marginVertical="8dp"
-            android:background="@drawable/bg_search_field"
-            android:gravity="center_vertical"
-            android:orientation="horizontal"
-            android:paddingHorizontal="12dp">
-
-            <ImageView
-                android:layout_width="16dp"
-                android:layout_height="16dp"
-                android:src="@drawable/ic_search"
-                app:tint="@color/meta" />
-
-            <EditText
-                android:id="@+id/etSearch"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
-                android:background="@null"
-                android:hint="@string/search_hint"
-                android:imeOptions="actionSearch"
-                android:singleLine="true"
-                android:textColor="@color/fg"
-                android:textColorHint="@color/meta"
-                android:textSize="14sp" />
-        </LinearLayout>
-
-        <!-- 店铺列表 -->
-        <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
-            android:id="@+id/swipeRefreshShops"
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1">
-
-            <androidx.recyclerview.widget.RecyclerView
-                android:id="@+id/rvShops"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:clipToPadding="false"
-                android:paddingBottom="4dp"
-                android:scrollbars="vertical" />
-        </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="28dp"
-            android:gravity="center"
-            android:text="@string/technical_support"
-            android:textColor="@color/meta"
-            android:textSize="10sp" />
-
-        <!-- 底部添加店铺栏顶边框 -->
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="1px"
-            android:background="@color/border" />
-
-        <!-- 底部添加店铺栏 -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="52dp"
-            android:background="@color/surface"
-            android:gravity="center"
-            android:orientation="horizontal"
-            android:paddingHorizontal="12dp">
-
-            <TextView
-                android:id="@+id/btnAddShop"
-                android:layout_width="match_parent"
-                android:layout_height="44dp"
-                android:background="@drawable/bg_button_primary"
-                android:gravity="center"
-                android:text="@string/add_shop"
-                android:textColor="@color/white"
-                android:textSize="14sp"
-                android:textStyle="bold" />
-        </LinearLayout>
     </LinearLayout>
 
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1px"
+        android:background="@color/border" />
+
+    <!-- 用户卡片下方主体区：左平台栏 + 右店铺内容 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="horizontal">
+
+        <FrameLayout
+            android:layout_width="92dp"
+            android:layout_height="match_parent">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="@color/sidebar_bg"
+                android:orientation="vertical">
+
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/rvPlatforms"
+                    android:layout_width="match_parent"
+                    android:layout_height="0dp"
+                    android:layout_weight="1"
+                    android:clipToPadding="false"
+                    android:overScrollMode="ifContentScrolls"
+                    android:paddingBottom="6dp"
+                    android:scrollbars="vertical" />
+
+                <LinearLayout
+                    android:id="@+id/btnMyProfile"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center"
+                    android:orientation="vertical"
+                    android:paddingVertical="12dp">
+
+                    <ImageView
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:src="@drawable/ic_profile"
+                        app:tint="@color/meta" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:text="我的"
+                        android:textColor="@color/fg_2"
+                        android:textSize="11sp" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <View
+                android:layout_width="1px"
+                android:layout_height="match_parent"
+                android:layout_gravity="end"
+                android:background="@color/sidebar_border" />
+        </FrameLayout>
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="40dp"
+                android:layout_marginHorizontal="12dp"
+                android:layout_marginVertical="8dp"
+                android:background="@drawable/bg_search_field"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingHorizontal="12dp">
+
+                <ImageView
+                    android:layout_width="16dp"
+                    android:layout_height="16dp"
+                    android:src="@drawable/ic_search"
+                    app:tint="@color/meta" />
+
+                <EditText
+                    android:id="@+id/etSearch"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:background="@null"
+                    android:hint="@string/search_hint"
+                    android:imeOptions="actionSearch"
+                    android:singleLine="true"
+                    android:textColor="@color/fg"
+                    android:textColorHint="@color/meta"
+                    android:textSize="14sp" />
+            </LinearLayout>
+
+            <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+                android:id="@+id/swipeRefreshShops"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1">
+
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/rvShops"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:clipToPadding="false"
+                    android:paddingBottom="4dp"
+                    android:scrollbars="vertical" />
+            </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="28dp"
+                android:gravity="center"
+                android:text="@string/technical_support"
+                android:textColor="@color/meta"
+                android:textSize="10sp" />
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1px"
+                android:background="@color/border" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:background="@color/surface"
+                android:gravity="center"
+                android:orientation="horizontal"
+                android:paddingHorizontal="12dp">
+
+                <TextView
+                    android:id="@+id/btnAddShop"
+                    android:layout_width="match_parent"
+                    android:layout_height="44dp"
+                    android:background="@drawable/bg_button_primary"
+                    android:gravity="center"
+                    android:text="@string/add_shop"
+                    android:textColor="@color/white"
+                    android:textSize="14sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+        </LinearLayout>
+    </LinearLayout>
 </LinearLayout>

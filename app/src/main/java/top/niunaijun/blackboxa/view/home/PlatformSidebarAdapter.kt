@@ -1,6 +1,5 @@
 package top.niunaijun.blackboxa.view.home
 
-import android.graphics.BitmapFactory
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -11,9 +10,7 @@ import androidx.recyclerview.widget.RecyclerView
 import top.niunaijun.blackboxa.R
 import top.niunaijun.blackboxa.bean.Platform
 import top.niunaijun.blackboxa.bean.dto.PlatformItemDto
-import top.niunaijun.blackboxa.network.RetrofitClient
-import java.net.URL
-import java.util.concurrent.Executors
+import top.niunaijun.blackboxa.util.PlatformIconLoader
 
 class PlatformSidebarAdapter(
     private val onItemClick: (Int, PlatformItemDto) -> Unit
@@ -21,8 +18,6 @@ class PlatformSidebarAdapter(
 
     private var platforms: List<PlatformItemDto> = emptyList()
     private var selectedPosition = 0
-    private val iconExecutor = Executors.newFixedThreadPool(2)
-    private val iconCache = mutableMapOf<String, android.graphics.Bitmap>()
 
     // 每个平台的店铺数量（临时数据，实际应从外部传入）
     private var shopCounts: Map<Platform, Int> = emptyMap()
@@ -80,18 +75,7 @@ class PlatformSidebarAdapter(
         fun bind(item: PlatformItemDto, isSelected: Boolean) {
             platformName.text = item.displayName
 
-            // 加载平台 Logo 图片
-            val logoRes = when (item.platform) {
-                Platform.MEITUAN -> R.drawable.meituan
-                Platform.TAOBAO -> R.drawable.qianniu
-                Platform.JD -> R.drawable.jd
-                Platform.KUAISHOU -> R.drawable.kuaishou
-                Platform.XIAOHONGSHU -> R.drawable.xiaohongshu
-                Platform.ALI -> R.drawable.koubei
-            }
-            platformLogo.setImageResource(logoRes)
-            loadRemoteIcon(item, platformLogo, logoRes)
-            platformLogo.alpha = if (item.available) 1f else 0.32f
+            PlatformIconLoader.bind(platformLogo, item, item.platform, item.packageName, item.available)
 
             // 显示店铺数量
             val count = shopCounts[item.platform] ?: 0
@@ -116,36 +100,5 @@ class PlatformSidebarAdapter(
             }
         }
 
-        private fun loadRemoteIcon(item: PlatformItemDto, imageView: ImageView, fallbackRes: Int) {
-            val url = item.iconKey.takeIf { it.startsWith("http://") || it.startsWith("https://") || it.startsWith("/") }
-                ?: return
-            val resolvedUrl = RetrofitClient.resolveUrl(url)
-            val cached = iconCache[resolvedUrl]
-            if (cached != null) {
-                imageView.setImageBitmap(cached)
-                return
-            }
-            val expectedPosition = bindingAdapterPosition
-            iconExecutor.execute {
-                runCatching {
-                    URL(resolvedUrl).openStream().use { BitmapFactory.decodeStream(it) }
-                }.onSuccess { bitmap ->
-                    if (bitmap != null) {
-                        iconCache[resolvedUrl] = bitmap
-                        imageView.post {
-                            if (bindingAdapterPosition == expectedPosition) {
-                                imageView.setImageBitmap(bitmap)
-                            }
-                        }
-                    }
-                }.onFailure {
-                    imageView.post {
-                        if (bindingAdapterPosition == expectedPosition) {
-                            imageView.setImageResource(fallbackRes)
-                        }
-                    }
-                }
-            }
-        }
     }
 }

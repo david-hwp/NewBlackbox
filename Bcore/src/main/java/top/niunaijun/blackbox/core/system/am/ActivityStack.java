@@ -425,6 +425,39 @@ public class ActivityStack {
         }
     }
 
+    public void finishAllActivitiesExceptGlobal(String keepPackageName, int keepUserId) {
+        synchronized (mTasks) {
+            List<TaskRecord> emptyTasks = new ArrayList<>();
+            for (TaskRecord task : mTasks.values()) {
+                List<ActivityRecord> toRemove = new ArrayList<>();
+                for (ActivityRecord activity : task.activities) {
+                    boolean isKeepActivity = keepUserId == activity.userId
+                            && activity.info.packageName.equals(keepPackageName);
+                    if (!isKeepActivity) {
+                        activity.finished = true;
+                        if (activity.processRecord != null && activity.processRecord.bActivityThread != null) {
+                            try {
+                                activity.processRecord.bActivityThread.finishActivity(activity.token);
+                            } catch (RemoteException e) {
+                                // Process may already be dead
+                            }
+                        }
+                        toRemove.add(activity);
+                    }
+                }
+                task.activities.removeAll(toRemove);
+                if (task.activities.isEmpty()) {
+                    emptyTasks.add(task);
+                }
+            }
+            for (TaskRecord task : emptyTasks) {
+                mTasks.remove(task.id);
+            }
+            Slog.d(TAG, "Single instance mode: globally finished activities for "
+                    + emptyTasks.size() + " tasks except " + keepPackageName + " user=" + keepUserId);
+        }
+    }
+
     ActivityRecord newActivityRecord(Intent intent, ActivityInfo info, IBinder resultTo,
                                      int userId) {
         ActivityRecord targetRecord = ActivityRecord.create(intent, info, resultTo, userId);
