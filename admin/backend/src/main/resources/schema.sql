@@ -1,0 +1,108 @@
+-- 多店管家后台数据库初始化脚本
+-- 运行前请先创建数据库: CREATE DATABASE duodian_admin CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+SET NAMES utf8mb4;
+
+USE duodian_admin;
+
+-- 用户表
+CREATE TABLE IF NOT EXISTS users (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    username VARCHAR(64) NOT NULL COMMENT '用户名',
+    phone VARCHAR(20) NOT NULL UNIQUE COMMENT '手机号',
+    password VARCHAR(128) NOT NULL COMMENT '密码',
+    role VARCHAR(20) NOT NULL DEFAULT 'USER' COMMENT '角色: ADMIN/USER',
+    compute_balance INT NOT NULL DEFAULT 0 COMMENT '算力余额',
+    shop_count INT NOT NULL DEFAULT 0 COMMENT '店铺数量',
+    platform_count INT NOT NULL DEFAULT 0 COMMENT '覆盖平台数',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    last_login_at DATETIME COMMENT '最后登录时间',
+    INDEX idx_phone (phone)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户表';
+
+-- 店铺表
+CREATE TABLE IF NOT EXISTS shops (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT NOT NULL COMMENT '所属用户ID',
+    shop_name VARCHAR(128) NOT NULL COMMENT '店铺名称',
+    shop_id VARCHAR(64) NOT NULL COMMENT '店铺ID',
+    platform VARCHAR(32) NOT NULL COMMENT '平台标识: meituan/taobao/jd/kuaishou/xiaohongshu/ali',
+    platform_name VARCHAR(64) COMMENT '平台名称',
+    remaining_days INT NOT NULL DEFAULT 0 COMMENT '剩余天数',
+    auto_renew TINYINT(1) NOT NULL DEFAULT 0 COMMENT '自动续时: 0-关闭 1-开启',
+    package_name VARCHAR(128) COMMENT '分身应用包名',
+    last_deducted_at DATETIME COMMENT '最后扣减时间',
+    expire_at DATETIME COMMENT '过期时间',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_user_id (user_id),
+    INDEX idx_platform (platform)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='店铺表';
+
+-- 交易日志表
+CREATE TABLE IF NOT EXISTS transaction_logs (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT COMMENT '所属用户ID',
+    type VARCHAR(20) NOT NULL COMMENT '类型: CONSUME/OUT/IN',
+    amount INT NOT NULL COMMENT '金额',
+    platform VARCHAR(32) COMMENT '关联平台',
+    shop_name VARCHAR(128) COMMENT '关联店铺',
+    from_phone VARCHAR(20) COMMENT '转出方手机号',
+    from_name VARCHAR(64) COMMENT '转出方姓名',
+    to_phone VARCHAR(20) COMMENT '接收方手机号',
+    to_name VARCHAR(64) COMMENT '接收方姓名',
+    remark VARCHAR(256) COMMENT '备注',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_user_id (user_id),
+    INDEX idx_type (type),
+    INDEX idx_created_at (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='交易日志表';
+
+-- 公告表
+CREATE TABLE IF NOT EXISTS announcements (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    title VARCHAR(128) NOT NULL COMMENT '公告标题',
+    content VARCHAR(4000) NOT NULL COMMENT '公告内容',
+    published TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否发布',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_published (published),
+    INDEX idx_created_at (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='公告表';
+
+-- 引擎版本表
+CREATE TABLE IF NOT EXISTS engine_versions (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    version_code INT NOT NULL COMMENT '版本号',
+    version_name VARCHAR(64) NOT NULL COMMENT '版本名称',
+    apk_url VARCHAR(512) NOT NULL COMMENT '引擎APK下载地址',
+    checksum VARCHAR(64) COMMENT 'APK校验值',
+    available TINYINT(1) NOT NULL DEFAULT 1 COMMENT '是否可用',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_available (available),
+    INDEX idx_version_code (version_code)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='引擎版本表';
+
+-- 问题反馈表
+CREATE TABLE IF NOT EXISTS feedbacks (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT NOT NULL COMMENT '用户ID',
+    user_phone VARCHAR(20) COMMENT '用户手机号',
+    content VARCHAR(2000) NOT NULL COMMENT '反馈内容',
+    image_urls VARCHAR(1000) COMMENT '图片URL，逗号分隔',
+    attachment_urls VARCHAR(1000) COMMENT '附件URL，逗号分隔',
+    log_url VARCHAR(512) COMMENT '日志ZIP URL',
+    status VARCHAR(20) DEFAULT 'PENDING' COMMENT '状态',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    resolved_at DATETIME COMMENT '处理时间',
+    INDEX idx_user_id (user_id),
+    INDEX idx_status (status),
+    INDEX idx_created_at (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='问题反馈表';
+
+-- 插入默认管理员账号 (密码: admin123)
+INSERT INTO users (username, phone, password, role, compute_balance, shop_count, platform_count)
+VALUES ('管理员', '13800138000', 'admin123', 'ADMIN', 9999, 0, 0)
+ON DUPLICATE KEY UPDATE id=id;

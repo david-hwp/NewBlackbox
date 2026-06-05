@@ -37,3 +37,26 @@ engine-aidl/build/
 # Planning docs (local only)
 .planning/
 
+# Admin generated files
+/admin/backend/target/
+/admin/backend/logs/
+/admin/backend/*.log
+/admin/frontend/dist/
+/admin/frontend/node_modules/
+/admin/frontend/.vite/
+/admin/frontend/.cache/
+/admin/frontend/coverage/
+/admin/frontend/logs/
+/admin/frontend/*.log
+/admin/frontend/npm-debug.log*
+/admin/frontend/yarn-debug.log*
+/admin/frontend/yarn-error.log*
+/admin/.env
+/admin/.env.*
+!/admin/.env.example
+/admin/backend/.env
+/admin/backend/.env.*
+!/admin/backend/.env.example
+/admin/frontend/.env.local
+/admin/frontend/.env.*.local
+/admin/backups/

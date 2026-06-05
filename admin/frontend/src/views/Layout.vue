@@ -1,0 +1,153 @@
+<template>
+  <el-container class="layout-container">
+    <el-aside width="220px" class="sidebar">
+      <div class="sidebar-header">
+        <el-icon :size="28" color="#059669"><Shop /></el-icon>
+        <span class="title">多店管家</span>
+      </div>
+      <el-menu
+        :default-active="activeMenu"
+        router
+        class="sidebar-menu"
+        background-color="#1e293b"
+        text-color="#94a3b8"
+        active-text-color="#059669"
+      >
+        <el-menu-item index="/dashboard">
+          <el-icon><Odometer /></el-icon>
+          <span>概览</span>
+        </el-menu-item>
+        <el-menu-item index="/users">
+          <el-icon><User /></el-icon>
+          <span>用户管理</span>
+        </el-menu-item>
+        <el-menu-item index="/shops">
+          <el-icon><Shop /></el-icon>
+          <span>店铺管理</span>
+        </el-menu-item>
+        <el-menu-item index="/logs">
+          <el-icon><Document /></el-icon>
+          <span>交易日志</span>
+        </el-menu-item>
+        <el-menu-item index="/feedbacks">
+          <el-icon><ChatDotRound /></el-icon>
+          <span>问题反馈</span>
+        </el-menu-item>
+        <el-menu-item index="/announcements">
+          <el-icon><Bell /></el-icon>
+          <span>公告管理</span>
+        </el-menu-item>
+        <el-menu-item index="/engine-versions">
+          <el-icon><Connection /></el-icon>
+          <span>引擎版本</span>
+        </el-menu-item>
+      </el-menu>
+    </el-aside>
+
+    <el-container>
+      <el-header class="header">
+        <div class="header-left">
+          <h3>{{ pageTitle }}</h3>
+        </div>
+        <div class="header-right">
+          <el-dropdown @command="handleCommand">
+            <span class="user-info">
+              <el-avatar :size="32" :icon="UserFilled" />
+              <span>{{ userInfo?.username || '管理员' }}</span>
+              <el-icon><ArrowDown /></el-icon>
+            </span>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="logout">退出登录</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+        </div>
+      </el-header>
+
+      <el-main class="main">
+        <router-view />
+      </el-main>
+    </el-container>
+  </el-container>
+</template>
+
+<script setup>
+import { computed, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
+import { Shop, Odometer, User, Document, ArrowDown, UserFilled, Bell, Connection, ChatDotRound } from '@element-plus/icons-vue'
+
+const route = useRoute()
+const router = useRouter()
+
+const activeMenu = computed(() => route.path)
+const pageTitle = computed(() => route.meta?.title || '后台管理')
+
+const userInfo = ref(JSON.parse(localStorage.getItem('admin_user') || '{}'))
+
+const handleCommand = (cmd) => {
+  if (cmd === 'logout') {
+    localStorage.removeItem('admin_token')
+    localStorage.removeItem('admin_user')
+    ElMessage.success('已退出登录')
+    router.push('/login')
+  }
+}
+</script>
+
+<style scoped>
+.layout-container {
+  min-height: 100vh;
+}
+
+.sidebar {
+  background: #1e293b;
+  color: #fff;
+}
+
+.sidebar-header {
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border-bottom: 1px solid #334155;
+}
+
+.sidebar-header .title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.sidebar-menu {
+  border-right: none;
+}
+
+.header {
+  background: #fff;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.header h3 {
+  font-size: 18px;
+  color: #1e293b;
+}
+
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  color: #475569;
+}
+
+.main {
+  background: #f5f6f8;
+  padding: 20px;
+}
+</style>

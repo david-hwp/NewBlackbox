@@ -1,0 +1,63 @@
+-- 多店管家后台数据库初始化脚本
+-- 运行前请先创建数据库: CREATE DATABASE duodian_admin CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+USE duodian_admin;
+
+-- 用户表
+CREATE TABLE IF NOT EXISTS users (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    username VARCHAR(64) NOT NULL COMMENT '用户名',
+    phone VARCHAR(20) NOT NULL UNIQUE COMMENT '手机号',
+    password VARCHAR(128) NOT NULL COMMENT '密码',
+    role VARCHAR(20) NOT NULL DEFAULT 'USER' COMMENT '角色: ADMIN/USER',
+    compute_balance INT NOT NULL DEFAULT 0 COMMENT '算力余额',
+    shop_count INT NOT NULL DEFAULT 0 COMMENT '店铺数量',
+    platform_count INT NOT NULL DEFAULT 0 COMMENT '覆盖平台数',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    last_login_at DATETIME COMMENT '最后登录时间',
+    INDEX idx_phone (phone)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户表';
+
+-- 店铺表
+CREATE TABLE IF NOT EXISTS shops (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT NOT NULL COMMENT '所属用户ID',
+    shop_name VARCHAR(128) NOT NULL COMMENT '店铺名称',
+    shop_id VARCHAR(64) NOT NULL COMMENT '店铺ID',
+    platform VARCHAR(32) NOT NULL COMMENT '平台标识: meituan/taobao/jd/kuaishou/xiaohongshu/ali',
+    platform_name VARCHAR(64) COMMENT '平台名称',
+    remaining_days INT NOT NULL DEFAULT 0 COMMENT '剩余天数',
+    auto_renew TINYINT(1) NOT NULL DEFAULT 0 COMMENT '自动续时: 0-关闭 1-开启',
+    package_name VARCHAR(128) COMMENT '分身应用包名',
+    last_deducted_at DATETIME COMMENT '最后扣减时间',
+    expire_at DATETIME COMMENT '过期时间',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_user_id (user_id),
+    INDEX idx_platform (platform)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='店铺表';
+
+-- 交易日志表
+CREATE TABLE IF NOT EXISTS transaction_logs (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT COMMENT '所属用户ID',
+    type VARCHAR(20) NOT NULL COMMENT '类型: CONSUME/OUT/IN',
+    amount INT NOT NULL COMMENT '金额',
+    platform VARCHAR(32) COMMENT '关联平台',
+    shop_name VARCHAR(128) COMMENT '关联店铺',
+    from_phone VARCHAR(20) COMMENT '转出方手机号',
+    from_name VARCHAR(64) COMMENT '转出方姓名',
+    to_phone VARCHAR(20) COMMENT '接收方手机号',
+    to_name VARCHAR(64) COMMENT '接收方姓名',
+    remark VARCHAR(256) COMMENT '备注',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_user_id (user_id),
+    INDEX idx_type (type),
+    INDEX idx_created_at (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='交易日志表';
+
+-- 插入默认管理员账号 (密码: admin123)
+INSERT INTO users (username, phone, password, role, compute_balance, shop_count, platform_count)
+VALUES ('管理员', '13800138000', 'admin123', 'ADMIN', 9999, 0, 0)
+ON DUPLICATE KEY UPDATE id=id;

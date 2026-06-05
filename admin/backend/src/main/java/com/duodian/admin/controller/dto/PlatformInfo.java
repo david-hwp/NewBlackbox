@@ -1,0 +1,34 @@
+package com.duodian.admin.controller.dto;
+
+public class PlatformInfo {
+    private String id;
+    private String name;
+    private String packageName;
+    private String iconUrl;
+    private boolean available;
+
+    public PlatformInfo() {}
+
+    public PlatformInfo(String id, String name, String packageName, String iconUrl, boolean available) {
+        this.id = id;
+        this.name = name;
+        this.packageName = packageName;
+        this.iconUrl = iconUrl;
+        this.available = available;
+    }
+
+    public String getId() { return id; }
+    public void setId(String id) { this.id = id; }
+
+    public String getName() { return name; }
+    public void setName(String name) { this.name = name; }
+
+    public String getPackageName() { return packageName; }
+    public void setPackageName(String packageName) { this.packageName = packageName; }
+
+    public String getIconUrl() { return iconUrl; }
+    public void setIconUrl(String iconUrl) { this.iconUrl = iconUrl; }
+
+    public boolean isAvailable() { return available; }
+    public void setAvailable(boolean available) { this.available = available; }
+}
