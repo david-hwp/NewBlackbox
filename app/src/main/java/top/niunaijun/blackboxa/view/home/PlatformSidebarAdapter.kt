@@ -43,13 +43,17 @@ class PlatformSidebarAdapter(
         val item = platforms[position]
         holder.bind(item, position == selectedPosition)
         holder.itemView.setOnClickListener {
-            if (item.available && position != selectedPosition) {
+            if (!item.available) {
+                onItemClick(position, item)
+                return@setOnClickListener
+            }
+            if (position != selectedPosition) {
                 val oldPosition = selectedPosition
                 selectedPosition = position
                 notifyItemChanged(oldPosition)
                 notifyItemChanged(selectedPosition)
-                onItemClick(position, item)
             }
+            onItemClick(position, item)
         }
     }
 
@@ -68,6 +72,7 @@ class PlatformSidebarAdapter(
 
     inner class VH(itemView: View) : RecyclerView.ViewHolder(itemView) {
         private val indicator: View = itemView.findViewById(R.id.indicator)
+        private val platformContent: View = itemView.findViewById(R.id.platformContent)
         private val platformLogo: ImageView = itemView.findViewById(R.id.platformLogo)
         private val platformName: TextView = itemView.findViewById(R.id.platformName)
         private val platformCount: TextView = itemView.findViewById(R.id.platformCount)
@@ -80,18 +85,18 @@ class PlatformSidebarAdapter(
             // 显示店铺数量
             val count = shopCounts[item.platform] ?: 0
             platformCount.text = "${count}家"
-            itemView.isEnabled = item.available
+            itemView.isEnabled = true
             itemView.alpha = if (item.available) 1f else 0.72f
 
             if (isSelected && item.available) {
                 indicator.visibility = View.VISIBLE
-                itemView.setBackgroundResource(R.drawable.bg_platform_item_selected)
+                platformContent.setBackgroundResource(R.drawable.bg_platform_item_selected)
                 platformName.setTextColor(
                     ContextCompat.getColor(itemView.context, R.color.accent_green)
                 )
             } else {
                 indicator.visibility = View.INVISIBLE
-                itemView.setBackgroundColor(
+                platformContent.setBackgroundColor(
                     ContextCompat.getColor(itemView.context, android.R.color.transparent)
                 )
                 platformName.setTextColor(

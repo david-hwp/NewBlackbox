@@ -77,6 +77,10 @@ class HomeActivity : AppCompatActivity() {
 
     private fun initPlatformSidebar() {
         platformAdapter = PlatformSidebarAdapter { _, platform ->
+            if (!platform.available) {
+                toast("该平台的店铺管理功能暂不支持")
+                return@PlatformSidebarAdapter
+            }
             viewModel.selectPlatform(platform.platform)
             updateShopList()
         }
@@ -397,7 +401,7 @@ class HomeActivity : AppCompatActivity() {
             return
         }
         if (!platformItem.available) {
-            toast("${platformItem.displayName} 暂未开放")
+            toast("该平台的店铺管理功能暂不支持")
             return
         }
         viewModel.createPendingShop(platformItem)

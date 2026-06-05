@@ -1,10 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
-    android:layout_width="92dp"
-    android:layout_height="wrap_content"
-    android:paddingVertical="12dp"
-    android:paddingHorizontal="6dp">
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content">
 
     <!-- 左侧选中指示条 -->
     <View
@@ -17,10 +15,14 @@
 
     <!-- 内容 -->
     <LinearLayout
+        android:id="@+id/platformContent"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:gravity="center"
-        android:orientation="vertical">
+        android:minHeight="96dp"
+        android:orientation="vertical"
+        android:paddingHorizontal="6dp"
+        android:paddingVertical="12dp">
 
         <!-- 平台Logo - 使用真实图片 -->
         <ImageView
