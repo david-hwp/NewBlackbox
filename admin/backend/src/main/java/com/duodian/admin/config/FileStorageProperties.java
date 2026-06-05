@@ -7,7 +7,7 @@ import org.springframework.stereotype.Component;
 @ConfigurationProperties(prefix = "app.storage")
 public class FileStorageProperties {
     private String type = "local";
-    private String localRoot = "~/zhirang/duokai/";
+    private String localRoot = "~/zhanghaoguanjia/files/";
     private String endpoint;
     private String bucket;
     private String region;

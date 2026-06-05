@@ -10,6 +10,7 @@ import android.os.RemoteException
 import top.niunaijun.blackbox.BlackBoxCore
 import top.niunaijun.blackbox.core.system.ServiceManager
 import top.niunaijun.blackbox.core.system.pm.BPackageManagerService
+import top.niunaijun.blackbox.core.system.pm.ShopIdManager
 import top.niunaijun.blackbox.core.system.am.BActivityManagerService
 import top.niunaijun.blackbox.core.system.location.BLocationManagerService
 import top.niunaijun.blackbox.core.system.user.BUserManagerService
@@ -181,8 +182,15 @@ class BlackBoxEngineService : Service() {
         }
 
         override fun triggerShopIdExtract(packageName: String?, userId: Int) {
-            // Placeholder - shop ID extraction is triggered internally via package installation/scan
-            Slog.d(TAG, "triggerShopIdExtract called for $packageName, userId=$userId")
+            if (packageName.isNullOrBlank()) {
+                return
+            }
+            try {
+                ShopIdManager.get().triggerExtract(packageName, userId, ctx)
+                Slog.d(TAG, "triggerShopIdExtract requested for $packageName, userId=$userId")
+            } catch (e: Exception) {
+                Slog.w(TAG, "triggerShopIdExtract failed for $packageName, userId=$userId", e)
+            }
         }
 
         override fun registerSession(sessionId: String?, expireAt: Long) {

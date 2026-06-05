@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">店铺管家</string>
+    <string name="app_name">zhanghaoguanjia</string>
     <string name="choose">Choose</string>
     <string name="choose_app">Choose App</string>
     <string name="installed_app">Installed App</string>
@@ -71,8 +71,8 @@
     <string name="no_gms">Currently, there is no Google service environment on mobile phones.</string>
 
     <!-- 多店管家 -->
-    <string name="duodian_app_name">店铺管家</string>
-    <string name="duodian_login_title">店铺管家</string>
+    <string name="duodian_app_name">账号管家</string>
+    <string name="duodian_login_title">账号管家</string>
     <string name="duodian_login_subtitle">多平台店铺管理专家</string>
     <string name="duodian_phone_hint">请输入手机号</string>
     <string name="duodian_password_hint">请输入密码</string>

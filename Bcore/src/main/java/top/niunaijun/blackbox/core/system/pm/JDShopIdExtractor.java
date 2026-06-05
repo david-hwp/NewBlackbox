@@ -4,6 +4,8 @@ import android.content.Context;
 
 import java.io.File;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -33,6 +35,7 @@ public class JDShopIdExtractor implements ShopIdExtractor {
     private static final String TAG = "JDShopIdExtractor";
     private static final String TARGET_PACKAGE = "com.jd.mrd.jingming";
     private static final String PREFS_FILE = "JingmingAndroidClient";
+    private static final int MAX_PREF_FILE_BYTES = 256 * 1024;
 
     // Matches: <string name="storeId">14395758</string>
     private static final Pattern STORE_ID_PATTERN =
@@ -41,6 +44,12 @@ public class JDShopIdExtractor implements ShopIdExtractor {
     // Matches: <string name="storeName">罗家臭豆腐(东瓜山店)</string>
     private static final Pattern STORE_NAME_PATTERN =
             Pattern.compile("<string name=\"storeName\">([^<]+)</string>");
+
+    private static final Pattern SHOP_ID_PATTERN =
+            Pattern.compile("(?i)(?:\\\"|&quot;)?(?:shopId|storeId|venderId|vendorId|stationId)(?:\\\"|&quot;)?\\s*[:=]\\s*(?:\\\"|&quot;)?(\\d{5,20})");
+
+    private static final Pattern SHOP_NAME_PATTERN =
+            Pattern.compile("(?i)(?:\\\"|&quot;)?(?:shopName|storeName|venderName|vendorName|stationName)(?:\\\"|&quot;)?\\s*[:=]\\s*(?:\\\"|&quot;)?([^\\\"&<,}]+)");
 
     // Matches: <string name="ge_tui_push_alias_bind_flag">14395758,true</string>
     private static final Pattern GETUI_PATTERN =
@@ -53,23 +62,40 @@ public class JDShopIdExtractor implements ShopIdExtractor {
 
     @Override
     public ShopInfo extract(Context context, int userId) {
-        File prefsFile = BEnvironment.getXSharedPreferences(TARGET_PACKAGE, PREFS_FILE);
-        if (prefsFile == null || !prefsFile.exists()) {
-            Slog.d(TAG, "SharedPreferences file not found: " + prefsFile);
+        List<File> prefFiles = collectSharedPreferenceFiles(userId);
+        if (prefFiles.isEmpty()) {
+            Slog.d(TAG, "SharedPreferences files not found for userId=" + userId);
             return null;
         }
 
-        String content = readFileToString(prefsFile);
+        for (File prefFile : prefFiles) {
+            ShopInfo shopInfo = extractFromFile(prefFile);
+            if (shopInfo != null) {
+                return shopInfo;
+            }
+        }
+
+        Slog.d(TAG, "No shopId found in SharedPreferences files, count=" + prefFiles.size());
+        return null;
+    }
+
+    private ShopInfo extractFromFile(File prefFile) {
+        String content = readFileToString(prefFile);
         if (content == null || content.isEmpty()) {
-            Slog.w(TAG, "SharedPreferences file is empty");
             return null;
         }
 
         // Strategy 1: extract storeId + storeName directly (primary)
         String shopId = extractPattern(content, STORE_ID_PATTERN);
-        String shopName = extractPattern(content, STORE_NAME_PATTERN);
+        String shopName = normalizeShopName(extractPattern(content, STORE_NAME_PATTERN));
+        if (shopId == null) {
+            shopId = extractPattern(content, SHOP_ID_PATTERN);
+        }
+        if (shopName == null) {
+            shopName = normalizeShopName(extractPattern(content, SHOP_NAME_PATTERN));
+        }
         if (shopId != null && isValidShopId(shopId)) {
-            Slog.d(TAG, "Extracted shopId=" + shopId + ", shopName=" + shopName + " from SharedPreferences");
+            Slog.d(TAG, "Extracted shopId=" + shopId + ", shopName=" + shopName + " from " + prefFile.getName());
             return new ShopInfo(shopId, shopName, "jd");
         }
 
@@ -78,13 +104,33 @@ public class JDShopIdExtractor implements ShopIdExtractor {
         if (getuiValue != null && !getuiValue.isEmpty()) {
             String fallbackShopId = getuiValue.split(",")[0].trim();
             if (isValidShopId(fallbackShopId)) {
-                Slog.d(TAG, "Extracted shopId=" + fallbackShopId + " from GeTui alias");
+                Slog.d(TAG, "Extracted shopId=" + fallbackShopId + " from GeTui alias in " + prefFile.getName());
                 return new ShopInfo(fallbackShopId, null, "jd");
             }
         }
 
-        Slog.d(TAG, "No shopId found in " + PREFS_FILE + ".xml");
         return null;
+    }
+
+    private List<File> collectSharedPreferenceFiles(int userId) {
+        List<File> files = new ArrayList<>();
+        File primary = BEnvironment.getXSharedPreferences(TARGET_PACKAGE, userId, PREFS_FILE);
+        if (primary != null && primary.exists()) {
+            files.add(primary);
+        }
+
+        File sharedPrefsDir = new File(BEnvironment.getDataDir(TARGET_PACKAGE, userId), "shared_prefs");
+        File[] prefFiles = sharedPrefsDir.listFiles((dir, name) -> name != null && name.endsWith(".xml"));
+        if (prefFiles == null) {
+            return files;
+        }
+        for (File file : prefFiles) {
+            if (file == null || !file.isFile() || file.length() > MAX_PREF_FILE_BYTES || files.contains(file)) {
+                continue;
+            }
+            files.add(file);
+        }
+        return files;
     }
 
     /**
@@ -93,7 +139,7 @@ public class JDShopIdExtractor implements ShopIdExtractor {
      */
     private String extractPattern(String content, Pattern pattern) {
         Matcher matcher = pattern.matcher(content);
-        return matcher.find() ? matcher.group(1) : null;
+        return matcher.find() ? matcher.group(1).trim() : null;
     }
 
     /**
@@ -113,6 +159,19 @@ public class JDShopIdExtractor implements ShopIdExtractor {
             }
         }
         return true;
+    }
+
+    private String normalizeShopName(String raw) {
+        if (raw == null) {
+            return null;
+        }
+        String value = raw.trim()
+                .replace("&quot;", "\"")
+                .replace("&amp;", "&")
+                .replace("&lt;", "<")
+                .replace("&gt;", ">")
+                .replace("\\/", "/");
+        return value.isEmpty() ? null : value;
     }
 
     /**

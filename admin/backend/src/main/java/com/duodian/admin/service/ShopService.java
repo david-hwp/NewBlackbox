@@ -28,6 +28,10 @@ public class ShopService {
         return shopRepository.findByUserId(userId);
     }
 
+    public List<Shop> findByUserIdAndPlatform(Long userId, String platform) {
+        return shopRepository.findByUserIdAndPlatform(userId, platform);
+    }
+
     public List<Shop> findByPlatform(String platform) {
         return shopRepository.findByPlatform(platform);
     }

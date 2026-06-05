@@ -1,15 +1,14 @@
 package top.niunaijun.blackboxa.engine
 
 import android.app.PendingIntent
-import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageInfo
 import android.content.pm.PackageInstaller
 import android.content.pm.PackageManager
+import android.content.pm.Signature
 import android.net.Uri
 import android.os.Build
-import android.os.Handler
-import android.os.Looper
 import android.provider.Settings
 import android.util.Log
 import androidx.core.content.FileProvider
@@ -29,7 +28,11 @@ object EngineInstaller {
     private const val ENGINE_DIR = "engine"
     const val INSTALL_TIMEOUT_MS = 60000L
 
-    private val mainHandler = Handler(Looper.getMainLooper())
+    data class EnginePackageInfo(
+        val packageName: String,
+        val versionName: String?,
+        val versionCode: Int
+    )
 
     /**
      * Check if the Engine APK is installed as a separate app on the device.
@@ -64,6 +67,29 @@ object EngineInstaller {
             Log.w(TAG, "Error getting installed engine version: ${e.message}")
             0
         }
+    }
+
+    fun getInstalledEngineVersionName(context: Context): String? {
+        return try {
+            context.packageManager.getPackageInfo(ENGINE_PACKAGE, 0).versionName
+        } catch (e: PackageManager.NameNotFoundException) {
+            null
+        } catch (e: Exception) {
+            Log.w(TAG, "Error getting installed engine versionName: ${e.message}")
+            null
+        }
+    }
+
+    fun getApkPackageInfo(context: Context, apkFile: File): EnginePackageInfo? {
+        val packageInfo = context.packageManager.getPackageArchiveInfo(
+            apkFile.absolutePath,
+            signatureFlags()
+        ) ?: return null
+        return EnginePackageInfo(
+            packageName = packageInfo.packageName,
+            versionName = packageInfo.versionName,
+            versionCode = getVersionCode(packageInfo)
+        )
     }
 
     /**
@@ -139,6 +165,11 @@ object EngineInstaller {
 
             Log.d(TAG, "Engine APK copied to: ${destFile.absolutePath}")
 
+            val validation = validateInstallCandidate(context, destFile)
+            if (validation.isFailure) {
+                return Result.failure(validation.exceptionOrNull() ?: IllegalStateException("Engine APK cannot be installed"))
+            }
+
             // Step 2: Trigger installation
             installApk(context, destFile)
         } catch (e: IOException) {
@@ -167,9 +198,46 @@ object EngineInstaller {
                     )
                 )
             }
+            val validation = validateInstallCandidate(context, apkFile)
+            if (validation.isFailure) {
+                return Result.failure(validation.exceptionOrNull() ?: IllegalStateException("Engine APK cannot be installed"))
+            }
             installApk(context, apkFile)
         } catch (e: Exception) {
             Log.e(TAG, "Error installing from file: ${e.message}", e)
+            Result.failure(e)
+        }
+    }
+
+    fun validateInstallCandidate(context: Context, apkFile: File): Result<EnginePackageInfo> {
+        return try {
+            val candidate = getApkPackageInfo(context, apkFile)
+                ?: return Result.failure(IOException("下载的引擎包不是有效 APK"))
+            if (candidate.packageName != ENGINE_PACKAGE) {
+                return Result.failure(
+                    SecurityException("引擎包包名不匹配: ${candidate.packageName}")
+                )
+            }
+
+            val installedVersion = getInstalledEngineVersion(context)
+            if (installedVersion > 0 && candidate.versionCode <= installedVersion) {
+                val currentName = getInstalledEngineVersionName(context)?.let { "$it ($installedVersion)" }
+                    ?: installedVersion.toString()
+                val candidateName = candidate.versionName?.let { "$it (${candidate.versionCode})" }
+                    ?: candidate.versionCode.toString()
+                return Result.failure(
+                    IllegalStateException("当前引擎版本为 $currentName，不能直接切换到 $candidateName")
+                )
+            }
+
+            if (installedVersion > 0 && !hasCompatibleSignature(context, apkFile)) {
+                return Result.failure(
+                    SecurityException("引擎签名与当前已安装版本不一致，Android 不允许覆盖安装")
+                )
+            }
+
+            Result.success(candidate)
+        } catch (e: Exception) {
             Result.failure(e)
         }
     }
@@ -212,7 +280,7 @@ object EngineInstaller {
     /**
      * Install an APK file using the appropriate method for the device/Android version.
      *
-     * MIUI devices use ACTION_VIEW intent because MIUI's custom package installer
+     * MIUI devices use an install intent because MIUI's custom package installer
      * (com.miui.packageinstaller) auto-aborts PackageInstaller API installs with
      * "User rejected permissions" before the user can interact with the dialog.
      */
@@ -257,6 +325,9 @@ object EngineInstaller {
         return try {
             val packageInstaller = context.packageManager.packageInstaller
             val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                params.setAppPackageName(ENGINE_PACKAGE)
+            }
             if (isEngineInstalled(context)) {
                 Log.d(TAG, "Engine already installed, using MODE_FULL_INSTALL for upgrade")
             } else {
@@ -311,13 +382,14 @@ object EngineInstaller {
     }
 
     /**
-     * Install using ACTION_VIEW intent (fallback for older devices).
+     * Install using ACTION_INSTALL_PACKAGE intent (fallback for MIUI and older devices).
      */
     private fun installWithIntent(context: Context, apkFile: File): Result<Unit> {
         return try {
-            val intent = Intent(Intent.ACTION_VIEW).apply {
+            val intent = Intent(Intent.ACTION_INSTALL_PACKAGE).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                putExtra(Intent.EXTRA_RETURN_RESULT, true)
             }
 
             val uri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
@@ -372,6 +444,52 @@ object EngineInstaller {
         } catch (e: Exception) {
             Log.w(TAG, "Error computing MD5: ${e.message}")
             null
+        }
+    }
+
+    private fun hasCompatibleSignature(context: Context, apkFile: File): Boolean {
+        return try {
+            val packageManager = context.packageManager
+            val installed = packageManager.getPackageInfo(ENGINE_PACKAGE, signatureFlags())
+            val candidate = packageManager.getPackageArchiveInfo(apkFile.absolutePath, signatureFlags())
+                ?: return false
+            signatureFingerprints(installed) == signatureFingerprints(candidate)
+        } catch (e: Exception) {
+            Log.w(TAG, "Error checking engine signature compatibility: ${e.message}")
+            false
+        }
+    }
+
+    private fun signatureFlags(): Int {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            PackageManager.GET_SIGNING_CERTIFICATES
+        } else {
+            @Suppress("DEPRECATION")
+            PackageManager.GET_SIGNATURES
+        }
+    }
+
+    private fun signatureFingerprints(packageInfo: PackageInfo): Set<String> {
+        val signatures = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            packageInfo.signingInfo?.apkContentsSigners ?: emptyArray()
+        } else {
+            @Suppress("DEPRECATION")
+            packageInfo.signatures ?: emptyArray()
+        }
+        return signatures.map { signatureFingerprint(it) }.toSet()
+    }
+
+    private fun signatureFingerprint(signature: Signature): String {
+        val md = MessageDigest.getInstance("SHA-256")
+        return md.digest(signature.toByteArray()).joinToString("") { "%02x".format(it) }
+    }
+
+    private fun getVersionCode(packageInfo: PackageInfo): Int {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            packageInfo.longVersionCode.toInt()
+        } else {
+            @Suppress("DEPRECATION")
+            packageInfo.versionCode
         }
     }
 }

@@ -58,6 +58,12 @@ class EngineSwitchViewModel(application: Application) : AndroidViewModel(applica
                         return@launch
                     }
                 }
+                val validation = EngineInstaller.validateInstallCandidate(getApplication(), file)
+                if (validation.isFailure) {
+                    _messageLiveData.postValue(validation.exceptionOrNull()?.message ?: "引擎包不可安装")
+                    _loadingLiveData.postValue(false)
+                    return@launch
+                }
                 val result = EngineInstaller.installFromFile(getApplication(), file)
                 result.fold(
                     onSuccess = {

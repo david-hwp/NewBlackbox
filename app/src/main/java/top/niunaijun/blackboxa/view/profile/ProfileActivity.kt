@@ -174,9 +174,14 @@ class ProfileActivity : AppCompatActivity() {
         }
         val mainVersion = "${packageInfo.versionName} ($versionCode)"
         val engineVersionCode = EngineInstaller.getInstalledEngineVersion(this)
-        val engineVersion = if (engineVersionCode > 0) engineVersionCode.toString() else "未安装"
+        val engineVersionName = EngineInstaller.getInstalledEngineVersionName(this)
+        val engineVersion = if (engineVersionCode > 0) {
+            engineVersionName?.let { "$it ($engineVersionCode)" } ?: engineVersionCode.toString()
+        } else {
+            "未安装"
+        }
         val content = """
-            主APK版本：$mainVersion
+            版本号：$mainVersion
             引擎版本：$engineVersion
             服务商信息：长沙智壤软件技术有限公司
         """.trimIndent()

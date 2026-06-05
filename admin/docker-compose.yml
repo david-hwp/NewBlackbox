@@ -67,7 +67,7 @@ services:
       SPRING_SQL_INIT_MODE: never
       APP_CORS_ALLOWED_ORIGINS: http://localhost:${DUODIAN_FRONTEND_PORT:-8006},http://127.0.0.1:${DUODIAN_FRONTEND_PORT:-8006}
       APP_STORAGE_TYPE: ${APP_STORAGE_TYPE:-local}
-      APP_STORAGE_LOCAL_ROOT: ${APP_STORAGE_LOCAL_ROOT:-/data/files/}
+      APP_STORAGE_LOCAL_ROOT: ${APP_STORAGE_LOCAL_ROOT:-/zhanghaoguanjia/files/}
       APP_STORAGE_ENDPOINT: ${APP_STORAGE_ENDPOINT:-}
       APP_STORAGE_BUCKET: ${APP_STORAGE_BUCKET:-}
       APP_STORAGE_REGION: ${APP_STORAGE_REGION:-}
@@ -75,13 +75,13 @@ services:
       APP_STORAGE_SECRET_KEY: ${APP_STORAGE_SECRET_KEY:-}
       APP_STORAGE_PUBLIC_BASE_URL: ${APP_STORAGE_PUBLIC_BASE_URL:-}
       APP_STORAGE_ADDRESSING_STYLE: ${APP_STORAGE_ADDRESSING_STYLE:-path}
-      LOGGING_FILE_NAME: /data/logs/backend.log
+      LOGGING_FILE_NAME: /zhanghaoguanjia/logs/backend.log
       TZ: Asia/Shanghai
     expose:
       - "8080"
     volumes:
-      - ${DUODIAN_DATA_DIR}/files:/data/files
-      - ${DUODIAN_DATA_DIR}/logs:/data/logs
+      - ${DUODIAN_DATA_DIR}/files:/zhanghaoguanjia/files
+      - ${DUODIAN_DATA_DIR}/logs:/zhanghaoguanjia/logs
     networks:
       - duodian-admin
 
@@ -95,7 +95,7 @@ services:
     ports:
       - "${DUODIAN_FRONTEND_PORT:-8006}:80"
     volumes:
-      - ${DUODIAN_DATA_DIR}/logs:/var/log/nginx/duodianguanjian
+      - ${DUODIAN_DATA_DIR}/logs:/var/log/nginx/zhanghaoguanjia
     networks:
       - duodian-admin
 

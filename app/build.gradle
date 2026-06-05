@@ -50,7 +50,7 @@ android {
 
     applicationVariants.configureEach { variant ->
         variant.outputs.configureEach { output ->
-            output.outputFileName = "DianPuGuanjia_${variant.versionName}_${output.baseName}.apk"
+            output.outputFileName = "zhanghaoguanjia_${variant.versionName}_${output.baseName}.apk"
         }
     }
 

@@ -41,14 +41,16 @@ class HomeActivity : AppCompatActivity() {
     private lateinit var swipeHelper: ShopSwipeHelper
     private lateinit var itemTouchHelper: ItemTouchHelper
     private val handler = Handler(Looper.getMainLooper())
+    private val pendingRecognitionKeys = mutableSetOf<String>()
     private var shouldRetryPendingOnNextList = false
     private var pendingEngineAction: (() -> Unit)? = null
     private var shownAnnouncementId: Long? = null
-    private var shouldCheckAnnouncementOnResume = false
-    private var suppressNextAnnouncementOnResume = false
 
     companion object {
         private const val TAG = "HomeActivity"
+        private const val SHOP_RECOGNITION_MAX_ATTEMPTS = 12
+        private const val SHOP_RECOGNITION_INITIAL_DELAY_MS = 2000L
+        private const val SHOP_RECOGNITION_INTERVAL_MS = 5000L
 
         fun start(context: Context) {
             context.startActivity(Intent(context, HomeActivity::class.java))
@@ -158,13 +160,11 @@ class HomeActivity : AppCompatActivity() {
     private fun initClickListeners() {
         // 个人中心入口（左侧栏底部）
         viewBinding.btnMyProfile.setOnClickListener {
-            suppressNextAnnouncementOnResume = true
             ProfileActivity.start(this)
         }
 
         // 交易日志按钮
         viewBinding.btnLogs.setOnClickListener {
-            suppressNextAnnouncementOnResume = true
             LogsActivity.start(this)
         }
 
@@ -229,7 +229,6 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun loadAnnouncementForOpen() {
-        shownAnnouncementId = null
         viewModel.loadLatestAnnouncement()
     }
 
@@ -357,7 +356,6 @@ class HomeActivity : AppCompatActivity() {
                 return false
             }
             toast("正在打开 ${platformName}…")
-            suppressNextAnnouncementOnResume = true
             startActivity(launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
             true
         } catch (e: Exception) {
@@ -404,37 +402,73 @@ class HomeActivity : AppCompatActivity() {
         if (!EngineProxy.isConnected()) {
             return
         }
-        val packageName = pendingShop.packageName ?: return
+        val key = buildRecognitionKey(pendingShop, userId) ?: return
+        if (!pendingRecognitionKeys.add(key)) {
+            return
+        }
+        pollPendingShopRecognition(pendingShop, userId, attempt = 1, showFailureToast = showFailureToast)
+    }
+
+    private fun pollPendingShopRecognition(
+        pendingShop: Shop,
+        userId: Int,
+        attempt: Int,
+        showFailureToast: Boolean = false
+    ) {
+        val packageName = pendingShop.packageName ?: run {
+            buildRecognitionKey(pendingShop, userId)?.let { pendingRecognitionKeys.remove(it) }
+            return
+        }
+        val key = buildRecognitionKey(pendingShop, userId)
         EngineProxy.triggerShopIdExtract(packageName, userId)
+        val delayMs = if (attempt == 1) SHOP_RECOGNITION_INITIAL_DELAY_MS else SHOP_RECOGNITION_INTERVAL_MS
         handler.postDelayed({
-            reportExtractedShopForPending(pendingShop, userId, showFailureToast)
-        }, 1500)
+            reportExtractedShopForPending(pendingShop, userId, attempt, showFailureToast)
+            if (!EngineProxy.isConnected()) {
+                key?.let { pendingRecognitionKeys.remove(it) }
+            }
+        }, delayMs)
     }
 
     private fun reportExtractedShopForPending(
         pendingShop: Shop,
         userId: Int,
+        attempt: Int,
         showFailureToast: Boolean = false
     ) {
         val packageName = pendingShop.packageName ?: return
+        val key = buildRecognitionKey(pendingShop, userId)
         val shopInfo = EngineProxy.getShopInfo(packageName, userId)
         val shopName = shopInfo?.shopName?.takeIf { it.isNotBlank() }
         val shopId = shopInfo?.shopId?.takeIf { it.isNotBlank() }
-        if (shopName == null || shopId == null) {
-            if (showFailureToast) {
-                toast("未获取到店铺信息，请登录后重试")
+        if (shopId == null) {
+            if (attempt < SHOP_RECOGNITION_MAX_ATTEMPTS && pendingShop.isNew) {
+                pollPendingShopRecognition(
+                    pendingShop,
+                    userId,
+                    attempt = attempt + 1,
+                    showFailureToast = showFailureToast
+                )
+            } else {
+                key?.let { pendingRecognitionKeys.remove(it) }
+                if (showFailureToast) {
+                    toast("未获取到店铺信息，请确认已在京东秒送登录后返回重试")
+                }
             }
             return
         }
         val platform = shopInfo.platform.takeIf { it.isNotBlank() }?.let {
             top.niunaijun.blackboxa.bean.Platform.fromId(it)
         } ?: pendingShop.platform
+        val finalShopName = shopName ?: pendingShop.shopName
+            .takeUnless { it.contains("未知") || it.startsWith("User[") }
+            ?: "${platform.displayName}-$shopId"
 
         viewModel.completePendingShop(
             pendingShop,
             Shop(
                 id = 0,
-                shopName = shopName,
+                shopName = finalShopName,
                 shopId = shopId,
                 platform = platform,
                 remainingDays = 30,
@@ -443,6 +477,12 @@ class HomeActivity : AppCompatActivity() {
                 cloneInstanceId = buildCloneInstanceId(pendingShop, packageName, userId)
             )
         )
+        key?.let { pendingRecognitionKeys.remove(it) }
+    }
+
+    private fun buildRecognitionKey(shop: Shop, userId: Int): String? {
+        val packageName = shop.packageName ?: return null
+        return "${shop.id}:$packageName:$userId"
     }
 
     private fun buildCloneInstanceId(shop: Shop, packageName: String, userId: Int): String {
@@ -490,7 +530,6 @@ class HomeActivity : AppCompatActivity() {
 
         if (!EngineInstaller.isEngineInstalled(this)) {
             toast("引擎未安装，请先完成引擎安装")
-            suppressNextAnnouncementOnResume = true
             startActivity(Intent(this, EngineInstallActivity::class.java))
             return
         }
@@ -518,11 +557,9 @@ class HomeActivity : AppCompatActivity() {
         val marketIntent = Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$packageName"))
         val webIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=$packageName"))
         try {
-            suppressNextAnnouncementOnResume = true
             startActivity(marketIntent)
         } catch (e: Exception) {
             runCatching {
-                suppressNextAnnouncementOnResume = true
                 startActivity(webIntent)
             }
         }
@@ -560,23 +597,15 @@ class HomeActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        // Refresh data when returning
-        if (shouldCheckAnnouncementOnResume) {
-            shouldCheckAnnouncementOnResume = false
-            loadAnnouncementForOpen()
-        }
         shouldRetryPendingOnNextList = true
         App.ensureEngineConnection()
         viewModel.refreshUserInfo()
         viewModel.loadShops()
     }
 
-    override fun onStop() {
-        super.onStop()
-        if (suppressNextAnnouncementOnResume) {
-            suppressNextAnnouncementOnResume = false
-        } else {
-            shouldCheckAnnouncementOnResume = true
-        }
+    override fun onDestroy() {
+        handler.removeCallbacksAndMessages(null)
+        pendingRecognitionKeys.clear()
+        super.onDestroy()
     }
 }

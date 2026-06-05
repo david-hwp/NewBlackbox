@@ -9,6 +9,7 @@ import java.util.List;
 @Repository
 public interface ShopRepository extends JpaRepository<Shop, Long> {
     List<Shop> findByUserId(Long userId);
+    List<Shop> findByUserIdAndPlatform(Long userId, String platform);
     List<Shop> findByPlatform(String platform);
     long countByUserId(Long userId);
     java.util.Optional<Shop> findByUserIdAndShopId(Long userId, String shopId);

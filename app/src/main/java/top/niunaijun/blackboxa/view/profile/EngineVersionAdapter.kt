@@ -44,12 +44,18 @@ class EngineVersionAdapter(
 
         fun bind(version: EngineVersionDto) {
             val isCurrent = version.versionCode == currentVersionCode
+            val isDowngrade = currentVersionCode > 0 && version.versionCode < currentVersionCode
+            val canInstall = !isCurrent && !isDowngrade
             title.text = "${version.versionName} (${version.versionCode})"
-            status.text = if (isCurrent) "当前使用" else "点击切换"
-            itemView.isEnabled = !isCurrent
-            itemView.alpha = if (isCurrent) 0.65f else 1f
+            status.text = when {
+                isCurrent -> "当前使用"
+                isDowngrade -> "低于当前版本"
+                else -> "点击升级"
+            }
+            itemView.isEnabled = canInstall
+            itemView.alpha = if (canInstall) 1f else 0.65f
             itemView.setOnClickListener {
-                if (!isCurrent) onClick(version)
+                if (canInstall) onClick(version)
             }
         }
     }

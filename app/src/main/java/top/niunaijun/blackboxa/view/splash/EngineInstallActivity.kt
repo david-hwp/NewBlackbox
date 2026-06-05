@@ -249,7 +249,7 @@ class EngineInstallActivity : AppCompatActivity() {
                 handler.postDelayed({ redirectToMain() }, 1500)
             } else {
                 val errorMsg = if (isMiui()) {
-                    "MIUI 阻止了引擎服务连接。\n请前往「设置 → 应用管理 → 店铺管家引擎 → 自启动管理」开启权限，然后点击重试。"
+                            "MIUI 阻止了引擎服务连接。\n请前往「设置 → 应用管理 → 账号管家引擎 → 自启动管理」开启权限，然后点击重试。"
                 } else {
                     "引擎安装完成但无法连接，请检查是否安装正确"
                 }
