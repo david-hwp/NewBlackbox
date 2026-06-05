@@ -40,8 +40,21 @@ public class ShopService {
         return shopRepository.findByUserIdAndShopId(userId, shopId);
     }
 
+    public Optional<Shop> findByUserIdAndCloneInstanceId(Long userId, String cloneInstanceId) {
+        return shopRepository.findByUserIdAndCloneInstanceId(userId, cloneInstanceId);
+    }
+
     public Optional<Shop> findByUserIdAndPackageNameAndPlatform(Long userId, String packageName, String platform) {
         return shopRepository.findByUserIdAndPackageNameAndPlatform(userId, packageName, platform);
+    }
+
+    public Optional<Shop> findPendingByUserPackageAndPlatform(Long userId, String packageName, String platform) {
+        return shopRepository.findFirstByUserIdAndPackageNameAndPlatformAndShopIdStartingWith(
+                userId,
+                packageName,
+                platform,
+                "NEW-"
+        );
     }
 
     public boolean hasPendingShop(Long userId, String platform, String shopIdPrefix) {
@@ -58,6 +71,7 @@ public class ShopService {
         existing.setRemainingDays(shop.getRemainingDays());
         existing.setAutoRenew(shop.getAutoRenew());
         existing.setPackageName(shop.getPackageName());
+        existing.setCloneInstanceId(shop.getCloneInstanceId());
         existing.setLastDeductedAt(shop.getLastDeductedAt());
         existing.setExpireAt(shop.getExpireAt());
         return shopRepository.save(existing);

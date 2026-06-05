@@ -23,8 +23,8 @@ class GiftViewModel : ViewModel() {
             val result = computeRepository.giftCompute(toPhone, amount)
             result.fold(
                 onSuccess = {
-                    successLiveData.value = "赠送成功"
                     giftResultLiveData.value = Result.success(it)
+                    successLiveData.value = "赠送成功"
                 },
                 onFailure = { e ->
                     errorLiveData.value = e.message ?: "赠送失败"

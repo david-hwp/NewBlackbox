@@ -22,7 +22,7 @@
         android:elevation="0dp"
         android:foreground="?attr/selectableItemBackground"
         app:cardBackgroundColor="@color/surface"
-        app:cardCornerRadius="12dp"
+        app:cardCornerRadius="0dp"
         app:cardElevation="0dp"
         app:strokeColor="@color/border"
         app:strokeWidth="1dp">
@@ -135,23 +135,24 @@
             <!-- 自动续时三角标 -->
             <FrameLayout
                 android:id="@+id/autoRenewTriangle"
-                android:layout_width="32dp"
-                android:layout_height="32dp"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
                 android:layout_gravity="top|end"
                 android:visibility="gone"
                 tools:visibility="visible">
 
-                <View
+                <ImageView
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
-                    android:background="@drawable/bg_triangle_accent" />
+                    android:src="@drawable/bg_auto_renew_triangle"
+                    app:tint="@color/accent_green" />
 
                 <ImageView
-                    android:layout_width="16dp"
-                    android:layout_height="16dp"
+                    android:layout_width="14dp"
+                    android:layout_height="14dp"
                     android:layout_gravity="top|end"
-                    android:layout_marginTop="4dp"
-                    android:layout_marginEnd="4dp"
+                    android:layout_marginTop="5dp"
+                    android:layout_marginEnd="5dp"
                     android:src="@drawable/ic_check"
                     app:tint="@color/white" />
             </FrameLayout>

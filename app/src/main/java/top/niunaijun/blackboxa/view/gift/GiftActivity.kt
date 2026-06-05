@@ -10,6 +10,7 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.ViewModelProvider
 import top.niunaijun.blackboxa.R
+import top.niunaijun.blackboxa.bean.dto.GiftResult
 import top.niunaijun.blackboxa.data.TokenManager
 import top.niunaijun.blackboxa.databinding.ActivityGiftBinding
 import top.niunaijun.blackboxa.view.dialog.GiftConfirmSheetFragment
@@ -98,8 +99,11 @@ class GiftActivity : AppCompatActivity() {
     }
 
     private fun observeViewModel() {
-        viewModel.successLiveData.observe(this) {
-            onGiftSuccess()
+        viewModel.giftResultLiveData.observe(this) { result ->
+            result?.fold(
+                onSuccess = { onGiftSuccess(it) },
+                onFailure = {}
+            )
         }
 
         viewModel.errorLiveData.observe(this) { errorMessage ->
@@ -111,7 +115,11 @@ class GiftActivity : AppCompatActivity() {
         }
     }
 
-    private fun onGiftSuccess() {
+    private fun onGiftSuccess(result: GiftResult) {
+        TokenManager.getInstance().getUser()?.let { user ->
+            TokenManager.getInstance().saveUser(user.copy(computeBalance = result.fromBalance))
+        }
+        binding.tvBalance.text = result.fromBalance.toString()
         binding.btnConfirm.text = getString(R.string.gift_success)
         binding.btnConfirm.setBackgroundColor(getColor(R.color.duodian_primary))
 
@@ -121,9 +129,7 @@ class GiftActivity : AppCompatActivity() {
             binding.btnConfirm.text = getString(R.string.gift_confirm)
             binding.btnConfirm.setBackgroundResource(R.drawable.bg_button_primary)
 
-            // Refresh balance display
-            val user = TokenManager.getInstance().getUser()
-            binding.tvBalance.text = (user?.computeBalance ?: 0).toString()
+            binding.tvBalance.text = result.fromBalance.toString()
         }, 1500)
     }
 

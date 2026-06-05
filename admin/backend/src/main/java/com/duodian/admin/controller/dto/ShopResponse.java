@@ -1,77 +1,60 @@
-package com.duodian.admin.entity;
+package com.duodian.admin.controller.dto;
 
-import jakarta.persistence.*;
+import com.duodian.admin.entity.Shop;
+import com.duodian.admin.entity.User;
+
 import java.time.LocalDateTime;
 
-@Entity
-@Table(
-        name = "shops",
-        uniqueConstraints = {
-                @UniqueConstraint(name = "uk_clone_instance_id", columnNames = "clone_instance_id")
-        }
-)
-public class Shop {
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+public class ShopResponse {
     private Long id;
-
-    @Column(name = "user_id", nullable = false)
     private Long userId;
-
-    @Column(name = "shop_name", nullable = false)
+    private String userName;
+    private String userPhone;
     private String shopName;
-
-    @Column(name = "shop_id", nullable = false)
     private String shopId;
-
-    @Column(nullable = false)
-    private String platform; // meituan, taobao, jd, kuaishou, xiaohongshu, ali
-
-    @Column(name = "platform_name")
+    private String platform;
     private String platformName;
-
-    @Column(name = "remaining_days")
-    private Integer remainingDays = 0;
-
-    @Column(name = "auto_renew")
-    private Boolean autoRenew = false;
-
-    @Column(name = "package_name")
+    private Integer remainingDays;
+    private Boolean autoRenew;
     private String packageName;
-
-    @Column(name = "clone_instance_id", length = 96)
     private String cloneInstanceId;
-
-    @Column(name = "last_deducted_at")
     private LocalDateTime lastDeductedAt;
-
-    @Column(name = "expire_at")
     private LocalDateTime expireAt;
-
-    @Column(name = "created_at")
     private LocalDateTime createdAt;
-
-    @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
-    @PrePersist
-    protected void onCreate() {
-        createdAt = LocalDateTime.now();
-        updatedAt = LocalDateTime.now();
+    public static ShopResponse from(Shop shop, User user) {
+        ShopResponse response = new ShopResponse();
+        response.setId(shop.getId());
+        response.setUserId(shop.getUserId());
+        response.setUserName(user != null ? user.getUsername() : null);
+        response.setUserPhone(user != null ? user.getPhone() : null);
+        response.setShopName(shop.getShopName());
+        response.setShopId(shop.getShopId());
+        response.setPlatform(shop.getPlatform());
+        response.setPlatformName(shop.getPlatformName());
+        response.setRemainingDays(shop.getRemainingDays());
+        response.setAutoRenew(shop.getAutoRenew());
+        response.setPackageName(shop.getPackageName());
+        response.setCloneInstanceId(shop.getCloneInstanceId());
+        response.setLastDeductedAt(shop.getLastDeductedAt());
+        response.setExpireAt(shop.getExpireAt());
+        response.setCreatedAt(shop.getCreatedAt());
+        response.setUpdatedAt(shop.getUpdatedAt());
+        return response;
     }
-
-    @PreUpdate
-    protected void onUpdate() {
-        updatedAt = LocalDateTime.now();
-    }
-
-    public Shop() {}
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 
     public Long getUserId() { return userId; }
     public void setUserId(Long userId) { this.userId = userId; }
+
+    public String getUserName() { return userName; }
+    public void setUserName(String userName) { this.userName = userName; }
+
+    public String getUserPhone() { return userPhone; }
+    public void setUserPhone(String userPhone) { this.userPhone = userPhone; }
 
     public String getShopName() { return shopName; }
     public void setShopName(String shopName) { this.shopName = shopName; }
@@ -95,11 +78,7 @@ public class Shop {
     public void setPackageName(String packageName) { this.packageName = packageName; }
 
     public String getCloneInstanceId() { return cloneInstanceId; }
-    public void setCloneInstanceId(String cloneInstanceId) {
-        this.cloneInstanceId = (cloneInstanceId == null || cloneInstanceId.isBlank())
-                ? null
-                : cloneInstanceId.trim();
-    }
+    public void setCloneInstanceId(String cloneInstanceId) { this.cloneInstanceId = cloneInstanceId; }
 
     public LocalDateTime getLastDeductedAt() { return lastDeductedAt; }
     public void setLastDeductedAt(LocalDateTime lastDeductedAt) { this.lastDeductedAt = lastDeductedAt; }

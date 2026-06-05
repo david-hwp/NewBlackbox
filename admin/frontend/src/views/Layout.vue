@@ -21,6 +21,10 @@
           <el-icon><User /></el-icon>
           <span>用户管理</span>
         </el-menu-item>
+        <el-menu-item index="/platforms">
+          <el-icon><Grid /></el-icon>
+          <span>支持平台</span>
+        </el-menu-item>
         <el-menu-item index="/shops">
           <el-icon><Shop /></el-icon>
           <span>店铺管理</span>
@@ -76,7 +80,7 @@
 import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Shop, Odometer, User, Document, ArrowDown, UserFilled, Bell, Connection, ChatDotRound } from '@element-plus/icons-vue'
+import { Shop, Odometer, User, Document, ArrowDown, UserFilled, Bell, Connection, ChatDotRound, Grid } from '@element-plus/icons-vue'
 
 const route = useRoute()
 const router = useRouter()

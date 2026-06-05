@@ -70,7 +70,10 @@ class ShopSwipeHelper(
             if (currentTranslation <= -actionButtonWidth * SWIPE_THRESHOLD) {
                 // Expand
                 collapseOtherItems(viewHolder.bindingAdapterPosition)
-                viewHolder.itemView.findViewById<View>(R.id.swipeActions)?.bringToFront()
+                viewHolder.itemView.findViewById<View>(R.id.swipeActions)?.apply {
+                    isClickable = true
+                    bringToFront()
+                }
                 animateSwipe(it, -actionButtonWidth)
                 expandedPosition = viewHolder.bindingAdapterPosition
             } else {
@@ -93,10 +96,13 @@ class ShopSwipeHelper(
         return ACTION_BUTTON_WIDTH_DP * density
     }
 
+    fun getExpandedPosition(): Int = expandedPosition
+
     fun hitTestAction(recyclerView: RecyclerView, child: View, x: Float, y: Float): Action? {
-        if (expandedPosition == RecyclerView.NO_POSITION) return null
         val position = recyclerView.getChildAdapterPosition(child)
-        if (position != expandedPosition) return null
+        val cardView = child.findViewById<View>(R.id.cardView) ?: return null
+        if (cardView.translationX >= -1f) return null
+        if (expandedPosition != RecyclerView.NO_POSITION && position != expandedPosition) return null
 
         val localX = x - child.left
         val localY = y - child.top
@@ -113,8 +119,6 @@ class ShopSwipeHelper(
             else -> Action.DELETE
         }
     }
-
-    fun getExpandedPosition(): Int = expandedPosition
 
     private fun animateSwipe(view: View, targetX: Float) {
         view.animate()

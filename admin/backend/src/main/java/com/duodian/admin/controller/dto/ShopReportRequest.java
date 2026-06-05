@@ -25,6 +25,8 @@ public class ShopReportRequest {
 
     private Boolean autoRenew = false;
 
+    private String cloneInstanceId;
+
     // Getters and Setters
     public Long getUserId() { return userId; }
     public void setUserId(Long userId) { this.userId = userId; }
@@ -49,4 +51,7 @@ public class ShopReportRequest {
 
     public Boolean getAutoRenew() { return autoRenew; }
     public void setAutoRenew(Boolean autoRenew) { this.autoRenew = autoRenew; }
+
+    public String getCloneInstanceId() { return cloneInstanceId; }
+    public void setCloneInstanceId(String cloneInstanceId) { this.cloneInstanceId = cloneInstanceId; }
 }

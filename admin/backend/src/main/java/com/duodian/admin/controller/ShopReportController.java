@@ -36,33 +36,64 @@ public class ShopReportController {
             return ApiResponse.error(401, "未登录");
         }
 
-        Optional<Shop> existing;
-        if ("-".equals(request.getShopId())) {
+        boolean hasRealShopId = isRealShopId(request.getShopId());
+        Optional<Shop> existing = Optional.empty();
+        String cloneInstanceId = normalize(request.getCloneInstanceId());
+        if (cloneInstanceId != null) {
+            existing = shopService.findByUserIdAndCloneInstanceId(userId, cloneInstanceId);
+        }
+        if (existing.isEmpty() && "-".equals(request.getShopId())) {
             existing = shopService.findByUserIdAndPackageNameAndPlatform(
                     userId,
                     request.getPackageName(),
                     request.getPlatform()
             );
-        } else {
+        } else if (existing.isEmpty()) {
             existing = shopService.findByUserIdAndShopId(userId, request.getShopId());
+        }
+        if (existing.isEmpty() && hasRealShopId) {
+            existing = shopService.findPendingByUserPackageAndPlatform(
+                    userId,
+                    request.getPackageName(),
+                    request.getPlatform()
+            );
+        }
+        if (existing.isEmpty() && !hasRealShopId) {
+            return ApiResponse.error("待登录店铺不存在，请先添加店铺卡片");
         }
 
         Map<String, Object> result = new HashMap<>();
         result.put("shopId", request.getShopId());
+        result.put("cloneInstanceId", cloneInstanceId);
 
         if (existing.isPresent()) {
-            // Update existing shop
             Shop shop = existing.get();
+            boolean wasPending = shop.getShopId() != null && shop.getShopId().startsWith("NEW-");
+
+            if (wasPending && hasRealShopId) {
+                boolean deducted = computeService.deductCompute(userId, request.getShopId(), request.getShopName(), request.getPlatform());
+                if (!deducted) {
+                    return ApiResponse.error(402, "算力余额不足");
+                }
+                shop.setShopId(request.getShopId());
+                shop.setExpireAt(LocalDateTime.now().plusDays(30));
+                shop.setLastDeductedAt(LocalDateTime.now());
+                result.put("deducted", true);
+                result.put("isNew", true);
+            } else {
+                result.put("deducted", false);
+                result.put("isNew", false);
+            }
             shop.setShopName(request.getShopName());
             shop.setPlatform(request.getPlatform());
             shop.setPlatformName(request.getPlatformName());
             shop.setPackageName(request.getPackageName());
             shop.setRemainingDays(request.getRemainingDays());
             shop.setAutoRenew(request.getAutoRenew());
+            if (cloneInstanceId != null) {
+                shop.setCloneInstanceId(cloneInstanceId);
+            }
             shopService.update(shop.getId(), shop);
-
-            result.put("deducted", false);
-            result.put("isNew", false);
         } else {
             // New shop: deduct compute
             boolean deducted = computeService.deductCompute(userId, request.getShopId(), request.getShopName(), request.getPlatform());
@@ -77,6 +108,7 @@ public class ShopReportController {
             shop.setPlatform(request.getPlatform());
             shop.setPlatformName(request.getPlatformName());
             shop.setPackageName(request.getPackageName());
+            shop.setCloneInstanceId(cloneInstanceId);
             shop.setRemainingDays(request.getRemainingDays());
             shop.setAutoRenew(request.getAutoRenew());
             shop.setExpireAt(LocalDateTime.now().plusDays(30));
@@ -91,5 +123,19 @@ public class ShopReportController {
         result.put("balance", user != null ? user.getComputeBalance() : 0);
 
         return ApiResponse.success(result);
+    }
+
+    private String normalize(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        return value.trim();
+    }
+
+    private boolean isRealShopId(String shopId) {
+        return shopId != null
+                && !shopId.isBlank()
+                && !"-".equals(shopId)
+                && !shopId.startsWith("NEW-");
     }
 }

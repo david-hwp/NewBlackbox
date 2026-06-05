@@ -30,6 +30,7 @@ import top.niunaijun.blackboxa.view.dialog.EditShopSheetFragment
 import top.niunaijun.blackboxa.view.logs.LogsActivity
 import top.niunaijun.blackboxa.view.profile.ProfileActivity
 import top.niunaijun.blackboxa.view.splash.EngineInstallActivity
+import java.security.MessageDigest
 
 class HomeActivity : AppCompatActivity() {
 
@@ -114,59 +115,33 @@ class HomeActivity : AppCompatActivity() {
                 }
             })
         }
+        viewBinding.swipeRefreshShops.setOnRefreshListener {
+            collapseSwipe()
+            viewModel.loadShops()
+        }
 
         swipeHelper = ShopSwipeHelper(shopAdapter)
-        itemTouchHelper = ItemTouchHelper(swipeHelper)
-        itemTouchHelper.attachToRecyclerView(viewBinding.rvShops)
         viewBinding.rvShops.addOnItemTouchListener(object : RecyclerView.SimpleOnItemTouchListener() {
-            private var pendingAction: ShopSwipeHelper.Action? = null
-            private var pendingPosition = RecyclerView.NO_POSITION
-
             override fun onInterceptTouchEvent(rv: RecyclerView, e: MotionEvent): Boolean {
-                if (swipeHelper.getExpandedPosition() == RecyclerView.NO_POSITION) return false
-                val child = rv.findChildViewUnder(e.x, e.y)
-                if (child == null) {
-                    if (e.actionMasked == MotionEvent.ACTION_DOWN) collapseSwipe()
-                    return false
-                }
+                if (e.actionMasked != MotionEvent.ACTION_DOWN) return false
+
+                val child = rv.findChildViewUnder(e.x, e.y) ?: return false
                 val position = rv.getChildAdapterPosition(child)
                 val action = swipeHelper.hitTestAction(rv, child, e.x, e.y)
-                if (action == null) {
-                    if (e.actionMasked == MotionEvent.ACTION_DOWN && position != swipeHelper.getExpandedPosition()) {
-                        collapseSwipe()
-                    }
-                    return false
+                if (action != null && position != RecyclerView.NO_POSITION) {
+                    rv.parent?.requestDisallowInterceptTouchEvent(true)
+                    handleSwipeAction(position, action)
+                    return true
                 }
-
-                return when (e.actionMasked) {
-                    MotionEvent.ACTION_DOWN -> {
-                        pendingAction = action
-                        pendingPosition = position
-                        rv.parent?.requestDisallowInterceptTouchEvent(true)
-                        true
-                    }
-                    else -> false
+                if (swipeHelper.getExpandedPosition() != RecyclerView.NO_POSITION &&
+                    position != swipeHelper.getExpandedPosition()) {
+                    collapseSwipe()
                 }
-            }
-
-            override fun onTouchEvent(rv: RecyclerView, e: MotionEvent) {
-                when (e.actionMasked) {
-                    MotionEvent.ACTION_UP -> {
-                        val action = pendingAction
-                        val position = pendingPosition
-                        pendingAction = null
-                        pendingPosition = RecyclerView.NO_POSITION
-                        if (action != null && position != RecyclerView.NO_POSITION) {
-                            handleSwipeAction(position, action)
-                        }
-                    }
-                    MotionEvent.ACTION_CANCEL -> {
-                        pendingAction = null
-                        pendingPosition = RecyclerView.NO_POSITION
-                    }
-                }
+                return false
             }
         })
+        itemTouchHelper = ItemTouchHelper(swipeHelper)
+        itemTouchHelper.attachToRecyclerView(viewBinding.rvShops)
     }
 
     private fun initSearch() {
@@ -213,6 +188,7 @@ class HomeActivity : AppCompatActivity() {
         }
 
         viewModel.shopsLiveData.observe(this) {
+            viewBinding.swipeRefreshShops.isRefreshing = false
             updateShopList()
             if (shouldRetryPendingOnNextList) {
                 shouldRetryPendingOnNextList = false
@@ -231,6 +207,7 @@ class HomeActivity : AppCompatActivity() {
         }
 
         viewModel.loadErrorLiveData.observe(this) { errorMessage ->
+            viewBinding.swipeRefreshShops.isRefreshing = false
             errorMessage?.let {
                 toast(it)
             }
@@ -309,6 +286,7 @@ class HomeActivity : AppCompatActivity() {
                 return
             }
             if (shop.isNew) {
+                reportCloneCreated(shop, targetUserId)
                 schedulePendingShopRecognition(shop, targetUserId, showFailureToast = true)
             }
             return
@@ -337,6 +315,7 @@ class HomeActivity : AppCompatActivity() {
             if (result.success) {
                 toast("${platformName} 分身创建成功")
                 if (launchVirtualApp(packageName, targetUserId, platformName) && shop.isNew) {
+                    reportCloneCreated(shop, targetUserId)
                     schedulePendingShopRecognition(shop, targetUserId, showFailureToast = true)
                 }
             } else {
@@ -401,6 +380,22 @@ class HomeActivity : AppCompatActivity() {
         viewModel.createPendingShop(platformItem)
     }
 
+    private fun reportCloneCreated(pendingShop: Shop, userId: Int) {
+        val packageName = pendingShop.packageName ?: return
+        val cloneInstanceId = buildCloneInstanceId(pendingShop, packageName, userId)
+        if (cloneInstanceId == pendingShop.cloneInstanceId) {
+            return
+        }
+        viewModel.reportShop(
+            pendingShop.copy(
+                cloneInstanceId = cloneInstanceId,
+                shopName = pendingShop.shopName.ifBlank { "User[0]-未知" },
+                shopId = pendingShop.shopId
+            ),
+            showMessage = false
+        )
+    }
+
     private fun schedulePendingShopRecognition(
         pendingShop: Shop,
         userId: Int,
@@ -444,9 +439,19 @@ class HomeActivity : AppCompatActivity() {
                 platform = platform,
                 remainingDays = 30,
                 autoRenew = false,
-                packageName = packageName
+                packageName = packageName,
+                cloneInstanceId = buildCloneInstanceId(pendingShop, packageName, userId)
             )
         )
+    }
+
+    private fun buildCloneInstanceId(shop: Shop, packageName: String, userId: Int): String {
+        val appUserId = viewModel.getCurrentUserId()
+        val source = "$appUserId:${shop.platform.id}:$packageName:$userId"
+        val digest = MessageDigest.getInstance("SHA-256")
+            .digest(source.toByteArray(Charsets.UTF_8))
+            .joinToString("") { "%02x".format(it) }
+        return "clone-$digest"
     }
 
     private fun retryPendingShopRecognition() {

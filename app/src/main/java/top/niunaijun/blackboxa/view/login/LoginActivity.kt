@@ -6,6 +6,8 @@ import android.os.Bundle
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.ViewModelProvider
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.textfield.TextInputEditText
 import top.niunaijun.blackboxa.data.TokenManager
 import top.niunaijun.blackboxa.databinding.ActivityLoginBinding
 import top.niunaijun.blackboxa.view.home.HomeActivity
@@ -51,6 +53,56 @@ class LoginActivity : AppCompatActivity() {
 
             viewModel.login(phone, password)
         }
+
+        binding.tvRegister.setOnClickListener {
+            showRegisterDialog()
+        }
+    }
+
+    private fun showRegisterDialog() {
+        val container = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            setPadding(32, 8, 32, 0)
+        }
+        val phoneInput = TextInputEditText(this).apply {
+            hint = "手机号"
+            inputType = android.text.InputType.TYPE_CLASS_PHONE
+            setText(binding.etPhone.text?.toString().orEmpty())
+        }
+        val usernameInput = TextInputEditText(this).apply {
+            hint = "用户名"
+        }
+        val passwordInput = TextInputEditText(this).apply {
+            hint = "密码（至少6位）"
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+            setText(binding.etPassword.text?.toString().orEmpty())
+        }
+        container.addView(phoneInput)
+        container.addView(usernameInput)
+        container.addView(passwordInput)
+
+        MaterialAlertDialogBuilder(this)
+            .setTitle("注册账号")
+            .setView(container)
+            .setNegativeButton("取消", null)
+            .setPositiveButton("注册", null)
+            .create()
+            .apply {
+                setOnShowListener {
+                    getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                        val phone = phoneInput.text?.toString()?.trim().orEmpty()
+                        val username = usernameInput.text?.toString()?.trim().orEmpty()
+                        val password = passwordInput.text?.toString()?.trim().orEmpty()
+                        if (phone.length != 11 || username.isBlank() || password.length < 6) {
+                            Toast.makeText(this@LoginActivity, "请输入正确手机号、用户名和至少6位密码", Toast.LENGTH_SHORT).show()
+                            return@setOnClickListener
+                        }
+                        dismiss()
+                        viewModel.register(phone, password, username)
+                    }
+                }
+            }
+            .show()
     }
 
     private fun observeViewModel() {
@@ -68,7 +120,19 @@ class LoginActivity : AppCompatActivity() {
 
         viewModel.loadingLiveData.observe(this) { isLoading ->
             binding.btnLogin.isEnabled = !isLoading
+            binding.tvRegister.isEnabled = !isLoading
             binding.btnLogin.text = if (isLoading) "登录中…" else "登录"
+        }
+
+        viewModel.registerResultLiveData.observe(this) { result ->
+            result?.fold(
+                onSuccess = {
+                    HomeActivity.start(this)
+                    finish()
+                },
+                onFailure = {
+                }
+            )
         }
 
         viewModel.errorLiveData.observe(this) { errorMessage ->

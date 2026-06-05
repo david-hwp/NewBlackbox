@@ -32,12 +32,14 @@ CREATE TABLE IF NOT EXISTS shops (
     remaining_days INT NOT NULL DEFAULT 0 COMMENT '剩余天数',
     auto_renew TINYINT(1) NOT NULL DEFAULT 0 COMMENT '自动续时: 0-关闭 1-开启',
     package_name VARCHAR(128) COMMENT '分身应用包名',
+    clone_instance_id VARCHAR(96) COMMENT '分身实例唯一标识',
     last_deducted_at DATETIME COMMENT '最后扣减时间',
     expire_at DATETIME COMMENT '过期时间',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_user_id (user_id),
-    INDEX idx_platform (platform)
+    INDEX idx_platform (platform),
+    UNIQUE KEY uk_clone_instance_id (clone_instance_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='店铺表';
 
 -- 交易日志表

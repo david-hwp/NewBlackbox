@@ -12,6 +12,17 @@
         <el-table-column prop="id" label="ID" width="60" />
         <el-table-column prop="shopName" label="店铺名称" />
         <el-table-column prop="shopId" label="店铺ID" />
+        <el-table-column prop="cloneInstanceId" label="唯一标识" min-width="220">
+          <template #default="{ row }">
+            <el-text v-if="row.cloneInstanceId" class="mono" truncated>{{ row.cloneInstanceId }}</el-text>
+            <span v-else>-</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="关联用户" min-width="150">
+          <template #default="{ row }">
+            {{ row.userName || row.userPhone || row.userId || '-' }}
+          </template>
+        </el-table-column>
         <el-table-column prop="platformName" label="平台" />
         <el-table-column prop="remainingDays" label="剩余天数">
           <template #default="{ row }">
@@ -50,13 +61,19 @@
         </el-form-item>
         <el-form-item label="平台" prop="platform">
           <el-select v-model="form.platform" style="width: 100%" @change="onPlatformChange">
-            <el-option label="美团外卖" value="meituan" />
-            <el-option label="淘宝/千牛" value="taobao" />
-            <el-option label="京东闪送" value="jd" />
-            <el-option label="快手小店" value="kuaishou" />
-            <el-option label="小红书" value="xiaohongshu" />
-            <el-option label="阿里本地通" value="ali" />
+            <el-option
+              v-for="platform in platforms"
+              :key="platform.id"
+              :label="platform.name"
+              :value="platform.id"
+            />
           </el-select>
+        </el-form-item>
+        <el-form-item label="应用包名">
+          <el-input v-model="form.packageName" />
+        </el-form-item>
+        <el-form-item v-if="isEdit" label="唯一标识">
+          <el-input v-model="form.cloneInstanceId" disabled placeholder="由APK创建分身后自动上报" />
         </el-form-item>
         <el-form-item label="剩余天数">
           <el-input-number v-model="form.remainingDays" :min="0" style="width: 100%" />
@@ -80,11 +97,22 @@ import request from '../utils/request'
 
 const shops = ref([])
 const users = ref([])
+const platforms = ref([])
 const loading = ref(false)
 const dialogVisible = ref(false)
 const isEdit = ref(false)
 const formRef = ref()
-const form = ref({ shopName: '', shopId: '', userId: '', platform: '', platformName: '', remainingDays: 0, autoRenew: false })
+const form = ref({
+  shopName: '',
+  shopId: '',
+  userId: '',
+  platform: '',
+  platformName: '',
+  remainingDays: 0,
+  autoRenew: false,
+  packageName: '',
+  cloneInstanceId: ''
+})
 
 const rules = {
   shopName: [{ required: true, message: '请输入店铺名称', trigger: 'blur' }],
@@ -93,27 +121,26 @@ const rules = {
   platform: [{ required: true, message: '请选择平台', trigger: 'change' }]
 }
 
-const platformNames = {
-  meituan: '美团外卖',
-  taobao: '淘宝/千牛',
-  jd: '京东闪送',
-  kuaishou: '快手小店',
-  xiaohongshu: '小红书',
-  ali: '阿里本地通'
-}
-
 const fetchShops = async () => {
   loading.value = true
   try {
-    shops.value = await request.get('/shops')
-    users.value = await request.get('/users')
+    const [shopList, userList, platformList] = await Promise.all([
+      request.get('/shops'),
+      request.get('/users'),
+      request.get('/platforms')
+    ])
+    shops.value = shopList
+    users.value = userList
+    platforms.value = platformList
   } finally {
     loading.value = false
   }
 }
 
 const onPlatformChange = (val) => {
-  form.value.platformName = platformNames[val] || val
+  const platform = platforms.value.find(item => item.id === val)
+  form.value.platformName = platform?.name || val
+  form.value.packageName = platform?.packageName || form.value.packageName
 }
 
 const getDaysType = (days) => {
@@ -124,7 +151,7 @@ const getDaysType = (days) => {
 
 const showAddDialog = () => {
   isEdit.value = false
-  form.value = { shopName: '', shopId: '', userId: '', platform: '', platformName: '', remainingDays: 0, autoRenew: false }
+  form.value = { shopName: '', shopId: '', userId: '', platform: '', platformName: '', remainingDays: 0, autoRenew: false, packageName: '', cloneInstanceId: '' }
   dialogVisible.value = true
 }
 
@@ -172,5 +199,10 @@ onMounted(fetchShops)
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  max-width: 210px;
 }
 </style>

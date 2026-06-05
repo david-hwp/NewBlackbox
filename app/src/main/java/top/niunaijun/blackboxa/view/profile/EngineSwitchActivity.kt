@@ -16,6 +16,9 @@ class EngineSwitchActivity : AppCompatActivity() {
     private lateinit var binding: ActivityEngineSwitchBinding
     private lateinit var viewModel: EngineSwitchViewModel
     private lateinit var adapter: EngineVersionAdapter
+    private var pendingInstallVersionCode: Int? = null
+    private var pendingInstallVersionName: String? = null
+    private var awaitingInstallerReturn = false
 
     companion object {
         fun start(context: Context) {
@@ -46,13 +49,30 @@ class EngineSwitchActivity : AppCompatActivity() {
         viewModel.versionsLiveData.observe(this) { adapter.submitList(it) }
         viewModel.loadingLiveData.observe(this) { binding.progressBar.visibility = if (it) android.view.View.VISIBLE else android.view.View.GONE }
         viewModel.messageLiveData.observe(this) { Toast.makeText(this, it, Toast.LENGTH_SHORT).show() }
+        viewModel.installStartedLiveData.observe(this) { version ->
+            pendingInstallVersionCode = version.versionCode
+            pendingInstallVersionName = version.versionName
+            awaitingInstallerReturn = true
+        }
         viewModel.loadVersions()
     }
 
     override fun onResume() {
         super.onResume()
         if (::adapter.isInitialized) {
-            adapter.updateCurrentVersion(EngineInstaller.getInstalledEngineVersion(this))
+            val currentVersion = EngineInstaller.getInstalledEngineVersion(this)
+            adapter.updateCurrentVersion(currentVersion)
+            val targetVersion = pendingInstallVersionCode
+            if (awaitingInstallerReturn && targetVersion != null) {
+                awaitingInstallerReturn = false
+                if (currentVersion == targetVersion) {
+                    Toast.makeText(this, "引擎切换成功：${pendingInstallVersionName ?: targetVersion}", Toast.LENGTH_LONG).show()
+                    pendingInstallVersionCode = null
+                    pendingInstallVersionName = null
+                } else {
+                    Toast.makeText(this, "引擎切换未完成，请确认系统安装弹窗", Toast.LENGTH_LONG).show()
+                }
+            }
         }
     }
 }

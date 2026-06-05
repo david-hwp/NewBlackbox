@@ -1,16 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
-<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item>
-        <rotate
-            android:fromDegrees="45"
-            android:pivotX="-40%"
-            android:pivotY="87%">
-            <shape android:shape="rectangle">
-                <solid android:color="@color/accent_green" />
-                <size
-                    android:width="20dp"
-                    android:height="20dp" />
-            </shape>
-        </rotate>
-    </item>
-</layer-list>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="40dp"
+    android:height="40dp"
+    android:viewportWidth="40"
+    android:viewportHeight="40">
+    <path
+        android:fillColor="@color/accent_green"
+        android:pathData="M40,0 L40,40 L0,0 Z" />
+</vector>

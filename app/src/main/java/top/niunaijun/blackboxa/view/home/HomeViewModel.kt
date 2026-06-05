@@ -172,7 +172,11 @@ class HomeViewModel : ViewModel() {
         _computeBalanceLiveData.value = balance
     }
 
-    fun reportShop(shop: Shop, onComplete: (() -> Unit)? = null) {
+    fun getCurrentUserId(): Long {
+        return tokenManager.getUser()?.id ?: 0L
+    }
+
+    fun reportShop(shop: Shop, showMessage: Boolean = true, onComplete: (() -> Unit)? = null) {
         viewModelScope.launch {
             val request = ShopReportRequest(
                 shopName = shop.shopName,
@@ -180,6 +184,7 @@ class HomeViewModel : ViewModel() {
                 platform = shop.platform.id,
                 platformName = shop.platform.displayName,
                 packageName = shop.packageName ?: "",
+                cloneInstanceId = shop.cloneInstanceId,
                 remainingDays = shop.remainingDays,
                 autoRenew = shop.autoRenew
             )
@@ -190,7 +195,9 @@ class HomeViewModel : ViewModel() {
                     tokenManager.getUser()?.let { user ->
                         tokenManager.saveUser(user.copy(computeBalance = it.balance))
                     }
-                    _operationMessageLiveData.value = if (it.isNew) "店铺已添加" else "店铺已更新"
+                    if (showMessage) {
+                        _operationMessageLiveData.value = if (it.isNew) "店铺已添加" else "店铺已更新"
+                    }
                     loadShops()
                     onComplete?.invoke()
                 },
@@ -216,7 +223,8 @@ class HomeViewModel : ViewModel() {
                 platformName = platformItem.displayName,
                 remainingDays = 30,
                 autoRenew = false,
-                packageName = platformItem.packageName
+                packageName = platformItem.packageName,
+                cloneInstanceId = null
             )
             val result = shopRepository.createPendingShop(request)
             result.fold(
@@ -232,9 +240,9 @@ class HomeViewModel : ViewModel() {
     }
 
     fun completePendingShop(pendingShop: Shop, detectedShop: Shop) {
-        reportShop(detectedShop) {
-            deleteShop(pendingShop, showMessage = false)
-        }
+        reportShop(
+            detectedShop.copy(cloneInstanceId = detectedShop.cloneInstanceId ?: pendingShop.cloneInstanceId)
+        )
     }
 
     fun updateShop(shop: Shop, newName: String = shop.shopName, autoRenew: Boolean = shop.autoRenew) {
@@ -247,7 +255,8 @@ class HomeViewModel : ViewModel() {
                 platformName = shop.platform.displayName,
                 remainingDays = shop.remainingDays,
                 autoRenew = autoRenew,
-                packageName = shop.packageName
+                packageName = shop.packageName,
+                cloneInstanceId = shop.cloneInstanceId
             )
             val result = shopRepository.updateShop(shop.id, request)
             result.fold(

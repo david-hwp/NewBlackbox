@@ -2,8 +2,10 @@ package com.duodian.admin.controller;
 
 import com.duodian.admin.config.AuthContext;
 import com.duodian.admin.controller.dto.ApiResponse;
+import com.duodian.admin.controller.dto.ShopResponse;
 import com.duodian.admin.entity.Shop;
 import com.duodian.admin.service.ShopService;
+import com.duodian.admin.service.UserService;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -13,13 +15,15 @@ import java.util.List;
 public class ShopController {
 
     private final ShopService shopService;
+    private final UserService userService;
 
-    public ShopController(ShopService shopService) {
+    public ShopController(ShopService shopService, UserService userService) {
         this.shopService = shopService;
+        this.userService = userService;
     }
 
     @GetMapping
-    public ApiResponse<List<Shop>> list(
+    public ApiResponse<List<ShopResponse>> list(
             @RequestParam(required = false) Long userId,
             @RequestParam(required = false) String platform) {
         List<Shop> shops;
@@ -30,7 +34,9 @@ public class ShopController {
         } else {
             shops = shopService.findAll();
         }
-        return ApiResponse.success(shops);
+        return ApiResponse.success(shops.stream()
+                .map(shop -> ShopResponse.from(shop, userService.findById(shop.getUserId()).orElse(null)))
+                .toList());
     }
 
     @GetMapping("/my")
@@ -43,9 +49,9 @@ public class ShopController {
     }
 
     @GetMapping("/{id}")
-    public ApiResponse<Shop> get(@PathVariable Long id) {
+    public ApiResponse<ShopResponse> get(@PathVariable Long id) {
         return shopService.findById(id)
-                .map(ApiResponse::success)
+                .map(shop -> ApiResponse.success(ShopResponse.from(shop, userService.findById(shop.getUserId()).orElse(null))))
                 .orElse(ApiResponse.error("店铺不存在"));
     }
 

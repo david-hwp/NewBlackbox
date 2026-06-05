@@ -6,6 +6,7 @@ data class ShopReportRequest(
     val platform: String,
     val platformName: String,
     val packageName: String,
+    val cloneInstanceId: String? = null,
     val remainingDays: Int = 30,
     val autoRenew: Boolean = false
 )

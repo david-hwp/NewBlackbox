@@ -58,7 +58,8 @@ class ShopListAdapter(
         fun bind(shop: Shop) {
             cardView.translationX = 0f
             cardView.bringToFront()
-            swipeActions.isClickable = false
+            swipeActions.isClickable = true
+            swipeActions.isFocusable = false
 
             shopName.text = shop.shopName
             newTag.visibility = if (shop.isNew) View.VISIBLE else View.GONE
@@ -98,19 +99,19 @@ class ShopListAdapter(
             }
 
             // Swipe action clicks
-            btnEdit?.setImmediateActionClickListener {
+            btnEdit?.setImmediateClickListener {
                 val pos = bindingAdapterPosition
                 if (pos != RecyclerView.NO_POSITION) {
                     onEditClick(pos, shops[pos])
                 }
             }
-            btnAutoRenew?.setImmediateActionClickListener {
+            btnAutoRenew?.setImmediateClickListener {
                 val pos = bindingAdapterPosition
                 if (pos != RecyclerView.NO_POSITION) {
                     onAutoRenewClick(pos, shops[pos])
                 }
             }
-            btnDelete?.setImmediateActionClickListener {
+            btnDelete?.setImmediateClickListener {
                 val pos = bindingAdapterPosition
                 if (pos != RecyclerView.NO_POSITION) {
                     onDeleteClick(pos, shops[pos])
@@ -118,21 +119,20 @@ class ShopListAdapter(
             }
         }
 
-        private fun View.setImmediateActionClickListener(action: () -> Unit) {
+        private fun View.setImmediateClickListener(action: () -> Unit) {
             isClickable = true
             isFocusable = true
-            setOnClickListener { action() }
             setOnTouchListener { view, event ->
+                view.parent?.requestDisallowInterceptTouchEvent(true)
+                itemView.parent?.requestDisallowInterceptTouchEvent(true)
                 when (event.actionMasked) {
                     MotionEvent.ACTION_DOWN -> {
-                        view.parent?.requestDisallowInterceptTouchEvent(true)
-                        itemView.parent?.requestDisallowInterceptTouchEvent(true)
                         view.isPressed = true
                         true
                     }
                     MotionEvent.ACTION_UP -> {
                         view.isPressed = false
-                        view.performClick()
+                        action()
                         true
                     }
                     MotionEvent.ACTION_CANCEL -> {

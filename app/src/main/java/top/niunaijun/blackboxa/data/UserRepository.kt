@@ -11,7 +11,9 @@ class UserRepository(api: ApiService) : BaseRepository(api) {
         }
 
     suspend fun register(phone: String, password: String, username: String): Result<UserDto> =
-        safeApiCall { api.register(RegisterRequest(phone, password, username)) }
+        safeApiCall { api.register(RegisterRequest(phone, password, username)) }.map { loginResponse ->
+            loginResponse.user.copy(token = loginResponse.token)
+        }
 
     suspend fun updateUsername(username: String): Result<UserDto> =
         safeApiCall { api.updateUsername(UpdateUsernameRequest(username)) }

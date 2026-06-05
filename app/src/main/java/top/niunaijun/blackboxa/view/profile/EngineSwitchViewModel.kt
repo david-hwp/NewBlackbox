@@ -29,6 +29,9 @@ class EngineSwitchViewModel(application: Application) : AndroidViewModel(applica
     private val _messageLiveData = MutableLiveData<String>()
     val messageLiveData: LiveData<String> = _messageLiveData
 
+    private val _installStartedLiveData = MutableLiveData<EngineVersionDto>()
+    val installStartedLiveData: LiveData<EngineVersionDto> = _installStartedLiveData
+
     fun loadVersions() {
         viewModelScope.launch {
             _loadingLiveData.value = true
@@ -57,7 +60,10 @@ class EngineSwitchViewModel(application: Application) : AndroidViewModel(applica
                 }
                 val result = EngineInstaller.installFromFile(getApplication(), file)
                 result.fold(
-                    onSuccess = { _messageLiveData.postValue("已开始安装引擎") },
+                    onSuccess = {
+                        _installStartedLiveData.postValue(version)
+                        _messageLiveData.postValue("已开始安装引擎，请在系统弹窗中确认")
+                    },
                     onFailure = { _messageLiveData.postValue(it.message ?: "安装失败") }
                 )
             } catch (e: Exception) {
