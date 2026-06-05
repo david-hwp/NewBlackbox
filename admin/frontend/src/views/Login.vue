@@ -3,7 +3,7 @@
     <el-card class="login-card" shadow="always">
       <div class="login-header">
         <div class="logo">
-          <el-icon :size="40" color="#059669"><Shop /></el-icon>
+          <img src="../assets/app-logo.png" alt="多店管家" />
         </div>
         <h2>多店管家</h2>
         <p class="subtitle">后台管理系统</p>
@@ -50,7 +50,7 @@
 import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Phone, Lock, Shop } from '@element-plus/icons-vue'
+import { Phone, Lock } from '@element-plus/icons-vue'
 import request from '../utils/request'
 
 const router = useRouter()
@@ -112,12 +112,18 @@ const handleLogin = async () => {
 .logo {
   width: 72px;
   height: 72px;
-  background: #059669;
   border-radius: 16px;
   display: flex;
   align-items: center;
   justify-content: center;
   margin: 0 auto 16px;
+  overflow: hidden;
+}
+
+.logo img {
+  width: 72px;
+  height: 72px;
+  display: block;
 }
 
 h2 {
