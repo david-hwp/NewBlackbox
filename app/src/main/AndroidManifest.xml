@@ -79,8 +79,13 @@
         <!-- 多店管家新 Activity -->
         <activity
             android:name=".view.login.LoginActivity"
-            android:exported="false"
-            android:theme="@style/Theme.Duodian" />
+            android:exported="true"
+            android:theme="@style/Theme.Duodian">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
         <activity
             android:name=".view.home.HomeActivity"
             android:exported="false"
@@ -97,18 +102,21 @@
             android:name=".view.logs.LogsActivity"
             android:exported="false"
             android:theme="@style/Theme.Duodian" />
+        <activity
+            android:name=".view.profile.EngineSwitchActivity"
+            android:exported="false"
+            android:theme="@style/Theme.Duodian" />
+        <activity
+            android:name=".view.profile.FeedbackActivity"
+            android:exported="false"
+            android:theme="@style/Theme.Duodian" />
 
         <!-- Engine Install Activity: Entry point for first-time setup -->
         <activity
             android:name=".view.splash.EngineInstallActivity"
             android:exported="true"
             android:launchMode="singleTask"
-            android:theme="@style/Theme.BlackBox">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
+            android:theme="@style/Theme.BlackBox" />
 
         <activity
             android:name=".view.main.WelcomeActivity"

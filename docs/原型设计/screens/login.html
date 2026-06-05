@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>登录 - 多店管家</title>
+  <style>
+    :root {
+      --bg: #f8f9fa;
+      --surface: #ffffff;
+      --fg: #1e293b;
+      --fg-2: #475569;
+      --muted: #64748b;
+      --meta: #94a3b8;
+      --border: #e2e8f0;
+      --accent: #059669;
+      --accent-hover: #047857;
+      --accent-light: #d1fae5;
+      --danger: #dc2626;
+      --font-body: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', system-ui, sans-serif;
+      --font-mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: var(--font-body);
+      background: var(--bg);
+      color: var(--fg);
+      width: 100%;
+      max-width: 412px;
+      margin: 0 auto;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    .logo-area {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 48px 24px;
+    }
+    .logo-icon {
+      width: 72px;
+      height: 72px;
+      background: var(--accent);
+      border-radius: 16px;
+      display: grid;
+      place-items: center;
+      margin-bottom: 20px;
+    }
+    .logo-icon svg { width: 40px; height: 40px; color: white; }
+    .app-name {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--fg);
+      letter-spacing: -0.02em;
+    }
+    .app-tagline {
+      font-size: 14px;
+      color: var(--muted);
+      margin-top: 8px;
+    }
+    .form-area {
+      padding: 24px;
+      background: var(--surface);
+      border-radius: 24px 24px 0 0;
+      box-shadow: 0 -4px 20px rgba(0,0,0,0.04);
+    }
+    .field { margin-bottom: 16px; }
+    .field-label {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--fg-2);
+      margin-bottom: 6px;
+      display: block;
+    }
+    .input {
+      width: 100%;
+      padding: 14px 16px;
+      border: 1.5px solid var(--border);
+      border-radius: 12px;
+      font-size: 16px;
+      font-family: var(--font-body);
+      color: var(--fg);
+      background: var(--bg);
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .input:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-light);
+    }
+    .input::placeholder { color: var(--meta); }
+    .btn-primary {
+      width: 100%;
+      padding: 16px;
+      background: var(--accent);
+      color: white;
+      border: none;
+      border-radius: 12px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+      margin-top: 8px;
+    }
+    .btn-primary:hover { background: var(--accent-hover); }
+    .btn-primary:active { transform: scale(0.98); }
+    .form-footer {
+      text-align: center;
+      margin-top: 20px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+  <div class="logo-area">
+    <div class="logo-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="2" y="7" width="7" height="7" rx="1"/>
+        <rect x="15" y="7" width="7" height="7" rx="1"/>
+        <rect x="2" y="3" width="20" height="3" rx="1"/>
+        <line x1="5.5" y1="10.5" x2="5.5" y2="10.51"/>
+        <line x1="18.5" y1="10.5" x2="18.5" y2="10.51"/>
+        <path d="M6 17v3M12 17v3M18 17v3"/>
+      </svg>
+    </div>
+    <h1 class="app-name">多店管家</h1>
+    <p class="app-tagline">多平台店铺一站式管理</p>
+  </div>
+
+  <div class="form-area">
+    <div class="field">
+      <label class="field-label">账号 / 手机号</label>
+      <input type="text" class="input" placeholder="请输入账号或手机号">
+    </div>
+    <div class="field">
+      <label class="field-label">密码</label>
+      <input type="password" class="input" placeholder="请输入密码">
+    </div>
+    <button class="btn-primary">登录</button>
+    <p class="form-footer">首次使用？请联系管理员开通账号</p>
+  </div>
+</body>
+</html>

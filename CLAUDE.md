@@ -40,6 +40,16 @@ export JAVA_HOME=$(/usr/libexec/java_home -v 21)
 
 APKs are written to `app/build/outputs/apk/debug/` with naming pattern `BlackBox_${versionName}_${abi}-debug.apk`.
 
+### Admin Deployment
+
+- Start or redeploy the management backend/frontend only through `admin/deploy.sh`.
+- Do not manually run root-level compose commands for the management backend.
+- The admin stack exposes a single frontend/nginx entrypoint, defaulting to port `8006`; backend APIs continue to be reached through the frontend nginx `/api` proxy.
+
+```bash
+./admin/deploy.sh
+```
+
 ### Installing to Device
 
 ```bash

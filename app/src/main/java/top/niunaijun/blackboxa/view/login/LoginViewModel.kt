@@ -24,8 +24,8 @@ class LoginViewModel : ViewModel() {
             loadingLiveData.value = true
             val result = userRepository.login(phone, password)
             result.fold(
-                onSuccess = { userDto ->
-                    userDto.token?.let { tokenManager.saveToken(it) }
+                onSuccess = { (userDto, token) ->
+                    tokenManager.saveToken(token)
                     tokenManager.saveUser(userDto)
                     loginResultLiveData.value = Result.success(userDto)
                 },

@@ -17,6 +17,7 @@ class LogsActivity : AppCompatActivity() {
     private lateinit var binding: ActivityLogsBinding
     private lateinit var viewModel: LogsViewModel
     private lateinit var adapter: LogsAdapter
+    private var currentLogType: LogType? = null
 
     companion object {
         fun start(context: Context) {
@@ -80,6 +81,7 @@ class LogsActivity : AppCompatActivity() {
 
         chips.forEach { (chip, type) ->
             chip.setOnClickListener {
+                currentLogType = type
                 selectChip(chip)
                 viewModel.loadLogs(type)
             }
@@ -112,11 +114,6 @@ class LogsActivity : AppCompatActivity() {
     }
 
     private fun getCurrentLogType(): LogType? {
-        return when {
-            binding.chipOut.background.constantState == getDrawable(R.drawable.bg_chip_selected)?.constantState -> LogType.OUT
-            binding.chipIn.background.constantState == getDrawable(R.drawable.bg_chip_selected)?.constantState -> LogType.IN
-            binding.chipConsume.background.constantState == getDrawable(R.drawable.bg_chip_selected)?.constantState -> LogType.CONSUME
-            else -> null
-        }
+        return currentLogType
     }
 }

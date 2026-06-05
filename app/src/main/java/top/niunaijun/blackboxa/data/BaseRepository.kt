@@ -12,7 +12,7 @@ abstract class BaseRepository(protected val api: ApiService) {
         val response = block()
         if (response.code == 200) {
             response.data?.let { Result.success(it) }
-                ?: Result.failure(Exception("Empty response data"))
+                ?: Result.success(Unit as T)
         } else {
             Result.failure(ApiException(response.code, response.message))
         }

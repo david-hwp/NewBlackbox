@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "screens/home.html",
+  "entry": "screens/home.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-06-04T17:17:40.497Z",
+  "updatedAt": "2026-06-04T17:17:40.497Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

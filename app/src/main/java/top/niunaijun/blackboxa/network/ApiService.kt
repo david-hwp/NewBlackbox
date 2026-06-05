@@ -1,13 +1,14 @@
 package top.niunaijun.blackboxa.network
 
 import okhttp3.MultipartBody
+import okhttp3.RequestBody
 import retrofit2.http.*
 import top.niunaijun.blackboxa.bean.dto.*
 
 interface ApiService {
 
     @POST("auth/login")
-    suspend fun login(@Body request: LoginRequest): ApiResponse<UserDto>
+    suspend fun login(@Body request: LoginRequest): ApiResponse<LoginResponse>
 
     @POST("auth/register")
     suspend fun register(@Body request: RegisterRequest): ApiResponse<UserDto>
@@ -15,11 +16,29 @@ interface ApiService {
     @GET("auth/me")
     suspend fun getMe(): ApiResponse<UserDto>
 
+    @GET("platforms")
+    suspend fun getPlatforms(): ApiResponse<List<PlatformDto>>
+
+    @GET("engine-versions")
+    suspend fun getEngineVersions(@Query("available") available: Boolean? = null): ApiResponse<List<EngineVersionDto>>
+
+    @GET("announcements")
+    suspend fun getAnnouncements(@Query("published") published: Boolean? = null): ApiResponse<List<AnnouncementDto>>
+
     @GET("shops/my")
     suspend fun getMyShops(): ApiResponse<List<ShopDto>>
 
     @POST("shops/report")
     suspend fun reportShop(@Body request: ShopReportRequest): ApiResponse<ShopReportResult>
+
+    @POST("shops/pending")
+    suspend fun createPendingShop(@Body request: ShopDto): ApiResponse<ShopDto>
+
+    @PUT("shops/{id}")
+    suspend fun updateShop(@Path("id") id: Long, @Body request: ShopDto): ApiResponse<ShopDto>
+
+    @DELETE("shops/{id}")
+    suspend fun deleteShop(@Path("id") id: Long): ApiResponse<Unit>
 
     @GET("shops/validate")
     suspend fun validateShops(@Query("shopIds") shopIds: String): ApiResponse<List<ShopValidationResult>>
@@ -37,8 +56,9 @@ interface ApiService {
     @Multipart
     @POST("feedbacks")
     suspend fun submitFeedback(
-        @Part("content") content: String,
+        @Part("content") content: RequestBody,
         @Part images: List<MultipartBody.Part>,
+        @Part attachments: List<MultipartBody.Part>,
         @Part logFile: MultipartBody.Part?
     ): ApiResponse<FeedbackDto>
 

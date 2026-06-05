@@ -2,11 +2,14 @@ package top.niunaijun.blackboxa.view.profile
 
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.ViewModelProvider
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import top.niunaijun.blackboxa.databinding.ActivityProfileBinding
+import top.niunaijun.blackboxa.engine.EngineInstaller
 import top.niunaijun.blackboxa.view.gift.GiftActivity
 import top.niunaijun.blackboxa.view.home.HomeActivity
 import top.niunaijun.blackboxa.view.logs.LogsActivity
@@ -36,7 +39,6 @@ class ProfileActivity : AppCompatActivity() {
 
         initToolbar()
         initMenuListeners()
-        initFeedbackSection()
         initBottomNav()
         observeViewModel()
 
@@ -44,50 +46,53 @@ class ProfileActivity : AppCompatActivity() {
     }
 
     private fun initToolbar() {
-        binding.toolbar.setNavigationOnClickListener {
+        binding.toolbar?.setNavigationOnClickListener {
             finish()
         }
     }
 
     private fun initMenuListeners() {
-        binding.menuGift.setOnClickListener {
+        binding.menuGift?.setOnClickListener {
             GiftActivity.start(this)
         }
 
-        binding.menuLogs.setOnClickListener {
+        binding.menuLogs?.setOnClickListener {
             LogsActivity.start(this)
         }
 
-        binding.menuChangeUsername.setOnClickListener {
-            EditUsernameSheetFragment().show(supportFragmentManager, "EditUsername")
+        binding.btnEditUsername?.setOnClickListener {
+            showEditUsernameSheet()
         }
 
-        binding.menuChangePassword.setOnClickListener {
-            ChangePasswordSheetFragment().show(supportFragmentManager, "ChangePassword")
+        binding.menuChangePassword?.setOnClickListener {
+            showChangePasswordSheet()
         }
 
-        binding.menuSettings.setOnClickListener {
+        binding.menuFeedback.setOnClickListener {
+            FeedbackActivity.start(this)
+        }
+
+        binding.menuSoftwareSettings.setOnClickListener {
             SettingActivity.start(this)
         }
-    }
 
-    private fun initFeedbackSection() {
-        binding.btnSubmitFeedback.setOnClickListener {
-            val content = binding.etFeedback.text.toString().trim()
-            if (content.isEmpty()) {
-                Toast.makeText(this, "请输入反馈内容", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
-            viewModel.submitFeedback(content, emptyList())
+        binding.menuEngineSwitch.setOnClickListener {
+            EngineSwitchActivity.start(this)
         }
 
-        binding.btnAddImage.setOnClickListener {
-            Toast.makeText(this, "图片上传功能开发中", Toast.LENGTH_SHORT).show()
+        binding.menuAbout.setOnClickListener {
+            showAboutDialog()
+        }
+
+        binding.btnLogout.setOnClickListener {
+            viewModel.logout()
+            LoginActivity.start(this)
+            finish()
         }
     }
 
     private fun initBottomNav() {
-        binding.navHome.setOnClickListener {
+        binding.navHome?.setOnClickListener {
             HomeActivity.start(this)
             finish()
         }
@@ -96,19 +101,13 @@ class ProfileActivity : AppCompatActivity() {
     private fun observeViewModel() {
         viewModel.userProfileLiveData.observe(this) { profile ->
             profile?.let {
-                binding.tvAvatarInitial.text = it.username.take(1)
-                binding.tvUsername.text = it.username
-                binding.tvPhone.text = maskPhone(it.phone)
-                binding.tvShopCount.text = it.shopCount.toString()
-                binding.tvPlatformCount.text = it.platformCount.toString()
-                binding.tvComputeBalance.text = it.computeBalance.toString()
-            }
-        }
-
-        viewModel.feedbackResultLiveData.observe(this) { success ->
-            if (success) {
-                Toast.makeText(this, getString(top.niunaijun.blackboxa.R.string.submit_success), Toast.LENGTH_SHORT).show()
-                binding.etFeedback.text.clear()
+                val username = getDisplayUsername(it.username)
+                binding.tvAvatarInitial?.text = username.take(1)
+                binding.tvUsername?.text = username
+                binding.tvPhone?.text = maskPhone(it.phone)
+                binding.tvShopCount?.text = it.shopCount.toString()
+                binding.tvPlatformCount?.text = it.platformCount.toString()
+                binding.tvComputeBalance?.text = it.computeBalance.toString()
             }
         }
 
@@ -144,7 +143,55 @@ class ProfileActivity : AppCompatActivity() {
         }
     }
 
-    private fun maskPhone(phone: String): String {
+    private fun getDisplayUsername(username: String?): String {
+        return username?.takeIf { it.isNotBlank() } ?: "我的账号"
+    }
+
+    private fun showEditUsernameSheet() {
+        val currentUsername = binding.tvUsername?.text?.toString().orEmpty()
+        val sheet = EditUsernameSheetFragment.newInstance(currentUsername)
+        sheet.setOnSaveListener { username ->
+            viewModel.updateUsername(username)
+        }
+        sheet.show(supportFragmentManager, "EditUsername")
+    }
+
+    private fun showChangePasswordSheet() {
+        val sheet = ChangePasswordSheetFragment()
+        sheet.setOnConfirmListener { oldPwd, newPwd, confirmPwd ->
+            viewModel.updatePassword(oldPwd, newPwd, confirmPwd)
+        }
+        sheet.show(supportFragmentManager, "ChangePassword")
+    }
+
+    private fun showAboutDialog() {
+        val packageInfo = packageManager.getPackageInfo(packageName, 0)
+        val versionCode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            packageInfo.longVersionCode
+        } else {
+            @Suppress("DEPRECATION")
+            packageInfo.versionCode.toLong()
+        }
+        val mainVersion = "${packageInfo.versionName} ($versionCode)"
+        val engineVersionCode = EngineInstaller.getInstalledEngineVersion(this)
+        val engineVersion = if (engineVersionCode > 0) engineVersionCode.toString() else "未安装"
+        val content = """
+            主APK版本：$mainVersion
+            引擎版本：$engineVersion
+            服务商信息：长沙智壤软件技术有限公司
+        """.trimIndent()
+        MaterialAlertDialogBuilder(this)
+            .setTitle("关于")
+            .setMessage(content)
+            .setPositiveButton("确定", null)
+            .show()
+    }
+
+    private fun maskPhone(phone: String?): String {
+        if (phone.isNullOrBlank()) {
+            return ""
+        }
+
         return if (phone.length == 11) {
             "${phone.substring(0, 3)}****${phone.substring(7)}"
         } else {

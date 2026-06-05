@@ -21,9 +21,21 @@ class App : Application() {
         @Volatile
         private lateinit var mContext: Context
 
+        @Volatile
+        private lateinit var sApp: App
+
         @JvmStatic
         fun getContext(): Context {
             return mContext
+        }
+
+        @JvmStatic
+        fun ensureEngineConnection(): Boolean {
+            return if (::sApp.isInitialized) {
+                sApp.ensureEngineConnectionInternal()
+            } else {
+                false
+            }
         }
     }
 
@@ -34,6 +46,7 @@ class App : Application() {
         try {
             super.attachBaseContext(base)
 
+            sApp = this
             mContext = base!!
 
             try {
@@ -55,18 +68,22 @@ class App : Application() {
             AppManager.doOnCreate(mContext)
 
             // Initialize Engine connection after AppManager setup
-            initEngineConnection()
+            ensureEngineConnectionInternal()
         } catch (e: Exception) {
             Log.e("App", "Error in onCreate: ${e.message}")
         }
     }
 
-    private fun initEngineConnection() {
+    private fun ensureEngineConnectionInternal(): Boolean {
         try {
+            if (EngineConnection.isConnected()) {
+                return true
+            }
+
             // Check if Engine APK is installed
             if (!EngineLoader.isEngineInstalled(mContext)) {
                 Log.w("App", "Engine APK not installed. Some features will be unavailable.")
-                return
+                return false
             }
 
             // Initialize EngineLoader (extract/load native libs)
@@ -85,8 +102,10 @@ class App : Application() {
 
             // Check for Engine upgrades in background after successful bind
             checkForEngineUpgrade()
+            return bound
         } catch (e: Exception) {
             Log.e("App", "Error initializing Engine connection: ${e.message}")
+            return false
         }
     }
 

@@ -22,4 +22,33 @@
     <color name="duodian_error">#EF4444</color>
     <color name="duodian_warning">#F59E0B</color>
     <color name="duodian_info">#3B82F6</color>
+
+    <!-- 设计系统完整色阶 -->
+    <color name="bg">#f5f6f8</color>
+    <color name="surface">#ffffff</color>
+    <color name="fg">#1e293b</color>
+    <color name="fg_2">#475569</color>
+    <color name="muted">#64748b</color>
+    <color name="meta">#94a3b8</color>
+    <color name="border">#e2e8f0</color>
+    <color name="accent_green">#059669</color>
+    <color name="accent_hover">#047857</color>
+    <color name="accent_light">#d1fae5</color>
+    <color name="danger">#dc2626</color>
+    <color name="danger_light">#fee2e2</color>
+    <color name="warn">#f59e0b</color>
+    <color name="warn_bg">#fefce8</color>
+    <color name="warn_fg">#a16207</color>
+    <color name="info_bg">#e0f2fe</color>
+    <color name="info_fg">#0284c7</color>
+    <color name="sidebar_bg">#f8f9fa</color>
+    <color name="sidebar_border">#e0e0e0</color>
+
+    <!-- 平台品牌色（用于左侧栏图标背景） -->
+    <color name="brand_meituan">#ff4d4f</color>
+    <color name="brand_taobao">#fa8c16</color>
+    <color name="brand_jd">#2f54eb</color>
+    <color name="brand_kuaishou">#52c41a</color>
+    <color name="brand_xhs">#eb2f96</color>
+    <color name="brand_ali">#fa541c</color>
 </resources>

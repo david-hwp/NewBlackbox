@@ -1,5 +1,8 @@
 package top.niunaijun.blackboxa.bean.dto
 
+import top.niunaijun.blackboxa.bean.Platform
+import top.niunaijun.blackboxa.bean.Shop
+
 data class ShopDto(
     val id: Long,
     val shopName: String,
@@ -9,4 +12,20 @@ data class ShopDto(
     val remainingDays: Int,
     val autoRenew: Boolean,
     val packageName: String?
-)
+) {
+
+    fun toShop(): Shop = Shop(
+        id = id,
+        shopName = shopName,
+        shopId = shopId,
+        platform = Platform.fromId(platform),
+        remainingDays = remainingDays,
+        autoRenew = autoRenew,
+        packageName = packageName,
+        isNew = shopId.startsWith(TEMP_SHOP_ID_PREFIX)
+    )
+
+    companion object {
+        const val TEMP_SHOP_ID_PREFIX = "NEW-"
+    }
+}

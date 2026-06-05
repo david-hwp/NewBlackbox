@@ -46,7 +46,20 @@ object EngineProxy {
         Log.d(TAG, "EngineProxy disconnected")
     }
 
-    fun isConnected(): Boolean = mEngine != null
+    fun isConnected(): Boolean {
+        val binder = mEngine?.asBinder() ?: return false
+        if (!binder.isBinderAlive) {
+            Log.w(TAG, "Engine binder is no longer alive")
+            disconnect()
+            return false
+        }
+        return true
+    }
+
+    private fun markRemoteFailure(action: String, e: RemoteException) {
+        Log.e(TAG, "$action remote call failed: ${e.message}", e)
+        disconnect()
+    }
 
     // === Core APIs ===
 
@@ -58,7 +71,7 @@ object EngineProxy {
         return try {
             mEngine!!.getLaunchIntent(packageName, userId)
         } catch (e: RemoteException) {
-            Log.e(TAG, "getLaunchIntent failed for $packageName (user=$userId): ${e.message}")
+            markRemoteFailure("getLaunchIntent($packageName, user=$userId)", e)
             null
         }
     }
@@ -71,7 +84,7 @@ object EngineProxy {
         return try {
             mEngine!!.launchApk(packageName, userId)
         } catch (e: RemoteException) {
-            Log.e(TAG, "launchApk failed for $packageName (user=$userId): ${e.message}")
+            markRemoteFailure("launchApk($packageName, user=$userId)", e)
             false
         }
     }
@@ -84,7 +97,7 @@ object EngineProxy {
         return try {
             mEngine!!.installPackageAsUser(path, userId)
         } catch (e: RemoteException) {
-            Log.e(TAG, "installPackageAsUser failed for $path (user=$userId): ${e.message}")
+            markRemoteFailure("installPackageAsUser($path, user=$userId)", e)
             InstallResult().installError("IPC error: ${e.message}")
         }
     }
@@ -97,7 +110,7 @@ object EngineProxy {
         try {
             mEngine!!.uninstallPackageAsUser(packageName, userId)
         } catch (e: RemoteException) {
-            Log.e(TAG, "uninstallPackageAsUser failed for $packageName (user=$userId): ${e.message}")
+            markRemoteFailure("uninstallPackageAsUser($packageName, user=$userId)", e)
         }
     }
 
@@ -109,7 +122,7 @@ object EngineProxy {
         return try {
             mEngine!!.getInstalledApplications(flags, userId) ?: emptyList()
         } catch (e: RemoteException) {
-            Log.e(TAG, "getInstalledApplications failed (user=$userId): ${e.message}")
+            markRemoteFailure("getInstalledApplications(user=$userId)", e)
             emptyList()
         }
     }
@@ -122,7 +135,7 @@ object EngineProxy {
         return try {
             mEngine!!.getUsers() ?: emptyList()
         } catch (e: RemoteException) {
-            Log.e(TAG, "getUsers failed: ${e.message}")
+            markRemoteFailure("getUsers", e)
             emptyList()
         }
     }
@@ -135,7 +148,7 @@ object EngineProxy {
         return try {
             mEngine!!.createUser(userId)
         } catch (e: RemoteException) {
-            Log.e(TAG, "createUser failed for userId=$userId: ${e.message}")
+            markRemoteFailure("createUser(userId=$userId)", e)
             null
         }
     }
@@ -148,7 +161,7 @@ object EngineProxy {
         try {
             mEngine!!.deleteUser(userId)
         } catch (e: RemoteException) {
-            Log.e(TAG, "deleteUser failed for userId=$userId: ${e.message}")
+            markRemoteFailure("deleteUser(userId=$userId)", e)
         }
     }
 
@@ -160,7 +173,7 @@ object EngineProxy {
         return try {
             mEngine!!.isInstalled(packageName, userId)
         } catch (e: RemoteException) {
-            Log.e(TAG, "isInstalled failed for $packageName (user=$userId): ${e.message}")
+            markRemoteFailure("isInstalled($packageName, user=$userId)", e)
             false
         }
     }
@@ -173,7 +186,7 @@ object EngineProxy {
         try {
             mEngine!!.clearPackage(packageName, userId)
         } catch (e: RemoteException) {
-            Log.e(TAG, "clearPackage failed for $packageName (user=$userId): ${e.message}")
+            markRemoteFailure("clearPackage($packageName, user=$userId)", e)
         }
     }
 
@@ -185,7 +198,7 @@ object EngineProxy {
         try {
             mEngine!!.stopPackage(packageName, userId)
         } catch (e: RemoteException) {
-            Log.e(TAG, "stopPackage failed for $packageName (user=$userId): ${e.message}")
+            markRemoteFailure("stopPackage($packageName, user=$userId)", e)
         }
     }
 
@@ -199,7 +212,7 @@ object EngineProxy {
         return try {
             mEngine!!.packageManager
         } catch (e: RemoteException) {
-            Log.e(TAG, "getPackageManager failed: ${e.message}")
+            markRemoteFailure("getPackageManager", e)
             null
         }
     }
@@ -212,7 +225,7 @@ object EngineProxy {
         return try {
             mEngine!!.activityManager
         } catch (e: RemoteException) {
-            Log.e(TAG, "getActivityManager failed: ${e.message}")
+            markRemoteFailure("getActivityManager", e)
             null
         }
     }
@@ -225,7 +238,7 @@ object EngineProxy {
         return try {
             mEngine!!.locationManager
         } catch (e: RemoteException) {
-            Log.e(TAG, "getLocationManager failed: ${e.message}")
+            markRemoteFailure("getLocationManager", e)
             null
         }
     }
@@ -238,7 +251,7 @@ object EngineProxy {
         return try {
             mEngine!!.userManager
         } catch (e: RemoteException) {
-            Log.e(TAG, "getUserManager failed: ${e.message}")
+            markRemoteFailure("getUserManager", e)
             null
         }
     }
@@ -253,7 +266,7 @@ object EngineProxy {
         return try {
             mEngine!!.isSupportGms
         } catch (e: RemoteException) {
-            Log.e(TAG, "isSupportGms failed: ${e.message}")
+            markRemoteFailure("isSupportGms", e)
             false
         }
     }
@@ -266,7 +279,7 @@ object EngineProxy {
         return try {
             mEngine!!.isInstallGms(userId)
         } catch (e: RemoteException) {
-            Log.e(TAG, "isInstallGms failed for userId=$userId: ${e.message}")
+            markRemoteFailure("isInstallGms(userId=$userId)", e)
             false
         }
     }
@@ -279,7 +292,7 @@ object EngineProxy {
         return try {
             mEngine!!.installGms(userId)
         } catch (e: RemoteException) {
-            Log.e(TAG, "installGms failed for userId=$userId: ${e.message}")
+            markRemoteFailure("installGms(userId=$userId)", e)
             InstallResult().installError("IPC error: ${e.message}")
         }
     }
@@ -292,7 +305,7 @@ object EngineProxy {
         return try {
             mEngine!!.uninstallGms(userId)
         } catch (e: RemoteException) {
-            Log.e(TAG, "uninstallGms failed for userId=$userId: ${e.message}")
+            markRemoteFailure("uninstallGms(userId=$userId)", e)
             false
         }
     }
@@ -307,7 +320,7 @@ object EngineProxy {
         try {
             mEngine!!.sendLogs(caption, async)
         } catch (e: RemoteException) {
-            Log.e(TAG, "sendLogs failed: ${e.message}")
+            markRemoteFailure("sendLogs", e)
         }
     }
 
@@ -321,7 +334,7 @@ object EngineProxy {
         return try {
             mEngine!!.getShopInfo(packageName, userId)
         } catch (e: RemoteException) {
-            Log.e(TAG, "getShopInfo failed for $packageName (user=$userId): ${e.message}")
+            markRemoteFailure("getShopInfo($packageName, user=$userId)", e)
             null
         }
     }
@@ -334,7 +347,7 @@ object EngineProxy {
         try {
             mEngine!!.triggerShopIdExtract(packageName, userId)
         } catch (e: RemoteException) {
-            Log.e(TAG, "triggerShopIdExtract failed for $packageName (user=$userId): ${e.message}")
+            markRemoteFailure("triggerShopIdExtract($packageName, user=$userId)", e)
         }
     }
 
@@ -348,7 +361,7 @@ object EngineProxy {
         try {
             mEngine!!.registerSession(sessionId, expireAt)
         } catch (e: RemoteException) {
-            Log.e(TAG, "registerSession failed: ${e.message}")
+            markRemoteFailure("registerSession", e)
         }
     }
 
@@ -360,7 +373,7 @@ object EngineProxy {
         try {
             mEngine!!.unregisterSession()
         } catch (e: RemoteException) {
-            Log.e(TAG, "unregisterSession failed: ${e.message}")
+            markRemoteFailure("unregisterSession", e)
         }
     }
 
@@ -372,7 +385,7 @@ object EngineProxy {
         return try {
             mEngine!!.isSessionActive
         } catch (e: RemoteException) {
-            Log.e(TAG, "isSessionActive failed: ${e.message}")
+            markRemoteFailure("isSessionActive", e)
             false
         }
     }

@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>算力赠送 - 多店管家</title>
+  <style>
+    :root {
+      --bg: #f8f9fa;
+      --surface: #ffffff;
+      --fg: #1e293b;
+      --fg-2: #475569;
+      --muted: #64748b;
+      --meta: #94a3b8;
+      --border: #e2e8f0;
+      --accent: #059669;
+      --accent-hover: #047857;
+      --accent-light: #d1fae5;
+      --danger: #dc2626;
+      --warn-bg: #fefce8;
+      --warn-fg: #a16207;
+      --font-body: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', system-ui, sans-serif;
+      --font-mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: var(--font-body);
+      background: var(--bg);
+      color: var(--fg);
+      width: 100%;
+      max-width: 412px;
+      margin: 0 auto;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    .header {
+      background: var(--surface);
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .header-back {
+      width: 36px;
+      height: 36px;
+      display: grid;
+      place-items: center;
+      border-radius: 10px;
+      color: var(--fg);
+      text-decoration: none;
+    }
+    .header-title {
+      font-size: 17px;
+      font-weight: 700;
+      color: var(--fg);
+      flex: 1;
+    }
+    .content {
+      flex: 1;
+      padding: 16px;
+    }
+    /* 我的账号信息 */
+    .my-account {
+      background: var(--surface);
+      border-radius: 12px;
+      padding: 14px 16px;
+      border: 1px solid var(--border);
+      margin-bottom: 16px;
+    }
+    .my-account-label {
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+    .my-account-phone {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--fg);
+      font-family: var(--font-mono);
+    }
+    .my-account-name {
+      font-size: 13px;
+      color: var(--fg-2);
+      margin-top: 2px;
+    }
+    .form-card {
+      background: var(--surface);
+      border-radius: 16px;
+      padding: 20px;
+      border: 1px solid var(--border);
+    }
+    .field { margin-bottom: 16px; }
+    .field:last-child { margin-bottom: 0; }
+    .field-label {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--fg-2);
+      margin-bottom: 6px;
+      display: block;
+    }
+    .input {
+      width: 100%;
+      padding: 14px 16px;
+      border: 1.5px solid var(--border);
+      border-radius: 12px;
+      font-size: 16px;
+      font-family: var(--font-body);
+      color: var(--fg);
+      background: var(--bg);
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .input:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-light);
+    }
+    .input::placeholder { color: var(--meta); }
+    .btn-primary {
+      width: 100%;
+      padding: 16px;
+      background: var(--accent);
+      color: white;
+      border: none;
+      border-radius: 12px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+      margin-top: 8px;
+      font-family: var(--font-body);
+    }
+    .btn-primary:hover { background: var(--accent-hover); }
+    .btn-primary:active { transform: scale(0.98); }
+    .trade-note {
+      margin-top: 20px;
+      padding: 14px 16px;
+      background: var(--warn-bg);
+      border-radius: 10px;
+      font-size: 13px;
+      color: var(--warn-fg);
+      line-height: 1.5;
+    }
+    /* 二次确认弹窗 */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0,0,0,0.45);
+      z-index: 200;
+      align-items: flex-end;
+      justify-content: center;
+      animation: fadeIn 0.2s ease;
+    }
+    .modal-overlay.active { display: flex; }
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    .modal-sheet {
+      width: 100%;
+      max-width: 412px;
+      background: var(--surface);
+      border-radius: 20px 20px 0 0;
+      padding: 24px 20px 32px;
+      animation: slideUp 0.25s cubic-bezier(0.16,1,0.3,1);
+    }
+    @keyframes slideUp {
+      from { transform: translateY(100%); }
+      to { transform: translateY(0); }
+    }
+    .modal-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--fg);
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    .modal-info {
+      background: var(--bg);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 20px;
+    }
+    .modal-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .modal-row:last-child {
+      border-bottom: none;
+      padding-bottom: 0;
+    }
+    .modal-row:first-child { padding-top: 0; }
+    .modal-row-label {
+      font-size: 14px;
+      color: var(--muted);
+    }
+    .modal-row-value {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--fg);
+    }
+    .modal-row-value.highlight {
+      color: var(--accent);
+      font-size: 20px;
+    }
+    .modal-actions {
+      display: flex;
+      gap: 12px;
+    }
+    .modal-btn {
+      flex: 1;
+      padding: 15px;
+      border-radius: 12px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      font-family: var(--font-body);
+      transition: transform 0.1s;
+    }
+    .modal-btn:active { transform: scale(0.97); }
+    .modal-btn-cancel {
+      background: var(--bg);
+      color: var(--fg);
+      border: 1.5px solid var(--border);
+    }
+    .modal-btn-confirm {
+      background: var(--accent);
+      color: white;
+    }
+    .modal-btn-confirm:hover { background: var(--accent-hover); }
+  </style>
+</head>
+<body>
+  <header class="header">
+    <a href="profile.html" class="header-back">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M19 12H5M12 19l-7-7 7-7"/>
+      </svg>
+    </a>
+    <h1 class="header-title">算力赠送</h1>
+  </header>
+
+  <main class="content">
+    <!-- 我的账号 -->
+    <div class="my-account">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+        <div>
+          <div class="my-account-label">我的账号</div>
+          <div class="my-account-phone">138****5678</div>
+          <div class="my-account-name">管理员</div>
+        </div>
+        <div style="text-align:right;">
+          <div class="my-account-label">算力余额</div>
+          <div style="font-size:20px;font-weight:700;color:var(--accent);font-family:var(--font-mono);">200</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="form-card">
+      <div class="field">
+        <label class="field-label">对方手机号</label>
+        <input type="tel" class="input" id="recipientPhone" placeholder="请输入对方手机号" maxlength="11">
+      </div>
+      <div class="field">
+        <label class="field-label">赠送算力数量</label>
+        <input type="number" class="input" id="giftAmount" placeholder="请输入赠送数量">
+      </div>
+      <button class="btn-primary" id="confirmBtn">确认赠送</button>
+    </div>
+
+    <div class="trade-note">
+      赠送算力将立即从您的账户扣除对应数量，对方确认后交易完成。请仔细核对对方手机号。
+    </div>
+  </main>
+
+  <!-- 二次确认弹窗 -->
+  <div class="modal-overlay" id="confirmModal">
+    <div class="modal-sheet">
+      <h2 class="modal-title">确认赠送</h2>
+      <div class="modal-info">
+        <div class="modal-row">
+          <span class="modal-row-label">我的账号</span>
+          <span class="modal-row-value">138****5678</span>
+        </div>
+        <div class="modal-row">
+          <span class="modal-row-label">对方账号</span>
+          <span class="modal-row-value" id="modalRecipient">—</span>
+        </div>
+        <div class="modal-row">
+          <span class="modal-row-label">赠送数量</span>
+          <span class="modal-row-value highlight" id="modalAmount">—</span>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="modal-btn modal-btn-cancel" id="cancelBtn">取消</button>
+        <button class="modal-btn modal-btn-confirm" id="finalConfirmBtn">确认赠送</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const recipientInput = document.getElementById('recipientPhone');
+    const amountInput = document.getElementById('giftAmount');
+    const confirmBtn = document.getElementById('confirmBtn');
+    const modal = document.getElementById('confirmModal');
+    const modalRecipient = document.getElementById('modalRecipient');
+    const modalAmount = document.getElementById('modalAmount');
+    const cancelBtn = document.getElementById('cancelBtn');
+    const finalConfirmBtn = document.getElementById('finalConfirmBtn');
+
+    confirmBtn.addEventListener('click', function() {
+      const phone = recipientInput.value.trim();
+      const amount = amountInput.value.trim();
+      if (!phone) { recipientInput.focus(); return; }
+      if (!amount || amount <= 0) { amountInput.focus(); return; }
+      modalRecipient.textContent = phone.replace(/(\d{3})\d{4}(\d{4})/, '$1****$2');
+      modalAmount.textContent = amount;
+      modal.classList.add('active');
+    });
+
+    cancelBtn.addEventListener('click', function() {
+      modal.classList.remove('active');
+    });
+
+    modal.addEventListener('click', function(e) {
+      if (e.target === modal) modal.classList.remove('active');
+    });
+
+    finalConfirmBtn.addEventListener('click', function() {
+      modal.classList.remove('active');
+      confirmBtn.textContent = '赠送成功';
+      confirmBtn.style.background = '#16a34a';
+      setTimeout(function() {
+        confirmBtn.textContent = '确认赠送';
+        confirmBtn.style.background = '';
+        recipientInput.value = '';
+        amountInput.value = '';
+      }, 1500);
+    });
+  </script>
+</body>
+</html>

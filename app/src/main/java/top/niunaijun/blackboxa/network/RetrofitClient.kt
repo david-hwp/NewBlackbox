@@ -4,11 +4,13 @@ import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
+import top.niunaijun.blackboxa.BuildConfig
 import java.util.concurrent.TimeUnit
 
 object RetrofitClient {
 
-    private const val BASE_URL = "http://10.0.2.2:8080/api/"
+    private val BASE_URL = BuildConfig.API_BASE_URL.ensureTrailingSlash()
+    private val SERVER_ROOT = BASE_URL.removeSuffix("/api/")
 
     private val loggingInterceptor = HttpLoggingInterceptor().apply {
         level = HttpLoggingInterceptor.Level.BODY
@@ -29,4 +31,20 @@ object RetrofitClient {
         .build()
 
     val apiService: ApiService = retrofit.create(ApiService::class.java)
+
+    fun resolveUrl(url: String): String {
+        if (url.startsWith("http://") || url.startsWith("https://")) {
+            return url
+        }
+        val normalized = url.trimStart('/')
+        return if (normalized.startsWith("api/")) {
+            "$SERVER_ROOT/$normalized"
+        } else {
+            BASE_URL + normalized
+        }
+    }
+
+    private fun String.ensureTrailingSlash(): String {
+        return if (endsWith("/")) this else "$this/"
+    }
 }

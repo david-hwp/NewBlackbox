@@ -26,14 +26,16 @@ import top.niunaijun.blackboxa.engine.EngineConnection
 import top.niunaijun.blackboxa.engine.EngineInstaller
 import top.niunaijun.blackboxa.engine.EngineInstallReceiver
 import top.niunaijun.blackboxa.engine.EngineLoader
-import top.niunaijun.blackboxa.view.main.MainActivity
+import top.niunaijun.blackboxa.data.TokenManager
+import top.niunaijun.blackboxa.view.home.HomeActivity
+import top.niunaijun.blackboxa.view.login.LoginActivity
 
 /**
  * EngineInstallActivity is the entry point for first-time setup.
  * It checks if the Engine APK is installed, and if not, guides the user
  * through copying it from assets and installing it.
  *
- * After successful installation, it redirects to MainActivity.
+ * After successful installation, it redirects to the current login/home flow.
  */
 class EngineInstallActivity : AppCompatActivity() {
 
@@ -93,7 +95,7 @@ class EngineInstallActivity : AppCompatActivity() {
 
         // Check if Engine is already installed and setup is complete
         if (EngineInstaller.isEngineInstalled(this) && isSetupComplete(this)) {
-            Log.d(TAG, "Engine installed and setup complete, redirecting to MainActivity")
+            Log.d(TAG, "Engine installed and setup complete, redirecting")
             redirectToMain()
             return
         }
@@ -247,7 +249,7 @@ class EngineInstallActivity : AppCompatActivity() {
                 handler.postDelayed({ redirectToMain() }, 1500)
             } else {
                 val errorMsg = if (isMiui()) {
-                    "MIUI 阻止了引擎服务连接。\n请前往「设置 → 应用管理 → BlackBox Engine → 自启动管理」开启权限，然后点击重试。"
+                    "MIUI 阻止了引擎服务连接。\n请前往「设置 → 应用管理 → 店铺管家引擎 → 自启动管理」开启权限，然后点击重试。"
                 } else {
                     "引擎安装完成但无法连接，请检查是否安装正确"
                 }
@@ -258,13 +260,16 @@ class EngineInstallActivity : AppCompatActivity() {
 
     private fun redirectToMain() {
         try {
-            MainActivity.start(this)
+            val intent = if (TokenManager.getInstance().isLoggedIn()) {
+                Intent(this, HomeActivity::class.java)
+            } else {
+                Intent(this, LoginActivity::class.java)
+            }
+            startActivity(intent)
             finish()
         } catch (e: Exception) {
-            Log.e(TAG, "Error redirecting to MainActivity: ${e.message}")
-            // Fallback: start with explicit intent
-            val intent = Intent(this, MainActivity::class.java)
-            startActivity(intent)
+            Log.e(TAG, "Error redirecting after engine install: ${e.message}")
+            startActivity(Intent(this, LoginActivity::class.java))
             finish()
         }
     }

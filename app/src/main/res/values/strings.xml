@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">BlackBox</string>
+    <string name="app_name">店铺管家</string>
     <string name="choose">Choose</string>
     <string name="choose_app">Choose App</string>
     <string name="installed_app">Installed App</string>
@@ -71,8 +71,8 @@
     <string name="no_gms">Currently, there is no Google service environment on mobile phones.</string>
 
     <!-- 多店管家 -->
-    <string name="duodian_app_name">多店管家</string>
-    <string name="duodian_login_title">多店管家</string>
+    <string name="duodian_app_name">店铺管家</string>
+    <string name="duodian_login_title">店铺管家</string>
     <string name="duodian_login_subtitle">多平台店铺管理专家</string>
     <string name="duodian_phone_hint">请输入手机号</string>
     <string name="duodian_password_hint">请输入密码</string>
@@ -92,4 +92,62 @@
     <string name="duodian_auto_renew">自动续费</string>
     <string name="duodian_platform">平台</string>
     <string name="duodian_shop_id">店铺ID</string>
+
+    <!-- Phase 8 Wave 1 -->
+    <string name="profile_title">我的</string>
+    <string name="gift_title">算力赠送</string>
+    <string name="logs_title">交易日志</string>
+    <string name="menu_gift_compute">算力赠送</string>
+    <string name="menu_transaction_logs">交易日志</string>
+    <string name="menu_change_username">修改用户名</string>
+    <string name="menu_change_password">修改密码</string>
+    <string name="menu_system_settings">软件设置</string>
+    <string name="feedback_hint">请输入您遇到的问题...</string>
+    <string name="feedback_submit">提交反馈</string>
+    <string name="gift_target_phone">对方手机号</string>
+    <string name="gift_amount">赠送数量</string>
+    <string name="gift_confirm">确认赠送</string>
+    <string name="gift_success">赠送成功</string>
+    <string name="tab_all">全部</string>
+    <string name="tab_out">转出</string>
+    <string name="tab_in">转入</string>
+    <string name="tab_consume">消耗</string>
+    <string name="edit_shop_title">编辑店铺</string>
+    <string name="delete_shop_title">删除店铺</string>
+    <string name="delete_shop_confirm">确定要删除该店铺吗？</string>
+    <string name="delete_shop_warning">删除后无法恢复</string>
+    <string name="edit_username_title">修改用户名</string>
+    <string name="change_password_title">修改密码</string>
+    <string name="save">保存</string>
+    <string name="confirm">确认</string>
+    <string name="confirm_delete">确认删除</string>
+    <string name="username_hint">请输入用户名</string>
+    <string name="old_password_hint">请输入原密码</string>
+    <string name="new_password_hint">请输入新密码</string>
+    <string name="confirm_password_hint">请确认新密码</string>
+    <string name="error_username_empty">用户名不能为空</string>
+    <string name="error_username_length">用户名长度需在1-32字符之间</string>
+    <string name="error_password_empty">密码不能为空</string>
+    <string name="error_password_length">密码长度至少6位</string>
+    <string name="error_password_mismatch">两次输入的密码不一致</string>
+    <string name="error_phone_invalid">请输入有效的11位手机号</string>
+    <string name="error_amount_invalid">请输入有效的赠送数量</string>
+    <string name="submit_success">提交成功</string>
+    <string name="save_success">保存成功</string>
+    <string name="shop_name_hint">店铺名称</string>
+    <string name="auto_renew_label">自动续时</string>
+    <string name="gift_confirm_title">确认赠送</string>
+    <string name="gift_confirm_target">对方手机号</string>
+    <string name="gift_confirm_amount">赠送数量</string>
+    <string name="gift_confirm_unit">算力</string>
+
+    <!-- 首页 UI 字符串 -->
+    <string name="duodian_subtitle">多平台店铺一站式管理</string>
+    <string name="compute_balance_label">算力余额</string>
+    <string name="transaction_logs">交易日志</string>
+    <string name="add_shop">+ 添加店铺</string>
+    <string name="my_account">我的账号</string>
+    <string name="search_hint">搜索店名/ID</string>
+    <string name="technical_support">本应用由长沙智壤网络科技有限公司提供技术支持</string>
+    <string name="announcement_dialog_button">知道了</string>
 </resources>

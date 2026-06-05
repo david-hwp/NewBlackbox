@@ -7,7 +7,12 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.launch
 import top.niunaijun.blackboxa.bean.Platform
 import top.niunaijun.blackboxa.bean.Shop
+import top.niunaijun.blackboxa.bean.dto.AnnouncementDto
+import top.niunaijun.blackboxa.bean.dto.PlatformItemDto
+import top.niunaijun.blackboxa.bean.dto.ShopDto
 import top.niunaijun.blackboxa.bean.dto.ShopReportRequest
+import top.niunaijun.blackboxa.data.AnnouncementRepository
+import top.niunaijun.blackboxa.data.PlatformRepository
 import top.niunaijun.blackboxa.data.ShopRepository
 import top.niunaijun.blackboxa.data.TokenManager
 import top.niunaijun.blackboxa.network.RetrofitClient
@@ -20,30 +25,130 @@ class HomeViewModel : ViewModel() {
     private val _selectedPlatformLiveData = MutableLiveData<Platform>()
     val selectedPlatformLiveData: LiveData<Platform> = _selectedPlatformLiveData
 
+    private val _platformsLiveData = MutableLiveData<List<PlatformItemDto>>()
+    val platformsLiveData: LiveData<List<PlatformItemDto>> = _platformsLiveData
+
     private val _searchQueryLiveData = MutableLiveData<String>("")
     val searchQueryLiveData: LiveData<String> = _searchQueryLiveData
 
     private val _computeBalanceLiveData = MutableLiveData<Int>()
     val computeBalanceLiveData: LiveData<Int> = _computeBalanceLiveData
 
+    private val _phoneNumberLiveData = MutableLiveData<String>()
+    val phoneNumberLiveData: LiveData<String> = _phoneNumberLiveData
+
+    private val _displayUsernameLiveData = MutableLiveData<String>()
+    val displayUsernameLiveData: LiveData<String> = _displayUsernameLiveData
+
+    private val _latestAnnouncementLiveData = MutableLiveData<AnnouncementDto?>()
+    val latestAnnouncementLiveData: LiveData<AnnouncementDto?> = _latestAnnouncementLiveData
+
+    private val _platformShopCounts = MutableLiveData<Map<Platform, Int>>()
+    val platformShopCounts: LiveData<Map<Platform, Int>> = _platformShopCounts
+
+    private val _loadErrorLiveData = MutableLiveData<String?>()
+    val loadErrorLiveData: LiveData<String?> = _loadErrorLiveData
+
+    private val _operationMessageLiveData = MutableLiveData<String?>()
+    val operationMessageLiveData: LiveData<String?> = _operationMessageLiveData
+
     private val shopRepository = ShopRepository(RetrofitClient.apiService)
+    private val platformRepository = PlatformRepository(RetrofitClient.apiService)
+    private val announcementRepository = AnnouncementRepository(RetrofitClient.apiService)
     private val tokenManager = TokenManager.getInstance()
 
     private var allShops: List<Shop> = emptyList()
 
     init {
+        refreshUserInfo()
+        loadPlatforms()
         loadShops()
-        _selectedPlatformLiveData.value = Platform.MEITUAN
-        _computeBalanceLiveData.value = tokenManager.getUser()?.computeBalance ?: 0
+    }
+
+    fun loadLatestAnnouncement() {
+        viewModelScope.launch {
+            val result = announcementRepository.getPublishedAnnouncements()
+            result.fold(
+                onSuccess = { announcements ->
+                    _latestAnnouncementLiveData.value = announcements.firstOrNull()
+                },
+                onFailure = {
+                    _latestAnnouncementLiveData.value = null
+                }
+            )
+        }
+    }
+
+    fun refreshUserInfo() {
+        val user = tokenManager.getUser()
+        _computeBalanceLiveData.value = user?.computeBalance ?: 0
+        _phoneNumberLiveData.value = maskPhoneNumber(user?.phone ?: "")
+        _displayUsernameLiveData.value = getDisplayUsername(user?.username, user?.phone)
     }
 
     fun loadShops() {
-        allShops = createMockShops()
-        _shopsLiveData.value = allShops
+        viewModelScope.launch {
+            val result = shopRepository.getMyShopsFromApi()
+            result.fold(
+                onSuccess = { shopDtos ->
+                    allShops = shopDtos.map { it.toShop() }
+                    _shopsLiveData.value = allShops
+                    _platformShopCounts.value = allShops.groupingBy { it.platform }.eachCount()
+                    _loadErrorLiveData.value = null
+                },
+                onFailure = { e ->
+                    _loadErrorLiveData.value = e.message
+                    allShops = emptyList()
+                    _shopsLiveData.value = allShops
+                    _platformShopCounts.value = emptyMap()
+                }
+            )
+        }
+    }
+
+    fun loadPlatforms() {
+        viewModelScope.launch {
+            val result = platformRepository.getPlatforms()
+            result.fold(
+                onSuccess = { platformDtos ->
+                    val platforms = platformDtos.map { it.toPlatformItem() }
+                    _platformsLiveData.value = platforms
+                    val selected = _selectedPlatformLiveData.value
+                    if (selected == null || platforms.none { it.platform == selected && it.available }) {
+                        platforms.firstOrNull { it.available }?.let {
+                            _selectedPlatformLiveData.value = it.platform
+                        }
+                    }
+                },
+                onFailure = { e ->
+                    _loadErrorLiveData.value = e.message
+                    _platformsLiveData.value = emptyList()
+                }
+            )
+        }
+    }
+
+    private fun maskPhoneNumber(phone: String): String {
+        return if (phone.length == 11) {
+            "${phone.take(3)}****${phone.takeLast(4)}"
+        } else {
+            phone
+        }
+    }
+
+    private fun getDisplayUsername(username: String?, phone: String?): String {
+        return username?.takeIf { it.isNotBlank() }
+            ?: phone?.takeIf { it.isNotBlank() }
+            ?: "我的账号"
     }
 
     fun selectPlatform(platform: Platform) {
         _selectedPlatformLiveData.value = platform
+    }
+
+    fun getSelectedPlatformItem(): PlatformItemDto? {
+        val selected = _selectedPlatformLiveData.value
+        return _platformsLiveData.value?.firstOrNull { it.platform == selected }
     }
 
     fun search(query: String) {
@@ -67,7 +172,7 @@ class HomeViewModel : ViewModel() {
         _computeBalanceLiveData.value = balance
     }
 
-    fun reportShop(shop: Shop) {
+    fun reportShop(shop: Shop, onComplete: (() -> Unit)? = null) {
         viewModelScope.launch {
             val request = ShopReportRequest(
                 shopName = shop.shopName,
@@ -78,76 +183,100 @@ class HomeViewModel : ViewModel() {
                 remainingDays = shop.remainingDays,
                 autoRenew = shop.autoRenew
             )
-            shopRepository.reportShop(request)
+            val result = shopRepository.reportShop(request)
+            result.fold(
+                onSuccess = {
+                    _computeBalanceLiveData.value = it.balance
+                    tokenManager.getUser()?.let { user ->
+                        tokenManager.saveUser(user.copy(computeBalance = it.balance))
+                    }
+                    _operationMessageLiveData.value = if (it.isNew) "店铺已添加" else "店铺已更新"
+                    loadShops()
+                    onComplete?.invoke()
+                },
+                onFailure = { e ->
+                    _loadErrorLiveData.value = e.message
+                }
+            )
         }
     }
 
-    private fun createMockShops(): List<Shop> = listOf(
-        Shop(
-            id = 1,
-            shopName = "美团外卖·xx路店",
-            shopId = "M123456",
-            platform = Platform.MEITUAN,
-            remainingDays = 7,
-            autoRenew = true,
-            packageName = "com.sankuai.meituan.merchant"
-        ),
-        Shop(
-            id = 2,
-            shopName = "美团外卖·yy广场店",
-            shopId = "M789012",
-            platform = Platform.MEITUAN,
-            remainingDays = 15,
-            autoRenew = false
-        ),
-        Shop(
-            id = 3,
-            shopName = "淘宝闪购·yy店",
-            shopId = "T789012",
-            platform = Platform.TAOBAO,
-            remainingDays = 15,
-            autoRenew = false
-        ),
-        Shop(
-            id = 4,
-            shopName = "京东秒送·zz店",
-            shopId = "J345678",
-            platform = Platform.JD,
-            remainingDays = 3,
-            autoRenew = true,
-            packageName = "com.jd.mrd.jingming"
-        ),
-        Shop(
-            id = 5,
-            shopName = "快手团购·aa店",
-            shopId = "K901234",
-            platform = Platform.KUAISHOU,
-            remainingDays = 30,
-            autoRenew = true
-        ),
-        Shop(
-            id = 6,
-            shopName = "小红书·bb店",
-            shopId = "X567890",
-            platform = Platform.XIAOHONGSHU,
-            remainingDays = 0,
-            autoRenew = false
-        ),
-        Shop(
-            id = 7,
-            shopName = "阿里本地·cc店",
-            shopId = "A123789",
-            platform = Platform.ALI,
-            remainingDays = 12,
-            autoRenew = true
-        ),
-        Shop(
-            id = 8,
-            shopName = "淘宝闪购·dd店",
-            shopId = "T456123",
-            platform = Platform.TAOBAO,
-            remainingDays = 8,
-            autoRenew = false
-        )
-    )
+    fun createPendingShop(platformItem: PlatformItemDto) {
+        viewModelScope.launch {
+            if (allShops.any { it.platform == platformItem.platform && it.isNew }) {
+                _operationMessageLiveData.value = "您已添加新店铺但未成功登录，请先完成登录后再添加"
+                return@launch
+            }
+            val user = tokenManager.getUser()
+            val request = ShopDto(
+                id = 0,
+                shopName = "User[${user?.id ?: 0}]-未知",
+                shopId = "${ShopDto.TEMP_SHOP_ID_PREFIX}${System.currentTimeMillis()}",
+                platform = platformItem.platform.id,
+                platformName = platformItem.displayName,
+                remainingDays = 30,
+                autoRenew = false,
+                packageName = platformItem.packageName
+            )
+            val result = shopRepository.createPendingShop(request)
+            result.fold(
+                onSuccess = {
+                    _operationMessageLiveData.value = "店铺卡片已添加"
+                    loadShops()
+                },
+                onFailure = { e ->
+                    _loadErrorLiveData.value = e.message
+                }
+            )
+        }
+    }
+
+    fun completePendingShop(pendingShop: Shop, detectedShop: Shop) {
+        reportShop(detectedShop) {
+            deleteShop(pendingShop, showMessage = false)
+        }
+    }
+
+    fun updateShop(shop: Shop, newName: String = shop.shopName, autoRenew: Boolean = shop.autoRenew) {
+        viewModelScope.launch {
+            val request = ShopDto(
+                id = shop.id,
+                shopName = newName,
+                shopId = shop.shopId,
+                platform = shop.platform.id,
+                platformName = shop.platform.displayName,
+                remainingDays = shop.remainingDays,
+                autoRenew = autoRenew,
+                packageName = shop.packageName
+            )
+            val result = shopRepository.updateShop(shop.id, request)
+            result.fold(
+                onSuccess = {
+                    _operationMessageLiveData.value = "保存成功"
+                    loadShops()
+                },
+                onFailure = { e ->
+                    _loadErrorLiveData.value = e.message
+                }
+            )
+        }
+    }
+
+    fun deleteShop(shop: Shop, showMessage: Boolean = true) {
+        viewModelScope.launch {
+            val result = shopRepository.deleteShop(shop.id)
+            result.fold(
+                onSuccess = {
+                    if (showMessage) {
+                        _operationMessageLiveData.value = "删除成功"
+                    }
+                    loadShops()
+                },
+                onFailure = { e ->
+                    _loadErrorLiveData.value = e.message
+                }
+            )
+        }
+    }
+
 }

@@ -1,0 +1,803 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>个人中心 - 多店管家</title>
+  <style>
+    :root {
+      --bg: #f8f9fa;
+      --surface: #ffffff;
+      --fg: #1e293b;
+      --fg-2: #475569;
+      --muted: #64748b;
+      --meta: #94a3b8;
+      --border: #e2e8f0;
+      --accent: #059669;
+      --accent-hover: #047857;
+      --accent-light: #d1fae5;
+      --danger: #dc2626;
+
+      --icon-trade-bg: #ecfdf5;
+      --icon-trade-fg: #059669;
+      --icon-log-bg: #eff6ff;
+      --icon-log-fg: #3b82f6;
+      --icon-password-bg: #fef3c7;
+      --icon-password-fg: #f59e0b;
+      --icon-feedback-bg: #f3e8ff;
+      --icon-feedback-fg: #a855f7;
+
+      --font-body: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', system-ui, sans-serif;
+      --font-mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: var(--font-body);
+      background: var(--bg);
+      color: var(--fg);
+      width: 100%;
+      max-width: 412px;
+      margin: 0 auto;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .header {
+      background: var(--surface);
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .header-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--fg);
+    }
+
+    .content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+      padding-bottom: 80px;
+    }
+
+    /* 用户信息卡片 */
+    .user-card {
+      background: var(--surface);
+      border-radius: 16px;
+      padding: 24px 20px;
+      border: 1px solid var(--border);
+      margin-bottom: 16px;
+    }
+
+    .user-card-top {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    .user-avatar {
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: var(--accent);
+      display: grid;
+      place-items: center;
+      color: white;
+      font-size: 22px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+
+    .user-info {
+      flex: 1;
+    }
+
+    .user-name-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 4px;
+    }
+
+    .user-name {
+      font-size: 17px;
+      font-weight: 700;
+      color: var(--fg);
+    }
+
+    .edit-name-btn {
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      display: grid;
+      place-items: center;
+      border: none;
+      background: transparent;
+      color: var(--meta);
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+
+    .edit-name-btn:active {
+      background: var(--bg);
+      color: var(--accent);
+    }
+
+    .edit-name-btn svg {
+      width: 16px;
+      height: 16px;
+    }
+
+    .user-id {
+      font-size: 13px;
+      color: var(--muted);
+      font-family: var(--font-mono);
+    }
+
+    /* 用户统计 */
+    .user-stats {
+      display: flex;
+      gap: 12px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border);
+    }
+
+    .user-stat {
+      flex: 1;
+      text-align: center;
+    }
+
+    .user-stat-value {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--fg);
+      font-family: var(--font-mono);
+    }
+
+    .user-stat-label {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    /* 功能列表 */
+    .menu-group {
+      background: var(--surface);
+      border-radius: 16px;
+      border: 1px solid var(--border);
+      margin-bottom: 16px;
+      overflow: hidden;
+    }
+
+    .menu-group-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--muted);
+      padding: 12px 20px 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
+    }
+
+    .menu-item {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      text-decoration: none;
+      color: var(--fg);
+      transition: background 0.15s;
+      cursor: pointer;
+      background: none;
+      width: 100%;
+      border-left: none;
+      border-right: none;
+      border-top: none;
+      font-family: var(--font-body);
+      font-size: 15px;
+    }
+
+    .menu-item:last-child { border-bottom: none; }
+    .menu-item:active { background: var(--bg); }
+
+    .menu-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      display: grid;
+      place-items: center;
+      flex-shrink: 0;
+    }
+
+    .menu-icon svg { width: 20px; height: 20px; }
+
+    .menu-text {
+      flex: 1;
+      font-size: 15px;
+      font-weight: 500;
+    }
+
+    .menu-arrow { color: var(--muted); }
+    .menu-arrow svg { width: 18px; height: 18px; }
+
+    /* 问题反馈 */
+    .feedback-box {
+      background: var(--surface);
+      border-radius: 16px;
+      border: 1px solid var(--border);
+      padding: 16px 20px;
+    }
+
+    .feedback-textarea {
+      width: 100%;
+      min-height: 80px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px;
+      font-size: 14px;
+      color: var(--fg);
+      background: var(--bg);
+      resize: vertical;
+      outline: none;
+      font-family: var(--font-body);
+    }
+
+    .feedback-textarea:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-light);
+    }
+
+    /* 图片上传 */
+    .upload-area {
+      margin-top: 12px;
+    }
+
+    .upload-label {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--fg-2);
+      margin-bottom: 8px;
+      display: block;
+    }
+
+    .upload-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+    }
+
+    .upload-slot {
+      aspect-ratio: 1;
+      border-radius: 10px;
+      border: 1.5px dashed var(--border);
+      display: grid;
+      place-items: center;
+      cursor: pointer;
+      background: var(--bg);
+      transition: border-color 0.15s, background 0.15s;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .upload-slot:active {
+      border-color: var(--accent);
+      background: var(--accent-light);
+    }
+
+    .upload-slot.has-image {
+      border-style: solid;
+      border-color: var(--border);
+    }
+
+    .upload-slot svg {
+      width: 24px;
+      height: 24px;
+      color: var(--meta);
+    }
+
+    .upload-slot img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .upload-slot .remove-img {
+      position: absolute;
+      top: 2px;
+      right: 2px;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: rgba(0,0,0,0.5);
+      color: white;
+      display: grid;
+      place-items: center;
+      font-size: 12px;
+      border: none;
+      cursor: pointer;
+    }
+
+    .feedback-submit {
+      margin-top: 16px;
+      width: 100%;
+      padding: 12px;
+      border-radius: 10px;
+      background: var(--accent);
+      color: white;
+      border: none;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: var(--font-body);
+    }
+
+    .feedback-submit:active {
+      background: var(--accent-hover);
+    }
+
+    /* 底部导航 */
+    .bottom-nav {
+      position: fixed;
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 100%;
+      max-width: 412px;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: space-around;
+      padding: 8px 0 calc(8px + env(safe-area-inset-bottom));
+      z-index: 100;
+    }
+
+    .nav-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px;
+      padding: 4px 16px;
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 11px;
+      border-radius: 10px;
+      transition: color 0.2s;
+    }
+
+    .nav-item.active { color: var(--accent); }
+    .nav-item svg { width: 24px; height: 24px; }
+
+    /* ========== 通用抽屉样式 ========== */
+    .sheet-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.4);
+      z-index: 2000;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.2s, visibility 0.2s;
+    }
+
+    .sheet-overlay.show {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .sheet-panel {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: var(--surface);
+      border-radius: 20px 20px 0 0;
+      padding: 20px 16px 28px;
+      transform: translateY(100%);
+      transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+    }
+
+    .sheet-overlay.show .sheet-panel {
+      transform: translateY(0);
+    }
+
+    .sheet-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--fg);
+      margin-bottom: 16px;
+    }
+
+    .sheet-field {
+      margin-bottom: 16px;
+    }
+
+    .sheet-field-label {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--fg-2);
+      margin-bottom: 8px;
+      display: block;
+    }
+
+    .sheet-input {
+      width: 100%;
+      padding: 14px 16px;
+      border: 1.5px solid var(--border);
+      border-radius: 12px;
+      font-size: 16px;
+      color: var(--fg);
+      background: var(--bg);
+      outline: none;
+      font-family: var(--font-body);
+    }
+
+    .sheet-input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-light);
+    }
+
+    .sheet-actions {
+      display: flex;
+      gap: 12px;
+      margin-top: 8px;
+    }
+
+    .sheet-btn {
+      flex: 1;
+      padding: 14px;
+      border-radius: 12px;
+      font-size: 15px;
+      font-weight: 600;
+      border: none;
+      cursor: pointer;
+      transition: background 0.15s;
+      font-family: var(--font-body);
+    }
+
+    .sheet-btn.cancel {
+      background: var(--bg);
+      color: var(--fg-2);
+    }
+
+    .sheet-btn.confirm {
+      background: var(--accent);
+      color: white;
+    }
+
+    .sheet-btn.danger {
+      background: var(--danger);
+      color: white;
+    }
+
+    /* Toast */
+    .toast {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(0,0,0,0.75);
+      color: white;
+      padding: 12px 24px;
+      border-radius: 10px;
+      font-size: 14px;
+      z-index: 9999;
+      pointer-events: none;
+      white-space: pre-line;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <header class="header">
+    <h1 class="header-title">个人中心</h1>
+  </header>
+
+  <main class="content">
+    <!-- 用户信息 -->
+    <div class="user-card">
+      <div class="user-card-top">
+        <div class="user-avatar">管</div>
+        <div class="user-info">
+          <div class="user-name-row">
+            <div class="user-name" id="displayUserName">管理员</div>
+            <button class="edit-name-btn" onclick="openNameEdit()" title="修改用户名">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+              </svg>
+            </button>
+          </div>
+          <div class="user-id">138****5678</div>
+        </div>
+      </div>
+      <div class="user-stats">
+        <div class="user-stat">
+          <div class="user-stat-value">6</div>
+          <div class="user-stat-label">管理店铺</div>
+        </div>
+        <div class="user-stat">
+          <div class="user-stat-value">4</div>
+          <div class="user-stat-label">覆盖平台</div>
+        </div>
+        <div class="user-stat">
+          <div class="user-stat-value">200</div>
+          <div class="user-stat-label">算力余额</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 算力管理 -->
+    <div class="menu-group-title">算力管理</div>
+    <div class="menu-group">
+      <a href="trade.html" class="menu-item">
+        <div class="menu-icon" style="background: var(--icon-trade-bg); color: var(--icon-trade-fg);">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+          </svg>
+        </div>
+        <span class="menu-text">算力赠送</span>
+        <span class="menu-arrow">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="9 18 15 12 9 6"/>
+          </svg>
+        </span>
+      </a>
+      <a href="logs.html" class="menu-item">
+        <div class="menu-icon" style="background: var(--icon-log-bg); color: var(--icon-log-fg);">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <line x1="16" y1="13" x2="8" y2="13"/>
+            <line x1="16" y1="17" x2="8" y2="17"/>
+          </svg>
+        </div>
+        <span class="menu-text">交易日志</span>
+        <span class="menu-arrow">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="9 18 15 12 9 6"/>
+          </svg>
+        </span>
+      </a>
+    </div>
+
+    <!-- 账号设置 -->
+    <div class="menu-group-title">账号设置</div>
+    <div class="menu-group">
+      <button class="menu-item" onclick="openPasswordSheet()">
+        <div class="menu-icon" style="background: var(--icon-password-bg); color: var(--icon-password-fg);">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+          </svg>
+        </div>
+        <span class="menu-text">修改密码</span>
+        <span class="menu-arrow">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="9 18 15 12 9 6"/>
+          </svg>
+        </span>
+      </button>
+      <button class="menu-item">
+        <div class="menu-icon" style="background: #eff6ff; color: #3b82f6;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+          </svg>
+        </div>
+        <span class="menu-text">系统设置</span>
+        <span class="menu-arrow">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="9 18 15 12 9 6"/>
+          </svg>
+        </span>
+      </button>
+    </div>
+
+    <!-- 问题反馈 -->
+    <div class="menu-group-title">问题反馈</div>
+    <div class="feedback-box">
+      <textarea id="feedbackText" class="feedback-textarea" placeholder="请输入您遇到的问题…"></textarea>
+      <div class="upload-area">
+        <span class="upload-label">上传图片（最多4张）</span>
+        <div class="upload-grid" id="uploadGrid">
+          <div class="upload-slot" onclick="addImage(this)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="12" y1="5" x2="12" y2="19"/>
+              <line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+          </div>
+        </div>
+      </div>
+      <button class="feedback-submit" onclick="submitFeedback()">提交</button>
+    </div>
+  </main>
+
+  <!-- 底部导航 -->
+  <nav class="bottom-nav">
+    <a href="home.html" class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+        <polyline points="9 22 9 12 15 12 15 22"/>
+      </svg>
+      <span>首页</span>
+    </a>
+    <a href="profile.html" class="nav-item active">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+        <circle cx="12" cy="7" r="4"/>
+      </svg>
+      <span>我的</span>
+    </a>
+  </nav>
+
+  <!-- 用户名编辑抽屉 -->
+  <div class="sheet-overlay" id="nameEditOverlay" onclick="closeSheet('nameEditOverlay')">
+    <div class="sheet-panel" onclick="event.stopPropagation()">
+      <div class="sheet-title">修改用户名</div>
+      <div class="sheet-field">
+        <label class="sheet-field-label">用户名</label>
+        <input type="text" class="sheet-input" id="nameEditInput" placeholder="请输入用户名">
+      </div>
+      <div class="sheet-actions">
+        <button class="sheet-btn cancel" onclick="closeSheet('nameEditOverlay')">取消</button>
+        <button class="sheet-btn confirm" onclick="saveUserName()">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 修改密码抽屉 -->
+  <div class="sheet-overlay" id="passwordOverlay" onclick="closeSheet('passwordOverlay')">
+    <div class="sheet-panel" onclick="event.stopPropagation()">
+      <div class="sheet-title">修改密码</div>
+      <div class="sheet-field">
+        <label class="sheet-field-label">新密码</label>
+        <input type="password" class="sheet-input" id="newPassword" placeholder="请输入新密码">
+      </div>
+      <div class="sheet-field">
+        <label class="sheet-field-label">确认密码</label>
+        <input type="password" class="sheet-input" id="confirmPassword" placeholder="请再次输入新密码">
+      </div>
+      <div class="sheet-actions">
+        <button class="sheet-btn cancel" onclick="closeSheet('passwordOverlay')">取消</button>
+        <button class="sheet-btn confirm" onclick="savePassword()">确定修改</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ========== 用户名编辑 ==========
+    function openNameEdit() {
+      const currentName = document.getElementById('displayUserName').textContent;
+      document.getElementById('nameEditInput').value = currentName;
+      document.getElementById('nameEditOverlay').classList.add('show');
+      setTimeout(() => document.getElementById('nameEditInput').focus(), 100);
+    }
+
+    function saveUserName() {
+      const newName = document.getElementById('nameEditInput').value.trim();
+      if (!newName) {
+        showToast('请输入用户名');
+        return;
+      }
+      document.getElementById('displayUserName').textContent = newName;
+      closeSheet('nameEditOverlay');
+      showToast('用户名已更新');
+    }
+
+    // ========== 修改密码 ==========
+    function openPasswordSheet() {
+      document.getElementById('newPassword').value = '';
+      document.getElementById('confirmPassword').value = '';
+      document.getElementById('passwordOverlay').classList.add('show');
+      setTimeout(() => document.getElementById('newPassword').focus(), 100);
+    }
+
+    function savePassword() {
+      const pwd = document.getElementById('newPassword').value;
+      const confirm = document.getElementById('confirmPassword').value;
+      if (!pwd) {
+        showToast('请输入新密码');
+        return;
+      }
+      if (pwd.length < 6) {
+        showToast('密码长度不能少于6位');
+        return;
+      }
+      if (pwd !== confirm) {
+        showToast('两次输入的密码不一致');
+        return;
+      }
+      closeSheet('passwordOverlay');
+      showToast('密码修改成功');
+    }
+
+    // ========== 图片上传 ==========
+    let uploadedImages = [];
+    const placeholderColors = ['#f0f9ff', '#f0fdf4', '#fefce8', '#fdf2f8'];
+
+    function addImage(slot) {
+      if (uploadedImages.length >= 4) {
+        showToast('最多上传4张图片');
+        return;
+      }
+      // 模拟选择图片 — 用彩色占位块
+      const color = placeholderColors[uploadedImages.length % placeholderColors.length];
+      uploadedImages.push(color);
+      renderUploadGrid();
+    }
+
+    function removeImage(index) {
+      uploadedImages.splice(index, 1);
+      renderUploadGrid();
+    }
+
+    function renderUploadGrid() {
+      const grid = document.getElementById('uploadGrid');
+      let html = '';
+
+      // 已上传的图片
+      uploadedImages.forEach((color, i) => {
+        html += `
+          <div class="upload-slot has-image" style="background:${color}">
+            <button class="remove-img" onclick="event.stopPropagation();removeImage(${i})" title="删除">×</button>
+          </div>`;
+      });
+
+      // 添加按钮（如果没满4张）
+      if (uploadedImages.length < 4) {
+        html += `
+          <div class="upload-slot" onclick="addImage(this)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="12" y1="5" x2="12" y2="19"/>
+              <line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+          </div>`;
+      }
+
+      grid.innerHTML = html;
+    }
+
+    // ========== 提交反馈 ==========
+    function submitFeedback() {
+      const text = document.getElementById('feedbackText').value.trim();
+      if (!text) {
+        showToast('请输入反馈内容');
+        return;
+      }
+      showToast(`反馈已提交${uploadedImages.length > 0 ? '（含' + uploadedImages.length + '张图片）' : ''}`);
+      document.getElementById('feedbackText').value = '';
+      uploadedImages = [];
+      renderUploadGrid();
+    }
+
+    // ========== 通用 ==========
+    function closeSheet(id) {
+      document.getElementById(id).classList.remove('show');
+    }
+
+    function showToast(msg) {
+      const toast = document.createElement('div');
+      toast.className = 'toast';
+      toast.textContent = msg;
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 1800);
+    }
+
+    // 点击遮罩关闭
+    document.querySelectorAll('.sheet-overlay').forEach(overlay => {
+      overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) overlay.classList.remove('show');
+      });
+    });
+
+    // 回车保存用户名
+    document.getElementById('nameEditInput').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') saveUserName();
+    });
+  </script>
+</body>
+</html>

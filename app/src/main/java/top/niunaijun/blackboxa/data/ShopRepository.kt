@@ -11,6 +11,15 @@ class ShopRepository(api: ApiService) : BaseRepository(api) {
     suspend fun reportShop(shop: ShopReportRequest): Result<ShopReportResult> =
         safeApiCall { api.reportShop(shop) }
 
+    suspend fun createPendingShop(shop: ShopDto): Result<ShopDto> =
+        safeApiCall { api.createPendingShop(shop) }
+
+    suspend fun updateShop(id: Long, shop: ShopDto): Result<ShopDto> =
+        safeApiCall { api.updateShop(id, shop) }
+
+    suspend fun deleteShop(id: Long): Result<Unit> =
+        safeApiCall { api.deleteShop(id) }
+
     suspend fun validateShops(shopIds: List<String>): Result<List<ShopValidationResult>> =
         safeApiCall { api.validateShops(shopIds.joinToString(",")) }
 }

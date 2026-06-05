@@ -5,16 +5,14 @@ import android.content.Intent
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.view.LayoutInflater
 import android.view.View
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.ViewModelProvider
-import com.google.android.material.bottomsheet.BottomSheetDialog
 import top.niunaijun.blackboxa.R
 import top.niunaijun.blackboxa.data.TokenManager
 import top.niunaijun.blackboxa.databinding.ActivityGiftBinding
-import top.niunaijun.blackboxa.databinding.BottomSheetGiftConfirmBinding
+import top.niunaijun.blackboxa.view.dialog.GiftConfirmSheetFragment
 
 class GiftActivity : AppCompatActivity() {
 
@@ -49,7 +47,7 @@ class GiftActivity : AppCompatActivity() {
 
     private fun initMockData() {
         val user = TokenManager.getInstance().getUser()
-        binding.tvPhone.text = maskPhone(user?.phone ?: "13888888888")
+        binding.tvPhone.text = maskPhone(user?.phone.orEmpty())
         binding.tvBalance.text = (user?.computeBalance ?: 0).toString()
     }
 
@@ -89,23 +87,14 @@ class GiftActivity : AppCompatActivity() {
         val phone = binding.etTargetPhone.text.toString().trim()
         val amount = binding.etAmount.text.toString().trim().toInt()
 
-        val dialog = BottomSheetDialog(this, R.style.BottomSheetDialogTheme)
-        val sheetBinding = BottomSheetGiftConfirmBinding.inflate(LayoutInflater.from(this))
-
-        sheetBinding.tvTargetPhone.text = maskPhone(phone)
-        sheetBinding.tvAmount.text = "$amount ${getString(R.string.gift_confirm_unit)}"
-
-        sheetBinding.btnConfirm.setOnClickListener {
-            dialog.dismiss()
+        val sheet = GiftConfirmSheetFragment.newInstance(
+            targetPhone = maskPhone(phone),
+            amountText = "$amount ${getString(R.string.gift_confirm_unit)}"
+        )
+        sheet.setOnConfirmListener {
             viewModel.gift(phone, amount)
         }
-
-        sheetBinding.btnCancel.setOnClickListener {
-            dialog.dismiss()
-        }
-
-        dialog.setContentView(sheetBinding.root)
-        dialog.show()
+        sheet.show(supportFragmentManager, "GiftConfirm")
     }
 
     private fun observeViewModel() {

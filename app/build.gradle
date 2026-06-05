@@ -9,11 +9,12 @@ android {
     compileSdk rootProject.ext.compileSdkVersion
     ndkVersion = "29.0.13846066"
     defaultConfig {
-        applicationId "top.niunaijun.blackbox"
+        applicationId "com.zhirang.dianpuguanjia"
         minSdk rootProject.ext.minSdk
         targetSdk rootProject.ext.targetSdkVersion
         versionCode rootProject.ext.versionCode
         versionName rootProject.ext.versionName
+        buildConfigField "String", "API_BASE_URL", "\"${project.findProperty('DUODIAN_API_BASE_URL') ?: 'http://127.0.0.1:8006/api/'}\""
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
 
@@ -41,6 +42,7 @@ android {
     }
     buildFeatures {
         viewBinding true
+        buildConfig true
     }
     kotlinOptions {
         jvmTarget = '21'
@@ -48,7 +50,7 @@ android {
 
     applicationVariants.configureEach { variant ->
         variant.outputs.configureEach { output ->
-            output.outputFileName = "BlackBox_${variant.versionName}_${output.baseName}.apk"
+            output.outputFileName = "DianPuGuanjia_${variant.versionName}_${output.baseName}.apk"
         }
     }
 

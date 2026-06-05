@@ -49,3 +49,69 @@
 - 持久化存储 — 店铺ID存入 BPackageManagerService 的内部数据库
 
 **验证**: 安装京东秒送商家分身并登录后，应用列表显示 `京东秒送商家-16364870`
+
+## Phase 8: 主 APK 改造为多店管家
+
+**目标**: 基于 `docs/原型设计` 中的 5 屏交互设计，将 BlackBox 主 APK 从虚拟引擎管理工具改造为"多店管家"多平台店铺管理 APP。
+
+**关键交付物**:
+
+- `Theme.Duodian` — 全新主题系统（科技绿 `#059669` + 完整色阶）
+- `LoginActivity` — 账号密码登录页
+- `HomeActivity` — 首页（左侧平台栏 + 右侧店铺列表 + 左滑操作）
+- `ProfileActivity` — 个人中心（用户信息 + 菜单 + 底部导航）
+- `GiftActivity` — 算力赠送 + 二次确认弹窗
+- `LogsActivity` — 交易日志（筛选 + 按日期分组）
+- 自定义 Swipe RecyclerView — 店铺卡片左滑展开编辑/自动续时/删除
+- `BaseBottomSheetFragment` — 底部抽屉组件封装
+- 数据模型扩展 — `Platform` / `Shop` / `UserProfile` / `LogEntry`
+- 导航流重构 — 登录 → 首页 ↔ 子页
+
+**保留能力**:
+- Phase 5 Engine IPC（`engine/` 包完整保留）
+- Phase 4 ShopId 提取（驱动店铺列表数据）
+- Phase 1 单实例模式（迁移到系统设置）
+
+**验证**: `./gradlew :app:assembleDebug` BUILD SUCCESSFUL + 5 屏 UI 像素级匹配设计规范
+
+**计划文档**: [.planning/phases/08-main-app-rewrite/08-PLAN.md](.planning/phases/08-main-app-rewrite/08-PLAN.md)
+**调研文档**: [.planning/phases/08-main-app-rewrite/08-RESEARCH.md](.planning/phases/08-main-app-rewrite/08-RESEARCH.md)
+
+### Phase 8 Wave 2: 后台管理服务端 API
+
+**目标**: 为多店管家 Android APP 和 admin Web 后台提供统一后端服务，实现用户鉴权、店铺管理、算力计费、交易日志、用户反馈等 8 个核心接口。
+
+**关键交付物**:
+
+- `POST /api/auth/login` — 手机号+密码登录，返回用户信息+token
+- `GET /api/shops/my` — 查询当前用户店铺列表
+- `POST /api/shops/report` — APK 上报店铺数据，自动扣减算力
+- `POST /api/compute/gift` — 算力赠送（事务保证双方余额变更）
+- `POST /api/feedbacks` — 用户反馈（文本+图片+日志文件上传）
+- `GET /api/logs/my` — 交易日志查询（支持 type 过滤+分页）
+- `PUT /api/users/me/username` — 修改用户名
+- `PUT /api/users/me/password` — 修改登录密码
+
+**技术栈**: Spring Boot 3.2 + JPA + MySQL
+
+**验证**: 8 个接口全部可通过 curl 正常调用，响应格式符合 `ApiResponse<T>` 规范
+
+**计划文档**: [.planning/phases/08-main-app-rewrite/08-02-PLAN.md](.planning/phases/08-main-app-rewrite/08-02-PLAN.md)
+
+### Phase 8 Wave 3: APK 与后端接口对接
+
+**目标**: 在 Android APP 端建立 Retrofit + OkHttp 网络层，对接 Wave 2 后端 API，实现完整的数据流（登录 → 店铺列表 → 算力赠送 → 交易日志 → 用户反馈）。
+
+**关键交付物**:
+
+- `RetrofitClient` + `ApiService` — 8 个 API 接口的 Retrofit 定义
+- `TokenManager` — EncryptedSharedPreferences 存储 token 和用户信息
+- `AuthInterceptor` — 自动注入 Authorization Header
+- `UserRepository` / `ShopRepository` / `ComputeRepository` / `LogRepository` / `FeedbackRepository` — Repository 层
+- `LoginViewModel` / `HomeViewModel` / `GiftViewModel` / `LogsViewModel` / `ProfileViewModel` — ViewModel 层对接
+- Activity 层数据绑定 — 各页面观察 LiveData 驱动 UI
+
+**验证**: 8 个接口全部可从前端正常调用，联调通过
+
+**计划文档**: [.planning/phases/08-main-app-rewrite/08-03-PLAN.md](.planning/phases/08-main-app-rewrite/08-03-PLAN.md)
+

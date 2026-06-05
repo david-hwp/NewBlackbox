@@ -13,13 +13,13 @@ import top.niunaijun.blackboxa.network.PagedResult
 import top.niunaijun.blackboxa.network.RetrofitClient
 import java.text.SimpleDateFormat
 import java.util.*
+import java.time.LocalDateTime
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 class LogsViewModel : ViewModel() {
 
     private val logRepository = LogRepository(RetrofitClient.apiService)
-
-    private val _logsLiveData = MutableLiveData<List<LogEntryDto>>()
-    val logsLiveData: LiveData<List<LogEntryDto>> = _logsLiveData
 
     private val _localLogsLiveData = MutableLiveData<List<LogEntry>>()
     val localLogsLiveData: LiveData<List<LogEntry>> = _localLogsLiveData
@@ -29,53 +29,55 @@ class LogsViewModel : ViewModel() {
 
     private var currentPage = 1
     private val pageSize = 20
-
-    private val allLogs = mutableListOf<LogEntry>()
+    private var isLoading = false
+    private var hasMore = true
 
     fun loadLogs(type: LogType? = null) {
-        // Load local mock data for UI display
-        if (allLogs.isEmpty()) {
-            allLogs.addAll(createMockLogs())
-        }
-        val filtered = if (type == null) {
-            allLogs
-        } else {
-            allLogs.filter { it.type == type }
-        }
-        _localLogsLiveData.value = filtered.sortedByDescending { it.timestamp }
-
-        // Also load from API
         viewModelScope.launch {
+            if (isLoading) return@launch
+            isLoading = true
             currentPage = 1
             val apiType = type?.name?.lowercase()
             val result = logRepository.getMyLogs(apiType, currentPage, pageSize)
             result.fold(
                 onSuccess = { pagedResult: PagedResult<LogEntryDto> ->
-                    _logsLiveData.value = pagedResult.list
-                    hasMoreLiveData.value = pagedResult.list.size >= pageSize
+                    val logs = pagedResult.items().map { it.toLogEntry() }
+                    _localLogsLiveData.value = logs
+                    hasMore = logs.size >= pageSize
+                    hasMoreLiveData.value = hasMore
                 },
                 onFailure = { e: Throwable ->
+                    _localLogsLiveData.value = emptyList()
+                    hasMore = false
+                    hasMoreLiveData.value = false
                     errorLiveData.value = e.message
                 }
             )
+            isLoading = false
         }
     }
 
     fun loadMore(type: LogType? = null) {
         viewModelScope.launch {
+            if (isLoading || !hasMore) return@launch
+            isLoading = true
             currentPage++
             val apiType = type?.name?.lowercase()
             val result = logRepository.getMyLogs(apiType, currentPage, pageSize)
             result.fold(
                 onSuccess = { pagedResult: PagedResult<LogEntryDto> ->
-                    val current = _logsLiveData.value ?: emptyList()
-                    _logsLiveData.value = current + pagedResult.list
-                    hasMoreLiveData.value = pagedResult.list.size >= pageSize
+                    val current = _localLogsLiveData.value ?: emptyList()
+                    val nextLogs = pagedResult.items().map { it.toLogEntry() }
+                    _localLogsLiveData.value = current + nextLogs
+                    hasMore = nextLogs.size >= pageSize
+                    hasMoreLiveData.value = hasMore
                 },
                 onFailure = { e: Throwable ->
+                    currentPage--
                     errorLiveData.value = e.message
                 }
             )
+            isLoading = false
         }
     }
 
@@ -103,20 +105,29 @@ class LogsViewModel : ViewModel() {
         return result
     }
 
-    private fun createMockLogs(): List<LogEntry> {
-        val now = System.currentTimeMillis()
-        return listOf(
-            LogEntry(1, LogType.CONSUME, 10, "美团外卖 - 张三的店", now - 3600000),
-            LogEntry(2, LogType.CONSUME, 10, "淘宝闪购 - 李四的店", now - 7200000),
-            LogEntry(3, LogType.OUT, 100, "转给 138****1234", now - 18000000),
-            LogEntry(4, LogType.IN, 500, "来自 138****5678", now - 86400000),
-            LogEntry(5, LogType.CONSUME, 10, "京东秒送 - 王五的店", now - 90000000),
-            LogEntry(6, LogType.OUT, 200, "转给 138****9999", now - 172800000),
-            LogEntry(7, LogType.IN, 1000, "充值", now - 259200000),
-            LogEntry(8, LogType.CONSUME, 10, "快手团购 - 赵六的店", now - 300000000),
-            LogEntry(9, LogType.CONSUME, 10, "小红书 - 孙七的店", now - 345600000),
-            LogEntry(10, LogType.IN, 200, "来自 138****1111", now - 432000000)
+    private fun LogEntryDto.toLogEntry(): LogEntry {
+        val logType = runCatching { LogType.valueOf(type.uppercase()) }.getOrDefault(LogType.CONSUME)
+        val description = when (logType) {
+            LogType.CONSUME -> listOfNotNull(platform, shopName).joinToString(" - ").ifBlank { "算力消耗" }
+            LogType.OUT -> "转给 ${fromPhone ?: toPhone ?: "-"}"
+            LogType.IN -> "来自 ${fromPhone ?: toPhone ?: "-"}"
+        }
+        return LogEntry(
+            id = id,
+            type = logType,
+            amount = kotlin.math.abs(amount),
+            description = description,
+            timestamp = parseCreatedAt(createdAt)
         )
+    }
+
+    private fun parseCreatedAt(value: String): Long {
+        return runCatching {
+            LocalDateTime.parse(value, DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+                .atZone(ZoneId.systemDefault())
+                .toInstant()
+                .toEpochMilli()
+        }.getOrDefault(System.currentTimeMillis())
     }
 }
 

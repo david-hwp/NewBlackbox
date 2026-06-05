@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "screens/profile.html",
+  "entry": "screens/profile.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-06-04T17:18:50.392Z",
+  "updatedAt": "2026-06-04T17:18:50.392Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}
