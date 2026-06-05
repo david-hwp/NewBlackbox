@@ -38,10 +38,6 @@ public class ComputeService {
         }
 
         user.setComputeBalance(user.getComputeBalance() - 1);
-        user.setShopCount(user.getShopCount() + 1);
-        if (platform != null && !platform.isBlank()) {
-            user.setPlatformCount(user.getPlatformCount() + 1);
-        }
         userRepository.save(user);
 
         TransactionLog log = new TransactionLog();

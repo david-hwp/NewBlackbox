@@ -24,6 +24,18 @@ class ProfileViewModel : ViewModel() {
 
     fun loadProfile() {
         _userProfileLiveData.value = tokenManager.getUser()
+        viewModelScope.launch {
+            val result = userRepository.getMe()
+            result.fold(
+                onSuccess = { user ->
+                    tokenManager.saveUser(user)
+                    _userProfileLiveData.value = user
+                },
+                onFailure = { e ->
+                    errorLiveData.value = e.message
+                }
+            )
+        }
     }
 
     fun updateUsername(username: String) {

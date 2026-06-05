@@ -84,8 +84,10 @@ public class AuthController {
         if (userId == null) {
             return ApiResponse.error(401, "未登录");
         }
-        return userService.findById(userId)
-                .map(ApiResponse::success)
-                .orElse(ApiResponse.error("用户不存在"));
+        try {
+            return ApiResponse.success(userService.refreshShopStats(userId));
+        } catch (RuntimeException e) {
+            return ApiResponse.error(e.getMessage());
+        }
     }
 }

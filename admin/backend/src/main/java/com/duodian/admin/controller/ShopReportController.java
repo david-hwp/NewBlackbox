@@ -119,8 +119,10 @@ public class ShopReportController {
             result.put("isNew", true);
         }
 
-        User user = userService.findById(userId).orElse(null);
+        User user = userService.refreshShopStats(userId);
         result.put("balance", user != null ? user.getComputeBalance() : 0);
+        result.put("shopCount", user != null ? user.getShopCount() : 0);
+        result.put("platformCount", user != null ? user.getPlatformCount() : 0);
 
         return ApiResponse.success(result);
     }

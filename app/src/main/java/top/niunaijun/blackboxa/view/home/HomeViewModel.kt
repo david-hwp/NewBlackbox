@@ -193,7 +193,13 @@ class HomeViewModel : ViewModel() {
                 onSuccess = {
                     _computeBalanceLiveData.value = it.balance
                     tokenManager.getUser()?.let { user ->
-                        tokenManager.saveUser(user.copy(computeBalance = it.balance))
+                        tokenManager.saveUser(
+                            user.copy(
+                                computeBalance = it.balance,
+                                shopCount = it.shopCount ?: user.shopCount,
+                                platformCount = it.platformCount ?: user.platformCount
+                            )
+                        )
                     }
                     if (showMessage) {
                         _operationMessageLiveData.value = if (it.isNew) "店铺已添加" else "店铺已更新"

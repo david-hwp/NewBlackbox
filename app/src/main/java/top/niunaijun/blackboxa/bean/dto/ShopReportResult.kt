@@ -5,5 +5,7 @@ data class ShopReportResult(
     val deducted: Boolean,
     val balance: Int,
     val isNew: Boolean,
+    val shopCount: Int? = null,
+    val platformCount: Int? = null,
     val cloneInstanceId: String? = null
 )

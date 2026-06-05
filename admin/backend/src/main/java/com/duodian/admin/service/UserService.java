@@ -1,8 +1,10 @@
 package com.duodian.admin.service;
 
 import com.duodian.admin.entity.User;
+import com.duodian.admin.repository.ShopRepository;
 import com.duodian.admin.repository.UserRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
@@ -11,10 +13,12 @@ import java.util.Optional;
 public class UserService {
 
     private final UserRepository userRepository;
+    private final ShopRepository shopRepository;
     private final PasswordService passwordService;
 
-    public UserService(UserRepository userRepository, PasswordService passwordService) {
+    public UserService(UserRepository userRepository, ShopRepository shopRepository, PasswordService passwordService) {
         this.userRepository = userRepository;
+        this.shopRepository = shopRepository;
         this.passwordService = passwordService;
     }
 
@@ -28,6 +32,15 @@ public class UserService {
 
     public Optional<User> findByPhone(String phone) {
         return userRepository.findByPhone(phone);
+    }
+
+    @Transactional
+    public User refreshShopStats(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("用户不存在"));
+        user.setShopCount(Math.toIntExact(shopRepository.countRealShopsByUserId(userId)));
+        user.setPlatformCount(Math.toIntExact(shopRepository.countRealPlatformsByUserId(userId)));
+        return userRepository.save(user);
     }
 
     public User create(User user) {

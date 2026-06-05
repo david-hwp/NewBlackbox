@@ -75,7 +75,9 @@ public class ShopController {
         if (!isAdmin(currentUser)) {
             shop.setUserId(currentUser.getId());
         }
-        return ApiResponse.success(shopService.create(shop));
+        Shop saved = shopService.create(shop);
+        userService.refreshShopStats(saved.getUserId());
+        return ApiResponse.success(saved);
     }
 
     @PostMapping("/pending")
@@ -91,7 +93,9 @@ public class ShopController {
         shop.setUserId(userId);
         shop.setRemainingDays(shop.getRemainingDays() == null ? 30 : shop.getRemainingDays());
         shop.setAutoRenew(Boolean.TRUE.equals(shop.getAutoRenew()));
-        return ApiResponse.success(shopService.create(shop));
+        Shop saved = shopService.create(shop);
+        userService.refreshShopStats(userId);
+        return ApiResponse.success(saved);
     }
 
     @PutMapping("/{id}")
@@ -99,10 +103,16 @@ public class ShopController {
         if (!canAccessShop(id)) {
             return ApiResponse.error("店铺不存在");
         }
+        Long ownerId = shopService.findById(id).map(Shop::getUserId).orElse(null);
         if (!isCurrentUserAdmin()) {
             shop.setUserId(AuthContext.getUserId());
         }
-        return ApiResponse.success(shopService.update(id, shop));
+        Shop saved = shopService.update(id, shop);
+        userService.refreshShopStats(saved.getUserId());
+        if (ownerId != null && !ownerId.equals(saved.getUserId())) {
+            userService.refreshShopStats(ownerId);
+        }
+        return ApiResponse.success(saved);
     }
 
     @DeleteMapping("/{id}")
@@ -110,7 +120,11 @@ public class ShopController {
         if (!canAccessShop(id)) {
             return ApiResponse.error("店铺不存在");
         }
+        Long ownerId = shopService.findById(id).map(Shop::getUserId).orElse(null);
         shopService.delete(id);
+        if (ownerId != null) {
+            userService.refreshShopStats(ownerId);
+        }
         return ApiResponse.success();
     }
 
