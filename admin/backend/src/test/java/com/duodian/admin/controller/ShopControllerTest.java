@@ -2,7 +2,9 @@ package com.duodian.admin.controller;
 
 import com.duodian.admin.config.AuthContext;
 import com.duodian.admin.controller.dto.ApiResponse;
+import com.duodian.admin.controller.dto.PendingShopDeductResponse;
 import com.duodian.admin.controller.dto.ShopRenewResponse;
+import com.duodian.admin.controller.dto.ShopReportRequest;
 import com.duodian.admin.controller.dto.ShopResponse;
 import com.duodian.admin.entity.Shop;
 import com.duodian.admin.entity.User;
@@ -16,6 +18,8 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -90,6 +94,43 @@ class ShopControllerTest {
         verify(computeService).deductComputeForRenewal(1L, "shop-10", "expired", "jd");
     }
 
+    @Test
+    void createPendingWithDeductionCreatesNewTaggedShopAndDeductsOnce() {
+        AuthContext.setUserId(1L);
+        User normalUser = user(1L, "USER");
+        normalUser.setComputeBalance(7);
+        normalUser.setShopCount(1);
+        normalUser.setPlatformCount(1);
+        ShopReportRequest request = reportRequest("detected-shop", "检测店铺");
+
+        when(shopService.findByUserIdAndShopIdAndPlatform(1L, "detected-shop", "jd")).thenReturn(Optional.empty());
+        when(shopService.findByUserIdAndShopIdAndPlatform(
+                eq(1L),
+                argThat(shopId -> shopId != null && shopId.startsWith("NEW-SWITCH-jd-")),
+                eq("jd"))
+        ).thenReturn(Optional.empty());
+        when(computeService.deductCompute(1L, "detected-shop", "检测店铺", "jd")).thenReturn(true);
+        when(shopService.create(argThat(shop ->
+                shop.getShopId().startsWith("NEW-SWITCH-jd-")
+                        && shop.getCloneInstanceId() == null
+                        && shop.getLastDeductedAt() != null
+        ))).thenAnswer(invocation -> {
+            Shop saved = invocation.getArgument(0);
+            saved.setId(99L);
+            return saved;
+        });
+        when(userService.refreshShopStats(1L)).thenReturn(normalUser);
+
+        ApiResponse<PendingShopDeductResponse> response = controller.createPendingWithDeduction(request);
+
+        assertThat(response.getCode()).isEqualTo(200);
+        assertThat(response.getData().getDeducted()).isTrue();
+        assertThat(response.getData().getShop().getShopId()).startsWith("NEW-SWITCH-jd-");
+        assertThat(response.getData().getShop().getCloneInstanceId()).isNull();
+        assertThat(response.getData().getBalance()).isEqualTo(7);
+        verify(computeService).deductCompute(1L, "detected-shop", "检测店铺", "jd");
+    }
+
     private User user(Long id, String role) {
         User user = new User();
         user.setId(id);
@@ -110,5 +151,17 @@ class ShopControllerTest {
         shop.setRemainingDays(30);
         shop.setAutoRenew(false);
         return shop;
+    }
+
+    private ShopReportRequest reportRequest(String shopId, String shopName) {
+        ShopReportRequest request = new ShopReportRequest();
+        request.setShopId(shopId);
+        request.setShopName(shopName);
+        request.setPlatform("jd");
+        request.setPlatformName("京东秒送");
+        request.setPackageName("com.jd.mrd.jingming");
+        request.setRemainingDays(30);
+        request.setAutoRenew(false);
+        return request;
     }
 }

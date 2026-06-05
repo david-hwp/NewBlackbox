@@ -5,11 +5,11 @@ plugins {
 
 android {
 
-    namespace 'top.niunaijun.blackboxa'
+    namespace 'com.zhirang.zhanghaoguanjia'
     compileSdk rootProject.ext.compileSdkVersion
     ndkVersion = "29.0.13846066"
     defaultConfig {
-        applicationId "com.zhirang.dianpuguanjia"
+        applicationId "com.zhirang.zhanghaoguanjia"
         minSdk rootProject.ext.minSdk
         targetSdk rootProject.ext.targetSdkVersion
         versionCode rootProject.ext.versionCode

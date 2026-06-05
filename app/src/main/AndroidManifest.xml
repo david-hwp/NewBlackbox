@@ -6,8 +6,8 @@
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"
         tools:ignore="QueryAllPackagesPermission" />
 
-    <!-- Required to bind to the Engine Service (top.niunaijun.blackbox.engine) -->
-    <uses-permission android:name="top.niunaijun.blackbox.engine.permission.BIND_ENGINE" />
+    <!-- Required to bind to the Engine Service (com.zhirang.zhanghaoguanjia.engine) -->
+    <uses-permission android:name="com.zhirang.zhanghaoguanjia.engine.permission.BIND_ENGINE" />
 
     
     <uses-permission android:name="android.permission.INTERNET" />

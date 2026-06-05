@@ -10,7 +10,7 @@ NewBlackbox is an Android virtual engine that clones and runs apps in isolated s
 
 | Module | Type | Purpose |
 |--------|------|---------|
-| `app` | Android Application | UI layer (Kotlin). Activities, fragments, view models, and user-facing settings. Package: `top.niunaijun.blackboxa` |
+| `app` | Android Application | UI layer (Kotlin). Activities, fragments, view models, and user-facing settings. Package: `com.zhirang.zhanghaoguanjia` |
 | `Bcore` | Android Library | Core virtualization engine (Java + C++). Hooks system services, manages virtual packages/processes, and handles IPC. Package: `top.niunaijun.blackbox` |
 | `black-reflection` | Java Library | Reflection utilities for accessing hidden Android APIs |
 | `compiler` | Annotation Processor | Generates reflection helpers at compile time |
@@ -117,7 +117,7 @@ Native hooks are built via `ndkBuild` using `Bcore/src/main/cpp/Android.mk`.
 | Add system package whitelist | `Bcore/src/main/java/top/niunaijun/blackbox/core/env/AppSystemEnv.java` |
 | Hook a new system service | Create class in `Bcore/src/main/java/top/niunaijun/blackbox/fake/service/`, extend `BinderInvocationStub`, register in `HookManager` |
 | Fix WebView/provider compatibility | `Bcore/src/main/java/top/niunaijun/blackbox/fake/service/IWebViewUpdateServiceProxy.java`, `WebViewFactoryProxy.java`, `NativeCore.java` |
-| Modify app list/install logic | `app/src/main/java/top/niunaijun/blackboxa/data/AppsRepository.kt` |
+| Modify app list/install logic | `app/src/main/java/com/zhirang/zhanghaoguanjia/data/AppsRepository.kt` |
 | Change version | `build.gradle` (`versionCode`, `versionName`) |
 | Native hook changes | `Bcore/src/main/cpp/Hook/*.cpp`, rebuild triggers NDK build automatically |
 

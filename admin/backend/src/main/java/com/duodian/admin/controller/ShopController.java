@@ -2,17 +2,24 @@ package com.duodian.admin.controller;
 
 import com.duodian.admin.config.AuthContext;
 import com.duodian.admin.controller.dto.ApiResponse;
+import com.duodian.admin.controller.dto.PendingShopDeductResponse;
 import com.duodian.admin.controller.dto.ShopRenewResponse;
+import com.duodian.admin.controller.dto.ShopReportRequest;
 import com.duodian.admin.controller.dto.ShopResponse;
 import com.duodian.admin.entity.Shop;
 import com.duodian.admin.entity.User;
 import com.duodian.admin.service.ComputeService;
 import com.duodian.admin.service.ShopService;
 import com.duodian.admin.service.UserService;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 @RestController
 @RequestMapping("/shops")
@@ -103,6 +110,60 @@ public class ShopController {
         return ApiResponse.success(saved);
     }
 
+    @PostMapping("/pending-deduct")
+    @Transactional
+    public ApiResponse<PendingShopDeductResponse> createPendingWithDeduction(@RequestBody ShopReportRequest request) {
+        Long userId = AuthContext.getUserId();
+        if (userId == null) {
+            return ApiResponse.error(401, "未登录");
+        }
+
+        String detectedShopId = normalize(request.getShopId());
+        String platform = normalize(request.getPlatform());
+        String packageName = normalize(request.getPackageName());
+        if (!isRealShopId(detectedShopId) || platform == null || packageName == null) {
+            return ApiResponse.error("店铺信息无效，无法新增");
+        }
+
+        if (shopService.findByUserIdAndShopIdAndPlatform(userId, detectedShopId, platform).isPresent()) {
+            return ApiResponse.error("该店铺已添加");
+        }
+
+        String pendingShopId = buildPendingSwitchShopId(platform, detectedShopId);
+        Optional<Shop> existingPending = shopService.findByUserIdAndShopIdAndPlatform(userId, pendingShopId, platform);
+        if (existingPending.isPresent()) {
+            User user = userService.refreshShopStats(userId);
+            return ApiResponse.success(PendingShopDeductResponse.from(existingPending.get(), user, false));
+        }
+
+        boolean deducted = computeService.deductCompute(
+                userId,
+                detectedShopId,
+                firstNonBlank(request.getShopName(), request.getPlatformName(), platform + "-" + detectedShopId),
+                platform
+        );
+        if (!deducted) {
+            return ApiResponse.error(402, "算力余额不足");
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        Shop shop = new Shop();
+        shop.setUserId(userId);
+        shop.setShopName(firstNonBlank(request.getShopName(), request.getPlatformName(), platform + "-" + detectedShopId));
+        shop.setShopId(pendingShopId);
+        shop.setPlatform(platform);
+        shop.setPlatformName(firstNonBlank(request.getPlatformName(), platform));
+        shop.setPackageName(packageName);
+        shop.setRemainingDays(request.getRemainingDays() == null ? 30 : request.getRemainingDays());
+        shop.setAutoRenew(Boolean.TRUE.equals(request.getAutoRenew()));
+        shop.setLastDeductedAt(now);
+        shop.setExpireAt(now.plusDays(30));
+
+        Shop saved = shopService.create(shop);
+        User user = userService.refreshShopStats(userId);
+        return ApiResponse.success(PendingShopDeductResponse.from(saved, user, true));
+    }
+
     @PutMapping("/{id}")
     public ApiResponse<Shop> update(@PathVariable Long id, @RequestBody Shop shop) {
         if (!canAccessShop(id)) {
@@ -189,5 +250,47 @@ public class ShopController {
             return false;
         }
         return isAdmin(currentUser) || currentUser.getId().equals(shop.getUserId());
+    }
+
+    private String normalize(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        return value.trim();
+    }
+
+    private String firstNonBlank(String... values) {
+        for (String value : values) {
+            String normalized = normalize(value);
+            if (normalized != null) {
+                return normalized;
+            }
+        }
+        return "";
+    }
+
+    private boolean isRealShopId(String shopId) {
+        return shopId != null
+                && !shopId.isBlank()
+                && !"-".equals(shopId)
+                && !shopId.startsWith("NEW-");
+    }
+
+    private String buildPendingSwitchShopId(String platform, String shopId) {
+        return "NEW-SWITCH-" + platform + "-" + sha256(shopId).substring(0, 16);
+    }
+
+    private String sha256(String value) {
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256")
+                    .digest(value.getBytes(StandardCharsets.UTF_8));
+            StringBuilder builder = new StringBuilder(digest.length * 2);
+            for (byte b : digest) {
+                builder.append(String.format("%02x", b));
+            }
+            return builder.toString();
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 not available", e);
+        }
     }
 }

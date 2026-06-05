@@ -238,10 +238,10 @@ uninstall_app() {
 # ── App Lifecycle ──────────────────────────────────────────────────────────
 start_app() {
     log_info "Starting BlackBox..."
-    # Launcher activity is under the blackboxa subpackage
-    $ADB shell am start -n "$PACKAGE/top.niunaijun.blackboxa.view.main.MainActivity" \
+    # Launcher activity is under the zhanghaoguanjia package.
+    $ADB shell am start -n "$PACKAGE/com.zhirang.zhanghaoguanjia.view.main.MainActivity" \
         -a android.intent.action.MAIN -c android.intent.category.LAUNCHER 2>/dev/null || \
-    $ADB shell am start -n "$PACKAGE/top.niunaijun.blackboxa.view.main.WelcomeActivity" \
+    $ADB shell am start -n "$PACKAGE/com.zhirang.zhanghaoguanjia.view.main.WelcomeActivity" \
         -a android.intent.action.MAIN -c android.intent.category.LAUNCHER
     sleep 2
 }

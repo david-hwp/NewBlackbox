@@ -98,14 +98,27 @@ public class ShopReportController {
             boolean wasPending = shop.getShopId() != null && shop.getShopId().startsWith("NEW-");
 
             if (wasPending && hasRealShopId) {
-                boolean deducted = computeService.deductCompute(userId, request.getShopId(), request.getShopName(), request.getPlatform());
-                if (!deducted) {
-                    return ApiResponse.error(402, "算力余额不足");
+                if (isPendingSwitchShopId(shop.getShopId())) {
+                    String expectedPendingShopId = buildPendingSwitchShopId(
+                            normalize(request.getPlatform()) == null ? shop.getPlatform() : request.getPlatform(),
+                            request.getShopId()
+                    );
+                    if (!shop.getShopId().equals(expectedPendingShopId)) {
+                        return ApiResponse.error("请在新分身中切换到对应店铺后重试");
+                    }
+                }
+                if (shop.getLastDeductedAt() == null) {
+                    boolean deducted = computeService.deductCompute(userId, request.getShopId(), request.getShopName(), request.getPlatform());
+                    if (!deducted) {
+                        return ApiResponse.error(402, "算力余额不足");
+                    }
+                    shop.setLastDeductedAt(LocalDateTime.now());
+                    result.put("deducted", true);
+                } else {
+                    result.put("deducted", false);
                 }
                 shop.setShopId(request.getShopId());
                 shop.setExpireAt(LocalDateTime.now().plusDays(30));
-                shop.setLastDeductedAt(LocalDateTime.now());
-                result.put("deducted", true);
                 result.put("isNew", true);
             } else {
                 result.put("deducted", false);
@@ -206,6 +219,15 @@ public class ShopReportController {
     private String buildSwitchedCloneInstanceId(String cloneInstanceId, String platform, String shopId) {
         String source = cloneInstanceId + ":" + normalize(platform) + ":" + normalize(shopId);
         return "clone-switch-" + sha256(source);
+    }
+
+    private boolean isPendingSwitchShopId(String shopId) {
+        String normalized = normalize(shopId);
+        return normalized != null && normalized.startsWith("NEW-SWITCH-");
+    }
+
+    private String buildPendingSwitchShopId(String platform, String shopId) {
+        return "NEW-SWITCH-" + normalize(platform) + "-" + sha256(normalize(shopId)).substring(0, 16);
     }
 
     private String sha256(String value) {

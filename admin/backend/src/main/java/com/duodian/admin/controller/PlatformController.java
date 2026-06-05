@@ -61,20 +61,29 @@ public class PlatformController {
 
     private void ensureDefaults() {
         List<PlatformInfo> defaults = List.of(
-                defaultPlatform("meituan", "美团外卖", "com.sankuai.meituan.merchant", "/api/files/platform-icons/meituan.png", false, 10),
+                defaultPlatform("meituan", "美团外卖商家版", "com.sankuai.meituan.meituanwaimaibusiness", "/api/files/platform-icons/meituan.png", false, 10),
                 defaultPlatform("taobao", "淘宝闪购", "com.taobao.qianniu", "/api/files/platform-icons/qianniu.png", false, 20),
                 defaultPlatform("jd", "京东秒送", "com.jd.mrd.jingming", "/api/files/platform-icons/jd.png", true, 30),
                 defaultPlatform("kuaishou", "快手团购", "com.kuaishou.nebula", "/api/files/platform-icons/kuaishou.png", false, 40),
                 defaultPlatform("xiaohongshu", "小红书", "com.xingin.xhs", "/api/files/platform-icons/xiaohongshu.png", false, 50),
                 defaultPlatform("ali", "阿里本地", "com.alipay.m.portal", "/api/files/platform-icons/koubei.png", false, 60)
         );
-        defaults.stream()
-                .filter(item -> !repository.existsByPlatformId(item.getId()))
-                .forEach(item -> {
-                    PlatformConfig config = new PlatformConfig();
-                    fillConfig(config, item);
-                    repository.save(config);
-                });
+        defaults.forEach(item -> {
+            PlatformConfig config = repository.findByPlatformId(item.getId())
+                    .orElseGet(PlatformConfig::new);
+            if (config.getId() == null || shouldSyncDefault(config, item)) {
+                fillConfig(config, item);
+                repository.save(config);
+            }
+        });
+    }
+
+    private boolean shouldSyncDefault(PlatformConfig config, PlatformInfo defaults) {
+        return !equals(config.getName(), defaults.getName())
+                || !equals(config.getPackageName(), defaults.getPackageName())
+                || !equals(config.getIconUrl(), defaults.getIconUrl())
+                || config.getSortOrder() == null
+                || !config.getSortOrder().equals(defaults.getSortOrder());
     }
 
     private PlatformInfo defaultPlatform(String id, String name, String packageName, String iconUrl, boolean available, int sortOrder) {
@@ -103,5 +112,9 @@ public class PlatformController {
         info.setDbId(config.getId());
         info.setSortOrder(config.getSortOrder());
         return info;
+    }
+
+    private boolean equals(String left, String right) {
+        return left == null ? right == null : left.equals(right);
     }
 }

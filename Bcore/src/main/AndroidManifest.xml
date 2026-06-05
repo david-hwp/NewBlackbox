@@ -491,6 +491,7 @@
 
     <application
         android:name=".engine.EngineApp"
+        android:label="@string/engine_app_name"
         android:usesCleartextTraffic="true">
 
         <service
@@ -540,6 +541,14 @@
             android:name=".app.LauncherActivity"
             android:excludeFromRecents="true"
             android:theme="@style/LauncherTheme" />
+
+        <activity
+            android:name=".engine.EngineWakeActivity"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:noHistory="true"
+            android:permission="${applicationId}.permission.BIND_ENGINE"
+            android:theme="@android:style/Theme.NoDisplay" />
 
         <service
             android:name="top.niunaijun.blackbox.proxy.ProxyVpnService"

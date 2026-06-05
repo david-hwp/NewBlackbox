@@ -22,7 +22,7 @@ android {
     }
 
     defaultConfig {
-        applicationId "top.niunaijun.blackbox.engine"
+        applicationId "com.zhirang.zhanghaoguanjia.engine"
         minSdkVersion rootProject.ext.minSdk
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode engineVersionCodeOverride.toString().toInteger()

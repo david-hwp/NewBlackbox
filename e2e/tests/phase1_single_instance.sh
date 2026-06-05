@@ -56,7 +56,7 @@ run_test() {
 
     # Launch BlackBox
     log_info "Launching BlackBox..."
-    $ADB shell am start -n "$PACKAGE/top.niunaijun.blackboxa.view.main.MainActivity" 2>/dev/null || true
+    $ADB shell am start -n "$PACKAGE/com.zhirang.zhanghaoguanjia.view.main.MainActivity" 2>/dev/null || true
     sleep 2
 
     # ── Manual steps prompt ──────────────────────────────────────────────

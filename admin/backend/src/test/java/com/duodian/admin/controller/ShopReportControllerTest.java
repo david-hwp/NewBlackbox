@@ -11,13 +11,19 @@ import com.duodian.admin.service.UserService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -64,6 +70,60 @@ class ShopReportControllerTest {
         ));
     }
 
+    @Test
+    void reportConvertsPreDeductedPendingSwitchShopWithoutDeductingAgain() {
+        AuthContext.setUserId(1L);
+        LocalDateTime deductedAt = LocalDateTime.now().minusMinutes(5);
+        Shop pendingShop = shop(
+                20L,
+                pendingSwitchShopId("real-shop"),
+                "检测店铺",
+                "clone-new"
+        );
+        pendingShop.setLastDeductedAt(deductedAt);
+        User user = new User();
+        user.setId(1L);
+        user.setComputeBalance(6);
+        user.setShopCount(1);
+        user.setPlatformCount(1);
+
+        when(shopService.findByUserIdAndShopIdAndPlatform(1L, "real-shop", "jd")).thenReturn(Optional.empty());
+        when(shopService.findByUserIdAndCloneInstanceId(1L, "clone-new")).thenReturn(Optional.of(pendingShop));
+        when(shopService.update(eq(20L), any(Shop.class))).thenAnswer(invocation -> invocation.getArgument(1));
+        when(userService.refreshShopStats(1L)).thenReturn(user);
+
+        ApiResponse<Map<String, Object>> response = controller.report(request("real-shop", "真实店铺", "clone-new"));
+
+        assertThat(response.getCode()).isEqualTo(200);
+        assertThat(response.getData()).containsEntry("deducted", false);
+        assertThat(response.getData()).containsEntry("isNew", true);
+        assertThat(pendingShop.getShopId()).isEqualTo("real-shop");
+        assertThat(pendingShop.getLastDeductedAt()).isEqualTo(deductedAt);
+        verify(computeService, never()).deductCompute(1L, "real-shop", "真实店铺", "jd");
+    }
+
+    @Test
+    void reportRejectsPendingSwitchShopWhenUserRecognizesWrongShop() {
+        AuthContext.setUserId(1L);
+        Shop pendingShop = shop(
+                20L,
+                pendingSwitchShopId("expected-shop"),
+                "检测店铺",
+                "clone-new"
+        );
+        pendingShop.setLastDeductedAt(LocalDateTime.now().minusMinutes(5));
+
+        when(shopService.findByUserIdAndShopIdAndPlatform(1L, "wrong-shop", "jd")).thenReturn(Optional.empty());
+        when(shopService.findByUserIdAndCloneInstanceId(1L, "clone-new")).thenReturn(Optional.of(pendingShop));
+
+        ApiResponse<Map<String, Object>> response = controller.report(request("wrong-shop", "错误店铺", "clone-new"));
+
+        assertThat(response.getCode()).isEqualTo(500);
+        assertThat(response.getMessage()).isEqualTo("请在新分身中切换到对应店铺后重试");
+        verify(computeService, never()).deductCompute(1L, "wrong-shop", "错误店铺", "jd");
+        verify(shopService, never()).update(eq(20L), any(Shop.class));
+    }
+
     private ShopReportRequest request(String shopId, String shopName, String cloneInstanceId) {
         ShopReportRequest request = new ShopReportRequest();
         request.setShopId(shopId);
@@ -90,5 +150,23 @@ class ShopReportControllerTest {
         shop.setRemainingDays(30);
         shop.setAutoRenew(false);
         return shop;
+    }
+
+    private String pendingSwitchShopId(String shopId) {
+        return "NEW-SWITCH-jd-" + sha256(shopId).substring(0, 16);
+    }
+
+    private String sha256(String value) {
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256")
+                    .digest(value.getBytes(StandardCharsets.UTF_8));
+            StringBuilder builder = new StringBuilder(digest.length * 2);
+            for (byte b : digest) {
+                builder.append(String.format("%02x", b));
+            }
+            return builder.toString();
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 not available", e);
+        }
     }
 }
