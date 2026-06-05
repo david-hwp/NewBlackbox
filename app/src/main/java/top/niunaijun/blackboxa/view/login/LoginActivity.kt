@@ -5,11 +5,15 @@ import android.content.Intent
 import android.os.Bundle
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.ViewModelProvider
+import top.niunaijun.blackboxa.data.TokenManager
 import top.niunaijun.blackboxa.databinding.ActivityLoginBinding
+import top.niunaijun.blackboxa.view.home.HomeActivity
 
 class LoginActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityLoginBinding
+    private lateinit var viewModel: LoginViewModel
 
     companion object {
         fun start(context: Context) {
@@ -22,7 +26,20 @@ class LoginActivity : AppCompatActivity() {
         binding = ActivityLoginBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        // TODO: 后续接入 ViewModel
+        // Check if already logged in
+        if (TokenManager.getInstance().isLoggedIn()) {
+            HomeActivity.start(this)
+            finish()
+            return
+        }
+
+        viewModel = ViewModelProvider(this)[LoginViewModel::class.java]
+
+        initListeners()
+        observeViewModel()
+    }
+
+    private fun initListeners() {
         binding.btnLogin.setOnClickListener {
             val phone = binding.etPhone.text.toString().trim()
             val password = binding.etPassword.text.toString().trim()
@@ -32,11 +49,30 @@ class LoginActivity : AppCompatActivity() {
                 return@setOnClickListener
             }
 
-            // MVP 阶段：直接跳转首页（后续接入后端）
-            // HomeActivity.start(this)
-            // finish()
+            viewModel.login(phone, password)
+        }
+    }
 
-            Toast.makeText(this, "登录功能开发中", Toast.LENGTH_SHORT).show()
+    private fun observeViewModel() {
+        viewModel.loginResultLiveData.observe(this) { result ->
+            result?.fold(
+                onSuccess = {
+                    HomeActivity.start(this)
+                    finish()
+                },
+                onFailure = {
+                    // Error is handled by errorLiveData
+                }
+            )
+        }
+
+        viewModel.loadingLiveData.observe(this) { isLoading ->
+            binding.btnLogin.isEnabled = !isLoading
+            binding.btnLogin.text = if (isLoading) "登录中…" else "登录"
+        }
+
+        viewModel.errorLiveData.observe(this) { errorMessage ->
+            Toast.makeText(this, errorMessage, Toast.LENGTH_SHORT).show()
         }
     }
 }
