@@ -91,11 +91,10 @@ public class UserController {
         }
         User user = userService.findById(userId)
                 .orElseThrow(() -> new RuntimeException("用户不存在"));
-        if (!user.getPassword().equals(request.getOldPassword())) {
+        if (!userService.matchesPassword(user, request.getOldPassword())) {
             return ApiResponse.error(400, "原密码错误");
         }
-        user.setPassword(request.getNewPassword());
-        userService.update(userId, user);
+        userService.updatePassword(userId, request.getNewPassword());
         return ApiResponse.success();
     }
 }

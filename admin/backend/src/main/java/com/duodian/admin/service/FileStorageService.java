@@ -58,7 +58,7 @@ public class FileStorageService {
                 return null;
             }
             if (response.statusCode() < 200 || response.statusCode() >= 300) {
-                throw new RuntimeException("对象存储下载失败: HTTP " + response.statusCode());
+                throw new RuntimeException("对象存储下载失败: HTTP " + response.statusCode() + " " + responseBody(response));
             }
             String contentType = response.headers().firstValue("content-type").orElse("application/octet-stream");
             return new DownloadedFile(response.body(), contentType);
@@ -116,7 +116,7 @@ public class FileStorageService {
         try {
             HttpResponse<byte[]> response = sendObjectRequest("PUT", key, contentType, body);
             if (response.statusCode() < 200 || response.statusCode() >= 300) {
-                throw new RuntimeException("对象存储上传失败: HTTP " + response.statusCode());
+                throw new RuntimeException("对象存储上传失败: HTTP " + response.statusCode() + " " + responseBody(response));
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -131,7 +131,7 @@ public class FileStorageService {
         String payloadHash = sha256Hex(payload);
         ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
         String amzDate = now.format(DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss'Z'"));
-        String date = now.format(DateTimeFormatter.BASIC_ISO_DATE);
+        String date = now.format(DateTimeFormatter.ofPattern("yyyyMMdd"));
         URI uri = objectUri(key);
         String host = hostHeader(uri);
         String signedHeaders = contentType == null || contentType.isBlank()
@@ -151,11 +151,11 @@ public class FileStorageService {
                 sha256Hex(canonicalRequest.getBytes(java.nio.charset.StandardCharsets.UTF_8));
         String signature = hmacHex(signingKey(date, region), stringToSign);
         String authHeader = "AWS4-HMAC-SHA256 Credential=" + properties.getAccessKey() + "/" + scope +
-                ", SignedHeaders=" + signedHeaders +
-                ", Signature=" + signature;
+                ",SignedHeaders=" + signedHeaders +
+                ",Signature=" + signature;
 
         HttpRequest.Builder builder = HttpRequest.newBuilder(uri)
-                .header("Host", host)
+                .version(HttpClient.Version.HTTP_1_1)
                 .header("x-amz-date", amzDate)
                 .header("x-amz-content-sha256", payloadHash)
                 .header("Authorization", authHeader);
@@ -175,6 +175,13 @@ public class FileStorageService {
     private URI objectUri(String key) {
         String endpoint = trimTrailingSlash(properties.getEndpoint());
         String bucket = properties.getBucket();
+        if ("virtual-host".equalsIgnoreCase(properties.getAddressingStyle())) {
+            URI endpointUri = URI.create(endpoint);
+            String host = bucket + "." + endpointUri.getHost();
+            String authority = endpointUri.getPort() == -1 ? host : host + ":" + endpointUri.getPort();
+            String path = "/" + encodePath(key);
+            return URI.create(endpointUri.getScheme() + "://" + authority + path);
+        }
         String path = "/" + encodePath(bucket + "/" + key);
         return URI.create(endpoint + path);
     }
@@ -205,7 +212,8 @@ public class FileStorageService {
         return "object".equalsIgnoreCase(type) ||
                 "s3".equalsIgnoreCase(type) ||
                 "minio".equalsIgnoreCase(type) ||
-                "oss".equalsIgnoreCase(type);
+                "oss".equalsIgnoreCase(type) ||
+                "obs".equalsIgnoreCase(type);
     }
 
     private String objectRegion() {
@@ -265,6 +273,17 @@ public class FileStorageService {
 
     private String trimTrailingSlash(String value) {
         return value == null ? "" : value.replaceAll("/+$", "");
+    }
+
+    private String responseBody(HttpResponse<byte[]> response) {
+        byte[] body = response.body();
+        if (body == null || body.length == 0) {
+            return "";
+        }
+        String text = new String(body, java.nio.charset.StandardCharsets.UTF_8)
+                .replaceAll("\\s+", " ")
+                .trim();
+        return text.length() > 500 ? text.substring(0, 500) : text;
     }
 
     private boolean isBlank(String value) {

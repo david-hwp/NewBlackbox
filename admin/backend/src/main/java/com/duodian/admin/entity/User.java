@@ -1,5 +1,6 @@
 package com.duodian.admin.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
@@ -17,6 +18,7 @@ public class User {
     private String phone;
 
     @Column(nullable = false)
+    @JsonIgnore
     private String password;
 
     @Column(nullable = false)

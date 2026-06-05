@@ -14,6 +14,7 @@ public class FileStorageProperties {
     private String accessKey;
     private String secretKey;
     private String publicBaseUrl;
+    private String addressingStyle = "path";
 
     public String getType() { return type; }
     public void setType(String type) { this.type = type; }
@@ -38,4 +39,7 @@ public class FileStorageProperties {
 
     public String getPublicBaseUrl() { return publicBaseUrl; }
     public void setPublicBaseUrl(String publicBaseUrl) { this.publicBaseUrl = publicBaseUrl; }
+
+    public String getAddressingStyle() { return addressingStyle; }
+    public void setAddressingStyle(String addressingStyle) { this.addressingStyle = addressingStyle; }
 }

@@ -65,9 +65,9 @@ cd admin
 
 | 类型 | 路径 |
 |------|------|
-| 前后端日志 | `~/duodianguanjian/logs` |
-| 上传文件 | `~/duodianguanjian/files` |
-| 数据库备份 | `~/duodianguanjian/db_backup` |
+| 前后端日志 | `~/dianpuguanjia/logs` |
+| 上传文件 | `~/dianpuguanjia/files` |
+| 数据库备份 | `~/dianpuguanjia/db_backup` |
 
 如需修改端口或数据库密码，可复制 `.env.example` 为 `.env` 后调整。
 数据库备份默认在容器启动时执行一次，之后每 86400 秒执行一次，最多保留 30 个备份。

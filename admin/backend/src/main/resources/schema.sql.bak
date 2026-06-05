@@ -57,7 +57,7 @@ CREATE TABLE IF NOT EXISTS transaction_logs (
     INDEX idx_created_at (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='交易日志表';
 
--- 插入默认管理员账号 (密码: admin123)
+-- 插入默认管理员账号，密码使用 BCrypt 密文存储
 INSERT INTO users (username, phone, password, role, compute_balance, shop_count, platform_count)
-VALUES ('管理员', '13800138000', 'admin123', 'ADMIN', 9999, 0, 0)
+VALUES ('管理员', '13800138000', '$2y$12$xRCi/REAIr6LB5YhvqMIOeJ6aim.wGMW5l19JiJO3U8gpCjGAVssS', 'ADMIN', 9999, 0, 0)
 ON DUPLICATE KEY UPDATE id=id;

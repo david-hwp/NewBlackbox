@@ -11,9 +11,11 @@ import java.util.Optional;
 public class UserService {
 
     private final UserRepository userRepository;
+    private final PasswordService passwordService;
 
-    public UserService(UserRepository userRepository) {
+    public UserService(UserRepository userRepository, PasswordService passwordService) {
         this.userRepository = userRepository;
+        this.passwordService = passwordService;
     }
 
     public List<User> findAll() {
@@ -32,6 +34,7 @@ public class UserService {
         if (userRepository.existsByPhone(user.getPhone())) {
             throw new RuntimeException("手机号已存在");
         }
+        user.setPassword(passwordService.encode(user.getPassword()));
         return userRepository.save(user);
     }
 
@@ -52,10 +55,24 @@ public class UserService {
     public User login(String phone, String password) {
         User user = userRepository.findByPhone(phone)
                 .orElseThrow(() -> new RuntimeException("用户不存在"));
-        if (!user.getPassword().equals(password)) {
+        if (!passwordService.matches(password, user.getPassword())) {
             throw new RuntimeException("密码错误");
+        }
+        if (!passwordService.isBcrypt(user.getPassword())) {
+            user.setPassword(passwordService.encode(password));
         }
         user.setLastLoginAt(java.time.LocalDateTime.now());
         return userRepository.save(user);
+    }
+
+    public boolean matchesPassword(User user, String rawPassword) {
+        return user != null && passwordService.matches(rawPassword, user.getPassword());
+    }
+
+    public void updatePassword(Long userId, String newPassword) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("用户不存在"));
+        user.setPassword(passwordService.encode(newPassword));
+        userRepository.save(user);
     }
 }
