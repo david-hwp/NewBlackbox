@@ -25,6 +25,7 @@ import com.zhirang.zhanghaoguanjia.engine.EngineInstaller
 import com.zhirang.zhanghaoguanjia.engine.EngineProxy
 import com.zhirang.zhanghaoguanjia.bean.Platform
 import com.zhirang.zhanghaoguanjia.util.inflate
+import com.zhirang.zhanghaoguanjia.util.PlatformRegistry
 import com.zhirang.zhanghaoguanjia.util.toast
 import com.zhirang.zhanghaoguanjia.view.dialog.DeleteShopSheetFragment
 import com.zhirang.zhanghaoguanjia.view.dialog.EditShopSheetFragment
@@ -262,7 +263,7 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun onShopClick(shop: Shop) {
-        val packageName = shop.packageName
+        val packageName = resolveShopPackageName(shop)
         if (packageName.isNullOrEmpty()) {
             toast("该店铺暂无关联应用")
             return
@@ -301,12 +302,12 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun openPlatformForShopWithEngine(shop: Shop) {
-        val packageName = shop.packageName
+        val packageName = resolveShopPackageName(shop)
         if (packageName.isNullOrEmpty()) {
             toast("该店铺暂无关联应用")
             return
         }
-        val platformName = shop.platform.displayName
+        val platformName = resolvePlatformName(shop.platform)
 
         if (!EngineProxy.isConnected()) {
             retryOpenAfterEngineReconnect(shop)
@@ -431,7 +432,7 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun reportCloneCreated(pendingShop: Shop, userId: Int) {
-        val packageName = pendingShop.packageName ?: return
+        val packageName = resolveShopPackageName(pendingShop) ?: return
         val cloneInstanceId = buildCloneInstanceId(pendingShop, packageName, userId)
         if (cloneInstanceId == pendingShop.cloneInstanceId) {
             return
@@ -467,7 +468,7 @@ class HomeActivity : AppCompatActivity() {
         attempt: Int,
         showFailureToast: Boolean = false
     ) {
-        val packageName = pendingShop.packageName ?: run {
+        val packageName = resolveShopPackageName(pendingShop) ?: run {
             buildRecognitionKey(pendingShop, userId)?.let { pendingRecognitionKeys.remove(it) }
             return
         }
@@ -488,7 +489,7 @@ class HomeActivity : AppCompatActivity() {
         attempt: Int,
         showFailureToast: Boolean = false
     ) {
-        val packageName = pendingShop.packageName ?: return
+        val packageName = resolveShopPackageName(pendingShop) ?: return
         val key = buildRecognitionKey(pendingShop, userId)
         val shopInfo = EngineProxy.getShopInfo(packageName, userId)
         val shopName = shopInfo?.shopName?.takeIf { it.isNotBlank() }
@@ -514,7 +515,7 @@ class HomeActivity : AppCompatActivity() {
         } ?: pendingShop.platform
         val finalShopName = shopName ?: pendingShop.shopName
             .takeUnless { it.contains("未知") || it.startsWith("User[") }
-            ?: "${platform.displayName}-$shopId"
+            ?: "${resolvePlatformName(platform)}-$shopId"
 
         viewModel.completePendingShop(
             pendingShop,
@@ -534,7 +535,7 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun buildRecognitionKey(shop: Shop, userId: Int): String? {
-        val packageName = shop.packageName ?: return null
+        val packageName = resolveShopPackageName(shop) ?: return null
         return "${shop.id}:$packageName:$userId"
     }
 
@@ -559,9 +560,9 @@ class HomeActivity : AppCompatActivity() {
         }
 
         shopAdapter.getShops()
-            .filter { it.isNew && !it.packageName.isNullOrBlank() }
+            .filter { it.isNew && !resolveShopPackageName(it).isNullOrBlank() }
             .forEach { pendingShop ->
-                val packageName = pendingShop.packageName ?: return@forEach
+                val packageName = resolveShopPackageName(pendingShop) ?: return@forEach
                 val userId = findUserIdForCloneInstance(pendingShop, packageName) ?: return@forEach
                 schedulePendingShopRecognition(pendingShop, userId)
             }
@@ -594,7 +595,7 @@ class HomeActivity : AppCompatActivity() {
             val detectedPlatform = shopInfo.platform?.takeIf { it.isNotBlank() }?.let { Platform.fromId(it) }
                 ?: platformItem.platform
             val cloneOwner = allShops.firstOrNull { shop ->
-                shop.packageName == packageName &&
+                resolveShopPackageName(shop) == packageName &&
                         shop.cloneInstanceId == buildCloneInstanceId(shop, packageName, shopInfo.userId)
             }
             if (cloneOwner == null || cloneOwner.isNew) {
@@ -615,7 +616,7 @@ class HomeActivity : AppCompatActivity() {
                 return@forEach
             }
             val detectedShopName = shopInfo.shopName?.takeIf { it.isNotBlank() }
-                ?: "${detectedPlatform.displayName}-$detectedShopId"
+                ?: "${resolvePlatformName(detectedPlatform)}-$detectedShopId"
             showCloneShopSwitchDialog(
                 sourceShop = cloneOwner,
                 detectedShop = Shop(
@@ -652,12 +653,12 @@ class HomeActivity : AppCompatActivity() {
 
     private fun prepareCleanCloneForPendingShop(pendingShop: Shop) {
         ensureEngineReady {
-            val packageName = pendingShop.packageName
+            val packageName = resolveShopPackageName(pendingShop)
             if (packageName.isNullOrBlank()) {
                 toast("新店铺暂无关联应用")
                 return@ensureEngineReady
             }
-            val platformName = pendingShop.platform.displayName
+            val platformName = resolvePlatformName(pendingShop.platform)
             val isHostInstalled = try {
                 packageManager.getPackageInfo(packageName, 0) != null
             } catch (e: Exception) {
@@ -723,6 +724,15 @@ class HomeActivity : AppCompatActivity() {
         return EngineProxy.getUsers()
             .firstOrNull { buildCloneInstanceId(shop, packageName, it.id) == cloneInstanceId }
             ?.id
+    }
+
+    private fun resolveShopPackageName(shop: Shop): String? {
+        return shop.packageName?.takeIf { it.isNotBlank() }
+            ?: PlatformRegistry.packageName(shop.platform)
+    }
+
+    private fun resolvePlatformName(platform: Platform): String {
+        return PlatformRegistry.displayName(platform)
     }
 
     private fun buildPendingSwitchShopId(platform: Platform, shopId: String): String {

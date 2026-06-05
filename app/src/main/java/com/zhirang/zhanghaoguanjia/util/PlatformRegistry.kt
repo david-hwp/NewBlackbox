@@ -23,4 +23,8 @@ object PlatformRegistry {
     fun isAvailable(platform: Platform): Boolean = get(platform)?.available ?: false
 
     fun isAvailable(platformId: String?): Boolean = get(platformId)?.available ?: false
+
+    fun displayName(platform: Platform): String = get(platform)?.displayName ?: platform.displayName
+
+    fun packageName(platform: Platform): String? = get(platform)?.packageName
 }

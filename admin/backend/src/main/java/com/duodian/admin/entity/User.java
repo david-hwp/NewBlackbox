@@ -14,6 +14,9 @@ public class User {
     @Column(nullable = false)
     private String username;
 
+    @Column(name = "avatar_url", length = 512)
+    private String avatarUrl;
+
     @Column(nullable = false, unique = true)
     private String phone;
 
@@ -61,6 +64,9 @@ public class User {
 
     public String getUsername() { return username; }
     public void setUsername(String username) { this.username = username; }
+
+    public String getAvatarUrl() { return avatarUrl; }
+    public void setAvatarUrl(String avatarUrl) { this.avatarUrl = avatarUrl; }
 
     public String getPhone() { return phone; }
     public void setPhone(String phone) { this.phone = phone; }

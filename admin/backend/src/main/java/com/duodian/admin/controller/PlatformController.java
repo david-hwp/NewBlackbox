@@ -64,9 +64,9 @@ public class PlatformController {
                 defaultPlatform("meituan", "美团外卖商家版", "com.sankuai.meituan.meituanwaimaibusiness", "/api/files/platform-icons/meituan.png", false, 10),
                 defaultPlatform("taobao", "淘宝闪购", "com.taobao.qianniu", "/api/files/platform-icons/qianniu.png", false, 20),
                 defaultPlatform("jd", "京东秒送", "com.jd.mrd.jingming", "/api/files/platform-icons/jd.png", true, 30),
-                defaultPlatform("kuaishou", "快手团购", "com.kuaishou.nebula", "/api/files/platform-icons/kuaishou.png", false, 40),
-                defaultPlatform("xiaohongshu", "小红书", "com.xingin.xhs", "/api/files/platform-icons/xiaohongshu.png", false, 50),
-                defaultPlatform("ali", "阿里本地", "com.alipay.m.portal", "/api/files/platform-icons/koubei.png", false, 60)
+                defaultPlatform("kuaishou", "快手本地商家", "com.kuaishou.llmerchant", "/api/files/platform-icons/kuaishou.png", false, 40),
+                defaultPlatform("xiaohongshu", "小红书千帆", "com.xingin.eva", "/api/files/platform-icons/xiaohongshu.png", false, 50),
+                defaultPlatform("ali", "阿里本地通", "com.alipay.m.portal", "/api/files/platform-icons/koubei.png", false, 60)
         );
         defaults.forEach(item -> {
             PlatformConfig config = repository.findByPlatformId(item.getId())

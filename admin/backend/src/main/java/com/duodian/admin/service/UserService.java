@@ -55,6 +55,7 @@ public class UserService {
         User existing = userRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("用户不存在"));
         existing.setUsername(user.getUsername());
+        existing.setAvatarUrl(user.getAvatarUrl());
         existing.setComputeBalance(user.getComputeBalance());
         existing.setShopCount(user.getShopCount());
         existing.setPlatformCount(user.getPlatformCount());

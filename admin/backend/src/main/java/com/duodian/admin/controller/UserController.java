@@ -74,9 +74,16 @@ public class UserController {
         if (username == null || username.isBlank() || username.length() > 32) {
             return ApiResponse.error("用户名不能为空且不能超过32字符");
         }
+        String avatarUrl = request.get("avatarUrl");
+        if (avatarUrl != null && avatarUrl.length() > 512) {
+            return ApiResponse.error("头像地址不能超过512字符");
+        }
         User user = userService.findById(userId)
                 .orElseThrow(() -> new RuntimeException("用户不存在"));
-        user.setUsername(username);
+        user.setUsername(username.trim());
+        if (request.containsKey("avatarUrl")) {
+            user.setAvatarUrl(avatarUrl == null || avatarUrl.isBlank() ? null : avatarUrl.trim());
+        }
         return ApiResponse.success(userService.update(userId, user));
     }
 

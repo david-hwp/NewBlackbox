@@ -52,9 +52,18 @@
 
                     <!-- 头像 -->
                     <FrameLayout
+                        android:id="@+id/avatarContainer"
                         android:layout_width="60dp"
                         android:layout_height="60dp"
-                        android:background="@drawable/bg_avatar_circle">
+                        android:background="@drawable/bg_avatar_circle"
+                        android:clipToOutline="true">
+
+                        <ImageView
+                            android:id="@+id/ivAvatar"
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:scaleType="centerCrop"
+                            android:visibility="gone" />
 
                         <TextView
                             android:id="@+id/tvAvatarInitial"

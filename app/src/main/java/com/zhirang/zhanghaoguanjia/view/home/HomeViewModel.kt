@@ -186,8 +186,8 @@ class HomeViewModel : ViewModel() {
                 shopName = shop.shopName,
                 shopId = shop.shopId,
                 platform = shop.platform.id,
-                platformName = shop.platform.displayName,
-                packageName = shop.packageName ?: "",
+                platformName = PlatformRegistry.displayName(shop.platform),
+                packageName = shop.packageName ?: PlatformRegistry.packageName(shop.platform) ?: "",
                 cloneInstanceId = shop.cloneInstanceId,
                 remainingDays = shop.remainingDays,
                 autoRenew = shop.autoRenew
@@ -226,8 +226,8 @@ class HomeViewModel : ViewModel() {
                 shopName = detectedShop.shopName,
                 shopId = detectedShop.shopId,
                 platform = detectedShop.platform.id,
-                platformName = detectedShop.platform.displayName,
-                packageName = detectedShop.packageName ?: "",
+                platformName = PlatformRegistry.displayName(detectedShop.platform),
+                packageName = detectedShop.packageName ?: PlatformRegistry.packageName(detectedShop.platform) ?: "",
                 cloneInstanceId = null,
                 remainingDays = detectedShop.remainingDays,
                 autoRenew = detectedShop.autoRenew
@@ -306,10 +306,10 @@ class HomeViewModel : ViewModel() {
                 shopName = newName,
                 shopId = shop.shopId,
                 platform = shop.platform.id,
-                platformName = shop.platform.displayName,
+                platformName = PlatformRegistry.displayName(shop.platform),
                 remainingDays = shop.remainingDays,
                 autoRenew = autoRenew,
-                packageName = shop.packageName,
+                packageName = shop.packageName ?: PlatformRegistry.packageName(shop.platform),
                 cloneInstanceId = shop.cloneInstanceId
             )
             val result = shopRepository.updateShop(shop.id, request)

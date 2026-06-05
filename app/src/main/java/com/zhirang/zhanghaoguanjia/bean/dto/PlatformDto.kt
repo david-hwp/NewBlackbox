@@ -14,7 +14,7 @@ data class PlatformDto(
         return PlatformItemDto(
             platform = platform,
             displayName = name.ifBlank { platform.displayName },
-            packageName = packageName ?: platform.packageName,
+            packageName = packageName?.takeIf { it.isNotBlank() },
             iconKey = iconUrl ?: id,
             available = available
         )

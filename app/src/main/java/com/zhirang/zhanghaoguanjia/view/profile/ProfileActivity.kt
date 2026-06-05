@@ -8,8 +8,10 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.ViewModelProvider
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.zhirang.zhanghaoguanjia.bean.dto.UserDto
 import com.zhirang.zhanghaoguanjia.databinding.ActivityProfileBinding
 import com.zhirang.zhanghaoguanjia.engine.EngineInstaller
+import com.zhirang.zhanghaoguanjia.util.AvatarImageLoader
 import com.zhirang.zhanghaoguanjia.view.gift.GiftActivity
 import com.zhirang.zhanghaoguanjia.view.home.HomeActivity
 import com.zhirang.zhanghaoguanjia.view.logs.LogsActivity
@@ -22,6 +24,7 @@ class ProfileActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityProfileBinding
     private lateinit var viewModel: ProfileViewModel
+    private var currentProfile: UserDto? = null
 
     companion object {
         fun start(context: Context) {
@@ -63,6 +66,9 @@ class ProfileActivity : AppCompatActivity() {
         binding.btnEditUsername?.setOnClickListener {
             showEditUsernameSheet()
         }
+        binding.avatarContainer?.setOnClickListener {
+            showEditUsernameSheet()
+        }
 
         binding.menuChangePassword?.setOnClickListener {
             showChangePasswordSheet()
@@ -101,8 +107,14 @@ class ProfileActivity : AppCompatActivity() {
     private fun observeViewModel() {
         viewModel.userProfileLiveData.observe(this) { profile ->
             profile?.let {
+                currentProfile = it
                 val username = getDisplayUsername(it.username)
-                binding.tvAvatarInitial?.text = username.take(1)
+                AvatarImageLoader.bind(
+                    imageView = binding.ivAvatar,
+                    fallbackView = binding.tvAvatarInitial,
+                    avatarUrl = it.avatarUrl,
+                    initial = username
+                )
                 binding.tvUsername?.text = username
                 binding.tvPhone?.text = maskPhone(it.phone)
                 binding.tvShopCount?.text = it.shopCount.toString()
@@ -148,10 +160,11 @@ class ProfileActivity : AppCompatActivity() {
     }
 
     private fun showEditUsernameSheet() {
+        val profile = currentProfile
         val currentUsername = binding.tvUsername?.text?.toString().orEmpty()
-        val sheet = EditUsernameSheetFragment.newInstance(currentUsername)
-        sheet.setOnSaveListener { username ->
-            viewModel.updateUsername(username)
+        val sheet = EditUsernameSheetFragment.newInstance(currentUsername, profile?.avatarUrl)
+        sheet.setOnSaveListener { username, avatarUri, avatarUrl ->
+            viewModel.updateProfile(username, avatarUri, avatarUrl)
         }
         sheet.show(supportFragmentManager, "EditUsername")
     }

@@ -16,10 +16,11 @@
         android:gravity="center"
         android:orientation="vertical">
 
-        <View
+        <ImageView
             android:layout_width="72dp"
             android:layout_height="72dp"
-            android:background="@drawable/bg_logo_circle" />
+            android:contentDescription="@string/app_name"
+            android:src="@mipmap/ic_launcher" />
 
         <TextView
             android:layout_width="wrap_content"

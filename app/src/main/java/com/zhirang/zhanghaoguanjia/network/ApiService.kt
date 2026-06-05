@@ -71,6 +71,13 @@ interface ApiService {
     @PUT("users/me/username")
     suspend fun updateUsername(@Body request: UpdateUsernameRequest): ApiResponse<UserDto>
 
+    @Multipart
+    @POST("files/{type}")
+    suspend fun uploadFile(
+        @Path("type") type: String,
+        @Part file: MultipartBody.Part
+    ): ApiResponse<Map<String, String>>
+
     @PUT("users/me/password")
     suspend fun updatePassword(@Body request: ChangePasswordRequest): ApiResponse<Unit>
 }

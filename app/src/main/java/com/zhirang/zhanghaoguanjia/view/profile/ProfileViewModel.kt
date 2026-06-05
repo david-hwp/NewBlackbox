@@ -1,10 +1,12 @@
 package com.zhirang.zhanghaoguanjia.view.profile
 
+import android.net.Uri
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.launch
+import com.zhirang.zhanghaoguanjia.app.App
 import com.zhirang.zhanghaoguanjia.bean.dto.UserDto
 import com.zhirang.zhanghaoguanjia.data.TokenManager
 import com.zhirang.zhanghaoguanjia.data.UserRepository
@@ -39,8 +41,21 @@ class ProfileViewModel : ViewModel() {
     }
 
     fun updateUsername(username: String) {
+        updateProfile(username, null, _userProfileLiveData.value?.avatarUrl)
+    }
+
+    fun updateProfile(username: String, avatarUri: Uri?, currentAvatarUrl: String?) {
         viewModelScope.launch {
-            val result = userRepository.updateUsername(username)
+            val avatarUrlResult = if (avatarUri != null) {
+                userRepository.uploadAvatar(App.getContext(), avatarUri)
+            } else {
+                Result.success(currentAvatarUrl)
+            }
+            if (avatarUrlResult.isFailure) {
+                errorLiveData.value = avatarUrlResult.exceptionOrNull()?.message ?: "头像上传失败"
+                return@launch
+            }
+            val result = userRepository.updateUsername(username, avatarUrlResult.getOrNull())
             result.fold(
                 onSuccess = { user ->
                     tokenManager.saveUser(user)
