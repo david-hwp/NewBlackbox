@@ -351,6 +351,19 @@ object EngineProxy {
         }
     }
 
+    fun refreshShopInfoByPlatform(platform: String, packageName: String): List<ShopInfo> {
+        if (!isConnected()) {
+            Log.w(TAG, "refreshShopInfoByPlatform: Engine not connected")
+            return emptyList()
+        }
+        return try {
+            mEngine!!.refreshShopInfoByPlatform(platform, packageName) ?: emptyList()
+        } catch (e: RemoteException) {
+            markRemoteFailure("refreshShopInfoByPlatform($platform, $packageName)", e)
+            emptyList()
+        }
+    }
+
     // === Session (Phase 6) ===
 
     fun registerSession(sessionId: String, expireAt: Long) {

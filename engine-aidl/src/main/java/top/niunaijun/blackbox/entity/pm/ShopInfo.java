@@ -18,6 +18,10 @@ public class ShopInfo implements Parcelable {
     public String platform;
     /** Timestamp (System.currentTimeMillis()) when the extraction occurred. */
     public long extractedAt;
+    /** Virtual app package name that produced this info. */
+    public String packageName;
+    /** Virtual user ID that produced this info. */
+    public int userId;
 
     /**
      * Constructs a ShopInfo with the given fields and sets extractedAt to now.
@@ -27,6 +31,13 @@ public class ShopInfo implements Parcelable {
         this.shopName = shopName;
         this.platform = platform;
         this.extractedAt = System.currentTimeMillis();
+        this.userId = -1;
+    }
+
+    public ShopInfo(String shopId, String shopName, String platform, String packageName, int userId) {
+        this(shopId, shopName, platform);
+        this.packageName = packageName;
+        this.userId = userId;
     }
 
     /**
@@ -40,6 +51,8 @@ public class ShopInfo implements Parcelable {
         this.shopName = in.readString();
         this.platform = in.readString();
         this.extractedAt = in.readLong();
+        this.packageName = in.readString();
+        this.userId = in.readInt();
     }
 
     @Override
@@ -48,6 +61,8 @@ public class ShopInfo implements Parcelable {
         dest.writeString(this.shopName);
         dest.writeString(this.platform);
         dest.writeLong(this.extractedAt);
+        dest.writeString(this.packageName);
+        dest.writeInt(this.userId);
     }
 
     @Override
@@ -69,6 +84,6 @@ public class ShopInfo implements Parcelable {
 
     @Override
     public String toString() {
-        return "ShopInfo{shopId='" + shopId + "', shopName='" + shopName + "', platform='" + platform + "', extractedAt=" + extractedAt + "}";
+        return "ShopInfo{shopId='" + shopId + "', shopName='" + shopName + "', platform='" + platform + "', extractedAt=" + extractedAt + ", packageName='" + packageName + "', userId=" + userId + "}";
     }
 }

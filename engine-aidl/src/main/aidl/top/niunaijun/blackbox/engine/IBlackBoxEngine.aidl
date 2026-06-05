@@ -43,6 +43,7 @@ interface IBlackBoxEngine {
 
     ShopInfo getShopInfo(String packageName, int userId);
     oneway void triggerShopIdExtract(String packageName, int userId);
+    List<ShopInfo> refreshShopInfoByPlatform(String platform, String packageName);
 
     void registerSession(String sessionId, long expireAt);
     void unregisterSession();

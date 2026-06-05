@@ -193,6 +193,34 @@ class BlackBoxEngineService : Service() {
             }
         }
 
+        override fun refreshShopInfoByPlatform(platform: String?, packageName: String?): MutableList<ShopInfo> {
+            val targetPackage = packageName?.takeIf { it.isNotBlank() } ?: return mutableListOf()
+            val targetPlatform = platform?.takeIf { it.isNotBlank() }
+            val result = mutableListOf<ShopInfo>()
+            try {
+                BlackBoxCore.get().getUsers().orEmpty().forEach { user ->
+                    val userId = user.id
+                    if (!BlackBoxCore.get().isInstalled(targetPackage, userId)) {
+                        return@forEach
+                    }
+                    val shopInfo = ShopIdManager.get().extractNow(targetPackage, userId, ctx)
+                    if (shopInfo?.shopId.isNullOrBlank()) {
+                        return@forEach
+                    }
+                    if (!targetPlatform.isNullOrBlank() && shopInfo.platform != targetPlatform) {
+                        return@forEach
+                    }
+                    shopInfo.packageName = targetPackage
+                    shopInfo.userId = userId
+                    result.add(shopInfo)
+                }
+                Slog.d(TAG, "refreshShopInfoByPlatform platform=$platform package=$targetPackage size=${result.size}")
+            } catch (e: Exception) {
+                Slog.w(TAG, "refreshShopInfoByPlatform failed platform=$platform package=$targetPackage", e)
+            }
+            return result
+        }
+
         override fun registerSession(sessionId: String?, expireAt: Long) {
             // Session management - to be implemented in Wave 2
             Slog.d(TAG, "registerSession: $sessionId, expireAt: $expireAt")

@@ -170,6 +170,8 @@ class HomeViewModel : ViewModel() {
         }
     }
 
+    fun getAllShops(): List<Shop> = allShops
+
     fun updateComputeBalance(balance: Int) {
         _computeBalanceLiveData.value = balance
     }

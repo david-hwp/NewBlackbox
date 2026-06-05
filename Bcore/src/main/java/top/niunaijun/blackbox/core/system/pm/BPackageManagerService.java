@@ -814,7 +814,7 @@ public class BPackageManagerService extends IBPackageManagerService.Stub impleme
             if (state.shopId == null) {
                 return null;
             }
-            return new ShopInfo(state.shopId, state.shopName, state.platform);
+            return new ShopInfo(state.shopId, state.shopName, state.platform, packageName, userId);
         }
     }
 

@@ -23,6 +23,7 @@ import top.niunaijun.blackboxa.bean.dto.AnnouncementDto
 import top.niunaijun.blackboxa.databinding.ActivityHomeBinding
 import top.niunaijun.blackboxa.engine.EngineInstaller
 import top.niunaijun.blackboxa.engine.EngineProxy
+import top.niunaijun.blackboxa.bean.Platform
 import top.niunaijun.blackboxa.util.inflate
 import top.niunaijun.blackboxa.util.toast
 import top.niunaijun.blackboxa.view.dialog.DeleteShopSheetFragment
@@ -43,8 +44,10 @@ class HomeActivity : AppCompatActivity() {
     private val handler = Handler(Looper.getMainLooper())
     private val pendingRecognitionKeys = mutableSetOf<String>()
     private var shouldRetryPendingOnNextList = false
+    private var shouldSyncCloneShopsOnNextList = false
     private var pendingEngineAction: (() -> Unit)? = null
     private var shownAnnouncementId: Long? = null
+    private val promptedCloneSwitchKeys = mutableSetOf<String>()
 
     companion object {
         private const val TAG = "HomeActivity"
@@ -123,6 +126,7 @@ class HomeActivity : AppCompatActivity() {
         }
         viewBinding.swipeRefreshShops.setOnRefreshListener {
             collapseSwipe()
+            shouldSyncCloneShopsOnNextList = true
             viewModel.loadShops()
         }
 
@@ -197,6 +201,10 @@ class HomeActivity : AppCompatActivity() {
             if (shouldRetryPendingOnNextList) {
                 shouldRetryPendingOnNextList = false
                 handler.postDelayed({ retryPendingShopRecognition() }, 800)
+            }
+            if (shouldSyncCloneShopsOnNextList) {
+                shouldSyncCloneShopsOnNextList = false
+                handler.postDelayed({ syncCloneShopStateForCurrentPlatform() }, 500)
             }
         }
 
@@ -543,6 +551,90 @@ class HomeActivity : AppCompatActivity() {
             }
     }
 
+    private fun syncCloneShopStateForCurrentPlatform() {
+        if (!EngineProxy.isConnected()) {
+            if (EngineInstaller.isEngineInstalled(this)) {
+                EngineProxy.addServiceAvailableCallback {
+                    runOnUiThread { syncCloneShopStateForCurrentPlatform() }
+                }
+                App.ensureEngineConnection()
+            }
+            return
+        }
+
+        val platformItem = viewModel.getSelectedPlatformItem() ?: return
+        if (!platformItem.available) {
+            return
+        }
+        val packageName = platformItem.packageName ?: return
+        val cloneInfos = EngineProxy.refreshShopInfoByPlatform(platformItem.platform.id, packageName)
+        if (cloneInfos.isEmpty()) {
+            return
+        }
+
+        val allShops = viewModel.getAllShops()
+        cloneInfos.forEach { shopInfo ->
+            val detectedShopId = shopInfo.shopId?.takeIf { it.isNotBlank() } ?: return@forEach
+            val detectedPlatform = shopInfo.platform?.takeIf { it.isNotBlank() }?.let { Platform.fromId(it) }
+                ?: platformItem.platform
+            val cloneOwner = allShops.firstOrNull { shop ->
+                shop.packageName == packageName &&
+                        shop.cloneInstanceId == buildCloneInstanceId(shop, packageName, shopInfo.userId)
+            }
+            if (cloneOwner == null || cloneOwner.isNew) {
+                return@forEach
+            }
+            if (cloneOwner.shopId == detectedShopId && cloneOwner.platform == detectedPlatform) {
+                return@forEach
+            }
+            val alreadyExists = allShops.any {
+                it.shopId == detectedShopId && it.platform == detectedPlatform && !it.isNew
+            }
+            if (alreadyExists) {
+                return@forEach
+            }
+            val promptKey = "${cloneOwner.id}:${detectedPlatform.id}:$detectedShopId"
+            if (!promptedCloneSwitchKeys.add(promptKey)) {
+                return@forEach
+            }
+            val detectedShopName = shopInfo.shopName?.takeIf { it.isNotBlank() }
+                ?: "${detectedPlatform.displayName}-$detectedShopId"
+            showCloneShopSwitchDialog(
+                sourceShop = cloneOwner,
+                detectedShop = Shop(
+                    id = 0,
+                    shopName = detectedShopName,
+                    shopId = detectedShopId,
+                    platform = detectedPlatform,
+                    remainingDays = 30,
+                    autoRenew = cloneOwner.autoRenew,
+                    packageName = packageName,
+                    cloneInstanceId = cloneOwner.cloneInstanceId
+                ),
+                promptKey = promptKey
+            )
+        }
+    }
+
+    private fun showCloneShopSwitchDialog(sourceShop: Shop, detectedShop: Shop, promptKey: String) {
+        if (isFinishing || isDestroyed) {
+            return
+        }
+        MaterialAlertDialogBuilder(this)
+            .setTitle("检测到店铺切换")
+            .setMessage("当前分身已切换到「${detectedShop.shopName}」，是否扣减 1 点算力并新增该店铺？")
+            .setNegativeButton("取消", null)
+            .setPositiveButton("确认") { _, _ ->
+                viewModel.completePendingShop(
+                    sourceShop,
+                    detectedShop,
+                    showMessage = true
+                )
+            }
+            .setOnDismissListener { promptedCloneSwitchKeys.remove(promptKey) }
+            .show()
+    }
+
     private fun ensureVirtualUserId(): Int {
         val users = EngineProxy.getUsers()
         return if (users.isEmpty()) {
@@ -628,6 +720,7 @@ class HomeActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         shouldRetryPendingOnNextList = true
+        shouldSyncCloneShopsOnNextList = true
         App.ensureEngineConnection()
         viewModel.refreshUserInfo()
         viewModel.loadShops()
@@ -636,6 +729,7 @@ class HomeActivity : AppCompatActivity() {
     override fun onDestroy() {
         handler.removeCallbacksAndMessages(null)
         pendingRecognitionKeys.clear()
+        promptedCloneSwitchKeys.clear()
         super.onDestroy()
     }
 }
