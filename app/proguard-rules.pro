@@ -30,7 +30,20 @@
 -keep @top.niunaijun.blackreflection.annotation.BClass class * {*;}
 -keep @top.niunaijun.blackreflection.annotation.BClassName class * {*;}
 -keep @top.niunaijun.blackreflection.annotation.BClassNameNotProcess class * {*;}
--keepattributes Signature,*Annotation*
+# Retrofit reflects on service method generic parameters and annotations.
+# Kotlin suspend APIs need these attributes kept in release builds.
+-keepattributes Signature,InnerClasses,EnclosingMethod,*Annotation*
+-keepclassmembers,allowshrinking,allowobfuscation interface * {
+    @retrofit2.http.* <methods>;
+}
+-if interface * { @retrofit2.http.* <methods>; }
+-keep,allowobfuscation interface <1>
+-dontwarn org.codehaus.mojo.animal_sniffer.IgnoreJRERequirement
+-dontwarn javax.annotation.**
+-dontwarn kotlin.Unit
+-dontwarn retrofit2.KotlinExtensions
+-dontwarn retrofit2.KotlinExtensions$*
+-keep,allowshrinking,allowobfuscation class kotlin.coroutines.Continuation
 -keep class com.google.gson.reflect.TypeToken { *; }
 -keep class * extends com.google.gson.reflect.TypeToken
 -keep interface com.zhirang.zhanghaoguanjia.network.ApiService { *; }
