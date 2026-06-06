@@ -18,6 +18,7 @@ import android.view.ViewTreeObserver
 import com.zhirang.zhanghaoguanjia.bean.Platform
 import com.zhirang.zhanghaoguanjia.bean.dto.PlatformItemDto
 import com.zhirang.zhanghaoguanjia.util.PlatformIconLoader
+import com.zhirang.zhanghaoguanjia.util.PlatformRegistry
 
 
 
@@ -122,11 +123,13 @@ class AppsAdapter : RVHolderFactory() {
         }
 
         private fun bindFallbackPlatformIcon(item: AppInfo) {
-            val platform = item.platform?.let { Platform.fromId(it) } ?: Platform.MEITUAN
+            val packageName = item.platformPackageName ?: item.packageName
+            val packagePlatform = PlatformRegistry.preferredPlatformForPackage(packageName)
+            val platform = packagePlatform?.platform ?: Platform.from(packageName, item.name)
             val platformItem = PlatformItemDto(
                 platform = platform,
                 displayName = item.name,
-                packageName = item.platformPackageName ?: item.packageName,
+                packageName = packageName,
                 iconKey = item.platformIconUrl ?: platform.id,
                 available = item.platformAvailable
             )
@@ -134,7 +137,7 @@ class AppsAdapter : RVHolderFactory() {
                 imageView = binding.icon,
                 item = platformItem,
                 platform = platform,
-                packageName = item.platformPackageName ?: item.packageName,
+                packageName = packageName,
                 available = item.platformAvailable
             )
         }

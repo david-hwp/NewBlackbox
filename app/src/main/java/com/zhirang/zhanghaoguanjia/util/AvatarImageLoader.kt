@@ -12,6 +12,7 @@ import com.zhirang.zhanghaoguanjia.data.TokenManager
 import com.zhirang.zhanghaoguanjia.network.RetrofitClient
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import java.util.Collections
 import java.util.concurrent.Executors
 
 object AvatarImageLoader {
@@ -21,6 +22,7 @@ object AvatarImageLoader {
     private val cache = object : LruCache<String, Bitmap>(20) {
         override fun sizeOf(key: String, value: Bitmap): Int = value.byteCount / 1024
     }
+    private val missingThumbnails = Collections.synchronizedSet(mutableSetOf<String>())
 
     fun bind(imageView: ImageView, fallbackView: TextView, avatarUrl: String?, initial: String) {
         fallbackView.text = initial.take(1).ifBlank { "我" }
@@ -32,7 +34,8 @@ object AvatarImageLoader {
 
         val resolvedUrl = RetrofitClient.resolveUrl(rawUrl)
         imageView.tag = resolvedUrl
-        cache.get(resolvedUrl)?.let { bitmap ->
+        val thumbnailUrl = thumbnailUrl(resolvedUrl)
+        (cache.get(thumbnailUrl) ?: cache.get(resolvedUrl))?.let { bitmap ->
             imageView.setImageBitmap(bitmap)
             imageView.visibility = View.VISIBLE
             fallbackView.visibility = View.GONE
@@ -41,8 +44,10 @@ object AvatarImageLoader {
 
         showFallback(imageView, fallbackView)
         executor.execute {
-            val bitmap = loadBitmap(resolvedUrl) ?: return@execute
-            cache.put(resolvedUrl, bitmap)
+            val loaded = loadPreferredBitmap(thumbnailUrl, resolvedUrl) ?: return@execute
+            val loadedUrl = loaded.first
+            val bitmap = loaded.second
+            cache.put(loadedUrl, bitmap)
             mainHandler.post {
                 if (imageView.tag == resolvedUrl) {
                     imageView.setImageBitmap(bitmap)
@@ -75,5 +80,34 @@ object AvatarImageLoader {
         } catch (e: Exception) {
             null
         }
+    }
+
+    private fun loadPreferredBitmap(thumbnailUrl: String, originalUrl: String): Pair<String, Bitmap>? {
+        if (thumbnailUrl != originalUrl && !missingThumbnails.contains(thumbnailUrl)) {
+            loadBitmap(thumbnailUrl)?.let { bitmap ->
+                return thumbnailUrl to bitmap
+            }
+            missingThumbnails.add(thumbnailUrl)
+        }
+        return loadBitmap(originalUrl)?.let { originalUrl to it }
+    }
+
+    private fun thumbnailUrl(url: String): String {
+        if (url.endsWith(".thumb.jpg")) {
+            return url
+        }
+        val queryStart = url.indexOf('?')
+        val hashStart = url.indexOf('#')
+        val splitIndex = listOf(queryStart, hashStart).filter { it >= 0 }.minOrNull() ?: url.length
+        val path = url.substring(0, splitIndex)
+        val suffix = url.substring(splitIndex)
+        val slash = path.lastIndexOf('/')
+        val dot = path.lastIndexOf('.')
+        val thumbPath = if (dot > slash) {
+            path.substring(0, dot) + ".thumb.jpg"
+        } else {
+            "$path.thumb.jpg"
+        }
+        return thumbPath + suffix
     }
 }

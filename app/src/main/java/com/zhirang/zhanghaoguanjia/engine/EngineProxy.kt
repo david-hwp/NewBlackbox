@@ -3,6 +3,8 @@ package com.zhirang.zhanghaoguanjia.engine
 import android.content.pm.ApplicationInfo
 import android.os.RemoteException
 import android.util.Log
+import com.zhirang.zhanghaoguanjia.data.TokenManager
+import com.zhirang.zhanghaoguanjia.network.RetrofitClient
 import top.niunaijun.blackbox.core.system.am.IBActivityManagerService
 import top.niunaijun.blackbox.core.system.location.IBLocationManagerService
 import top.niunaijun.blackbox.core.system.pm.IBPackageManagerService
@@ -28,6 +30,7 @@ object EngineProxy {
     fun init(engine: IBlackBoxEngine) {
         mEngine = engine
         Log.d(TAG, "EngineProxy initialized")
+        configureLogUpload()
 
         synchronized(serviceAvailableCallbacks) {
             serviceAvailableCallbacks.forEach { callback ->
@@ -312,15 +315,42 @@ object EngineProxy {
 
     // === Logging ===
 
+    fun configureLogUpload(): Boolean {
+        if (!isConnected()) {
+            return false
+        }
+        return try {
+            mEngine!!.configureLogUpload(
+                RetrofitClient.resolveUrl("feedbacks/log-upload"),
+                TokenManager.getInstance().getToken()
+            )
+            true
+        } catch (e: RemoteException) {
+            Log.w(TAG, "configureLogUpload is unavailable: ${e.message}")
+            false
+        }
+    }
+
     fun sendLogs(caption: String, async: Boolean) {
         if (!isConnected()) {
             Log.w(TAG, "sendLogs: Engine not connected")
             return
         }
         try {
-            mEngine!!.sendLogs(caption, async)
+            configureLogUpload()
+            mEngine!!.sendLogsToEndpoint(
+                caption,
+                async,
+                RetrofitClient.resolveUrl("feedbacks/log-upload"),
+                TokenManager.getInstance().getToken()
+            )
         } catch (e: RemoteException) {
-            markRemoteFailure("sendLogs", e)
+            Log.w(TAG, "sendLogsToEndpoint failed, falling back to legacy sendLogs: ${e.message}")
+            try {
+                mEngine!!.sendLogs(caption, async)
+            } catch (fallback: RemoteException) {
+                markRemoteFailure("sendLogs", fallback)
+            }
         }
     }
 

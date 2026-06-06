@@ -22,6 +22,9 @@ public class EngineVersion {
     @Column(length = 64)
     private String checksum;
 
+    @Column(columnDefinition = "TEXT")
+    private String changelog;
+
     @Column(nullable = false)
     private Boolean available = true;
 
@@ -56,6 +59,9 @@ public class EngineVersion {
 
     public String getChecksum() { return checksum; }
     public void setChecksum(String checksum) { this.checksum = checksum; }
+
+    public String getChangelog() { return changelog; }
+    public void setChangelog(String changelog) { this.changelog = changelog; }
 
     public Boolean getAvailable() { return available; }
     public void setAvailable(Boolean available) { this.available = available; }

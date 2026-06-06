@@ -38,21 +38,24 @@ public class ShopController {
     @GetMapping
     public ApiResponse<List<ShopResponse>> list(
             @RequestParam(required = false) Long userId,
-            @RequestParam(required = false) String platform) {
+            @RequestParam(required = false) String packageName) {
         User currentUser = getCurrentUser();
         if (currentUser == null) {
             return ApiResponse.error(401, "未登录");
         }
+        String packageFilter = normalize(packageName);
 
         List<Shop> shops;
         if (!isAdmin(currentUser)) {
-            shops = platform != null
-                    ? shopService.findByUserIdAndPlatform(currentUser.getId(), platform)
+            shops = packageFilter != null
+                    ? shopService.findByUserIdAndPackageName(currentUser.getId(), packageFilter)
                     : shopService.findByUserId(currentUser.getId());
         } else if (userId != null) {
-            shops = shopService.findByUserId(userId);
-        } else if (platform != null) {
-            shops = shopService.findByPlatform(platform);
+            shops = packageFilter != null
+                    ? shopService.findByUserIdAndPackageName(userId, packageFilter)
+                    : shopService.findByUserId(userId);
+        } else if (packageFilter != null) {
+            shops = shopService.findByPackageName(packageFilter);
         } else {
             shops = shopService.findAll();
         }
@@ -98,11 +101,16 @@ public class ShopController {
         if (userId == null) {
             return ApiResponse.error(401, "未登录");
         }
-        if (shopService.hasPendingShop(userId, shop.getPlatform(), "NEW-")) {
+        String packageName = normalize(shop.getPackageName());
+        if (packageName == null) {
+            return ApiResponse.error("缺少应用包名，无法添加店铺卡片");
+        }
+        if (shopService.hasPendingShopByPackage(userId, packageName, "NEW-")) {
             return ApiResponse.error("您已添加新店铺但未成功登录，请先完成登录后再添加");
         }
         shop.setId(null);
         shop.setUserId(userId);
+        shop.setPackageName(packageName);
         shop.setRemainingDays(shop.getRemainingDays() == null ? 30 : shop.getRemainingDays());
         shop.setAutoRenew(Boolean.TRUE.equals(shop.getAutoRenew()));
         Shop saved = shopService.create(shop);
@@ -121,16 +129,17 @@ public class ShopController {
         String detectedShopId = normalize(request.getShopId());
         String platform = normalize(request.getPlatform());
         String packageName = normalize(request.getPackageName());
-        if (!isRealShopId(detectedShopId) || platform == null || packageName == null) {
+        if (!isRealShopId(detectedShopId) || packageName == null) {
             return ApiResponse.error("店铺信息无效，无法新增");
         }
+        String displayPlatform = platform == null ? packageName : platform;
 
-        if (shopService.findByUserIdAndShopIdAndPlatform(userId, detectedShopId, platform).isPresent()) {
+        if (shopService.findByUserIdAndShopIdAndPackageName(userId, detectedShopId, packageName).isPresent()) {
             return ApiResponse.error("该店铺已添加");
         }
 
-        String pendingShopId = buildPendingSwitchShopId(platform, detectedShopId);
-        Optional<Shop> existingPending = shopService.findByUserIdAndShopIdAndPlatform(userId, pendingShopId, platform);
+        String pendingShopId = buildPendingSwitchShopId(packageName, detectedShopId);
+        Optional<Shop> existingPending = shopService.findByUserIdAndShopIdAndPackageName(userId, pendingShopId, packageName);
         if (existingPending.isPresent()) {
             User user = userService.refreshShopStats(userId);
             return ApiResponse.success(PendingShopDeductResponse.from(existingPending.get(), user, false));
@@ -139,8 +148,8 @@ public class ShopController {
         boolean deducted = computeService.deductCompute(
                 userId,
                 detectedShopId,
-                firstNonBlank(request.getShopName(), request.getPlatformName(), platform + "-" + detectedShopId),
-                platform
+                firstNonBlank(request.getShopName(), request.getPlatformName(), displayPlatform + "-" + detectedShopId),
+                displayPlatform
         );
         if (!deducted) {
             return ApiResponse.error(402, "算力余额不足");
@@ -149,10 +158,10 @@ public class ShopController {
         LocalDateTime now = LocalDateTime.now();
         Shop shop = new Shop();
         shop.setUserId(userId);
-        shop.setShopName(firstNonBlank(request.getShopName(), request.getPlatformName(), platform + "-" + detectedShopId));
+        shop.setShopName(firstNonBlank(request.getShopName(), request.getPlatformName(), displayPlatform + "-" + detectedShopId));
         shop.setShopId(pendingShopId);
-        shop.setPlatform(platform);
-        shop.setPlatformName(firstNonBlank(request.getPlatformName(), platform));
+        shop.setPlatform(displayPlatform);
+        shop.setPlatformName(firstNonBlank(request.getPlatformName(), displayPlatform));
         shop.setPackageName(packageName);
         shop.setRemainingDays(request.getRemainingDays() == null ? 30 : request.getRemainingDays());
         shop.setAutoRenew(Boolean.TRUE.equals(request.getAutoRenew()));
@@ -276,8 +285,8 @@ public class ShopController {
                 && !shopId.startsWith("NEW-");
     }
 
-    private String buildPendingSwitchShopId(String platform, String shopId) {
-        return "NEW-SWITCH-" + platform + "-" + sha256(shopId).substring(0, 16);
+    private String buildPendingSwitchShopId(String packageName, String shopId) {
+        return "NEW-SWITCH-" + sha256(packageName).substring(0, 10) + "-" + sha256(shopId).substring(0, 16);
     }
 
     private String sha256(String value) {

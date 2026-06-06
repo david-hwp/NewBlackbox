@@ -13,7 +13,7 @@
         android:background="@color/duodian_primary"
         android:theme="@style/ToolBarColorStyle"
         app:navigationIcon="@drawable/ic_arrow_back"
-        app:title="引擎切换"
+        app:title="升级引擎"
         app:titleTextColor="@color/white" />
 
     <ProgressBar

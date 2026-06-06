@@ -28,12 +28,12 @@ public class ShopService {
         return shopRepository.findByUserId(userId);
     }
 
-    public List<Shop> findByUserIdAndPlatform(Long userId, String platform) {
-        return shopRepository.findByUserIdAndPlatform(userId, platform);
+    public List<Shop> findByUserIdAndPackageName(Long userId, String packageName) {
+        return shopRepository.findByUserIdAndPackageName(userId, packageName);
     }
 
-    public List<Shop> findByPlatform(String platform) {
-        return shopRepository.findByPlatform(platform);
+    public List<Shop> findByPackageName(String packageName) {
+        return shopRepository.findByPackageName(packageName);
     }
 
     public Shop create(Shop shop) {
@@ -44,29 +44,24 @@ public class ShopService {
         return shopRepository.findByUserIdAndShopId(userId, shopId);
     }
 
-    public Optional<Shop> findByUserIdAndShopIdAndPlatform(Long userId, String shopId, String platform) {
-        return shopRepository.findByUserIdAndShopIdAndPlatform(userId, shopId, platform);
+    public Optional<Shop> findByUserIdAndShopIdAndPackageName(Long userId, String shopId, String packageName) {
+        return shopRepository.findByUserIdAndShopIdAndPackageName(userId, shopId, packageName);
     }
 
     public Optional<Shop> findByUserIdAndCloneInstanceId(Long userId, String cloneInstanceId) {
         return shopRepository.findByUserIdAndCloneInstanceId(userId, cloneInstanceId);
     }
 
-    public Optional<Shop> findByUserIdAndPackageNameAndPlatform(Long userId, String packageName, String platform) {
-        return shopRepository.findByUserIdAndPackageNameAndPlatform(userId, packageName, platform);
-    }
-
-    public Optional<Shop> findPendingByUserPackageAndPlatform(Long userId, String packageName, String platform) {
-        return shopRepository.findFirstByUserIdAndPackageNameAndPlatformAndShopIdStartingWith(
+    public Optional<Shop> findPendingByUserPackage(Long userId, String packageName) {
+        return shopRepository.findFirstByUserIdAndPackageNameAndShopIdStartingWith(
                 userId,
                 packageName,
-                platform,
                 "NEW-"
         );
     }
 
-    public boolean hasPendingShop(Long userId, String platform, String shopIdPrefix) {
-        return shopRepository.existsByUserIdAndPlatformAndShopIdStartingWith(userId, platform, shopIdPrefix);
+    public boolean hasPendingShopByPackage(Long userId, String packageName, String shopIdPrefix) {
+        return shopRepository.existsByUserIdAndPackageNameAndShopIdStartingWith(userId, packageName, shopIdPrefix);
     }
 
     public Shop update(Long id, Shop shop) {

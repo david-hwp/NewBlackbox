@@ -8,13 +8,17 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.launch
 import com.zhirang.zhanghaoguanjia.app.App
 import com.zhirang.zhanghaoguanjia.bean.dto.UserDto
+import com.zhirang.zhanghaoguanjia.data.EngineVersionRepository
 import com.zhirang.zhanghaoguanjia.data.TokenManager
 import com.zhirang.zhanghaoguanjia.data.UserRepository
+import com.zhirang.zhanghaoguanjia.engine.EngineInstaller
+import com.zhirang.zhanghaoguanjia.engine.EngineUpgradeState
 import com.zhirang.zhanghaoguanjia.network.RetrofitClient
 
 class ProfileViewModel : ViewModel() {
 
     private val userRepository = UserRepository(RetrofitClient.apiService)
+    private val engineVersionRepository = EngineVersionRepository(RetrofitClient.apiService)
     private val tokenManager = TokenManager.getInstance()
 
     private val _userProfileLiveData = MutableLiveData<UserDto?>()
@@ -23,6 +27,7 @@ class ProfileViewModel : ViewModel() {
     val updateResultLiveData = MutableLiveData<Result<UserDto>>()
     val passwordResultLiveData = MutableLiveData<Result<Unit>>()
     val errorLiveData = MutableLiveData<String>()
+    val hasEngineUpgradeLiveData = MutableLiveData<Boolean>()
 
     fun loadProfile() {
         _userProfileLiveData.value = tokenManager.getUser()
@@ -86,6 +91,33 @@ class ProfileViewModel : ViewModel() {
                 },
                 onFailure = { e ->
                     errorLiveData.value = e.message
+                }
+            )
+        }
+    }
+
+    fun refreshEngineUpgradeState() {
+        viewModelScope.launch {
+            val context = App.getContext()
+            val installed = EngineInstaller.getInstalledEngineVersion(context)
+            val builtin = EngineInstaller.getBuiltinEngineVersion(context)
+            val current = maxOf(installed, builtin)
+            EngineUpgradeState.clearPendingIfInstalled(context, installed)
+
+            val result = engineVersionRepository.getAvailableVersions()
+            result.fold(
+                onSuccess = { versions ->
+                    val latest = versions.maxByOrNull { it.versionCode }
+                    val latestVersionCode = latest?.versionCode ?: 0
+                    val hasServerUpgrade = latestVersionCode > current
+                    if (hasServerUpgrade) {
+                        EngineUpgradeState.markPending(context, latestVersionCode)
+                    }
+                    hasEngineUpgradeLiveData.value =
+                        hasServerUpgrade || EngineUpgradeState.hasPendingUpgrade(context, current)
+                },
+                onFailure = {
+                    hasEngineUpgradeLiveData.value = EngineUpgradeState.hasPendingUpgrade(context, current)
                 }
             )
         }

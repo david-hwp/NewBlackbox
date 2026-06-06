@@ -13,6 +13,12 @@
         <el-table-column prop="versionCode" label="版本号" width="100" />
         <el-table-column prop="versionName" label="版本名称" width="140" />
         <el-table-column prop="apkUrl" label="APK地址" min-width="280" show-overflow-tooltip />
+        <el-table-column prop="changelog" label="更新日志" min-width="220" show-overflow-tooltip />
+        <el-table-column label="发布时间" width="180">
+          <template #default="{ row }">
+            {{ formatDateTime(row.createdAt) }}
+          </template>
+        </el-table-column>
         <el-table-column prop="available" label="可用" width="90">
           <template #default="{ row }">
             <el-tag :type="row.available ? 'success' : 'info'">{{ row.available ? '可用' : '停用' }}</el-tag>
@@ -51,6 +57,16 @@
         <el-form-item label="校验值">
           <el-input v-model="form.checksum" />
         </el-form-item>
+        <el-form-item label="更新日志">
+          <el-input
+            v-model="form.changelog"
+            type="textarea"
+            :rows="5"
+            maxlength="2000"
+            show-word-limit
+            placeholder="请输入本次引擎升级的更新内容"
+          />
+        </el-form-item>
         <el-form-item label="可用">
           <el-switch v-model="form.available" />
         </el-form-item>
@@ -74,7 +90,7 @@ const uploading = ref(false)
 const dialogVisible = ref(false)
 const isEdit = ref(false)
 const formRef = ref()
-const form = ref({ versionCode: 1, versionName: '', apkUrl: '', checksum: '', available: true })
+const form = ref({ versionCode: 1, versionName: '', apkUrl: '', checksum: '', changelog: '', available: true })
 
 const rules = {
   versionCode: [{ required: true, message: '请输入版本号', trigger: 'blur' }],
@@ -93,14 +109,19 @@ const fetchVersions = async () => {
 
 const showAddDialog = () => {
   isEdit.value = false
-  form.value = { versionCode: 1, versionName: '', apkUrl: '', checksum: '', available: true }
+  form.value = { versionCode: 1, versionName: '', apkUrl: '', checksum: '', changelog: '', available: true }
   dialogVisible.value = true
 }
 
 const showEditDialog = (row) => {
   isEdit.value = true
-  form.value = { ...row }
+  form.value = { ...row, changelog: row.changelog || '' }
   dialogVisible.value = true
+}
+
+const formatDateTime = (value) => {
+  if (!value) return '-'
+  return String(value).replace('T', ' ').slice(0, 19)
 }
 
 const handleApkChange = async (uploadFile) => {

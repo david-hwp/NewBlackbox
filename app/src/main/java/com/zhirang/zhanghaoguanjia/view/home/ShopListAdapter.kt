@@ -80,12 +80,16 @@ class ShopListAdapter(
             // 自动续时三角标
             autoRenewTriangle.visibility = if (shop.autoRenew) View.VISIBLE else View.GONE
 
-            val platformItem = PlatformRegistry.get(shop.platform)
+            val packageName = shop.packageName?.takeIf { it.isNotBlank() }
+            val platformItem = PlatformRegistry.preferredPlatformForPackage(packageName)
+            val iconPlatform = platformItem?.platform
+                ?: packageName?.let { com.zhirang.zhanghaoguanjia.bean.Platform.from(it, shop.shopName) }
+                ?: shop.platform
             PlatformIconLoader.bind(
                 imageView = shopLogo,
                 item = platformItem,
-                platform = shop.platform,
-                packageName = shop.packageName ?: platformItem?.packageName,
+                platform = iconPlatform,
+                packageName = packageName,
                 available = platformItem?.available ?: true
             )
 

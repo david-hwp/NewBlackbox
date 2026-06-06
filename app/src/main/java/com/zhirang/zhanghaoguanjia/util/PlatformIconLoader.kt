@@ -58,13 +58,14 @@ object PlatformIconLoader {
     }
 
     @DrawableRes
-    fun fallbackRes(platform: Platform): Int = when (platform) {
-        Platform.MEITUAN -> R.drawable.meituan
-        Platform.TAOBAO -> R.drawable.qianniu
-        Platform.JD -> R.drawable.jd
-        Platform.KUAISHOU -> R.drawable.kuaishou
-        Platform.XIAOHONGSHU -> R.drawable.xiaohongshu
-        Platform.ALI -> R.drawable.koubei
+    fun fallbackRes(platform: Platform): Int = when (platform.id) {
+        Platform.MEITUAN.id -> R.drawable.meituan
+        Platform.TAOBAO.id -> R.drawable.qianniu
+        Platform.JD.id -> R.drawable.jd
+        Platform.KUAISHOU.id -> R.drawable.kuaishou
+        Platform.XIAOHONGSHU.id -> R.drawable.xiaohongshu
+        Platform.ALI.id -> R.drawable.koubei
+        else -> R.mipmap.ic_launcher
     }
 
     private fun loadInstalledPackageIcon(context: Context, packageName: String?): Drawable? {

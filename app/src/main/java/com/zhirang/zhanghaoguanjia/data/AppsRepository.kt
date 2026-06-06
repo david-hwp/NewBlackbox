@@ -312,7 +312,7 @@ class AppsRepository {
                         null
                     }
 
-                    val platformItem = PlatformRegistry.get(shopInfo?.platform)
+                    val platformItem = PlatformRegistry.preferredPlatformForPackage(applicationInfo.packageName)
                     val platformAvailable = platformItem?.available ?: true
                     val icon = try {
                         applicationInfo.loadIcon(App.getContext().packageManager)

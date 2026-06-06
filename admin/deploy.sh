@@ -11,9 +11,13 @@ if [ -n "$ENV_FILE" ]; then
     exit 1
   fi
   COMPOSE_ENV_ARGS=(--env-file "$ENV_FILE")
+  set -a
+  # shellcheck disable=SC1090
+  source "$ADMIN_DIR/$ENV_FILE"
+  set +a
 fi
 
-export DUODIAN_DATA_DIR="${DUODIAN_DATA_DIR:-$HOME/dianpuguanjia}"
+export DUODIAN_DATA_DIR="${DUODIAN_DATA_DIR:-$HOME/zhanghaoguanjia}"
 
 require_cmd() {
   if ! command -v "$1" >/dev/null 2>&1; then

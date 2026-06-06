@@ -37,7 +37,7 @@
     <string name="app_shortcut">Create Shortcut</string>
     <string name="shortcut_name">Shortcut Name</string>
     <string name="try_add_shortcut">Try Added To Desktop</string>
-    <string name="add_shortcut_fail_msg">If the addition fails, please go to system settings and open the permission of "create desktop shortcut" for BlackBox</string>
+    <string name="add_shortcut_fail_msg">If the addition fails, please go to system settings and open the permission of "create desktop shortcut" for zhanghaoguanjia</string>
     <string name="install_success">Installed Successfully</string>
     <string name="install_fail">Installed Failed: %s</string>
     <string name="install_fail_no_msg">Installed Failed</string>
@@ -76,6 +76,8 @@
     <string name="duodian_login_subtitle">多平台店铺管理专家</string>
     <string name="duodian_phone_hint">请输入手机号</string>
     <string name="duodian_password_hint">请输入密码</string>
+    <string name="show_password">显示密码</string>
+    <string name="hide_password">隐藏密码</string>
     <string name="duodian_login_btn">登 录</string>
     <string name="duodian_register_link">注册账号</string>
     <string name="duodian_login_empty">请输入手机号和密码</string>

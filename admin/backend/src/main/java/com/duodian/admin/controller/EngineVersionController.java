@@ -38,6 +38,7 @@ public class EngineVersionController {
         existing.setVersionName(version.getVersionName());
         existing.setApkUrl(version.getApkUrl());
         existing.setChecksum(version.getChecksum());
+        existing.setChangelog(version.getChangelog());
         existing.setAvailable(version.getAvailable());
         return ApiResponse.success(repository.save(existing));
     }

@@ -3,7 +3,10 @@ package com.zhirang.zhanghaoguanjia.view.dialog
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
+import android.text.method.PasswordTransformationMethod
 import android.view.View
+import android.widget.EditText
+import android.widget.ImageButton
 import com.zhirang.zhanghaoguanjia.R
 import com.zhirang.zhanghaoguanjia.databinding.BottomSheetChangePasswordBinding
 import com.zhirang.zhanghaoguanjia.view.base.BaseBottomSheetFragment
@@ -23,6 +26,10 @@ class ChangePasswordSheetFragment : BaseBottomSheetFragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         _binding = BottomSheetChangePasswordBinding.bind(view)
+
+        setupPasswordToggle(binding.etOldPassword, binding.btnToggleOldPassword)
+        setupPasswordToggle(binding.etNewPassword, binding.btnToggleNewPassword)
+        setupPasswordToggle(binding.etConfirmPassword, binding.btnToggleConfirmPassword)
 
         binding.btnCancel.setOnClickListener {
             dismissWithAnimation()
@@ -47,6 +54,22 @@ class ChangePasswordSheetFragment : BaseBottomSheetFragment() {
                 validatePasswords(showError = false)
             }
         })
+    }
+
+    private fun setupPasswordToggle(input: EditText, button: ImageButton) {
+        setPasswordVisible(input, button, visible = false)
+        button.setOnClickListener {
+            val nextVisible = input.transformationMethod is PasswordTransformationMethod
+            setPasswordVisible(input, button, nextVisible)
+        }
+    }
+
+    private fun setPasswordVisible(input: EditText, button: ImageButton, visible: Boolean) {
+        val cursorPosition = input.selectionStart.coerceAtLeast(0)
+        input.transformationMethod = if (visible) null else PasswordTransformationMethod.getInstance()
+        input.setSelection(cursorPosition.coerceAtMost(input.text?.length ?: 0))
+        button.setImageResource(if (visible) R.drawable.ic_visibility_off else R.drawable.ic_visibility)
+        button.contentDescription = getString(if (visible) R.string.hide_password else R.string.show_password)
     }
 
     private fun validatePasswords(showError: Boolean = true): Boolean {

@@ -11,6 +11,7 @@ import android.text.TextWatcher
 import android.util.Log
 import android.view.MotionEvent
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -23,15 +24,22 @@ import com.zhirang.zhanghaoguanjia.bean.dto.AnnouncementDto
 import com.zhirang.zhanghaoguanjia.databinding.ActivityHomeBinding
 import com.zhirang.zhanghaoguanjia.engine.EngineInstaller
 import com.zhirang.zhanghaoguanjia.engine.EngineProxy
+import com.zhirang.zhanghaoguanjia.engine.EngineUpgradeManager
+import com.zhirang.zhanghaoguanjia.engine.EngineVersionChecker
 import com.zhirang.zhanghaoguanjia.bean.Platform
+import com.zhirang.zhanghaoguanjia.util.AvatarImageLoader
 import com.zhirang.zhanghaoguanjia.util.inflate
 import com.zhirang.zhanghaoguanjia.util.PlatformRegistry
 import com.zhirang.zhanghaoguanjia.util.toast
 import com.zhirang.zhanghaoguanjia.view.dialog.DeleteShopSheetFragment
 import com.zhirang.zhanghaoguanjia.view.dialog.EditShopSheetFragment
+import com.zhirang.zhanghaoguanjia.view.dialog.EngineUpgradeDialog
 import com.zhirang.zhanghaoguanjia.view.logs.LogsActivity
 import com.zhirang.zhanghaoguanjia.view.profile.ProfileActivity
 import com.zhirang.zhanghaoguanjia.view.splash.EngineInstallActivity
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.security.MessageDigest
 
 class HomeActivity : AppCompatActivity() {
@@ -49,6 +57,7 @@ class HomeActivity : AppCompatActivity() {
     private var pendingEngineAction: (() -> Unit)? = null
     private var shownAnnouncementId: Long? = null
     private val promptedCloneSwitchKeys = mutableSetOf<String>()
+    private var engineUpgradeCheckInFlight = false
 
     companion object {
         private const val TAG = "HomeActivity"
@@ -73,6 +82,7 @@ class HomeActivity : AppCompatActivity() {
         initClickListeners()
         observeData()
         App.ensureEngineConnection()
+        checkForEngineUpgrade(force = true)
     }
 
     private fun initViewModel() {
@@ -193,7 +203,21 @@ class HomeActivity : AppCompatActivity() {
 
         viewModel.displayUsernameLiveData.observe(this) { username ->
             viewBinding.tvHeaderUsername.text = username
-            viewBinding.tvHeaderInitial.text = username.firstOrNull()?.toString() ?: "我"
+            AvatarImageLoader.bind(
+                imageView = viewBinding.ivHeaderAvatar,
+                fallbackView = viewBinding.tvHeaderInitial,
+                avatarUrl = viewModel.avatarUrlLiveData.value,
+                initial = username
+            )
+        }
+
+        viewModel.avatarUrlLiveData.observe(this) { avatarUrl ->
+            AvatarImageLoader.bind(
+                imageView = viewBinding.ivHeaderAvatar,
+                fallbackView = viewBinding.tvHeaderInitial,
+                avatarUrl = avatarUrl,
+                initial = viewBinding.tvHeaderUsername.text?.toString().orEmpty()
+            )
         }
 
         viewModel.shopsLiveData.observe(this) {
@@ -510,9 +534,7 @@ class HomeActivity : AppCompatActivity() {
             }
             return
         }
-        val platform = shopInfo.platform.takeIf { it.isNotBlank() }?.let {
-            com.zhirang.zhanghaoguanjia.bean.Platform.fromId(it)
-        } ?: pendingShop.platform
+        val platform = pendingShop.platform
         val finalShopName = shopName ?: pendingShop.shopName
             .takeUnless { it.contains("未知") || it.startsWith("User[") }
             ?: "${resolvePlatformName(platform)}-$shopId"
@@ -539,9 +561,9 @@ class HomeActivity : AppCompatActivity() {
         return "${shop.id}:$packageName:$userId"
     }
 
-    private fun buildCloneInstanceId(shop: Shop, packageName: String, userId: Int): String {
+    private fun buildCloneInstanceId(@Suppress("UNUSED_PARAMETER") shop: Shop, packageName: String, userId: Int): String {
         val appUserId = viewModel.getCurrentUserId()
-        val source = "$appUserId:${shop.platform.id}:$packageName:$userId"
+        val source = "$appUserId:$packageName:$userId"
         val digest = MessageDigest.getInstance("SHA-256")
             .digest(source.toByteArray(Charsets.UTF_8))
             .joinToString("") { "%02x".format(it) }
@@ -584,7 +606,7 @@ class HomeActivity : AppCompatActivity() {
             return
         }
         val packageName = platformItem.packageName ?: return
-        val cloneInfos = EngineProxy.refreshShopInfoByPlatform(platformItem.platform.id, packageName)
+        val cloneInfos = EngineProxy.refreshShopInfoByPlatform("", packageName)
         if (cloneInfos.isEmpty()) {
             return
         }
@@ -592,26 +614,25 @@ class HomeActivity : AppCompatActivity() {
         val allShops = viewModel.getAllShops()
         cloneInfos.forEach { shopInfo ->
             val detectedShopId = shopInfo.shopId?.takeIf { it.isNotBlank() } ?: return@forEach
-            val detectedPlatform = shopInfo.platform?.takeIf { it.isNotBlank() }?.let { Platform.fromId(it) }
-                ?: platformItem.platform
+            val detectedPlatform = platformItem.platform
             val cloneOwner = allShops.firstOrNull { shop ->
                 resolveShopPackageName(shop) == packageName &&
-                        shop.cloneInstanceId == buildCloneInstanceId(shop, packageName, shopInfo.userId)
+                        findUserIdForCloneInstance(shop, packageName) == shopInfo.userId
             }
             if (cloneOwner == null || cloneOwner.isNew) {
                 return@forEach
             }
-            if (cloneOwner.shopId == detectedShopId && cloneOwner.platform == detectedPlatform) {
+            if (cloneOwner.shopId == detectedShopId) {
                 return@forEach
             }
             val alreadyExists = allShops.any {
-                it.platform == detectedPlatform &&
-                        (it.shopId == detectedShopId || it.shopId == buildPendingSwitchShopId(detectedPlatform, detectedShopId))
+                resolveShopPackageName(it) == packageName &&
+                        (it.shopId == detectedShopId || it.shopId == buildPendingSwitchShopId(packageName, detectedShopId))
             }
             if (alreadyExists) {
                 return@forEach
             }
-            val promptKey = "${cloneOwner.id}:${buildPendingSwitchShopId(detectedPlatform, detectedShopId)}"
+            val promptKey = "${cloneOwner.id}:${buildPendingSwitchShopId(packageName, detectedShopId)}"
             if (!promptedCloneSwitchKeys.add(promptKey)) {
                 return@forEach
             }
@@ -720,23 +741,33 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun findUserIdForCloneInstance(shop: Shop, packageName: String): Int? {
-        val cloneInstanceId = shop.cloneInstanceId?.takeIf { it.isNotBlank() } ?: return null
-        return EngineProxy.getUsers()
-            .firstOrNull { buildCloneInstanceId(shop, packageName, it.id) == cloneInstanceId }
-            ?.id
+        val users = EngineProxy.getUsers()
+        shop.cloneInstanceId?.takeIf { it.isNotBlank() }?.let { cloneInstanceId ->
+            users.firstOrNull { buildCloneInstanceId(shop, packageName, it.id) == cloneInstanceId }?.let {
+                return it.id
+            }
+        }
+        shop.shopId.takeIf { it.isNotBlank() && it != "-" && !it.startsWith("NEW-") }?.let { realShopId ->
+            users.firstOrNull { user ->
+                EngineProxy.isInstalled(packageName, user.id) &&
+                        EngineProxy.getShopInfo(packageName, user.id)?.shopId == realShopId
+            }?.let {
+                return it.id
+            }
+        }
+        return users.firstOrNull { EngineProxy.isInstalled(packageName, it.id) }?.id
     }
 
     private fun resolveShopPackageName(shop: Shop): String? {
         return shop.packageName?.takeIf { it.isNotBlank() }
-            ?: PlatformRegistry.packageName(shop.platform)
     }
 
     private fun resolvePlatformName(platform: Platform): String {
         return PlatformRegistry.displayName(platform)
     }
 
-    private fun buildPendingSwitchShopId(platform: Platform, shopId: String): String {
-        return "NEW-SWITCH-${platform.id}-${sha256(shopId.trim()).take(16)}"
+    private fun buildPendingSwitchShopId(packageName: String, shopId: String): String {
+        return "NEW-SWITCH-${sha256(packageName.trim()).take(10)}-${sha256(shopId.trim()).take(16)}"
     }
 
     private fun sha256(value: String): String {
@@ -818,6 +849,84 @@ class HomeActivity : AppCompatActivity() {
         collapseSwipe()
     }
 
+    private fun checkForEngineUpgrade(force: Boolean = false) {
+        if (engineUpgradeCheckInFlight) {
+            return
+        }
+        engineUpgradeCheckInFlight = true
+        lifecycleScope.launch {
+            try {
+                val upgradeInfo = withContext(Dispatchers.IO) {
+                    EngineVersionChecker.checkForUpgrade(this@HomeActivity, force)
+                } ?: return@launch
+
+                if (upgradeInfo.downloadUrl.isBlank()) {
+                    withContext(Dispatchers.IO) {
+                        EngineInstaller.installFromAssets(this@HomeActivity)
+                    }
+                    return@launch
+                }
+                if (EngineVersionChecker.isVersionSkipped(this@HomeActivity, upgradeInfo.versionCode)) {
+                    return@launch
+                }
+                showEngineUpgradeDialog(upgradeInfo)
+            } catch (e: Exception) {
+                Log.e(TAG, "Error checking engine upgrade: ${e.message}", e)
+            } finally {
+                engineUpgradeCheckInFlight = false
+            }
+        }
+    }
+
+    private fun showEngineUpgradeDialog(upgradeInfo: EngineVersionChecker.UpgradeInfo) {
+        if (isFinishing || isDestroyed) {
+            return
+        }
+        if (supportFragmentManager.findFragmentByTag("EngineUpgradeDialog") != null) {
+            return
+        }
+        val currentVersion = EngineInstaller.getInstalledEngineVersion(this)
+        var dialog: EngineUpgradeDialog? = null
+        dialog = EngineUpgradeDialog.show(
+            supportFragmentManager,
+            upgradeInfo,
+            currentVersion,
+            object : EngineUpgradeDialog.UpgradeDialogListener {
+                override fun onUpgradeNow(versionCode: Int) {
+                    if (!EngineInstaller.canInstallUnknownApps(this@HomeActivity)) {
+                        toast("请先允许账号管家安装未知应用")
+                        EngineInstaller.openInstallPermissionSettings(this@HomeActivity)
+                        dialog?.showError("请授权后重新点击升级")
+                        return
+                    }
+                    lifecycleScope.launch {
+                        dialog?.showInstalling()
+                        val result = withContext(Dispatchers.IO) {
+                            EngineUpgradeManager.downloadAndInstall(this@HomeActivity, upgradeInfo)
+                        }
+                        result.fold(
+                            onSuccess = {
+                                toast("已开始安装引擎，请在系统弹窗中确认")
+                                dialog?.dismissSafely()
+                            },
+                            onFailure = { e ->
+                                dialog?.showError(e.message ?: "引擎升级失败")
+                            }
+                        )
+                    }
+                }
+
+                override fun onUpgradeLater(versionCode: Int) {
+                    EngineVersionChecker.skipVersion(this@HomeActivity, versionCode)
+                }
+
+                override fun onExitApp() {
+                    finish()
+                }
+            }
+        )
+    }
+
     override fun onResume() {
         super.onResume()
         shouldRetryPendingOnNextList = true
@@ -825,6 +934,7 @@ class HomeActivity : AppCompatActivity() {
         App.ensureEngineConnection()
         viewModel.refreshUserInfo()
         viewModel.loadShops()
+        checkForEngineUpgrade()
     }
 
     override fun onDestroy() {

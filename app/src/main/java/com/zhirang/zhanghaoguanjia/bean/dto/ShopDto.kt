@@ -19,7 +19,7 @@ data class ShopDto(
         id = id,
         shopName = shopName,
         shopId = shopId,
-        platform = Platform.fromId(platform),
+        platform = Platform.from(platform, platformName),
         remainingDays = remainingDays,
         autoRenew = autoRenew,
         packageName = packageName,

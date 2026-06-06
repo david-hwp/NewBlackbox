@@ -11,8 +11,8 @@ import java.util.List;
 @Repository
 public interface ShopRepository extends JpaRepository<Shop, Long> {
     List<Shop> findByUserId(Long userId);
-    List<Shop> findByUserIdAndPlatform(Long userId, String platform);
-    List<Shop> findByPlatform(String platform);
+    List<Shop> findByUserIdAndPackageName(Long userId, String packageName);
+    List<Shop> findByPackageName(String packageName);
     long countByUserId(Long userId);
     @Query("""
             select count(s)
@@ -24,25 +24,23 @@ public interface ShopRepository extends JpaRepository<Shop, Long> {
     long countRealShopsByUserId(@Param("userId") Long userId);
 
     @Query("""
-            select count(distinct s.platform)
+            select count(distinct s.packageName)
             from Shop s
             where s.userId = :userId
               and s.shopId is not null
               and s.shopId not like 'NEW-%'
-              and s.platform is not null
-              and s.platform <> ''
+              and s.packageName is not null
+              and s.packageName <> ''
             """)
     long countRealPlatformsByUserId(@Param("userId") Long userId);
 
     java.util.Optional<Shop> findByUserIdAndShopId(Long userId, String shopId);
-    java.util.Optional<Shop> findByUserIdAndShopIdAndPlatform(Long userId, String shopId, String platform);
+    java.util.Optional<Shop> findByUserIdAndShopIdAndPackageName(Long userId, String shopId, String packageName);
     java.util.Optional<Shop> findByUserIdAndCloneInstanceId(Long userId, String cloneInstanceId);
-    java.util.Optional<Shop> findByUserIdAndPackageNameAndPlatform(Long userId, String packageName, String platform);
-    java.util.Optional<Shop> findFirstByUserIdAndPackageNameAndPlatformAndShopIdStartingWith(
+    java.util.Optional<Shop> findFirstByUserIdAndPackageNameAndShopIdStartingWith(
             Long userId,
             String packageName,
-            String platform,
             String shopIdPrefix
     );
-    boolean existsByUserIdAndPlatformAndShopIdStartingWith(Long userId, String platform, String shopIdPrefix);
+    boolean existsByUserIdAndPackageNameAndShopIdStartingWith(Long userId, String packageName, String shopIdPrefix);
 }

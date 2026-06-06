@@ -114,10 +114,10 @@ const fetchStats = async () => {
     stats.value.totalCompute = users.reduce((sum, u) => sum + (u.computeBalance || 0), 0)
     stats.value.logCount = logs.length
 
-    // 平台统计
+    // 按包名统计，平台标识只作为展示字段。
     const platformMap = {}
     shops.forEach(s => {
-      const key = s.platform || 'other'
+      const key = s.packageName || 'other'
       if (!platformMap[key]) {
         platformMap[key] = { platform: key, platformName: s.platformName || key, count: 0 }
       }

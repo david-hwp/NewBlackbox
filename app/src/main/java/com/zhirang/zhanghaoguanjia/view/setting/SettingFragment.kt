@@ -3,6 +3,7 @@ package com.zhirang.zhanghaoguanjia.view.setting
 import android.os.Bundle
 import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
+import androidx.preference.SwitchPreferenceCompat
 import com.zhirang.zhanghaoguanjia.R
 import com.zhirang.zhanghaoguanjia.app.AppManager
 import com.zhirang.zhanghaoguanjia.engine.EngineProxy
@@ -17,9 +18,10 @@ class SettingFragment : PreferenceFragmentCompat() {
         initGms()
 
         invalidHideState {
-            val rootHidePreference: Preference = (findPreference("root_hide")!!)
+            val rootHidePreference: SwitchPreferenceCompat = (findPreference("root_hide")!!)
             val hideRoot = AppManager.mBlackBoxLoader.hideRoot()
             rootHidePreference.setDefaultValue(hideRoot)
+            rootHidePreference.isChecked = hideRoot
             rootHidePreference
         }
 
@@ -45,9 +47,10 @@ class SettingFragment : PreferenceFragmentCompat() {
         }
 
         invalidHideState {
-            val singleInstancePreference: Preference = (findPreference("single_instance_mode")!!)
+            val singleInstancePreference: SwitchPreferenceCompat = (findPreference("single_instance_mode")!!)
             val mSingleInstanceMode = AppManager.mBlackBoxLoader.singleInstanceMode()
             singleInstancePreference.setDefaultValue(mSingleInstanceMode)
+            singleInstancePreference.isChecked = mSingleInstanceMode
             singleInstancePreference
         }
 

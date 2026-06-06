@@ -28,7 +28,7 @@
         android:layout_height="76dp"
         android:layout_gravity="center_horizontal"
         android:layout_marginTop="20dp"
-        android:background="@drawable/bg_avatar_circle"
+        android:background="@drawable/bg_avatar_rounded_square"
         android:clipToOutline="true">
 
         <ImageView

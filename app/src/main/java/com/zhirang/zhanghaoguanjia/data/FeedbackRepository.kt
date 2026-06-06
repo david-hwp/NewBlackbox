@@ -36,13 +36,22 @@ class FeedbackRepository(api: ApiService) : BaseRepository(api) {
             result["url"] ?: throw IllegalStateException("日志上传失败")
         }
 
-    suspend fun submitFeedback(content: String, imageUrls: List<String>, logUrl: String?): Result<FeedbackDto> {
+    suspend fun submitFeedback(
+        content: String,
+        imageUrls: List<String>,
+        logUrl: String?,
+        logCaption: String? = null,
+        deviceInfo: String? = null
+    ): Result<FeedbackDto> {
         return safeApiCall {
             api.createFeedback(
                 FeedbackCreateRequest(
                     content = content,
                     imageUrls = imageUrls,
-                    logUrl = logUrl
+                    logUrl = logUrl,
+                    source = "APP",
+                    logCaption = logCaption,
+                    deviceInfo = deviceInfo
                 )
             )
         }

@@ -15,6 +15,7 @@
 
         <SwitchPreferenceCompat
                 app:key="root_hide"
+                app:defaultValue="true"
                 app:title="@string/hide_root" />
 
         <SwitchPreferenceCompat
@@ -33,6 +34,7 @@
 
         <SwitchPreferenceCompat
                 app:key="single_instance_mode"
+                app:defaultValue="true"
                 app:title="@string/single_instance_mode"
                 app:summary="@string/single_instance_mode_summary" />
 

@@ -41,18 +41,22 @@ public class ShopReportController {
 
         String shopId = normalize(request.getShopId());
         String platform = normalize(request.getPlatform());
+        String packageName = normalize(request.getPackageName());
         String cloneInstanceId = normalize(request.getCloneInstanceId());
+        if (packageName == null) {
+            return ApiResponse.error("缺少应用包名，无法处理店铺");
+        }
         boolean hasRealShopId = isRealShopId(shopId);
         Optional<Shop> existing = Optional.empty();
 
         if (hasRealShopId) {
-            existing = platform == null
+            existing = packageName == null
                     ? Optional.empty()
-                    : shopService.findByUserIdAndShopIdAndPlatform(userId, shopId, platform);
+                    : shopService.findByUserIdAndShopIdAndPackageName(userId, shopId, packageName);
             if (existing.isEmpty() && cloneInstanceId != null) {
                 Optional<Shop> cloneOwner = shopService.findByUserIdAndCloneInstanceId(userId, cloneInstanceId);
-                if (cloneOwner.isPresent() && isDifferentRealShop(cloneOwner.get(), shopId, platform)) {
-                    String switchedCloneInstanceId = buildSwitchedCloneInstanceId(cloneInstanceId, platform, shopId);
+                if (cloneOwner.isPresent() && isDifferentRealShop(cloneOwner.get(), shopId, packageName)) {
+                    String switchedCloneInstanceId = buildSwitchedCloneInstanceId(cloneInstanceId, packageName, shopId);
                     Optional<Shop> switchedShop = shopService.findByUserIdAndCloneInstanceId(userId, switchedCloneInstanceId);
                     if (switchedShop.isPresent()) {
                         existing = switchedShop;
@@ -64,24 +68,22 @@ public class ShopReportController {
                 }
             }
             if (existing.isEmpty()) {
-                existing = shopService.findPendingByUserPackageAndPlatform(
-                        userId,
-                        request.getPackageName(),
-                        request.getPlatform()
-                );
+                existing = packageName == null
+                        ? Optional.empty()
+                        : shopService.findPendingByUserPackage(userId, packageName);
             }
         } else {
             if (cloneInstanceId != null) {
                 existing = shopService.findByUserIdAndCloneInstanceId(userId, cloneInstanceId);
             }
             if (existing.isEmpty() && "-".equals(shopId)) {
-                existing = shopService.findByUserIdAndPackageNameAndPlatform(
-                        userId,
-                        request.getPackageName(),
-                        request.getPlatform()
-                );
+                existing = packageName == null
+                        ? Optional.empty()
+                        : shopService.findPendingByUserPackage(userId, packageName);
             } else if (existing.isEmpty()) {
-                existing = shopService.findByUserIdAndShopId(userId, request.getShopId());
+                existing = packageName == null
+                        ? shopService.findByUserIdAndShopId(userId, request.getShopId())
+                        : shopService.findByUserIdAndShopIdAndPackageName(userId, request.getShopId(), packageName);
             }
         }
 
@@ -100,7 +102,7 @@ public class ShopReportController {
             if (wasPending && hasRealShopId) {
                 if (isPendingSwitchShopId(shop.getShopId())) {
                     String expectedPendingShopId = buildPendingSwitchShopId(
-                            normalize(request.getPlatform()) == null ? shop.getPlatform() : request.getPlatform(),
+                            packageName == null ? shop.getPackageName() : packageName,
                             request.getShopId()
                     );
                     if (!shop.getShopId().equals(expectedPendingShopId)) {
@@ -199,12 +201,12 @@ public class ShopReportController {
         return owner.isEmpty() || owner.get().getId().equals(currentShopId);
     }
 
-    private boolean isDifferentRealShop(Shop existing, String shopId, String platform) {
+    private boolean isDifferentRealShop(Shop existing, String shopId, String packageName) {
         if (!isRealShopId(existing.getShopId())) {
             return false;
         }
         return !equalsNormalized(existing.getShopId(), shopId)
-                || !equalsNormalized(existing.getPlatform(), platform);
+                || !equalsNormalized(existing.getPackageName(), packageName);
     }
 
     private boolean equalsNormalized(String left, String right) {
@@ -216,8 +218,8 @@ public class ShopReportController {
         return normalizedLeft.equals(normalizedRight);
     }
 
-    private String buildSwitchedCloneInstanceId(String cloneInstanceId, String platform, String shopId) {
-        String source = cloneInstanceId + ":" + normalize(platform) + ":" + normalize(shopId);
+    private String buildSwitchedCloneInstanceId(String cloneInstanceId, String packageName, String shopId) {
+        String source = cloneInstanceId + ":" + normalize(packageName) + ":" + normalize(shopId);
         return "clone-switch-" + sha256(source);
     }
 
@@ -226,8 +228,8 @@ public class ShopReportController {
         return normalized != null && normalized.startsWith("NEW-SWITCH-");
     }
 
-    private String buildPendingSwitchShopId(String platform, String shopId) {
-        return "NEW-SWITCH-" + normalize(platform) + "-" + sha256(normalize(shopId)).substring(0, 16);
+    private String buildPendingSwitchShopId(String packageName, String shopId) {
+        return "NEW-SWITCH-" + sha256(normalize(packageName)).substring(0, 10) + "-" + sha256(normalize(shopId)).substring(0, 16);
     }
 
     private String sha256(String value) {

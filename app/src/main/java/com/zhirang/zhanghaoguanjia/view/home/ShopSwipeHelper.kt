@@ -52,6 +52,7 @@ class ShopSwipeHelper(
             val cardView = getCardView(viewHolder)
 
             cardView?.let {
+                keepCardAboveActions(viewHolder.itemView, it)
                 val maxSwipe = -getActionButtonWidth(recyclerView)
                 val clampedDx = dX.coerceIn(maxSwipe, 0f)
                 it.translationX = clampedDx
@@ -70,15 +71,12 @@ class ShopSwipeHelper(
             if (currentTranslation <= -actionButtonWidth * SWIPE_THRESHOLD) {
                 // Expand
                 collapseOtherItems(viewHolder.bindingAdapterPosition)
-                viewHolder.itemView.findViewById<View>(R.id.swipeActions)?.apply {
-                    isClickable = true
-                    bringToFront()
-                }
+                keepCardAboveActions(viewHolder.itemView, it)
                 animateSwipe(it, -actionButtonWidth)
                 expandedPosition = viewHolder.bindingAdapterPosition
             } else {
                 // Collapse
-                it.bringToFront()
+                keepCardAboveActions(viewHolder.itemView, it)
                 animateSwipe(it, 0f)
                 if (expandedPosition == viewHolder.bindingAdapterPosition) {
                     expandedPosition = RecyclerView.NO_POSITION
@@ -89,6 +87,15 @@ class ShopSwipeHelper(
 
     private fun getCardView(viewHolder: RecyclerView.ViewHolder): View? {
         return viewHolder.itemView.findViewById<View>(R.id.cardView)
+    }
+
+    private fun keepCardAboveActions(itemView: View, cardView: View) {
+        itemView.findViewById<View>(R.id.swipeActions)?.apply {
+            translationZ = 0f
+            elevation = 0f
+        }
+        cardView.bringToFront()
+        cardView.translationZ = 1f
     }
 
     private fun getActionButtonWidth(recyclerView: RecyclerView): Float {
@@ -133,7 +140,7 @@ class ShopSwipeHelper(
             val holder = recyclerView.findViewHolderForAdapterPosition(expandedPosition)
             holder?.let {
                 getCardView(it)?.let { cardView ->
-                    cardView.bringToFront()
+                    keepCardAboveActions(it.itemView, cardView)
                     animateSwipe(cardView, 0f)
                 }
             }

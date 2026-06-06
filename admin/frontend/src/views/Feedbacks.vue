@@ -11,7 +11,16 @@
       <el-table :data="feedbacks" v-loading="loading" style="width: 100%">
         <el-table-column prop="id" label="ID" width="70" />
         <el-table-column prop="userPhone" label="用户手机号" width="140" />
+        <el-table-column label="来源" width="110">
+          <template #default="{ row }">
+            <el-tag :type="row.source === 'ENGINE_LOG' ? 'warning' : 'success'" size="small">
+              {{ row.source || 'APP' }}
+            </el-tag>
+          </template>
+        </el-table-column>
         <el-table-column prop="content" label="反馈内容" min-width="260" show-overflow-tooltip />
+        <el-table-column prop="logCaption" label="日志说明" min-width="180" show-overflow-tooltip />
+        <el-table-column prop="deviceInfo" label="设备信息" min-width="220" show-overflow-tooltip />
         <el-table-column label="图片" width="220">
           <template #default="{ row }">
             <div v-if="imageList(row.imageUrls).length" class="thumb-list">
@@ -98,6 +107,7 @@ import { ref, reactive, onMounted, onBeforeUnmount, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { ArrowLeft, ArrowRight, Download, ZoomIn, ZoomOut } from '@element-plus/icons-vue'
 import request from '../utils/request'
+import { fetchFileBlob, getObjectUrl, getPreferredImageObjectUrl } from '../utils/files'
 
 const feedbacks = ref([])
 const loading = ref(false)
@@ -132,40 +142,12 @@ const updateStatus = async (row) => {
   ElMessage.success('状态已更新')
 }
 
-const fetchPrivateBlob = async (url) => {
-  const normalizedUrl = normalizeFileUrl(url)
-  const token = localStorage.getItem('admin_token')
-  const response = await fetch(normalizedUrl, {
-    headers: token ? { Authorization: `Bearer ${token}` } : {}
-  })
-  if (!response.ok) {
-    throw new Error(`文件下载失败: ${response.status}`)
-  }
-  return response.blob()
-}
-
-const normalizeFileUrl = (url) => {
-  if (!url) return ''
-  if (url.startsWith('http://') || url.startsWith('https://')) return url
-  return url
-}
-
-const getObjectUrl = async (url) => {
-  if (objectUrlCache.has(url)) {
-    return objectUrlCache.get(url)
-  }
-  const blob = await fetchPrivateBlob(url)
-  const objectUrl = URL.createObjectURL(blob)
-  objectUrlCache.set(url, objectUrl)
-  return objectUrl
-}
-
 const loadThumbnails = async (rows) => {
   const urls = Array.from(new Set(rows.flatMap(row => imageList(row.imageUrls))))
   await Promise.all(urls.map(async (url) => {
     if (thumbnailUrls[url]) return
     try {
-      thumbnailUrls[url] = await getObjectUrl(url)
+      thumbnailUrls[url] = await getPreferredImageObjectUrl(url, objectUrlCache)
     } catch (e) {
       console.warn('thumbnail load failed', e)
     }
@@ -185,7 +167,7 @@ const loadPreviewImage = async () => {
   const url = preview.urls[preview.index]
   if (!url) return
   try {
-    preview.objectUrl = await getObjectUrl(url)
+    preview.objectUrl = await getObjectUrl(url, objectUrlCache)
   } catch (e) {
     ElMessage.error(e.message || '图片加载失败')
   }
@@ -219,7 +201,7 @@ const closeImagePreview = () => {
 
 const downloadPrivateFile = async (url) => {
   try {
-    const blob = await fetchPrivateBlob(url)
+    const blob = await fetchFileBlob(url)
     const objectUrl = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = objectUrl

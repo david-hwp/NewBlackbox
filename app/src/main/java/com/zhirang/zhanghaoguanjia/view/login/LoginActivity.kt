@@ -3,11 +3,15 @@ package com.zhirang.zhanghaoguanjia.view.login
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
+import android.text.method.PasswordTransformationMethod
+import android.widget.EditText
+import android.widget.ImageButton
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.ViewModelProvider
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.textfield.TextInputEditText
+import com.zhirang.zhanghaoguanjia.R
 import com.zhirang.zhanghaoguanjia.data.TokenManager
 import com.zhirang.zhanghaoguanjia.databinding.ActivityLoginBinding
 import com.zhirang.zhanghaoguanjia.view.home.HomeActivity
@@ -42,6 +46,8 @@ class LoginActivity : AppCompatActivity() {
     }
 
     private fun initListeners() {
+        setupPasswordToggle(binding.etPassword, binding.btnToggleLoginPassword)
+
         binding.btnLogin.setOnClickListener {
             val phone = binding.etPhone.text.toString().trim()
             val password = binding.etPassword.text.toString().trim()
@@ -103,6 +109,22 @@ class LoginActivity : AppCompatActivity() {
                 }
             }
             .show()
+    }
+
+    private fun setupPasswordToggle(input: EditText, button: ImageButton) {
+        setPasswordVisible(input, button, visible = false)
+        button.setOnClickListener {
+            val nextVisible = input.transformationMethod is PasswordTransformationMethod
+            setPasswordVisible(input, button, nextVisible)
+        }
+    }
+
+    private fun setPasswordVisible(input: EditText, button: ImageButton, visible: Boolean) {
+        val cursorPosition = input.selectionStart.coerceAtLeast(0)
+        input.transformationMethod = if (visible) null else PasswordTransformationMethod.getInstance()
+        input.setSelection(cursorPosition.coerceAtMost(input.text?.length ?: 0))
+        button.setImageResource(if (visible) R.drawable.ic_visibility_off else R.drawable.ic_visibility)
+        button.contentDescription = getString(if (visible) R.string.hide_password else R.string.show_password)
     }
 
     private fun observeViewModel() {

@@ -56,18 +56,36 @@
         android:textSize="15sp" />
 
     <!-- 密码输入框 -->
-    <EditText
-        android:id="@+id/etPassword"
+    <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="52dp"
         android:layout_marginTop="16dp"
-        android:background="@drawable/bg_input_field"
-        android:hint="@string/duodian_password_hint"
-        android:inputType="textPassword"
-        android:paddingHorizontal="16dp"
-        android:textColor="@color/duodian_text_primary"
-        android:textColorHint="@color/duodian_text_hint"
-        android:textSize="15sp" />
+        android:background="@drawable/bg_input_field">
+
+        <EditText
+            android:id="@+id/etPassword"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@android:color/transparent"
+            android:hint="@string/duodian_password_hint"
+            android:inputType="textPassword"
+            android:paddingStart="16dp"
+            android:paddingEnd="52dp"
+            android:textColor="@color/duodian_text_primary"
+            android:textColorHint="@color/duodian_text_hint"
+            android:textSize="15sp" />
+
+        <ImageButton
+            android:id="@+id/btnToggleLoginPassword"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:layout_gravity="end|center_vertical"
+            android:layout_marginEnd="4dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/show_password"
+            android:padding="10dp"
+            android:src="@drawable/ic_visibility" />
+    </FrameLayout>
 
     <!-- 登录按钮 -->
     <androidx.appcompat.widget.AppCompatButton

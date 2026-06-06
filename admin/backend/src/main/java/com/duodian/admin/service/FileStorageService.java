@@ -4,6 +4,13 @@ import com.duodian.admin.config.FileStorageProperties;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+import javax.imageio.ImageIO;
+import java.awt.Color;
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -25,6 +32,9 @@ import javax.crypto.spec.SecretKeySpec;
 @Service
 public class FileStorageService {
 
+    public static final String THUMBNAIL_SUFFIX = ".thumb.jpg";
+    private static final int THUMBNAIL_MAX_SIZE = 240;
+
     private final FileStorageProperties properties;
     private final HttpClient httpClient = HttpClient.newHttpClient();
 
@@ -36,14 +46,24 @@ public class FileStorageService {
         try {
             String safeType = safeType(type);
             String fileName = createFileName(file.getOriginalFilename());
+            byte[] body = file.getBytes();
+            String contentType = file.getContentType();
+            byte[] thumbnail = createThumbnail(body, contentType, fileName);
+            String thumbnailFileName = thumbnailFileName(fileName);
             if (isLocalStorage()) {
                 Path dir = resolveRoot().resolve(safeType);
                 Files.createDirectories(dir);
                 Path target = dir.resolve(fileName);
-                Files.write(target, file.getBytes());
+                Files.write(target, body);
+                if (thumbnail != null) {
+                    Files.write(dir.resolve(thumbnailFileName), thumbnail);
+                }
                 return createDownloadUrl(safeType, fileName);
             }
-            uploadObject(safeType + "/" + fileName, file);
+            uploadObject(safeType + "/" + fileName, body, contentType);
+            if (thumbnail != null) {
+                uploadObject(safeType + "/" + thumbnailFileName, thumbnail, "image/jpeg");
+            }
             return createDownloadUrl(safeType, fileName);
         } catch (IOException e) {
             throw new RuntimeException("文件保存失败: " + e.getMessage());
@@ -94,6 +114,10 @@ public class FileStorageService {
         return "/api/files/" + safeType + "/" + fileName;
     }
 
+    public String createThumbnailDownloadUrl(String type, String fileName) {
+        return createDownloadUrl(type, thumbnailFileName(fileName));
+    }
+
     private String createFileName(String originalName) {
         String ext = "";
         if (originalName != null && originalName.contains(".")) {
@@ -110,9 +134,7 @@ public class FileStorageService {
         return type.replaceAll("[^a-zA-Z0-9_-]", "");
     }
 
-    private void uploadObject(String key, MultipartFile file) throws IOException {
-        byte[] body = file.getBytes();
-        String contentType = file.getContentType();
+    private void uploadObject(String key, byte[] body, String contentType) throws IOException {
         try {
             HttpResponse<byte[]> response = sendObjectRequest("PUT", key, contentType, body);
             if (response.statusCode() < 200 || response.statusCode() >= 300) {
@@ -284,6 +306,70 @@ public class FileStorageService {
                 .replaceAll("\\s+", " ")
                 .trim();
         return text.length() > 500 ? text.substring(0, 500) : text;
+    }
+
+    private byte[] createThumbnail(byte[] body, String contentType, String fileName) {
+        if (!isImageFile(contentType, fileName)) {
+            return null;
+        }
+        try {
+            BufferedImage source = ImageIO.read(new ByteArrayInputStream(body));
+            if (source == null || source.getWidth() <= 0 || source.getHeight() <= 0) {
+                return null;
+            }
+            double scale = Math.min(
+                    1d,
+                    Math.min((double) THUMBNAIL_MAX_SIZE / source.getWidth(), (double) THUMBNAIL_MAX_SIZE / source.getHeight())
+            );
+            int width = Math.max(1, (int) Math.round(source.getWidth() * scale));
+            int height = Math.max(1, (int) Math.round(source.getHeight() * scale));
+            BufferedImage target = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+            Graphics2D graphics = target.createGraphics();
+            try {
+                graphics.setColor(Color.WHITE);
+                graphics.fillRect(0, 0, width, height);
+                graphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+                graphics.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+                graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                graphics.drawImage(source, 0, 0, width, height, null);
+            } finally {
+                graphics.dispose();
+            }
+            ByteArrayOutputStream output = new ByteArrayOutputStream();
+            if (!ImageIO.write(target, "jpg", output)) {
+                return null;
+            }
+            return output.toByteArray();
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private boolean isImageFile(String contentType, String fileName) {
+        if (contentType != null && contentType.toLowerCase(Locale.ROOT).startsWith("image/")) {
+            return !contentType.toLowerCase(Locale.ROOT).contains("svg");
+        }
+        String lowerName = fileName == null ? "" : fileName.toLowerCase(Locale.ROOT);
+        return lowerName.endsWith(".jpg") ||
+                lowerName.endsWith(".jpeg") ||
+                lowerName.endsWith(".png") ||
+                lowerName.endsWith(".webp") ||
+                lowerName.endsWith(".bmp") ||
+                lowerName.endsWith(".gif");
+    }
+
+    private String thumbnailFileName(String fileName) {
+        if (fileName == null || fileName.isBlank()) {
+            return "file" + THUMBNAIL_SUFFIX;
+        }
+        if (fileName.endsWith(THUMBNAIL_SUFFIX)) {
+            return fileName;
+        }
+        int dot = fileName.lastIndexOf('.');
+        if (dot <= 0) {
+            return fileName + THUMBNAIL_SUFFIX;
+        }
+        return fileName.substring(0, dot) + THUMBNAIL_SUFFIX;
     }
 
     private boolean isBlank(String value) {

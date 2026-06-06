@@ -28,7 +28,8 @@ public class ShopValidationController {
 
     @GetMapping("/validate")
     public ApiResponse<List<Map<String, Object>>> validate(
-            @RequestParam("shopIds") String shopIds) {
+            @RequestParam("shopIds") String shopIds,
+            @RequestParam(required = false) String packageName) {
 
         Long userId = AuthContext.getUserId();
         if (userId == null) {
@@ -44,6 +45,7 @@ public class ShopValidationController {
             return ApiResponse.error("最多校验50个店铺");
         }
 
+        String normalizedPackageName = normalize(packageName);
         List<Map<String, Object>> results = new ArrayList<>();
         for (String shopId : ids) {
             String trimmed = shopId.trim();
@@ -52,7 +54,9 @@ public class ShopValidationController {
             Map<String, Object> item = new HashMap<>();
             item.put("shopId", trimmed);
 
-            Optional<Shop> shopOpt = shopService.findByUserIdAndShopId(userId, trimmed);
+            Optional<Shop> shopOpt = normalizedPackageName == null
+                    ? shopService.findByUserIdAndShopId(userId, trimmed)
+                    : shopService.findByUserIdAndShopIdAndPackageName(userId, trimmed, normalizedPackageName);
             if (shopOpt.isPresent()) {
                 Shop shop = shopOpt.get();
                 LocalDateTime expireAt = shop.getExpireAt();
@@ -69,5 +73,12 @@ public class ShopValidationController {
         }
 
         return ApiResponse.success(results);
+    }
+
+    private String normalize(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        return value.trim();
     }
 }

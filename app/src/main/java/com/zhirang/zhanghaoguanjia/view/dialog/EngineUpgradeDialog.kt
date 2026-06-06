@@ -112,7 +112,7 @@ class EngineUpgradeDialog : DialogFragment() {
         val currentVersion = arguments?.getInt(ARG_CURRENT_VERSION, 0) ?: 0
 
         // Set content
-        titleText.text = if (isForce) "引擎更新 required" else "引擎新版本可用"
+        titleText.text = if (isForce) "引擎需要更新" else "引擎新版本可用"
         versionText.text = "当前版本: $currentVersion → 新版本: $versionName ($versionCode)"
         changelogText.text = if (changelog.isNotEmpty()) {
             "更新内容:\n$changelog"

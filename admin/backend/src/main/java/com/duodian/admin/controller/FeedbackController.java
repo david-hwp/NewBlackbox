@@ -5,6 +5,7 @@ import com.duodian.admin.controller.dto.ApiResponse;
 import com.duodian.admin.controller.dto.FeedbackCreateRequest;
 import com.duodian.admin.entity.Feedback;
 import com.duodian.admin.entity.User;
+import com.duodian.admin.config.JwtUtil;
 import com.duodian.admin.service.FeedbackService;
 import com.duodian.admin.service.FileStorageService;
 import com.duodian.admin.service.UserService;
@@ -22,16 +23,18 @@ public class FeedbackController {
     private final FeedbackService feedbackService;
     private final UserService userService;
     private final FileStorageService fileStorageService;
+    private final JwtUtil jwtUtil;
 
     private static final long MAX_ATTACHMENT_SIZE = 10 * 1024 * 1024; // 10MB
     private static final long MAX_LOG_SIZE = 10 * 1024 * 1024; // 10MB
     private static final List<String> ALLOWED_IMAGE_TYPES = List.of("image/jpeg", "image/png", "image/webp");
     private static final int MAX_IMAGES = 5;
 
-    public FeedbackController(FeedbackService feedbackService, UserService userService, FileStorageService fileStorageService) {
+    public FeedbackController(FeedbackService feedbackService, UserService userService, FileStorageService fileStorageService, JwtUtil jwtUtil) {
         this.feedbackService = feedbackService;
         this.userService = userService;
         this.fileStorageService = fileStorageService;
+        this.jwtUtil = jwtUtil;
     }
 
     @GetMapping
@@ -40,6 +43,32 @@ public class FeedbackController {
             return ApiResponse.success(feedbackService.findByStatus(status));
         }
         return ApiResponse.success(feedbackService.findAll());
+    }
+
+    @PostMapping(value = "/log-upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ApiResponse<Feedback> uploadEngineLog(
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @RequestParam(value = "caption", required = false) String caption,
+            @RequestParam(value = "deviceInfo", required = false) String deviceInfo,
+            @RequestParam("file") MultipartFile file) {
+
+        if (file == null || file.isEmpty()) {
+            return ApiResponse.error("日志文件不能为空");
+        }
+        if (file.getSize() > MAX_LOG_SIZE) {
+            return ApiResponse.error("日志文件不能超过10MB");
+        }
+
+        Long userId = resolveUserId(authorization);
+        if (userId == null) {
+            userId = 0L;
+        }
+        Feedback feedback = buildFeedback(userId, buildEngineLogContent(caption));
+        feedback.setSource("ENGINE_LOG");
+        feedback.setLogCaption(trimToLength(caption, 1000));
+        feedback.setDeviceInfo(trimToLength(deviceInfo, 20000));
+        feedback.setLogUrl(fileStorageService.save(file, "feedback-logs"));
+        return ApiResponse.success(feedbackService.create(feedback));
     }
 
     @GetMapping("/{id}")
@@ -82,6 +111,7 @@ public class FeedbackController {
         if (request.getLogUrl() != null && !request.getLogUrl().isBlank()) {
             feedback.setLogUrl(request.getLogUrl().trim());
         }
+        applyOptionalLogMetadata(feedback, request.getSource(), request.getLogCaption(), request.getDeviceInfo());
         return ApiResponse.success(feedbackService.create(feedback));
     }
 
@@ -153,12 +183,48 @@ public class FeedbackController {
     }
 
     private Feedback buildFeedback(Long userId, String content) {
-        User user = userService.findById(userId).orElse(null);
+        User user = userId != null ? userService.findById(userId).orElse(null) : null;
         Feedback feedback = new Feedback();
         feedback.setUserId(userId);
         feedback.setUserPhone(user != null ? user.getPhone() : null);
         feedback.setContent(content.trim());
         return feedback;
+    }
+
+    private void applyOptionalLogMetadata(Feedback feedback, String source, String logCaption, String deviceInfo) {
+        if (source != null && !source.isBlank()) {
+            feedback.setSource(trimToLength(source, 32));
+        }
+        if (logCaption != null && !logCaption.isBlank()) {
+            feedback.setLogCaption(trimToLength(logCaption, 1000));
+        }
+        if (deviceInfo != null && !deviceInfo.isBlank()) {
+            feedback.setDeviceInfo(trimToLength(deviceInfo, 20000));
+        }
+    }
+
+    private Long resolveUserId(String authorization) {
+        if (authorization == null || !authorization.startsWith("Bearer ")) {
+            return null;
+        }
+        String token = authorization.substring(7);
+        if (!jwtUtil.validateToken(token)) {
+            return null;
+        }
+        return jwtUtil.extractUserId(token);
+    }
+
+    private String buildEngineLogContent(String caption) {
+        String text = caption == null || caption.isBlank() ? "Send Logs 自动同步" : caption.trim();
+        return trimToLength("引擎日志自动同步：" + text, 2000);
+    }
+
+    private String trimToLength(String value, int maxLength) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.length() > maxLength ? trimmed.substring(0, maxLength) : trimmed;
     }
 
     private List<String> sanitizeUrls(List<String> urls) {

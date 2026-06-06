@@ -1,27 +1,18 @@
 package com.zhirang.zhanghaoguanjia.engine
 
-import android.app.DownloadManager
-import android.content.BroadcastReceiver
 import android.content.Context
-import android.content.Intent
-import android.content.IntentFilter
-import android.net.Uri
 import android.os.Build
-import android.os.Environment
 import android.util.Log
-import androidx.core.content.getSystemService
+import com.zhirang.zhanghaoguanjia.network.RetrofitClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
+import okhttp3.Request
 import java.io.File
-import java.net.URL
 
 /**
  * EngineUpgradeManager handles online upgrades for the Engine APK.
- * Implements atomic replace with automatic rollback on failure.
- *
- * NOTE: This is a skeleton implementation. Full download/verify/install logic
- * will be completed when the server API is ready in Phase 6.
  */
 object EngineUpgradeManager {
     private const val TAG = "EngineUpgradeManager"
@@ -29,12 +20,12 @@ object EngineUpgradeManager {
     private const val BACKUP_DIR = "engine-backup"
     private const val BIND_VERIFY_TIMEOUT_MS = 30000L
     private const val BIND_VERIFY_INTERVAL_MS = 1000L
+    private val httpClient = OkHttpClient()
 
     private var isUpgrading = false
 
     /**
      * Download and install an Engine upgrade.
-     * This is a skeleton with TODOs for the full implementation.
      */
     suspend fun downloadAndInstall(
         context: Context,
@@ -48,49 +39,29 @@ object EngineUpgradeManager {
 
             Log.i(TAG, "Starting upgrade to ${upgradeInfo.versionName} (${upgradeInfo.versionCode})")
 
-            // TODO: Phase 6 - Full implementation
-            // Step 1: Stop all virtual apps
-            // stopAllVirtualApps()
+            if (!EngineInstaller.canInstallUnknownApps(context)) {
+                return@withContext Result.failure(IllegalStateException("请先允许账号管家安装未知应用"))
+            }
 
-            // Step 2: Unbind from Engine Service
-            // EngineConnection.unbind(context)
-
-            // Step 3: Download new Engine APK
-            // val downloadedFile = downloadEngineApk(context, upgradeInfo)
-
-            // Step 4: Verify file integrity (MD5/SHA256)
-            // verifyDownloadedFile(downloadedFile, upgradeInfo)
-
-            // Step 5: Verify APK signature fingerprint
-            // verifyApkSignature(context, downloadedFile)
-
-            // Step 6: Verify minSdkVersion
-            // verifyMinSdk(context, downloadedFile)
-
-            // Step 7: Backup current Engine
-            // val backupFile = backupCurrentEngine(context)
-
-            // Step 8: Install new Engine via PackageInstaller
-            // installNewEngine(context, downloadedFile)
-
-            // Step 9: Wait for install and verify bind
-            // val bindSuccess = verifyNewEngineBind(context)
-
-            // Step 10: If bind fails, rollback
-            // if (!bindSuccess && backupFile != null) {
-            //     rollback(context, backupFile)
-            // }
-
-            // Step 11: Cleanup
-            // cleanup(context, downloadedFile, backupFile, bindSuccess)
-
-            Log.w(TAG, "Upgrade skeleton called - full implementation in Phase 6")
-            isUpgrading = false
-            Result.success(Unit)
+            val downloadedFile = downloadEngineApk(context, upgradeInfo)
+            if (!verifyDownloadedFile(downloadedFile, upgradeInfo)) {
+                return@withContext Result.failure(IllegalStateException("引擎包校验失败"))
+            }
+            if (!verifyMinSdk(context, downloadedFile)) {
+                return@withContext Result.failure(IllegalStateException("当前系统版本不支持该引擎包"))
+            }
+            val validation = EngineInstaller.validateInstallCandidate(context, downloadedFile)
+            if (validation.isFailure) {
+                return@withContext Result.failure(
+                    validation.exceptionOrNull() ?: IllegalStateException("引擎包不可安装")
+                )
+            }
+            installNewEngine(context, downloadedFile)
         } catch (e: Exception) {
             Log.e(TAG, "Upgrade failed: ${e.message}", e)
-            isUpgrading = false
             Result.failure(e)
+        } finally {
+            isUpgrading = false
         }
     }
 
@@ -111,10 +82,21 @@ object EngineUpgradeManager {
         val updateDir = File(context.cacheDir, UPDATE_DIR).apply { mkdirs() }
         val destFile = File(updateDir, "engine-${upgradeInfo.versionCode}.apk")
 
-        // TODO: Implement actual download using DownloadManager or OkHttp
-        // For now, this is a placeholder
-        Log.d(TAG, "Downloading from ${upgradeInfo.downloadUrl} to ${destFile.absolutePath}")
-
+        val resolvedUrl = RetrofitClient.resolveUrl(upgradeInfo.downloadUrl)
+        Log.d(TAG, "Downloading from $resolvedUrl to ${destFile.absolutePath}")
+        val response = httpClient.newCall(Request.Builder().url(resolvedUrl).build()).execute()
+        if (!response.isSuccessful) {
+            throw IllegalStateException("下载失败: ${response.code}")
+        }
+        val body = response.body ?: throw IllegalStateException("下载内容为空")
+        if (destFile.exists()) {
+            destFile.delete()
+        }
+        body.byteStream().use { input ->
+            destFile.outputStream().use { output ->
+                input.copyTo(output)
+            }
+        }
         destFile
     }
 
@@ -125,9 +107,13 @@ object EngineUpgradeManager {
         file: File,
         upgradeInfo: EngineVersionChecker.UpgradeInfo
     ): Boolean {
-        // TODO: Phase 6 - Verify against hash from server response
-        Log.d(TAG, "Verifying file integrity: ${file.absolutePath}")
-        return true
+        val expectedMd5 = upgradeInfo.checksum?.takeIf { it.isNotBlank() } ?: return true
+        val actualMd5 = EngineInstaller.computeFileMd5(file) ?: return false
+        val matched = actualMd5.equals(expectedMd5, ignoreCase = true)
+        if (!matched) {
+            Log.e(TAG, "Engine MD5 mismatch: expected=$expectedMd5 actual=$actualMd5")
+        }
+        return matched
     }
 
     /**
@@ -196,8 +182,7 @@ object EngineUpgradeManager {
      * Install the new Engine APK.
      */
     private fun installNewEngine(context: Context, apkFile: File): Result<Unit> {
-        return EngineInstaller.installFromAssets(context)
-        // TODO: Phase 6 - Use PackageInstaller for the downloaded APK
+        return EngineInstaller.installFromFile(context, apkFile)
     }
 
     /**

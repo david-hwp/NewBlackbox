@@ -40,6 +40,7 @@ interface IBlackBoxEngine {
     boolean uninstallGms(int userId);
 
     oneway void sendLogs(String caption, boolean async);
+    oneway void sendLogsToEndpoint(String caption, boolean async, String endpointUrl, String authToken);
 
     ShopInfo getShopInfo(String packageName, int userId);
     oneway void triggerShopIdExtract(String packageName, int userId);
@@ -50,4 +51,6 @@ interface IBlackBoxEngine {
     boolean isSessionActive();
 
     void addServiceAvailableCallback(IBinder callback);
+
+    void configureLogUpload(String endpointUrl, String authToken);
 }

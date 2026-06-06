@@ -2,19 +2,18 @@ package com.zhirang.zhanghaoguanjia.engine
 
 import android.content.Context
 import android.content.SharedPreferences
-import android.content.pm.PackageManager
 import android.util.Log
+import com.zhirang.zhanghaoguanjia.network.RetrofitClient
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * EngineVersionChecker checks for available Engine upgrades.
- * Currently implements a mock/placeholder that returns null (no upgrade).
- * The actual server API will be implemented in Phase 6 (Auth + Billing).
  */
 object EngineVersionChecker {
     private const val TAG = "EngineVersionChecker"
     private const val PREFS_NAME = "engine_upgrade_prefs"
     private const val KEY_LAST_CHECK_TIME = "last_check_time"
-    private const val KEY_LAST_UPGRADE_INFO = "last_upgrade_info"
     private const val KEY_SKIP_VERSION = "skip_version"
     private const val CHECK_INTERVAL_MS = 5 * 60 * 1000L // 5 minutes
 
@@ -22,6 +21,7 @@ object EngineVersionChecker {
         val versionCode: Int,
         val versionName: String,
         val downloadUrl: String,
+        val checksum: String?,
         val isForce: Boolean,
         val changelog: String,
         val minAppVersion: Int
@@ -31,49 +31,36 @@ object EngineVersionChecker {
      * Check if an Engine upgrade is available.
      * Returns UpgradeInfo if an upgrade is available, null otherwise.
      *
-     * Flow:
-     * 1. Get local installed version
-     * 2. Get builtin (bundled) version
-     * 3. Call server API (placeholder)
-     * 4. Compare versions and return result
-     *
-     * This is a placeholder implementation. The actual server API will be
-     * implemented in Phase 6.
+     * Checks local bundled upgrades first, then the server's highest available
+     * engine version.
      */
-    fun checkForUpgrade(context: Context): UpgradeInfo? {
+    suspend fun checkForUpgrade(context: Context, force: Boolean = false): UpgradeInfo? {
         return try {
-            // Rate limiting: max 1 check per 5 minutes
             val prefs = getPrefs(context)
             val lastCheck = prefs.getLong(KEY_LAST_CHECK_TIME, 0)
             val now = System.currentTimeMillis()
-            if (now - lastCheck < CHECK_INTERVAL_MS) {
+            if (!force && now - lastCheck < CHECK_INTERVAL_MS) {
                 Log.d(TAG, "Skipping upgrade check (rate limited)")
                 return null
             }
 
-            // Get versions
             val localVersion = EngineInstaller.getInstalledEngineVersion(context)
             val builtinVersion = EngineInstaller.getBuiltinEngineVersion(context)
             val appVersion = getAppVersionCode(context)
+            val currentComparableVersion = maxOf(localVersion, builtinVersion)
+            EngineUpgradeState.clearPendingIfInstalled(context, localVersion)
 
             Log.d(TAG, "Checking for upgrade: local=$localVersion, builtin=$builtinVersion, app=$appVersion")
 
-            // TODO: Phase 6 - Implement actual server API call
-            // val response = callServerApi(localVersion, appVersion)
+            val upgradeInfo = checkForBuiltinUpgrade(localVersion, builtinVersion)
+                ?: checkForServerUpgrade(currentComparableVersion)
 
-            // Placeholder: no upgrade available
-            // In Phase 6, this will:
-            // 1. POST /api/engine/latest_version
-            // 2. Compare response.version_code > max(local, builtin)
-            // 3. Check force upgrade and min_app_version constraints
-            // 4. Return UpgradeInfo or null
-
-            val upgradeInfo = checkForUpgradePlaceholder(localVersion, builtinVersion, appVersion)
-
-            // Update last check time
             prefs.edit().putLong(KEY_LAST_CHECK_TIME, now).apply()
 
             if (upgradeInfo != null) {
+                if (upgradeInfo.downloadUrl.isNotBlank()) {
+                    EngineUpgradeState.markPending(context, upgradeInfo.versionCode)
+                }
                 Log.i(TAG, "Upgrade available: ${upgradeInfo.versionName} (${upgradeInfo.versionCode})")
             } else {
                 Log.d(TAG, "No upgrade available")
@@ -114,10 +101,6 @@ object EngineVersionChecker {
     }
 
     /**
-     * Placeholder implementation that always returns null (no upgrade).
-     * Will be replaced with actual server API call in Phase 6.
-     */
-    /**
      * Get the app version code from PackageManager.
      */
     private fun getAppVersionCode(context: Context): Int {
@@ -135,23 +118,46 @@ object EngineVersionChecker {
         }
     }
 
-    private fun checkForUpgradePlaceholder(
+    private fun checkForBuiltinUpgrade(
         localVersion: Int,
-        builtinVersion: Int,
-        appVersion: Int
+        builtinVersion: Int
     ): UpgradeInfo? {
-        // Built-in engine is newer than installed engine -> trigger local upgrade
         if (builtinVersion > localVersion && localVersion > 0) {
             Log.i(TAG, "Built-in engine ($builtinVersion) is newer than installed ($localVersion), triggering local upgrade")
             return UpgradeInfo(
                 versionCode = builtinVersion,
                 versionName = "$builtinVersion",
                 downloadUrl = "", // Local upgrade uses bundled APK, no download needed
+                checksum = null,
                 isForce = true,   // Force upgrade to prevent data loss from manual uninstall
                 changelog = "Engine update with latest features and fixes",
                 minAppVersion = 0
             )
         }
         return null
+    }
+
+    private suspend fun checkForServerUpgrade(currentVersion: Int): UpgradeInfo? = withContext(Dispatchers.IO) {
+        val response = RetrofitClient.apiService.getEngineVersions(true)
+        if (response.code != 200) {
+            Log.w(TAG, "Server upgrade check failed: ${response.code} ${response.message}")
+            return@withContext null
+        }
+        val latest = response.data
+            ?.filter { it.available }
+            ?.maxByOrNull { it.versionCode }
+            ?: return@withContext null
+        if (latest.versionCode <= currentVersion) {
+            return@withContext null
+        }
+        UpgradeInfo(
+            versionCode = latest.versionCode,
+            versionName = latest.versionName,
+            downloadUrl = latest.apkUrl,
+            checksum = latest.checksum,
+            isForce = false,
+            changelog = latest.changelog?.takeIf { it.isNotBlank() } ?: "发现新的引擎版本，请升级后继续使用最新能力",
+            minAppVersion = 0
+        )
     }
 }

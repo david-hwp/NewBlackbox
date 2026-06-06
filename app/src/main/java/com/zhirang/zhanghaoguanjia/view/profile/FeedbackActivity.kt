@@ -1,16 +1,17 @@
 package com.zhirang.zhanghaoguanjia.view.profile
 
+import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.provider.MediaStore
 import android.view.Gravity
 import android.view.View
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.Toast
-import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
@@ -21,13 +22,7 @@ import kotlinx.coroutines.withContext
 import com.zhirang.zhanghaoguanjia.data.FeedbackRepository
 import com.zhirang.zhanghaoguanjia.databinding.ActivityFeedbackBinding
 import com.zhirang.zhanghaoguanjia.network.RetrofitClient
-import java.io.File
-import java.text.SimpleDateFormat
-import java.util.Calendar
-import java.util.Locale
-import java.util.concurrent.TimeUnit
-import java.util.zip.ZipEntry
-import java.util.zip.ZipOutputStream
+import com.zhirang.zhanghaoguanjia.util.SendLogsCollector
 
 class FeedbackActivity : AppCompatActivity() {
 
@@ -37,17 +32,15 @@ class FeedbackActivity : AppCompatActivity() {
     private var isUploadingImages = false
 
     private val imagePicker = registerForActivityResult(
-        ActivityResultContracts.PickMultipleVisualMedia(MAX_IMAGES)
-    ) { uris ->
-        handleSelectedImages(uris)
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            handleSelectedImages(parseSelectedImageUris(result.data))
+        }
     }
 
     companion object {
         private const val MAX_IMAGES = 5
-        private const val LOG_WINDOW_MS = 60 * 60 * 1000L
-        private const val LOGCAT_TIMEOUT_SECONDS = 8L
-        private const val MAX_LOGCAT_LINES = 5000
-        private val LOGCAT_TIMESTAMP_FORMAT = SimpleDateFormat("MM-dd HH:mm:ss.SSS", Locale.US)
 
         fun start(context: Context) {
             context.startActivity(Intent(context, FeedbackActivity::class.java))
@@ -83,9 +76,24 @@ class FeedbackActivity : AppCompatActivity() {
 
         setSubmitting(true)
         lifecycleScope.launch {
+            var logCaption: String? = null
+            var deviceInfo: String? = null
             val logUrl = if (binding.cbUploadLogs.isChecked) {
-                val logZip = withContext(Dispatchers.IO) { createLogZip() }
-                val logResult = withContext(Dispatchers.IO) { repository.uploadFeedbackLog(logZip) }
+                val logBundle = withContext(Dispatchers.IO) {
+                    SendLogsCollector.createLogZip(
+                        this@FeedbackActivity,
+                        "Feedback: ${content.take(120)}"
+                    )
+                }
+                logCaption = logBundle.caption
+                deviceInfo = logBundle.deviceInfo
+                val logResult = withContext(Dispatchers.IO) {
+                    try {
+                        repository.uploadFeedbackLog(logBundle.zipFile)
+                    } finally {
+                        logBundle.zipFile.delete()
+                    }
+                }
                 if (logResult.isFailure) {
                     setSubmitting(false)
                     Toast.makeText(
@@ -101,7 +109,7 @@ class FeedbackActivity : AppCompatActivity() {
             }
 
             val imageUrls = uploadedImages.map { it.url }
-            val result = repository.submitFeedback(content, imageUrls, logUrl)
+            val result = repository.submitFeedback(content, imageUrls, logUrl, logCaption, deviceInfo)
             result.fold(
                 onSuccess = {
                     Toast.makeText(this@FeedbackActivity, "提交成功", Toast.LENGTH_SHORT).show()
@@ -124,7 +132,43 @@ class FeedbackActivity : AppCompatActivity() {
             Toast.makeText(this, "最多上传5张图片", Toast.LENGTH_SHORT).show()
             return
         }
-        imagePicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+        imagePicker.launch(createImagePickerIntent(MAX_IMAGES - uploadedImages.size))
+    }
+
+    private fun createImagePickerIntent(maxSelection: Int): Intent {
+        val pickFromSystemGallery = Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI).apply {
+            type = "image/*"
+            putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
+            putExtra("pick-upper-bound", maxSelection)
+            putExtra("pick-lower-bound", 1)
+            putExtra("com.miui.gallery.extra.pick-upper-bound", maxSelection)
+            putExtra("com.miui.gallery.extra.pick-lower-bound", 1)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        if (pickFromSystemGallery.resolveActivity(packageManager) != null) {
+            return pickFromSystemGallery
+        }
+
+        return Intent(Intent.ACTION_GET_CONTENT).apply {
+            type = "image/*"
+            putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
+            addCategory(Intent.CATEGORY_OPENABLE)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+    }
+
+    private fun parseSelectedImageUris(data: Intent?): List<Uri> {
+        if (data == null) {
+            return emptyList()
+        }
+        val result = mutableListOf<Uri>()
+        data.clipData?.let { clipData ->
+            for (i in 0 until clipData.itemCount) {
+                clipData.getItemAt(i).uri?.let(result::add)
+            }
+        }
+        data.data?.let(result::add)
+        return result.distinct()
     }
 
     private fun handleSelectedImages(uris: List<Uri>) {
@@ -224,103 +268,6 @@ class FeedbackActivity : AppCompatActivity() {
         binding.btnAddImages.isEnabled = !submitting && !isUploadingImages
         binding.cbUploadLogs.isEnabled = !submitting
         binding.btnSubmitFeedback.text = if (submitting) "提交中..." else getString(R.string.feedback_submit)
-    }
-
-    private fun createLogZip(): File {
-        val zipFile = File(cacheDir, "feedback-logs-${System.currentTimeMillis()}.zip")
-        ZipOutputStream(zipFile.outputStream()).use { zip ->
-            addLogcat(zip)
-            collectLogDirectories().forEach { (dir, prefix) ->
-                addRecentFiles(zip, dir, prefix)
-            }
-        }
-        return zipFile
-    }
-
-    private fun addLogcat(zip: ZipOutputStream) {
-        val entry = ZipEntry("logcat.txt")
-        zip.putNextEntry(entry)
-        runCatching {
-            val process = ProcessBuilder("logcat", "-d", "-v", "threadtime", "*:I")
-                .redirectErrorStream(true)
-                .start()
-            val cutoff = System.currentTimeMillis() - LOG_WINDOW_MS
-            var wroteAnyLine = false
-            var keptLines = 0
-            process.inputStream.bufferedReader().useLines { lines ->
-                lines.forEach { line ->
-                    if (isRecentLogcatLine(line, cutoff)) {
-                        zip.write(line.toByteArray())
-                        zip.write('\n'.code)
-                        wroteAnyLine = true
-                        keptLines += 1
-                    }
-                    if (keptLines >= MAX_LOGCAT_LINES) {
-                        return@useLines
-                    }
-                }
-            }
-            if (!process.waitFor(LOGCAT_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
-                process.destroy()
-            }
-            if (!wroteAnyLine) {
-                zip.write("No INFO+ logcat lines found in the last hour.\n".toByteArray())
-            }
-        }.onFailure {
-            zip.write("logcat unavailable: ${it.message}".toByteArray())
-        }
-        zip.closeEntry()
-    }
-
-    private fun collectLogDirectories(): List<Pair<File, String>> {
-        val dirs = mutableListOf<Pair<File, String>>()
-        dirs += filesDir to "apk-files"
-        dirs += cacheDir to "apk-cache"
-        filesDir.parentFile?.let { dirs += it to "apk-private" }
-        getExternalFilesDir(null)?.let { dirs += it to "apk-external-files" }
-        externalCacheDir?.let { dirs += it to "apk-external-cache" }
-        return dirs.distinctBy { it.first.absolutePath }
-    }
-
-    private fun addRecentFiles(zip: ZipOutputStream, dir: File, prefix: String) {
-        if (!dir.exists() || !dir.canRead()) return
-        val cutoff = System.currentTimeMillis() - LOG_WINDOW_MS
-        dir.walkTopDown()
-            .onEnter { it.canRead() }
-            .filter { file ->
-                file.isFile &&
-                    file.canRead() &&
-                    file.lastModified() >= cutoff &&
-                    (file.extension == "log" || file.extension == "txt")
-            }
-            .take(60)
-            .forEach { file ->
-                val entryName = "$prefix/${file.relativeTo(dir).path}"
-                zip.putNextEntry(ZipEntry(entryName))
-                file.inputStream().use { it.copyTo(zip) }
-                zip.closeEntry()
-            }
-    }
-
-    private fun isRecentLogcatLine(line: String, cutoff: Long): Boolean {
-        if (line.length < 18) {
-            return false
-        }
-        val timestamp = line.substring(0, 18)
-        val parsed = runCatching {
-            synchronized(LOGCAT_TIMESTAMP_FORMAT) {
-                LOGCAT_TIMESTAMP_FORMAT.parse(timestamp)
-            }
-        }.getOrNull() ?: return false
-        val now = System.currentTimeMillis()
-        val calendar = Calendar.getInstance().apply {
-            time = parsed
-            set(Calendar.YEAR, Calendar.getInstance().get(Calendar.YEAR))
-        }
-        if (calendar.timeInMillis - now > TimeUnit.DAYS.toMillis(1)) {
-            calendar.add(Calendar.YEAR, -1)
-        }
-        return calendar.timeInMillis >= cutoff
     }
 
     private fun dp(value: Int): Int {

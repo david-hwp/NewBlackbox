@@ -22,12 +22,16 @@ import android.os.Looper;
 import android.os.Process;
 
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 
 import black.android.app.BRActivityThread;
@@ -129,6 +133,8 @@ public class BlackBoxCore extends ClientConfiguration {
     private int mCurrentAppUid = -1;
     private String mCurrentAppPackage = null;
     private boolean mIsSandboxedEnvironment = false;
+    private volatile String mLogUploadEndpointUrl;
+    private volatile String mLogUploadAuthToken;
 
     public static BlackBoxCore get() {
         return sBlackBoxCore;
@@ -2095,19 +2101,29 @@ public class BlackBoxCore extends ClientConfiguration {
         void onFailure(String error);
     }
 
+    public void configureLogUpload(String endpointUrl, String authToken) {
+        mLogUploadEndpointUrl = endpointUrl;
+        mLogUploadAuthToken = authToken;
+    }
+
     public void sendLogs(String caption, boolean async) {
         sendLogs(caption, async, null);
     }
 
     public void sendLogs(String caption, boolean async, LogSendListener listener) {
+        sendLogs(caption, async, mLogUploadEndpointUrl, mLogUploadAuthToken, listener);
+    }
+
+    public void sendLogs(String caption, boolean async, String endpointUrl, String authToken, LogSendListener listener) {
         String chatId = mClientConfiguration != null ? mClientConfiguration.getLogSenderChatId() : null;
-        if (chatId == null || chatId.isEmpty()) return;
+        if ((endpointUrl == null || endpointUrl.isEmpty()) && (chatId == null || chatId.isEmpty())) return;
 
         Runnable sendTask = () -> {
             try {
                 
                 File cacheDir = getContext().getCacheDir();
                 File tempLog = File.createTempFile("crash_log_", ".txt", cacheDir);
+                File uploadLog = null;
 
 
                 String deviceInfo = getDeviceInfoString();
@@ -2131,7 +2147,10 @@ public class BlackBoxCore extends ClientConfiguration {
                 }
                 
                 
-                String error = LogSender.send(chatId, tempLog, deviceInfo);
+                uploadLog = zipLogFile(tempLog);
+                String error = endpointUrl != null && !endpointUrl.isEmpty()
+                        ? LogSender.sendToEndpoint(endpointUrl, authToken, uploadLog, caption, deviceInfo)
+                        : LogSender.send(chatId, uploadLog, deviceInfo);
                 if (error != null) {
                     Slog.e(TAG, "Log upload failed: " + error);
                     
@@ -2199,6 +2218,9 @@ public class BlackBoxCore extends ClientConfiguration {
                 
                 
                 tempLog.delete();
+                if (uploadLog != null) {
+                    uploadLog.delete();
+                }
             } catch (Exception e) {
                 Slog.e(TAG, "Failed to send logs: " + e.getMessage());
                 new Handler(Looper.getMainLooper()).post(() -> {
@@ -2214,6 +2236,21 @@ public class BlackBoxCore extends ClientConfiguration {
         } else {
             sendTask.run();
         }
+    }
+
+    private File zipLogFile(File logFile) throws java.io.IOException {
+        File zipFile = File.createTempFile("crash_log_", ".zip", logFile.getParentFile());
+        try (ZipOutputStream zip = new ZipOutputStream(new FileOutputStream(zipFile));
+             FileInputStream input = new FileInputStream(logFile)) {
+            zip.putNextEntry(new ZipEntry("logcat.txt"));
+            byte[] buffer = new byte[8192];
+            int len;
+            while ((len = input.read(buffer)) != -1) {
+                zip.write(buffer, 0, len);
+            }
+            zip.closeEntry();
+        }
+        return zipFile;
     }
 
     private String getDeviceInfoString() {

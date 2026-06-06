@@ -12,6 +12,7 @@ import okhttp3.Request
 import com.zhirang.zhanghaoguanjia.bean.dto.EngineVersionDto
 import com.zhirang.zhanghaoguanjia.data.EngineVersionRepository
 import com.zhirang.zhanghaoguanjia.engine.EngineInstaller
+import com.zhirang.zhanghaoguanjia.engine.EngineUpgradeState
 import com.zhirang.zhanghaoguanjia.network.RetrofitClient
 import java.io.File
 
@@ -67,6 +68,7 @@ class EngineSwitchViewModel(application: Application) : AndroidViewModel(applica
                 val result = EngineInstaller.installFromFile(getApplication(), file)
                 result.fold(
                     onSuccess = {
+                        EngineUpgradeState.markPending(getApplication(), version.versionCode)
                         _installStartedLiveData.postValue(version)
                         _messageLiveData.postValue("已开始安装引擎，请在系统弹窗中确认")
                     },

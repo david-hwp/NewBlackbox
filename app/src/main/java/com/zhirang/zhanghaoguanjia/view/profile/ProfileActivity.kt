@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
+import android.view.View
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.ViewModelProvider
@@ -46,6 +47,7 @@ class ProfileActivity : AppCompatActivity() {
         observeViewModel()
 
         viewModel.loadProfile()
+        viewModel.refreshEngineUpgradeState()
     }
 
     private fun initToolbar() {
@@ -152,6 +154,17 @@ class ProfileActivity : AppCompatActivity() {
                     Toast.makeText(this, e.message ?: "密码修改失败", Toast.LENGTH_SHORT).show()
                 }
             )
+        }
+
+        viewModel.hasEngineUpgradeLiveData.observe(this) { hasUpgrade ->
+            binding.tvEngineUpgradeNew?.visibility = if (hasUpgrade) View.VISIBLE else View.GONE
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (::viewModel.isInitialized) {
+            viewModel.refreshEngineUpgradeState()
         }
     }
 

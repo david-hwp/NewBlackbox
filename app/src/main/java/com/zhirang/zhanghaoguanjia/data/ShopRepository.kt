@@ -26,6 +26,6 @@ class ShopRepository(api: ApiService) : BaseRepository(api) {
     suspend fun deleteShop(id: Long): Result<Unit> =
         safeApiCall { api.deleteShop(id) }
 
-    suspend fun validateShops(shopIds: List<String>): Result<List<ShopValidationResult>> =
-        safeApiCall { api.validateShops(shopIds.joinToString(",")) }
+    suspend fun validateShops(shopIds: List<String>, packageName: String? = null): Result<List<ShopValidationResult>> =
+        safeApiCall { api.validateShops(shopIds.joinToString(","), packageName) }
 }

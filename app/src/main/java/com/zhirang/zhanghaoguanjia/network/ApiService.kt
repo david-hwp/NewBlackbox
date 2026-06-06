@@ -47,7 +47,10 @@ interface ApiService {
     suspend fun deleteShop(@Path("id") id: Long): ApiResponse<Unit>
 
     @GET("shops/validate")
-    suspend fun validateShops(@Query("shopIds") shopIds: String): ApiResponse<List<ShopValidationResult>>
+    suspend fun validateShops(
+        @Query("shopIds") shopIds: String,
+        @Query("packageName") packageName: String? = null
+    ): ApiResponse<List<ShopValidationResult>>
 
     @POST("compute/gift")
     suspend fun giftCompute(@Body request: GiftRequest): ApiResponse<GiftResult>

@@ -10,7 +10,7 @@ data class PlatformDto(
     val available: Boolean
 ) {
     fun toPlatformItem(): PlatformItemDto {
-        val platform = Platform.fromId(id)
+        val platform = Platform.from(id, name)
         return PlatformItemDto(
             platform = platform,
             displayName = name.ifBlank { platform.displayName },

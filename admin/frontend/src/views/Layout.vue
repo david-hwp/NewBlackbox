@@ -56,7 +56,13 @@
         <div class="header-right">
           <el-dropdown @command="handleCommand">
             <span class="user-info">
-              <el-avatar :size="32" :icon="UserFilled" />
+              <el-avatar
+                :size="32"
+                shape="square"
+                :src="avatarObjectUrl"
+                :icon="avatarObjectUrl ? undefined : UserFilled"
+                class="header-avatar"
+              />
               <span>{{ userInfo?.username || '管理员' }}</span>
               <el-icon><ArrowDown /></el-icon>
             </span>
@@ -77,10 +83,11 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Shop, Odometer, User, Document, ArrowDown, UserFilled, Bell, Connection, ChatDotRound, Grid } from '@element-plus/icons-vue'
+import { getPreferredImageObjectUrl } from '../utils/files'
 
 const route = useRoute()
 const router = useRouter()
@@ -89,6 +96,21 @@ const activeMenu = computed(() => route.path)
 const pageTitle = computed(() => route.meta?.title || '后台管理')
 
 const userInfo = ref(JSON.parse(localStorage.getItem('admin_user') || '{}'))
+const avatarObjectUrl = ref('')
+const objectUrlCache = new Map()
+
+const loadAvatar = async () => {
+  const avatarUrl = userInfo.value?.avatarUrl
+  if (!avatarUrl) {
+    avatarObjectUrl.value = ''
+    return
+  }
+  try {
+    avatarObjectUrl.value = await getPreferredImageObjectUrl(avatarUrl, objectUrlCache)
+  } catch (e) {
+    avatarObjectUrl.value = ''
+  }
+}
 
 const handleCommand = (cmd) => {
   if (cmd === 'logout') {
@@ -98,6 +120,13 @@ const handleCommand = (cmd) => {
     router.push('/login')
   }
 }
+
+onMounted(loadAvatar)
+
+onBeforeUnmount(() => {
+  objectUrlCache.forEach(objectUrl => URL.revokeObjectURL(objectUrl))
+  objectUrlCache.clear()
+})
 </script>
 
 <style scoped>
@@ -148,6 +177,10 @@ const handleCommand = (cmd) => {
   gap: 8px;
   cursor: pointer;
   color: #475569;
+}
+
+.header-avatar {
+  border-radius: 8px;
 }
 
 .main {

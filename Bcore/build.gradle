@@ -79,7 +79,7 @@ android {
 
     applicationVariants.configureEach { variant ->
         variant.outputs.configureEach { output ->
-            output.outputFileName = "BlackBoxEngine_${variant.versionName}_${output.baseName}.apk"
+            output.outputFileName = "FxEngine_${variant.versionName}_${output.baseName}.apk"
         }
     }
 }

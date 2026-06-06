@@ -26,6 +26,7 @@ import com.zhirang.zhanghaoguanjia.engine.EngineInstaller
 import com.zhirang.zhanghaoguanjia.engine.EngineConnection
 import com.zhirang.zhanghaoguanjia.engine.EngineLoader
 import com.zhirang.zhanghaoguanjia.engine.EngineProxy
+import com.zhirang.zhanghaoguanjia.engine.EngineUpgradeManager
 import com.zhirang.zhanghaoguanjia.engine.EngineVersionChecker
 import com.zhirang.zhanghaoguanjia.util.Resolution
 import com.zhirang.zhanghaoguanjia.util.inflate
@@ -169,17 +170,23 @@ class MainActivity : LoadingActivity() {
                 return
             }
 
-            EngineUpgradeDialog.show(
+            var dialog: EngineUpgradeDialog? = null
+            dialog = EngineUpgradeDialog.show(
                 supportFragmentManager,
                 upgradeInfo,
                 currentVersion,
                 object : EngineUpgradeDialog.UpgradeDialogListener {
                     override fun onUpgradeNow(versionCode: Int) {
                         Log.i(TAG, "User chose to upgrade to version $versionCode")
-                        // TODO: Phase 6 - Trigger actual download and install
-                        // lifecycleScope.launch {
-                        //     EngineUpgradeManager.downloadAndInstall(this@MainActivity, upgradeInfo)
-                        // }
+                        lifecycleScope.launch {
+                            val result = withContext(Dispatchers.IO) {
+                                EngineUpgradeManager.downloadAndInstall(this@MainActivity, upgradeInfo)
+                            }
+                            result.fold(
+                                onSuccess = { dialog?.dismissSafely() },
+                                onFailure = { dialog?.showError(it.message ?: "引擎升级失败") }
+                            )
+                        }
                     }
 
                     override fun onUpgradeLater(versionCode: Int) {

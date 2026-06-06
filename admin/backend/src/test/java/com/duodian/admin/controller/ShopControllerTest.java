@@ -103,15 +103,15 @@ class ShopControllerTest {
         normalUser.setPlatformCount(1);
         ShopReportRequest request = reportRequest("detected-shop", "检测店铺");
 
-        when(shopService.findByUserIdAndShopIdAndPlatform(1L, "detected-shop", "jd")).thenReturn(Optional.empty());
-        when(shopService.findByUserIdAndShopIdAndPlatform(
+        when(shopService.findByUserIdAndShopIdAndPackageName(1L, "detected-shop", "com.jd.mrd.jingming")).thenReturn(Optional.empty());
+        when(shopService.findByUserIdAndShopIdAndPackageName(
                 eq(1L),
-                argThat(shopId -> shopId != null && shopId.startsWith("NEW-SWITCH-jd-")),
-                eq("jd"))
+                argThat(shopId -> shopId != null && shopId.startsWith("NEW-SWITCH-")),
+                eq("com.jd.mrd.jingming"))
         ).thenReturn(Optional.empty());
         when(computeService.deductCompute(1L, "detected-shop", "检测店铺", "jd")).thenReturn(true);
         when(shopService.create(argThat(shop ->
-                shop.getShopId().startsWith("NEW-SWITCH-jd-")
+                shop.getShopId().startsWith("NEW-SWITCH-")
                         && shop.getCloneInstanceId() == null
                         && shop.getLastDeductedAt() != null
         ))).thenAnswer(invocation -> {
@@ -125,7 +125,7 @@ class ShopControllerTest {
 
         assertThat(response.getCode()).isEqualTo(200);
         assertThat(response.getData().getDeducted()).isTrue();
-        assertThat(response.getData().getShop().getShopId()).startsWith("NEW-SWITCH-jd-");
+        assertThat(response.getData().getShop().getShopId()).startsWith("NEW-SWITCH-");
         assertThat(response.getData().getShop().getCloneInstanceId()).isNull();
         assertThat(response.getData().getBalance()).isEqualTo(7);
         verify(computeService).deductCompute(1L, "detected-shop", "检测店铺", "jd");

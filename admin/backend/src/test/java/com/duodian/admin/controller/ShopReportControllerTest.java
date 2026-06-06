@@ -49,7 +49,7 @@ class ShopReportControllerTest {
         user.setShopCount(2);
         user.setPlatformCount(1);
 
-        when(shopService.findByUserIdAndShopIdAndPlatform(1L, "new-shop", "jd")).thenReturn(Optional.empty());
+        when(shopService.findByUserIdAndShopIdAndPackageName(1L, "new-shop", "com.jd.pingou")).thenReturn(Optional.empty());
         when(shopService.findByUserIdAndCloneInstanceId(1L, "clone-original")).thenReturn(Optional.of(oldShop));
         when(shopService.findByUserIdAndCloneInstanceId(eq(1L), argThat(id -> id != null && id.startsWith("clone-switch-"))))
                 .thenReturn(Optional.empty());
@@ -87,7 +87,7 @@ class ShopReportControllerTest {
         user.setShopCount(1);
         user.setPlatformCount(1);
 
-        when(shopService.findByUserIdAndShopIdAndPlatform(1L, "real-shop", "jd")).thenReturn(Optional.empty());
+        when(shopService.findByUserIdAndShopIdAndPackageName(1L, "real-shop", "com.jd.pingou")).thenReturn(Optional.empty());
         when(shopService.findByUserIdAndCloneInstanceId(1L, "clone-new")).thenReturn(Optional.of(pendingShop));
         when(shopService.update(eq(20L), any(Shop.class))).thenAnswer(invocation -> invocation.getArgument(1));
         when(userService.refreshShopStats(1L)).thenReturn(user);
@@ -113,7 +113,7 @@ class ShopReportControllerTest {
         );
         pendingShop.setLastDeductedAt(LocalDateTime.now().minusMinutes(5));
 
-        when(shopService.findByUserIdAndShopIdAndPlatform(1L, "wrong-shop", "jd")).thenReturn(Optional.empty());
+        when(shopService.findByUserIdAndShopIdAndPackageName(1L, "wrong-shop", "com.jd.pingou")).thenReturn(Optional.empty());
         when(shopService.findByUserIdAndCloneInstanceId(1L, "clone-new")).thenReturn(Optional.of(pendingShop));
 
         ApiResponse<Map<String, Object>> response = controller.report(request("wrong-shop", "错误店铺", "clone-new"));
@@ -153,7 +153,7 @@ class ShopReportControllerTest {
     }
 
     private String pendingSwitchShopId(String shopId) {
-        return "NEW-SWITCH-jd-" + sha256(shopId).substring(0, 16);
+        return "NEW-SWITCH-" + sha256("com.jd.pingou").substring(0, 10) + "-" + sha256(shopId).substring(0, 16);
     }
 
     private String sha256(String value) {

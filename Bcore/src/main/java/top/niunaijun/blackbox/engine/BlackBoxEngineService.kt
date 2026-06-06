@@ -167,8 +167,16 @@ class BlackBoxEngineService : Service() {
             return BlackBoxCore.get().uninstallGms(userId)
         }
 
+        override fun configureLogUpload(endpointUrl: String?, authToken: String?) {
+            BlackBoxCore.get().configureLogUpload(endpointUrl, authToken)
+        }
+
         override fun sendLogs(caption: String?, async: Boolean) {
             BlackBoxCore.get().sendLogs(caption ?: "", async)
+        }
+
+        override fun sendLogsToEndpoint(caption: String?, async: Boolean, endpointUrl: String?, authToken: String?) {
+            BlackBoxCore.get().sendLogs(caption ?: "", async, endpointUrl, authToken, null)
         }
 
         override fun getShopInfo(packageName: String?, userId: Int): ShopInfo? {

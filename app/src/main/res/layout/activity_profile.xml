@@ -55,7 +55,7 @@
                         android:id="@+id/avatarContainer"
                         android:layout_width="60dp"
                         android:layout_height="60dp"
-                        android:background="@drawable/bg_avatar_circle"
+                        android:background="@drawable/bg_avatar_rounded_square"
                         android:clipToOutline="true">
 
                         <ImageView
@@ -279,7 +279,7 @@
                     android:id="@+id/menuLogs"
                     android:layout_width="match_parent"
                     android:layout_height="52dp"
-                    android:background="@drawable/bg_menu_item"
+                    android:background="@drawable/bg_menu_item_bottom"
                     android:gravity="center_vertical"
                     android:orientation="horizontal"
                     android:paddingHorizontal="16dp">
@@ -372,7 +372,7 @@
                     android:id="@+id/menuFeedback"
                     android:layout_width="match_parent"
                     android:layout_height="52dp"
-                    android:background="@drawable/bg_menu_item"
+                    android:background="@drawable/bg_menu_item_bottom"
                     android:gravity="center_vertical"
                     android:orientation="horizontal"
                     android:paddingHorizontal="16dp">
@@ -474,7 +474,7 @@
                     <ImageView
                         android:layout_width="24dp"
                         android:layout_height="24dp"
-                        android:src="@drawable/ic_settings"
+                        android:src="@drawable/ic_engine_upgrade"
                         app:tint="@color/duodian_primary" />
 
                     <TextView
@@ -482,9 +482,25 @@
                         android:layout_height="wrap_content"
                         android:layout_marginStart="12dp"
                         android:layout_weight="1"
-                        android:text="引擎切换"
+                        android:text="升级引擎"
                         android:textColor="@color/duodian_text_primary"
                         android:textSize="15sp" />
+
+                    <TextView
+                        android:id="@+id/tvEngineUpgradeNew"
+                        android:layout_width="wrap_content"
+                        android:layout_height="20dp"
+                        android:layout_marginEnd="8dp"
+                        android:background="@drawable/bg_badge_new"
+                        android:gravity="center"
+                        android:minWidth="36dp"
+                        android:paddingHorizontal="8dp"
+                        android:text="new"
+                        android:textAllCaps="false"
+                        android:textColor="@color/white"
+                        android:textSize="11sp"
+                        android:textStyle="bold"
+                        android:visibility="gone" />
 
                     <ImageView
                         android:layout_width="20dp"
@@ -503,7 +519,7 @@
                     android:id="@+id/menuAbout"
                     android:layout_width="match_parent"
                     android:layout_height="52dp"
-                    android:background="@drawable/bg_menu_item"
+                    android:background="@drawable/bg_menu_item_bottom"
                     android:gravity="center_vertical"
                     android:orientation="horizontal"
                     android:paddingHorizontal="16dp">

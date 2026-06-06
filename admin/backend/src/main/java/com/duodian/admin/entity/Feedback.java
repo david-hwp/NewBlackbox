@@ -10,7 +10,7 @@ public class Feedback {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "user_id", nullable = false)
+    @Column(name = "user_id")
     private Long userId;
 
     @Column(name = "user_phone")
@@ -27,6 +27,15 @@ public class Feedback {
 
     @Column(name = "log_url")
     private String logUrl; // 日志文件URL
+
+    @Column(length = 32)
+    private String source = "APP"; // APP / ENGINE_LOG
+
+    @Column(name = "log_caption", length = 1000)
+    private String logCaption;
+
+    @Column(name = "device_info", columnDefinition = "TEXT")
+    private String deviceInfo;
 
     @Column(length = 20)
     private String status = "PENDING"; // PENDING / PROCESSING / RESOLVED
@@ -64,6 +73,15 @@ public class Feedback {
 
     public String getLogUrl() { return logUrl; }
     public void setLogUrl(String logUrl) { this.logUrl = logUrl; }
+
+    public String getSource() { return source; }
+    public void setSource(String source) { this.source = source; }
+
+    public String getLogCaption() { return logCaption; }
+    public void setLogCaption(String logCaption) { this.logCaption = logCaption; }
+
+    public String getDeviceInfo() { return deviceInfo; }
+    public void setDeviceInfo(String deviceInfo) { this.deviceInfo = deviceInfo; }
 
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }

@@ -41,6 +41,9 @@ class HomeViewModel : ViewModel() {
     private val _displayUsernameLiveData = MutableLiveData<String>()
     val displayUsernameLiveData: LiveData<String> = _displayUsernameLiveData
 
+    private val _avatarUrlLiveData = MutableLiveData<String?>()
+    val avatarUrlLiveData: LiveData<String?> = _avatarUrlLiveData
+
     private val _latestAnnouncementLiveData = MutableLiveData<AnnouncementDto?>()
     val latestAnnouncementLiveData: LiveData<AnnouncementDto?> = _latestAnnouncementLiveData
 
@@ -85,6 +88,7 @@ class HomeViewModel : ViewModel() {
         _computeBalanceLiveData.value = user?.computeBalance ?: 0
         _phoneNumberLiveData.value = maskPhoneNumber(user?.phone ?: "")
         _displayUsernameLiveData.value = getDisplayUsername(user?.username, user?.phone)
+        _avatarUrlLiveData.value = user?.avatarUrl
     }
 
     fun loadShops() {
@@ -94,7 +98,7 @@ class HomeViewModel : ViewModel() {
                 onSuccess = { shopDtos ->
                     allShops = shopDtos.map { it.toShop() }
                     _shopsLiveData.value = allShops
-                    _platformShopCounts.value = allShops.groupingBy { it.platform }.eachCount()
+                    updatePlatformShopCounts()
                     _loadErrorLiveData.value = null
                 },
                 onFailure = { e ->
@@ -115,6 +119,7 @@ class HomeViewModel : ViewModel() {
                     val platforms = platformDtos.map { it.toPlatformItem() }
                     PlatformRegistry.update(platforms)
                     _platformsLiveData.value = platforms
+                    updatePlatformShopCounts()
                     val selected = _selectedPlatformLiveData.value
                     if (selected == null || platforms.none { it.platform == selected && it.available }) {
                         platforms.firstOrNull { it.available }?.let {
@@ -159,10 +164,11 @@ class HomeViewModel : ViewModel() {
 
     fun getFilteredShops(): List<Shop> {
         val platform = _selectedPlatformLiveData.value
+        val packageName = platform?.let { PlatformRegistry.packageName(it) }
         val query = _searchQueryLiveData.value ?: ""
 
         return allShops.filter { shop ->
-            val matchPlatform = platform == null || shop.platform == platform
+            val matchPlatform = platform == null || isSamePackage(shop.packageName, packageName)
             val matchQuery = query.isEmpty() ||
                     shop.shopName.contains(query, ignoreCase = true) ||
                     shop.shopId.contains(query, ignoreCase = true)
@@ -171,6 +177,19 @@ class HomeViewModel : ViewModel() {
     }
 
     fun getAllShops(): List<Shop> = allShops
+
+    private fun updatePlatformShopCounts() {
+        val platforms = _platformsLiveData.value.orEmpty()
+        if (platforms.isEmpty()) {
+            _platformShopCounts.value = emptyMap()
+            return
+        }
+        _platformShopCounts.value = platforms.associate { item ->
+            item.platform to allShops.count { shop ->
+                isSamePackage(shop.packageName, item.packageName)
+            }
+        }
+    }
 
     fun updateComputeBalance(balance: Int) {
         _computeBalanceLiveData.value = balance
@@ -187,7 +206,7 @@ class HomeViewModel : ViewModel() {
                 shopId = shop.shopId,
                 platform = shop.platform.id,
                 platformName = PlatformRegistry.displayName(shop.platform),
-                packageName = shop.packageName ?: PlatformRegistry.packageName(shop.platform) ?: "",
+                packageName = shop.packageName ?: "",
                 cloneInstanceId = shop.cloneInstanceId,
                 remainingDays = shop.remainingDays,
                 autoRenew = shop.autoRenew
@@ -227,7 +246,7 @@ class HomeViewModel : ViewModel() {
                 shopId = detectedShop.shopId,
                 platform = detectedShop.platform.id,
                 platformName = PlatformRegistry.displayName(detectedShop.platform),
-                packageName = detectedShop.packageName ?: PlatformRegistry.packageName(detectedShop.platform) ?: "",
+                packageName = detectedShop.packageName ?: "",
                 cloneInstanceId = null,
                 remainingDays = detectedShop.remainingDays,
                 autoRenew = detectedShop.autoRenew
@@ -263,7 +282,12 @@ class HomeViewModel : ViewModel() {
 
     fun createPendingShop(platformItem: PlatformItemDto) {
         viewModelScope.launch {
-            if (allShops.any { it.platform == platformItem.platform && it.isNew }) {
+            val packageName = platformItem.packageName?.takeIf { it.isNotBlank() }
+            if (packageName == null) {
+                _operationMessageLiveData.value = "该平台暂无关联应用"
+                return@launch
+            }
+            if (allShops.any { it.isNew && isSamePackage(it.packageName, packageName) }) {
                 _operationMessageLiveData.value = "您已添加新店铺但未成功登录，请先完成登录后再添加"
                 return@launch
             }
@@ -276,7 +300,7 @@ class HomeViewModel : ViewModel() {
                 platformName = platformItem.displayName,
                 remainingDays = 30,
                 autoRenew = false,
-                packageName = platformItem.packageName,
+                packageName = packageName,
                 cloneInstanceId = null
             )
             val result = shopRepository.createPendingShop(request)
@@ -309,7 +333,7 @@ class HomeViewModel : ViewModel() {
                 platformName = PlatformRegistry.displayName(shop.platform),
                 remainingDays = shop.remainingDays,
                 autoRenew = autoRenew,
-                packageName = shop.packageName ?: PlatformRegistry.packageName(shop.platform),
+                packageName = shop.packageName,
                 cloneInstanceId = shop.cloneInstanceId
             )
             val result = shopRepository.updateShop(shop.id, request)
@@ -368,4 +392,9 @@ class HomeViewModel : ViewModel() {
         }
     }
 
+    private fun isSamePackage(left: String?, right: String?): Boolean {
+        val normalizedLeft = left?.trim()?.takeIf { it.isNotEmpty() }
+        val normalizedRight = right?.trim()?.takeIf { it.isNotEmpty() }
+        return normalizedLeft != null && normalizedLeft == normalizedRight
+    }
 }
