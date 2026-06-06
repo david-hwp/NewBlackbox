@@ -48,6 +48,9 @@ public class Shop {
     @Column(name = "expire_at")
     private LocalDateTime expireAt;
 
+    @Column(nullable = false, columnDefinition = "TINYINT DEFAULT 0")
+    private Byte deleted = 0;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
@@ -56,6 +59,9 @@ public class Shop {
 
     @PrePersist
     protected void onCreate() {
+        if (deleted == null) {
+            deleted = 0;
+        }
         createdAt = LocalDateTime.now();
         updatedAt = LocalDateTime.now();
     }
@@ -106,6 +112,9 @@ public class Shop {
 
     public LocalDateTime getExpireAt() { return expireAt; }
     public void setExpireAt(LocalDateTime expireAt) { this.expireAt = expireAt; }
+
+    public Byte getDeleted() { return deleted; }
+    public void setDeleted(Byte deleted) { this.deleted = deleted == null ? 0 : deleted; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }

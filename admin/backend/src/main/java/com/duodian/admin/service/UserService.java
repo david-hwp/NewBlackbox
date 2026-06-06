@@ -13,6 +13,8 @@ import java.util.Optional;
 
 @Service
 public class UserService {
+    private static final byte ACTIVE = 0;
+    private static final byte DELETED = 1;
 
     private final UserRepository userRepository;
     private final ShopRepository shopRepository;
@@ -32,30 +34,31 @@ public class UserService {
     }
 
     public List<User> findAll() {
-        return userRepository.findAll();
+        return userRepository.findByDeleted(ACTIVE);
     }
 
     public Optional<User> findById(Long id) {
-        return userRepository.findById(id);
+        return userRepository.findByIdAndDeleted(id, ACTIVE);
     }
 
     public Optional<User> findByPhone(String phone) {
-        return userRepository.findByPhone(phone);
+        return userRepository.findByPhoneAndDeleted(phone, ACTIVE);
     }
 
     @Transactional
     public User refreshShopStats(Long userId) {
-        User user = userRepository.findById(userId)
+        User user = userRepository.findByIdAndDeleted(userId, ACTIVE)
                 .orElseThrow(() -> new RuntimeException("用户不存在"));
-        user.setShopCount(Math.toIntExact(shopRepository.countRealShopsByUserId(userId)));
-        user.setPlatformCount(Math.toIntExact(shopRepository.countRealPlatformsByUserId(userId)));
+        user.setShopCount(Math.toIntExact(shopRepository.countRealShopsByUserId(userId, ACTIVE)));
+        user.setPlatformCount(Math.toIntExact(shopRepository.countRealPlatformsByUserId(userId, ACTIVE)));
         return userRepository.save(user);
     }
 
     public User create(User user) {
-        if (userRepository.existsByPhone(user.getPhone())) {
+        if (userRepository.existsByPhoneAndDeleted(user.getPhone(), ACTIVE)) {
             throw new RuntimeException("手机号已存在");
         }
+        user.setDeleted(ACTIVE);
         user.setComputeBalance(user.getComputeBalance() == null ? 0 : user.getComputeBalance());
         user.setNonTransferableComputeBalance(normalizeNonTransferableBalance(user));
         user.setPassword(passwordService.encode(user.getPassword()));
@@ -63,7 +66,7 @@ public class UserService {
     }
 
     public User update(Long id, User user) {
-        User existing = userRepository.findById(id)
+        User existing = userRepository.findByIdAndDeleted(id, ACTIVE)
                 .orElseThrow(() -> new RuntimeException("用户不存在"));
         existing.setUsername(user.getUsername());
         existing.setAvatarUrl(user.getAvatarUrl());
@@ -75,11 +78,14 @@ public class UserService {
     }
 
     public void delete(Long id) {
-        userRepository.deleteById(id);
+        User user = userRepository.findByIdAndDeleted(id, ACTIVE)
+                .orElseThrow(() -> new RuntimeException("用户不存在"));
+        user.setDeleted(DELETED);
+        userRepository.save(user);
     }
 
     public User login(String phone, String password) {
-        User user = userRepository.findByPhone(phone)
+        User user = userRepository.findByPhoneAndDeleted(phone, ACTIVE)
                 .orElseThrow(() -> new RuntimeException("用户不存在"));
         if (!passwordService.matches(password, user.getPassword())) {
             throw new RuntimeException("密码错误");
@@ -96,7 +102,7 @@ public class UserService {
     }
 
     public void updatePassword(Long userId, String newPassword) {
-        User user = userRepository.findById(userId)
+        User user = userRepository.findByIdAndDeleted(userId, ACTIVE)
                 .orElseThrow(() -> new RuntimeException("用户不存在"));
         user.setPassword(passwordService.encode(newPassword));
         userRepository.save(user);

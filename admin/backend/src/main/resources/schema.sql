@@ -17,10 +17,12 @@ CREATE TABLE IF NOT EXISTS users (
     non_transferable_compute_balance INT NOT NULL DEFAULT 0 COMMENT '不可转赠算力余额',
     shop_count INT NOT NULL DEFAULT 0 COMMENT '店铺数量',
     platform_count INT NOT NULL DEFAULT 0 COMMENT '覆盖平台数',
+    deleted TINYINT(1) NOT NULL DEFAULT 0 COMMENT '软删除: 0-正常 1-已删除',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     last_login_at DATETIME COMMENT '最后登录时间',
-    INDEX idx_phone (phone)
+    INDEX idx_phone (phone),
+    INDEX idx_deleted (deleted)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户表';
 
 -- 店铺表
@@ -37,10 +39,12 @@ CREATE TABLE IF NOT EXISTS shops (
     clone_instance_id VARCHAR(96) COMMENT '分身实例唯一标识',
     last_deducted_at DATETIME COMMENT '最后扣减时间',
     expire_at DATETIME COMMENT '过期时间',
+    deleted TINYINT(1) NOT NULL DEFAULT 0 COMMENT '软删除: 0-正常 1-已删除',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_user_id (user_id),
     INDEX idx_platform (platform),
+    INDEX idx_deleted (deleted),
     UNIQUE KEY uk_clone_instance_id (clone_instance_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='店铺表';
 
@@ -57,9 +61,11 @@ CREATE TABLE IF NOT EXISTS transaction_logs (
     to_phone VARCHAR(20) COMMENT '接收方手机号',
     to_name VARCHAR(64) COMMENT '接收方姓名',
     remark VARCHAR(256) COMMENT '备注',
+    deleted TINYINT(1) NOT NULL DEFAULT 0 COMMENT '软删除: 0-正常 1-已删除',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_user_id (user_id),
     INDEX idx_type (type),
+    INDEX idx_deleted (deleted),
     INDEX idx_created_at (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='交易日志表';
 
@@ -69,9 +75,11 @@ CREATE TABLE IF NOT EXISTS announcements (
     title VARCHAR(128) NOT NULL COMMENT '公告标题',
     content VARCHAR(4000) NOT NULL COMMENT '公告内容',
     published TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否发布',
+    deleted TINYINT(1) NOT NULL DEFAULT 0 COMMENT '软删除: 0-正常 1-已删除',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_published (published),
+    INDEX idx_deleted (deleted),
     INDEX idx_created_at (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='公告表';
 
@@ -84,9 +92,11 @@ CREATE TABLE IF NOT EXISTS engine_versions (
     checksum VARCHAR(64) COMMENT 'APK校验值',
     changelog TEXT COMMENT '更新日志',
     available TINYINT(1) NOT NULL DEFAULT 1 COMMENT '是否可用',
+    deleted TINYINT(1) NOT NULL DEFAULT 0 COMMENT '软删除: 0-正常 1-已删除',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_available (available),
+    INDEX idx_deleted (deleted),
     INDEX idx_version_code (version_code)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='引擎版本表';
 
@@ -99,10 +109,12 @@ CREATE TABLE IF NOT EXISTS platform_configs (
     icon_url VARCHAR(512) COMMENT '平台图标URL',
     available TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否可用',
     sort_order INT DEFAULT 0 COMMENT '排序',
+    deleted TINYINT(1) NOT NULL DEFAULT 0 COMMENT '软删除: 0-正常 1-已删除',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     UNIQUE KEY uk_platform_id (platform_id),
     INDEX idx_available (available),
+    INDEX idx_deleted (deleted),
     INDEX idx_sort_order (sort_order)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='支持平台配置表';
 
@@ -119,10 +131,12 @@ CREATE TABLE IF NOT EXISTS feedbacks (
     log_caption VARCHAR(1000) COMMENT '日志说明',
     device_info TEXT COMMENT '设备信息',
     status VARCHAR(20) DEFAULT 'PENDING' COMMENT '状态',
+    deleted TINYINT(1) NOT NULL DEFAULT 0 COMMENT '软删除: 0-正常 1-已删除',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     resolved_at DATETIME COMMENT '处理时间',
     INDEX idx_user_id (user_id),
     INDEX idx_status (status),
+    INDEX idx_deleted (deleted),
     INDEX idx_created_at (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='问题反馈表';
 

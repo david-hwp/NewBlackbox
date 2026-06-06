@@ -9,6 +9,8 @@ import java.util.Optional;
 
 @Service
 public class FeedbackService {
+    private static final byte ACTIVE = 0;
+    private static final byte DELETED = 1;
 
     private final FeedbackRepository feedbackRepository;
 
@@ -17,33 +19,37 @@ public class FeedbackService {
     }
 
     public List<Feedback> findAll() {
-        return feedbackRepository.findAll();
+        return feedbackRepository.findByDeletedOrderByCreatedAtDesc(ACTIVE);
     }
 
     public Optional<Feedback> findById(Long id) {
-        return feedbackRepository.findById(id);
+        return feedbackRepository.findByIdAndDeleted(id, ACTIVE);
     }
 
     public List<Feedback> findByUserId(Long userId) {
-        return feedbackRepository.findByUserId(userId);
+        return feedbackRepository.findByUserIdAndDeletedOrderByCreatedAtDesc(userId, ACTIVE);
     }
 
     public List<Feedback> findByStatus(String status) {
-        return feedbackRepository.findByStatus(status);
+        return feedbackRepository.findByStatusAndDeletedOrderByCreatedAtDesc(status, ACTIVE);
     }
 
     public Feedback create(Feedback feedback) {
+        feedback.setDeleted(ACTIVE);
         return feedbackRepository.save(feedback);
     }
 
     public Feedback updateStatus(Long id, String status) {
-        Feedback feedback = feedbackRepository.findById(id)
+        Feedback feedback = feedbackRepository.findByIdAndDeleted(id, ACTIVE)
                 .orElseThrow(() -> new RuntimeException("反馈不存在"));
         feedback.setStatus(status);
         return feedbackRepository.save(feedback);
     }
 
     public void delete(Long id) {
-        feedbackRepository.deleteById(id);
+        Feedback feedback = feedbackRepository.findByIdAndDeleted(id, ACTIVE)
+                .orElseThrow(() -> new RuntimeException("反馈不存在"));
+        feedback.setDeleted(DELETED);
+        feedbackRepository.save(feedback);
     }
 }

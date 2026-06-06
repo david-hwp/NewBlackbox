@@ -9,6 +9,8 @@ import java.util.Optional;
 
 @Service
 public class ShopService {
+    private static final byte ACTIVE = 0;
+    private static final byte DELETED = 1;
 
     private final ShopRepository shopRepository;
 
@@ -17,55 +19,57 @@ public class ShopService {
     }
 
     public List<Shop> findAll() {
-        return shopRepository.findAll();
+        return shopRepository.findByDeleted(ACTIVE);
     }
 
     public Optional<Shop> findById(Long id) {
-        return shopRepository.findById(id);
+        return shopRepository.findByIdAndDeleted(id, ACTIVE);
     }
 
     public List<Shop> findByUserId(Long userId) {
-        return shopRepository.findByUserId(userId);
+        return shopRepository.findByUserIdAndDeleted(userId, ACTIVE);
     }
 
     public List<Shop> findByUserIdAndPackageName(Long userId, String packageName) {
-        return shopRepository.findByUserIdAndPackageName(userId, packageName);
+        return shopRepository.findByUserIdAndPackageNameAndDeleted(userId, packageName, ACTIVE);
     }
 
     public List<Shop> findByPackageName(String packageName) {
-        return shopRepository.findByPackageName(packageName);
+        return shopRepository.findByPackageNameAndDeleted(packageName, ACTIVE);
     }
 
     public Shop create(Shop shop) {
+        shop.setDeleted(ACTIVE);
         return shopRepository.save(shop);
     }
 
     public Optional<Shop> findByUserIdAndShopId(Long userId, String shopId) {
-        return shopRepository.findByUserIdAndShopId(userId, shopId);
+        return shopRepository.findByUserIdAndShopIdAndDeleted(userId, shopId, ACTIVE);
     }
 
     public Optional<Shop> findByUserIdAndShopIdAndPackageName(Long userId, String shopId, String packageName) {
-        return shopRepository.findByUserIdAndShopIdAndPackageName(userId, shopId, packageName);
+        return shopRepository.findByUserIdAndShopIdAndPackageNameAndDeleted(userId, shopId, packageName, ACTIVE);
     }
 
     public Optional<Shop> findByUserIdAndCloneInstanceId(Long userId, String cloneInstanceId) {
-        return shopRepository.findByUserIdAndCloneInstanceId(userId, cloneInstanceId);
+        return shopRepository.findByUserIdAndCloneInstanceIdAndDeleted(userId, cloneInstanceId, ACTIVE);
     }
 
     public Optional<Shop> findPendingByUserPackage(Long userId, String packageName) {
-        return shopRepository.findFirstByUserIdAndPackageNameAndShopIdStartingWith(
+        return shopRepository.findFirstByUserIdAndPackageNameAndShopIdStartingWithAndDeleted(
                 userId,
                 packageName,
-                "NEW-"
+                "NEW-",
+                ACTIVE
         );
     }
 
     public boolean hasPendingShopByPackage(Long userId, String packageName, String shopIdPrefix) {
-        return shopRepository.existsByUserIdAndPackageNameAndShopIdStartingWith(userId, packageName, shopIdPrefix);
+        return shopRepository.existsByUserIdAndPackageNameAndShopIdStartingWithAndDeleted(userId, packageName, shopIdPrefix, ACTIVE);
     }
 
     public Shop update(Long id, Shop shop) {
-        Shop existing = shopRepository.findById(id)
+        Shop existing = shopRepository.findByIdAndDeleted(id, ACTIVE)
                 .orElseThrow(() -> new RuntimeException("店铺不存在"));
         existing.setShopName(shop.getShopName());
         existing.setShopId(shop.getShopId());
@@ -81,6 +85,10 @@ public class ShopService {
     }
 
     public void delete(Long id) {
-        shopRepository.deleteById(id);
+        Shop shop = shopRepository.findByIdAndDeleted(id, ACTIVE)
+                .orElseThrow(() -> new RuntimeException("店铺不存在"));
+        shop.setCloneInstanceId(null);
+        shop.setDeleted(DELETED);
+        shopRepository.save(shop);
     }
 }

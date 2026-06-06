@@ -9,8 +9,9 @@ import java.util.Optional;
 
 @Repository
 public interface PlatformConfigRepository extends JpaRepository<PlatformConfig, Long> {
-    List<PlatformConfig> findAllByOrderBySortOrderAscIdAsc();
-    Optional<PlatformConfig> findByPlatformId(String platformId);
-    boolean existsByPlatformId(String platformId);
-    boolean existsByPlatformIdAndIdNot(String platformId, Long id);
+    List<PlatformConfig> findByDeletedOrderBySortOrderAscIdAsc(Byte deleted);
+    Optional<PlatformConfig> findByIdAndDeleted(Long id, Byte deleted);
+    Optional<PlatformConfig> findByPlatformIdAndDeleted(String platformId, Byte deleted);
+    boolean existsByPlatformIdAndDeleted(String platformId, Byte deleted);
+    boolean existsByPlatformIdAndIdNotAndDeleted(String platformId, Long id, Byte deleted);
 }

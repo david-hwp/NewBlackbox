@@ -87,6 +87,12 @@ public class FeedbackController {
         return ApiResponse.success(feedbackService.updateStatus(id, status));
     }
 
+    @DeleteMapping("/{id}")
+    public ApiResponse<Void> delete(@PathVariable Long id) {
+        feedbackService.delete(id);
+        return ApiResponse.success();
+    }
+
     @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
     public ApiResponse<Feedback> create(@RequestBody FeedbackCreateRequest request) {
         Long userId = AuthContext.getUserId();

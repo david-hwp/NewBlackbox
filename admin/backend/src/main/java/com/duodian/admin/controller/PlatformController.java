@@ -11,6 +11,8 @@ import java.util.List;
 @RestController
 @RequestMapping("/platforms")
 public class PlatformController {
+    private static final byte ACTIVE = 0;
+    private static final byte DELETED = 1;
 
     private final PlatformConfigRepository repository;
 
@@ -20,7 +22,7 @@ public class PlatformController {
 
     @GetMapping
     public ApiResponse<List<PlatformInfo>> list() {
-        return ApiResponse.success(repository.findAllByOrderBySortOrderAscIdAsc().stream()
+        return ApiResponse.success(repository.findByDeletedOrderBySortOrderAscIdAsc(ACTIVE).stream()
                 .map(this::toInfo)
                 .toList());
     }
@@ -30,22 +32,23 @@ public class PlatformController {
         if (request.getId() == null || request.getId().isBlank()) {
             return ApiResponse.error("平台标识不能为空");
         }
-        if (repository.existsByPlatformId(request.getId().trim())) {
+        if (repository.existsByPlatformIdAndDeleted(request.getId().trim(), ACTIVE)) {
             return ApiResponse.error("平台标识已存在");
         }
         PlatformConfig config = new PlatformConfig();
+        config.setDeleted(ACTIVE);
         fillConfig(config, request);
         return ApiResponse.success(toInfo(repository.save(config)));
     }
 
     @PutMapping("/{id}")
     public ApiResponse<PlatformInfo> update(@PathVariable Long id, @RequestBody PlatformInfo request) {
-        PlatformConfig config = repository.findById(id)
+        PlatformConfig config = repository.findByIdAndDeleted(id, ACTIVE)
                 .orElseThrow(() -> new RuntimeException("平台不存在"));
         if (request.getId() == null || request.getId().isBlank()) {
             return ApiResponse.error("平台标识不能为空");
         }
-        if (repository.existsByPlatformIdAndIdNot(request.getId().trim(), id)) {
+        if (repository.existsByPlatformIdAndIdNotAndDeleted(request.getId().trim(), id, ACTIVE)) {
             return ApiResponse.error("平台标识已存在");
         }
         fillConfig(config, request);
@@ -54,7 +57,10 @@ public class PlatformController {
 
     @DeleteMapping("/{id}")
     public ApiResponse<Void> delete(@PathVariable Long id) {
-        repository.deleteById(id);
+        PlatformConfig config = repository.findByIdAndDeleted(id, ACTIVE)
+                .orElseThrow(() -> new RuntimeException("平台不存在"));
+        config.setDeleted(DELETED);
+        repository.save(config);
         return ApiResponse.success();
     }
 

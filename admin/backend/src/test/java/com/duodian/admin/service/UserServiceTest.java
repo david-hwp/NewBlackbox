@@ -34,9 +34,9 @@ class UserServiceTest {
         user.setPhone("13800000007");
         user.setShopCount(0);
         user.setPlatformCount(0);
-        when(userRepository.findById(7L)).thenReturn(Optional.of(user));
-        when(shopRepository.countRealShopsByUserId(7L)).thenReturn(3L);
-        when(shopRepository.countRealPlatformsByUserId(7L)).thenReturn(2L);
+        when(userRepository.findByIdAndDeleted(7L, (byte) 0)).thenReturn(Optional.of(user));
+        when(shopRepository.countRealShopsByUserId(7L, (byte) 0)).thenReturn(3L);
+        when(shopRepository.countRealPlatformsByUserId(7L, (byte) 0)).thenReturn(2L);
         when(userRepository.save(user)).thenReturn(user);
 
         User refreshed = userService.refreshShopStats(7L);
@@ -60,7 +60,7 @@ class UserServiceTest {
         request.setNonTransferableComputeBalance(9);
         request.setShopCount(0);
         request.setPlatformCount(0);
-        when(userRepository.findById(8L)).thenReturn(Optional.of(existing));
+        when(userRepository.findByIdAndDeleted(8L, (byte) 0)).thenReturn(Optional.of(existing));
         when(userRepository.save(existing)).thenReturn(existing);
 
         User updated = userService.update(8L, request);

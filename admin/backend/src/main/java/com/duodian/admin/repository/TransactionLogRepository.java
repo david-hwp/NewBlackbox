@@ -13,16 +13,20 @@ import java.util.List;
 
 @Repository
 public interface TransactionLogRepository extends JpaRepository<TransactionLog, Long> {
-    List<TransactionLog> findByUserId(Long userId);
-    List<TransactionLog> findByType(String type);
+    List<TransactionLog> findByDeletedOrderByCreatedAtDesc(Byte deleted);
+    java.util.Optional<TransactionLog> findByIdAndDeleted(Long id, Byte deleted);
+    List<TransactionLog> findByUserIdAndDeletedOrderByCreatedAtDesc(Long userId, Byte deleted);
+    List<TransactionLog> findByTypeAndDeletedOrderByCreatedAtDesc(String type, Byte deleted);
 
     @Query("SELECT t FROM TransactionLog t WHERE t.userId = :userId " +
+           "AND t.deleted = :active " +
            "AND (:type IS NULL OR t.type = :type) " +
            "AND (:startDate IS NULL OR t.createdAt >= :startDate) " +
            "AND (:endDate IS NULL OR t.createdAt <= :endDate) " +
            "ORDER BY t.createdAt DESC")
     Page<TransactionLog> findByUserIdAndConditions(
             @Param("userId") Long userId,
+            @Param("active") Byte active,
             @Param("type") String type,
             @Param("startDate") LocalDateTime startDate,
             @Param("endDate") LocalDateTime endDate,

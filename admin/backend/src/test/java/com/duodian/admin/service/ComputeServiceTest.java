@@ -25,8 +25,8 @@ class ComputeServiceTest {
     void giftComputeOnlyAllowsTransferableBalance() {
         User fromUser = user(1L, "13800000001", 2, 2);
         User toUser = user(2L, "13800000002", 0, 0);
-        when(userRepository.findById(1L)).thenReturn(Optional.of(fromUser));
-        when(userRepository.findByPhone("13800000002")).thenReturn(Optional.of(toUser));
+        when(userRepository.findByIdAndDeleted(1L, (byte) 0)).thenReturn(Optional.of(fromUser));
+        when(userRepository.findByPhoneAndDeleted("13800000002", (byte) 0)).thenReturn(Optional.of(toUser));
 
         assertThatThrownBy(() -> computeService.giftCompute(1L, "13800000002", 1))
                 .hasMessage("可转赠算力余额不足");
@@ -35,7 +35,7 @@ class ComputeServiceTest {
     @Test
     void deductComputeConsumesNonTransferableBalanceFirst() {
         User user = user(1L, "13800000001", 2, 2);
-        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(userRepository.findByIdAndDeleted(1L, (byte) 0)).thenReturn(Optional.of(user));
 
         boolean deducted = computeService.deductCompute(1L, "shop-1", "测试店铺", "jd");
 
@@ -52,8 +52,8 @@ class ComputeServiceTest {
     void giftComputeTransfersOnlyTransferablePortion() {
         User fromUser = user(1L, "13800000001", 5, 2);
         User toUser = user(2L, "13800000002", 0, 0);
-        when(userRepository.findById(1L)).thenReturn(Optional.of(fromUser));
-        when(userRepository.findByPhone("13800000002")).thenReturn(Optional.of(toUser));
+        when(userRepository.findByIdAndDeleted(1L, (byte) 0)).thenReturn(Optional.of(fromUser));
+        when(userRepository.findByPhoneAndDeleted("13800000002", (byte) 0)).thenReturn(Optional.of(toUser));
 
         computeService.giftCompute(1L, "13800000002", 3);
 

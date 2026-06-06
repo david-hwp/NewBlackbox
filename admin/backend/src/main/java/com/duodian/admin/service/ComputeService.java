@@ -13,6 +13,7 @@ import java.util.Optional;
 
 @Service
 public class ComputeService {
+    private static final byte ACTIVE = 0;
 
     private final UserRepository userRepository;
     private final TransactionLogRepository transactionLogRepository;
@@ -23,7 +24,7 @@ public class ComputeService {
     }
 
     public Integer getBalance(Long userId) {
-        return userRepository.findById(userId)
+        return userRepository.findByIdAndDeleted(userId, ACTIVE)
                 .map(User::getComputeBalance)
                 .orElse(0);
     }
@@ -39,7 +40,7 @@ public class ComputeService {
     }
 
     private boolean deductCompute(Long userId, String shopId, String shopName, String platform, String remarkPrefix) {
-        User user = userRepository.findById(userId)
+        User user = userRepository.findByIdAndDeleted(userId, ACTIVE)
                 .orElseThrow(() -> new RuntimeException("用户不存在"));
         int balance = user.getComputeBalance() == null ? 0 : user.getComputeBalance();
 
@@ -76,7 +77,7 @@ public class ComputeService {
             throw new RuntimeException("赠送数量必须大于0");
         }
 
-        User fromUser = userRepository.findById(fromUserId)
+        User fromUser = userRepository.findByIdAndDeleted(fromUserId, ACTIVE)
                 .orElseThrow(() -> new RuntimeException("转出用户不存在"));
 
         int balance = fromUser.getComputeBalance() == null ? 0 : fromUser.getComputeBalance();
@@ -89,7 +90,7 @@ public class ComputeService {
             throw new RuntimeException("可转赠算力余额不足");
         }
 
-        User toUser = userRepository.findByPhone(toPhone)
+        User toUser = userRepository.findByPhoneAndDeleted(toPhone, ACTIVE)
                 .orElseThrow(() -> new RuntimeException("接收用户不存在"));
 
         if (fromUserId.equals(toUser.getId())) {

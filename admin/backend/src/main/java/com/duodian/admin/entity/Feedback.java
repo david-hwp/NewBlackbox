@@ -40,6 +40,9 @@ public class Feedback {
     @Column(length = 20)
     private String status = "PENDING"; // PENDING / PROCESSING / RESOLVED
 
+    @Column(nullable = false, columnDefinition = "TINYINT DEFAULT 0")
+    private Byte deleted = 0;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
@@ -48,6 +51,9 @@ public class Feedback {
 
     @PrePersist
     protected void onCreate() {
+        if (deleted == null) {
+            deleted = 0;
+        }
         createdAt = LocalDateTime.now();
     }
 
@@ -85,6 +91,9 @@ public class Feedback {
 
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
+
+    public Byte getDeleted() { return deleted; }
+    public void setDeleted(Byte deleted) { this.deleted = deleted == null ? 0 : deleted; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }

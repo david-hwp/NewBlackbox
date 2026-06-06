@@ -28,6 +28,9 @@ public class EngineVersion {
     @Column(nullable = false)
     private Boolean available = true;
 
+    @Column(nullable = false, columnDefinition = "TINYINT DEFAULT 0")
+    private Byte deleted = 0;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
@@ -36,6 +39,9 @@ public class EngineVersion {
 
     @PrePersist
     protected void onCreate() {
+        if (deleted == null) {
+            deleted = 0;
+        }
         createdAt = LocalDateTime.now();
         updatedAt = LocalDateTime.now();
     }
@@ -65,6 +71,9 @@ public class EngineVersion {
 
     public Boolean getAvailable() { return available; }
     public void setAvailable(Boolean available) { this.available = available; }
+
+    public Byte getDeleted() { return deleted; }
+    public void setDeleted(Byte deleted) { this.deleted = deleted == null ? 0 : deleted; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }

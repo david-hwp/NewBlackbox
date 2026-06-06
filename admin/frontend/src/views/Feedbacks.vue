@@ -68,6 +68,11 @@
           </template>
         </el-table-column>
         <el-table-column prop="createdAt" label="提交时间" width="180" />
+        <el-table-column label="操作" width="90" fixed="right">
+          <template #default="{ row }">
+            <el-button type="danger" link @click="handleDelete(row)">删除</el-button>
+          </template>
+        </el-table-column>
       </el-table>
     </el-card>
 
@@ -104,7 +109,7 @@
 
 <script setup>
 import { ref, reactive, onMounted, onBeforeUnmount, watch } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowLeft, ArrowRight, Download, ZoomIn, ZoomOut } from '@element-plus/icons-vue'
 import request from '../utils/request'
 import { fetchFileBlob, getObjectUrl, getPreferredImageObjectUrl } from '../utils/files'
@@ -140,6 +145,17 @@ const imageList = (value) => {
 const updateStatus = async (row) => {
   await request.put(`/feedbacks/${row.id}/status`, { status: row.status })
   ElMessage.success('状态已更新')
+}
+
+const handleDelete = async (row) => {
+  try {
+    await ElMessageBox.confirm('确定删除该反馈吗？', '提示', { type: 'warning' })
+    await request.delete(`/feedbacks/${row.id}`)
+    ElMessage.success('删除成功')
+    fetchFeedbacks()
+  } catch (e) {
+    if (e !== 'cancel') console.error(e)
+  }
 }
 
 const loadThumbnails = async (rows) => {

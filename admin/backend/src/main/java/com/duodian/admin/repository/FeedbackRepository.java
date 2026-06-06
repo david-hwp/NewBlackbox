@@ -5,9 +5,12 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface FeedbackRepository extends JpaRepository<Feedback, Long> {
-    List<Feedback> findByUserId(Long userId);
-    List<Feedback> findByStatus(String status);
+    List<Feedback> findByDeletedOrderByCreatedAtDesc(Byte deleted);
+    Optional<Feedback> findByIdAndDeleted(Long id, Byte deleted);
+    List<Feedback> findByUserIdAndDeletedOrderByCreatedAtDesc(Long userId, Byte deleted);
+    List<Feedback> findByStatusAndDeletedOrderByCreatedAtDesc(String status, Byte deleted);
 }

@@ -48,8 +48,14 @@ public class User {
     @Column(name = "last_login_at")
     private LocalDateTime lastLoginAt;
 
+    @Column(nullable = false, columnDefinition = "TINYINT DEFAULT 0")
+    private Byte deleted = 0;
+
     @PrePersist
     protected void onCreate() {
+        if (deleted == null) {
+            deleted = 0;
+        }
         createdAt = LocalDateTime.now();
         updatedAt = LocalDateTime.now();
     }
@@ -100,4 +106,7 @@ public class User {
 
     public LocalDateTime getLastLoginAt() { return lastLoginAt; }
     public void setLastLoginAt(LocalDateTime lastLoginAt) { this.lastLoginAt = lastLoginAt; }
+
+    public Byte getDeleted() { return deleted; }
+    public void setDeleted(Byte deleted) { this.deleted = deleted == null ? 0 : deleted; }
 }

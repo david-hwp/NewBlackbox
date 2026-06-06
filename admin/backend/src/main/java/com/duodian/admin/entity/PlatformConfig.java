@@ -33,6 +33,9 @@ public class PlatformConfig {
     @Column(name = "sort_order")
     private Integer sortOrder = 0;
 
+    @Column(nullable = false, columnDefinition = "TINYINT DEFAULT 0")
+    private Byte deleted = 0;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
@@ -41,6 +44,9 @@ public class PlatformConfig {
 
     @PrePersist
     protected void onCreate() {
+        if (deleted == null) {
+            deleted = 0;
+        }
         createdAt = LocalDateTime.now();
         updatedAt = LocalDateTime.now();
     }
@@ -70,6 +76,9 @@ public class PlatformConfig {
 
     public Integer getSortOrder() { return sortOrder; }
     public void setSortOrder(Integer sortOrder) { this.sortOrder = sortOrder == null ? 0 : sortOrder; }
+
+    public Byte getDeleted() { return deleted; }
+    public void setDeleted(Byte deleted) { this.deleted = deleted == null ? 0 : deleted; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
