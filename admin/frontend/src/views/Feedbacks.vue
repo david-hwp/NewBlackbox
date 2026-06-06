@@ -88,29 +88,33 @@
         <span class="preview-count">{{ preview.index + 1 }} / {{ preview.urls.length }}</span>
         <el-button :icon="ArrowRight" :disabled="preview.index >= preview.urls.length - 1" @click="showNextImage">下一张</el-button>
         <el-divider direction="vertical" />
-        <el-button :icon="ZoomOut" @click="zoomImage(-0.25)">缩小</el-button>
-        <el-button :icon="ZoomIn" @click="zoomImage(0.25)">放大</el-button>
-        <el-button @click="resetZoom">原始</el-button>
+        <el-button :icon="ZoomOut" @click="zoomImage(-1)">缩小</el-button>
+        <el-button :icon="ZoomIn" @click="zoomImage(1)">放大</el-button>
+        <el-button :icon="Refresh" @click="resetZoom">重置</el-button>
         <el-button type="primary" :icon="Download" @click="downloadPreviewImage">保存到本地</el-button>
       </div>
-      <div class="preview-stage">
-        <img
-          v-if="preview.objectUrl"
-          :src="preview.objectUrl"
-          class="preview-image"
-          :style="{ transform: `scale(${preview.scale})` }"
-          alt=""
-        />
-        <el-empty v-else description="图片加载中" />
+      <div ref="previewStageRef" class="preview-stage">
+        <div v-if="preview.objectUrl" class="preview-image-wrap">
+          <img
+            :src="preview.objectUrl"
+            class="preview-image"
+            :style="previewImageStyle"
+            alt=""
+            @load="handlePreviewImageLoad"
+          />
+        </div>
+        <div v-else class="preview-empty">
+          <el-empty description="图片加载中" />
+        </div>
       </div>
     </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, onBeforeUnmount, watch } from 'vue'
+import { ref, reactive, computed, nextTick, onMounted, onBeforeUnmount, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowLeft, ArrowRight, Download, ZoomIn, ZoomOut } from '@element-plus/icons-vue'
+import { ArrowLeft, ArrowRight, Download, Refresh, ZoomIn, ZoomOut } from '@element-plus/icons-vue'
 import request from '../utils/request'
 import { fetchFileBlob, getObjectUrl, getPreferredImageObjectUrl } from '../utils/files'
 
@@ -118,12 +122,26 @@ const feedbacks = ref([])
 const loading = ref(false)
 const thumbnailUrls = reactive({})
 const objectUrlCache = new Map()
+const previewStageRef = ref(null)
 const preview = reactive({
   visible: false,
   urls: [],
   index: 0,
   objectUrl: '',
-  scale: 1
+  scale: 1,
+  fitScale: 1,
+  naturalWidth: 0,
+  naturalHeight: 0
+})
+
+const previewImageStyle = computed(() => {
+  if (!preview.naturalWidth || !preview.naturalHeight) {
+    return {}
+  }
+  return {
+    width: `${Math.max(1, Math.round(preview.naturalWidth * preview.scale))}px`,
+    height: `${Math.max(1, Math.round(preview.naturalHeight * preview.scale))}px`
+  }
 })
 
 const fetchFeedbacks = async () => {
@@ -173,13 +191,14 @@ const loadThumbnails = async (rows) => {
 const openImagePreview = async (urls, index) => {
   preview.urls = urls
   preview.index = index
-  preview.scale = 1
+  resetPreviewSizing()
   preview.visible = true
   await loadPreviewImage()
 }
 
 const loadPreviewImage = async () => {
   preview.objectUrl = ''
+  resetPreviewSizing()
   const url = preview.urls[preview.index]
   if (!url) return
   try {
@@ -199,20 +218,65 @@ const showNextImage = () => {
   preview.index += 1
 }
 
-const zoomImage = (delta) => {
-  const nextScale = Number((preview.scale + delta).toFixed(2))
-  preview.scale = Math.max(0.25, Math.min(4, nextScale))
+const resetPreviewSizing = () => {
+  preview.scale = 1
+  preview.fitScale = 1
+  preview.naturalWidth = 0
+  preview.naturalHeight = 0
+}
+
+const anchorPreviewToTop = () => {
+  requestAnimationFrame(() => {
+    const stage = previewStageRef.value
+    if (!stage) return
+    stage.scrollTop = 0
+    stage.scrollLeft = Math.max(0, (stage.scrollWidth - stage.clientWidth) / 2)
+  })
+}
+
+const fitImageToStage = async () => {
+  await nextTick()
+  const stage = previewStageRef.value
+  if (!stage || !preview.naturalWidth || !preview.naturalHeight) return
+  const availableWidth = Math.max(1, stage.clientWidth - 32)
+  const availableHeight = Math.max(1, stage.clientHeight - 32)
+  const nextScale = Math.min(
+    availableWidth / preview.naturalWidth,
+    availableHeight / preview.naturalHeight
+  )
+  preview.fitScale = Number(Math.max(0.05, nextScale).toFixed(4))
+  preview.scale = preview.fitScale
+  await nextTick()
+  anchorPreviewToTop()
+}
+
+const handlePreviewImageLoad = async (event) => {
+  const image = event.target
+  preview.naturalWidth = image.naturalWidth || 0
+  preview.naturalHeight = image.naturalHeight || 0
+  await fitImageToStage()
+}
+
+const zoomImage = async (direction) => {
+  if (!preview.naturalWidth || !preview.naturalHeight) return
+  const factor = direction > 0 ? 1.25 : 0.8
+  const minScale = Math.max(0.05, preview.fitScale * 0.25)
+  const maxScale = Math.max(4, preview.fitScale * 8)
+  const nextScale = Number((preview.scale * factor).toFixed(4))
+  preview.scale = Math.max(minScale, Math.min(maxScale, nextScale))
+  await nextTick()
+  anchorPreviewToTop()
 }
 
 const resetZoom = () => {
-  preview.scale = 1
+  fitImageToStage()
 }
 
 const closeImagePreview = () => {
   preview.urls = []
   preview.index = 0
   preview.objectUrl = ''
-  preview.scale = 1
+  resetPreviewSizing()
 }
 
 const downloadPrivateFile = async (url) => {
@@ -238,7 +302,6 @@ const downloadPreviewImage = () => {
 
 watch(() => preview.index, () => {
   if (preview.visible) {
-    preview.scale = 1
     loadPreviewImage()
   }
 })
@@ -307,17 +370,32 @@ onMounted(fetchFeedbacks)
 .preview-stage {
   height: 70vh;
   overflow: auto;
-  display: grid;
-  place-items: center;
   background: #f5f7fa;
   border-radius: 6px;
 }
 
+.preview-image-wrap {
+  box-sizing: border-box;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  width: max-content;
+  min-width: 100%;
+  min-height: 100%;
+  padding: 16px;
+}
+
 .preview-image {
-  max-width: 100%;
-  max-height: 100%;
+  display: block;
+  max-width: none;
+  max-height: none;
   object-fit: contain;
-  transform-origin: center;
-  transition: transform 120ms ease;
+  transition: width 120ms ease, height 120ms ease;
+}
+
+.preview-empty {
+  display: grid;
+  min-height: 100%;
+  place-items: center;
 }
 </style>
