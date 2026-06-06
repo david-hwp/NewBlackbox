@@ -7,6 +7,7 @@ data class UserDto(
     val phone: String,
     val role: String,
     val computeBalance: Int,
+    val nonTransferableComputeBalance: Int = 0,
     val shopCount: Int,
     val platformCount: Int,
     val token: String? = null

@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS users (
     password VARCHAR(128) NOT NULL COMMENT '密码',
     role VARCHAR(20) NOT NULL DEFAULT 'USER' COMMENT '角色: ADMIN/USER',
     compute_balance INT NOT NULL DEFAULT 0 COMMENT '算力余额',
+    non_transferable_compute_balance INT NOT NULL DEFAULT 0 COMMENT '不可转赠算力余额',
     shop_count INT NOT NULL DEFAULT 0 COMMENT '店铺数量',
     platform_count INT NOT NULL DEFAULT 0 COMMENT '覆盖平台数',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -126,6 +127,6 @@ CREATE TABLE IF NOT EXISTS feedbacks (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='问题反馈表';
 
 -- 插入默认管理员账号，密码使用 BCrypt 密文存储
-INSERT INTO users (username, phone, password, role, compute_balance, shop_count, platform_count)
-VALUES ('管理员', '13800138000', '$2y$12$xRCi/REAIr6LB5YhvqMIOeJ6aim.wGMW5l19JiJO3U8gpCjGAVssS', 'ADMIN', 9999, 0, 0)
+INSERT INTO users (username, phone, password, role, compute_balance, non_transferable_compute_balance, shop_count, platform_count)
+VALUES ('管理员', '13800138000', '$2y$12$xRCi/REAIr6LB5YhvqMIOeJ6aim.wGMW5l19JiJO3U8gpCjGAVssS', 'ADMIN', 9999, 0, 0, 0)
 ON DUPLICATE KEY UPDATE id=id;

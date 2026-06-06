@@ -49,7 +49,7 @@ class GiftActivity : AppCompatActivity() {
     private fun initMockData() {
         val user = TokenManager.getInstance().getUser()
         binding.tvPhone.text = maskPhone(user?.phone.orEmpty())
-        binding.tvBalance.text = (user?.computeBalance ?: 0).toString()
+        binding.tvBalance.text = getTransferableBalance().toString()
     }
 
     private fun initListeners() {
@@ -73,9 +73,14 @@ class GiftActivity : AppCompatActivity() {
         }
 
         val amount = binding.etAmount.text.toString().trim()
-        if (amount.isEmpty() || amount.toIntOrNull() == null || amount.toInt() <= 0) {
+        val parsedAmount = amount.toIntOrNull()
+        if (amount.isEmpty() || parsedAmount == null || parsedAmount <= 0) {
             binding.tvAmountError.visibility = View.VISIBLE
             binding.tvAmountError.text = getString(R.string.error_amount_invalid)
+            isValid = false
+        } else if (parsedAmount > getTransferableBalance()) {
+            binding.tvAmountError.visibility = View.VISIBLE
+            binding.tvAmountError.text = "可转赠算力余额不足"
             isValid = false
         } else {
             binding.tvAmountError.visibility = View.GONE
@@ -119,7 +124,7 @@ class GiftActivity : AppCompatActivity() {
         TokenManager.getInstance().getUser()?.let { user ->
             TokenManager.getInstance().saveUser(user.copy(computeBalance = result.fromBalance))
         }
-        binding.tvBalance.text = result.fromBalance.toString()
+        binding.tvBalance.text = getTransferableBalance().toString()
         binding.btnConfirm.text = getString(R.string.gift_success)
         binding.btnConfirm.setBackgroundColor(getColor(R.color.duodian_primary))
 
@@ -129,8 +134,13 @@ class GiftActivity : AppCompatActivity() {
             binding.btnConfirm.text = getString(R.string.gift_confirm)
             binding.btnConfirm.setBackgroundResource(R.drawable.bg_button_primary)
 
-            binding.tvBalance.text = result.fromBalance.toString()
+            binding.tvBalance.text = getTransferableBalance().toString()
         }, 1500)
+    }
+
+    private fun getTransferableBalance(): Int {
+        val user = TokenManager.getInstance().getUser() ?: return 0
+        return (user.computeBalance - user.nonTransferableComputeBalance).coerceAtLeast(0)
     }
 
     private fun maskPhone(phone: String): String {

@@ -41,12 +41,21 @@ public class ComputeService {
     private boolean deductCompute(Long userId, String shopId, String shopName, String platform, String remarkPrefix) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("用户不存在"));
+        int balance = user.getComputeBalance() == null ? 0 : user.getComputeBalance();
 
-        if (user.getComputeBalance() < 1) {
+        if (balance < 1) {
             return false;
         }
 
-        user.setComputeBalance(user.getComputeBalance() - 1);
+        user.setComputeBalance(balance - 1);
+        int nonTransferable = user.getNonTransferableComputeBalance() == null
+                ? 0
+                : user.getNonTransferableComputeBalance();
+        if (nonTransferable > 0) {
+            user.setNonTransferableComputeBalance(Math.min(nonTransferable - 1, user.getComputeBalance()));
+        } else {
+            user.setNonTransferableComputeBalance(0);
+        }
         userRepository.save(user);
 
         TransactionLog log = new TransactionLog();
@@ -70,8 +79,14 @@ public class ComputeService {
         User fromUser = userRepository.findById(fromUserId)
                 .orElseThrow(() -> new RuntimeException("转出用户不存在"));
 
-        if (fromUser.getComputeBalance() < amount) {
-            throw new RuntimeException("算力余额不足");
+        int balance = fromUser.getComputeBalance() == null ? 0 : fromUser.getComputeBalance();
+        int nonTransferable = fromUser.getNonTransferableComputeBalance() == null
+                ? 0
+                : fromUser.getNonTransferableComputeBalance();
+        int transferableBalance = Math.max(0, balance - nonTransferable);
+
+        if (transferableBalance < amount) {
+            throw new RuntimeException("可转赠算力余额不足");
         }
 
         User toUser = userRepository.findByPhone(toPhone)
@@ -81,8 +96,13 @@ public class ComputeService {
             throw new RuntimeException("不能赠送给自己");
         }
 
-        fromUser.setComputeBalance(fromUser.getComputeBalance() - amount);
-        toUser.setComputeBalance(toUser.getComputeBalance() + amount);
+        fromUser.setComputeBalance(balance - amount);
+        int toBalance = toUser.getComputeBalance() == null ? 0 : toUser.getComputeBalance();
+        if (toUser.getNonTransferableComputeBalance() == null) {
+            toUser.setNonTransferableComputeBalance(0);
+        }
+        fromUser.setNonTransferableComputeBalance(Math.min(nonTransferable, fromUser.getComputeBalance()));
+        toUser.setComputeBalance(toBalance + amount);
 
         userRepository.save(fromUser);
         userRepository.save(toUser);

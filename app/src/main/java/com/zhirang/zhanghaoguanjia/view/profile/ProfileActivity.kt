@@ -1,7 +1,9 @@
 package com.zhirang.zhanghaoguanjia.view.profile
 
 import android.content.Context
+import android.content.BroadcastReceiver
 import android.content.Intent
+import android.content.IntentFilter
 import android.os.Build
 import android.os.Bundle
 import android.view.View
@@ -10,6 +12,8 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.ViewModelProvider
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.zhirang.zhanghaoguanjia.bean.dto.UserDto
+import com.zhirang.zhanghaoguanjia.data.BaseRepository
+import com.zhirang.zhanghaoguanjia.data.TokenManager
 import com.zhirang.zhanghaoguanjia.databinding.ActivityProfileBinding
 import com.zhirang.zhanghaoguanjia.engine.EngineInstaller
 import com.zhirang.zhanghaoguanjia.util.AvatarImageLoader
@@ -26,6 +30,14 @@ class ProfileActivity : AppCompatActivity() {
     private lateinit var binding: ActivityProfileBinding
     private lateinit var viewModel: ProfileViewModel
     private var currentProfile: UserDto? = null
+    private var authReceiverRegistered = false
+    private val authExpiredReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == BaseRepository.ACTION_AUTH_EXPIRED) {
+                redirectToLogin()
+            }
+        }
+    }
 
     companion object {
         fun start(context: Context) {
@@ -48,6 +60,19 @@ class ProfileActivity : AppCompatActivity() {
 
         viewModel.loadProfile()
         viewModel.refreshEngineUpgradeState()
+    }
+
+    override fun onStart() {
+        super.onStart()
+        registerAuthReceiver()
+    }
+
+    override fun onStop() {
+        super.onStop()
+        if (authReceiverRegistered) {
+            unregisterReceiver(authExpiredReceiver)
+            authReceiverRegistered = false
+        }
     }
 
     private fun initToolbar() {
@@ -94,8 +119,7 @@ class ProfileActivity : AppCompatActivity() {
 
         binding.btnLogout.setOnClickListener {
             viewModel.logout()
-            LoginActivity.start(this)
-            finish()
+            LoginActivity.startClearingTask(this)
         }
     }
 
@@ -118,6 +142,7 @@ class ProfileActivity : AppCompatActivity() {
                     initial = username
                 )
                 binding.tvUsername?.text = username
+                binding.tvAdminTag?.visibility = if (it.role.equals("ADMIN", ignoreCase = true)) View.VISIBLE else View.GONE
                 binding.tvPhone?.text = maskPhone(it.phone)
                 binding.tvShopCount?.text = it.shopCount.toString()
                 binding.tvPlatformCount?.text = it.platformCount.toString()
@@ -163,9 +188,34 @@ class ProfileActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        if (!TokenManager.getInstance().isLoggedIn()) {
+            redirectToLogin()
+            return
+        }
         if (::viewModel.isInitialized) {
             viewModel.refreshEngineUpgradeState()
         }
+    }
+
+    private fun registerAuthReceiver() {
+        if (authReceiverRegistered) {
+            return
+        }
+        val filter = IntentFilter(BaseRepository.ACTION_AUTH_EXPIRED)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(authExpiredReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            registerReceiver(authExpiredReceiver, filter)
+        }
+        authReceiverRegistered = true
+    }
+
+    private fun redirectToLogin() {
+        if (isFinishing || isDestroyed) {
+            return
+        }
+        LoginActivity.startClearingTask(this)
+        finish()
     }
 
     private fun getDisplayUsername(username: String?): String {

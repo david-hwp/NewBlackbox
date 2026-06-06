@@ -1,7 +1,6 @@
 package com.zhirang.zhanghaoguanjia.view.home
 
 import android.view.LayoutInflater
-import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
@@ -43,7 +42,6 @@ class ShopListAdapter(
 
     inner class VH(itemView: View) : RecyclerView.ViewHolder(itemView) {
         private val cardView: View = itemView.findViewById(R.id.cardView)
-        private val swipeActions: View = itemView.findViewById(R.id.swipeActions)
         private val shopLogo: ImageView = itemView.findViewById(R.id.shopLogo)
         private val shopName: TextView = itemView.findViewById(R.id.shopName)
         private val newTag: TextView = itemView.findViewById(R.id.newTag)
@@ -51,16 +49,12 @@ class ShopListAdapter(
         private val remainingDaysBadge: TextView = itemView.findViewById(R.id.remainingDaysBadge)
         private val autoRenewTriangle: View = itemView.findViewById(R.id.autoRenewTriangle)
 
-        // Swipe action buttons
         private val btnEdit: View? = itemView.findViewById(R.id.btnEdit)
         private val btnAutoRenew: View? = itemView.findViewById(R.id.btnAutoRenew)
         private val btnDelete: View? = itemView.findViewById(R.id.btnDelete)
 
         fun bind(shop: Shop) {
             cardView.translationX = 0f
-            cardView.bringToFront()
-            swipeActions.isClickable = true
-            swipeActions.isFocusable = false
 
             shopName.text = shop.shopName
             newTag.visibility = if (shop.isNew) View.VISIBLE else View.GONE
@@ -101,48 +95,22 @@ class ShopListAdapter(
                 }
             }
 
-            // Swipe action clicks
-            btnEdit?.setImmediateClickListener {
+            btnEdit?.setOnClickListener {
                 val pos = bindingAdapterPosition
                 if (pos != RecyclerView.NO_POSITION) {
                     onEditClick(pos, shops[pos])
                 }
             }
-            btnAutoRenew?.setImmediateClickListener {
+            btnAutoRenew?.setOnClickListener {
                 val pos = bindingAdapterPosition
                 if (pos != RecyclerView.NO_POSITION) {
                     onAutoRenewClick(pos, shops[pos])
                 }
             }
-            btnDelete?.setImmediateClickListener {
+            btnDelete?.setOnClickListener {
                 val pos = bindingAdapterPosition
                 if (pos != RecyclerView.NO_POSITION) {
                     onDeleteClick(pos, shops[pos])
-                }
-            }
-        }
-
-        private fun View.setImmediateClickListener(action: () -> Unit) {
-            isClickable = true
-            isFocusable = true
-            setOnTouchListener { view, event ->
-                view.parent?.requestDisallowInterceptTouchEvent(true)
-                itemView.parent?.requestDisallowInterceptTouchEvent(true)
-                when (event.actionMasked) {
-                    MotionEvent.ACTION_DOWN -> {
-                        view.isPressed = true
-                        true
-                    }
-                    MotionEvent.ACTION_UP -> {
-                        view.isPressed = false
-                        action()
-                        true
-                    }
-                    MotionEvent.ACTION_CANCEL -> {
-                        view.isPressed = false
-                        true
-                    }
-                    else -> true
                 }
             }
         }

@@ -11,14 +11,12 @@ import okhttp3.RequestBody.Companion.toRequestBody
 class UserRepository(api: ApiService) : BaseRepository(api) {
 
     suspend fun login(phone: String, password: String): Result<Pair<UserDto, String>> =
-        safeApiCall { api.login(LoginRequest(phone, password)) }.map { loginResponse ->
+        safeApiCall(redirectOnUnauthorized = false) { api.login(LoginRequest(phone, password)) }.map { loginResponse ->
             loginResponse.user to loginResponse.token
         }
 
-    suspend fun register(phone: String, password: String, username: String): Result<UserDto> =
-        safeApiCall { api.register(RegisterRequest(phone, password, username)) }.map { loginResponse ->
-            loginResponse.user.copy(token = loginResponse.token)
-        }
+    suspend fun register(phone: String, password: String, username: String): Result<Unit> =
+        safeApiCall(redirectOnUnauthorized = false) { api.register(RegisterRequest(phone, password, username)) }
 
     suspend fun getMe(): Result<UserDto> =
         safeApiCall { api.getMe() }

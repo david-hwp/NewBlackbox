@@ -4,6 +4,7 @@ import com.duodian.admin.config.AuthContext;
 import com.duodian.admin.config.JwtUtil;
 import com.duodian.admin.controller.dto.ApiResponse;
 import com.duodian.admin.controller.dto.LoginRequest;
+import com.duodian.admin.controller.dto.RegisterRequest;
 import com.duodian.admin.entity.User;
 import com.duodian.admin.service.UserService;
 import jakarta.validation.Valid;
@@ -41,38 +42,20 @@ public class AuthController {
     }
 
     @PostMapping("/register")
-    public ApiResponse<Map<String, Object>> register(@RequestBody Map<String, String> request) {
-        String phone = request.get("phone");
-        String password = request.get("password");
-        String username = request.get("username");
-
-        if (phone == null || phone.isBlank()) {
-            return ApiResponse.error("手机号不能为空");
-        }
-        if (password == null || password.length() < 6) {
-            return ApiResponse.error("密码至少6位");
-        }
-        if (username == null || username.isBlank() || username.length() > 32) {
-            return ApiResponse.error("用户名不能为空且不能超过32字符");
-        }
-
+    public ApiResponse<Void> register(@Valid @RequestBody RegisterRequest request) {
         try {
             User user = new User();
-            user.setPhone(phone);
-            user.setPassword(password);
-            user.setUsername(username);
-            user.setComputeBalance(0);
+            user.setPhone(request.getPhone());
+            user.setPassword(request.getPassword());
+            user.setUsername(request.getUsername());
+            user.setComputeBalance(3);
+            user.setNonTransferableComputeBalance(3);
             user.setShopCount(0);
             user.setPlatformCount(0);
 
             User saved = userService.create(user);
-            String token = jwtUtil.generateToken(saved.getId(), saved.getPhone());
-
-            Map<String, Object> result = new HashMap<>();
-            result.put("user", saved);
-            result.put("token", token);
-
-            return ApiResponse.success(result);
+            userService.createRegisterBonusLog(saved, 3);
+            return new ApiResponse<>(200, "注册成功", null);
         } catch (RuntimeException e) {
             return ApiResponse.error(e.getMessage());
         }

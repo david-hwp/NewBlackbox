@@ -18,6 +18,7 @@
           </template>
         </el-table-column>
         <el-table-column prop="computeBalance" label="算力余额" />
+        <el-table-column prop="nonTransferableComputeBalance" label="不可转赠" />
         <el-table-column prop="shopCount" label="店铺数" />
         <el-table-column prop="createdAt" label="创建时间" />
         <el-table-column label="操作" width="180">
@@ -50,6 +51,9 @@
         <el-form-item label="算力余额">
           <el-input-number v-model="form.computeBalance" :min="0" style="width: 100%" />
         </el-form-item>
+        <el-form-item label="不可转赠">
+          <el-input-number v-model="form.nonTransferableComputeBalance" :min="0" :max="form.computeBalance || 0" style="width: 100%" />
+        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
@@ -69,7 +73,7 @@ const loading = ref(false)
 const dialogVisible = ref(false)
 const isEdit = ref(false)
 const formRef = ref()
-const form = ref({ username: '', phone: '', password: '', role: 'USER', computeBalance: 0 })
+const form = ref({ username: '', phone: '', password: '', role: 'USER', computeBalance: 0, nonTransferableComputeBalance: 0 })
 
 const rules = {
   username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
@@ -88,7 +92,7 @@ const fetchUsers = async () => {
 
 const showAddDialog = () => {
   isEdit.value = false
-  form.value = { username: '', phone: '', password: '', role: 'USER', computeBalance: 0 }
+  form.value = { username: '', phone: '', password: '', role: 'USER', computeBalance: 0, nonTransferableComputeBalance: 0 }
   dialogVisible.value = true
 }
 

@@ -28,8 +28,8 @@ class PlatformSidebarAdapter(
     }
 
     fun submitList(newPlatforms: List<PlatformItemDto>) {
-        platforms = newPlatforms
-        selectedPosition = platforms.indexOfFirst { it.available }.takeIf { it >= 0 } ?: 0
+        platforms = newPlatforms.filter { it.available }
+        selectedPosition = if (platforms.isEmpty()) 0 else selectedPosition.coerceIn(platforms.indices)
         notifyDataSetChanged()
     }
 
@@ -43,10 +43,6 @@ class PlatformSidebarAdapter(
         val item = platforms[position]
         holder.bind(item, position == selectedPosition)
         holder.itemView.setOnClickListener {
-            if (!item.available) {
-                onItemClick(position, item)
-                return@setOnClickListener
-            }
             if (position != selectedPosition) {
                 val oldPosition = selectedPosition
                 selectedPosition = position
@@ -86,9 +82,9 @@ class PlatformSidebarAdapter(
             val count = shopCounts[item.platform] ?: 0
             platformCount.text = "${count}家"
             itemView.isEnabled = true
-            itemView.alpha = if (item.available) 1f else 0.72f
+            itemView.alpha = 1f
 
-            if (isSelected && item.available) {
+            if (isSelected) {
                 indicator.visibility = View.VISIBLE
                 platformContent.setBackgroundResource(R.drawable.bg_platform_item_selected)
                 platformName.setTextColor(
@@ -100,7 +96,7 @@ class PlatformSidebarAdapter(
                     ContextCompat.getColor(itemView.context, android.R.color.transparent)
                 )
                 platformName.setTextColor(
-                    ContextCompat.getColor(itemView.context, if (item.available) R.color.fg_2 else R.color.meta)
+                    ContextCompat.getColor(itemView.context, R.color.fg_2)
                 )
             }
         }

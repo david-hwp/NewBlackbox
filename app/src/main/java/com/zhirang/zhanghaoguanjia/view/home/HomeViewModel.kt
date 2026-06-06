@@ -41,6 +41,9 @@ class HomeViewModel : ViewModel() {
     private val _displayUsernameLiveData = MutableLiveData<String>()
     val displayUsernameLiveData: LiveData<String> = _displayUsernameLiveData
 
+    private val _adminLiveData = MutableLiveData<Boolean>()
+    val adminLiveData: LiveData<Boolean> = _adminLiveData
+
     private val _avatarUrlLiveData = MutableLiveData<String?>()
     val avatarUrlLiveData: LiveData<String?> = _avatarUrlLiveData
 
@@ -62,6 +65,8 @@ class HomeViewModel : ViewModel() {
     private val tokenManager = TokenManager.getInstance()
 
     private var allShops: List<Shop> = emptyList()
+    private var pendingShopNameCounter = 0
+    private val pendingShopNamePattern = Regex("""^新增店铺-\[(\d+)\]$""")
 
     init {
         refreshUserInfo()
@@ -89,6 +94,7 @@ class HomeViewModel : ViewModel() {
         _phoneNumberLiveData.value = maskPhoneNumber(user?.phone ?: "")
         _displayUsernameLiveData.value = getDisplayUsername(user?.username, user?.phone)
         _avatarUrlLiveData.value = user?.avatarUrl
+        _adminLiveData.value = user?.role.equals("ADMIN", ignoreCase = true)
     }
 
     fun loadShops() {
@@ -116,13 +122,15 @@ class HomeViewModel : ViewModel() {
             val result = platformRepository.getPlatforms()
             result.fold(
                 onSuccess = { platformDtos ->
-                    val platforms = platformDtos.map { it.toPlatformItem() }
+                    val platforms = platformDtos
+                        .map { it.toPlatformItem() }
+                        .filter { it.available }
                     PlatformRegistry.update(platforms)
                     _platformsLiveData.value = platforms
                     updatePlatformShopCounts()
                     val selected = _selectedPlatformLiveData.value
-                    if (selected == null || platforms.none { it.platform == selected && it.available }) {
-                        platforms.firstOrNull { it.available }?.let {
+                    if (selected == null || platforms.none { it.platform == selected }) {
+                        platforms.firstOrNull()?.let {
                             _selectedPlatformLiveData.value = it.platform
                         }
                     }
@@ -166,13 +174,17 @@ class HomeViewModel : ViewModel() {
         val platform = _selectedPlatformLiveData.value
         val packageName = platform?.let { PlatformRegistry.packageName(it) }
         val query = _searchQueryLiveData.value ?: ""
+        val availablePackages = _platformsLiveData.value.orEmpty()
+            .mapNotNull { it.packageName?.trim()?.takeIf(String::isNotEmpty) }
+            .toSet()
 
         return allShops.filter { shop ->
+            val visiblePlatform = shop.packageName?.trim()?.takeIf(String::isNotEmpty) in availablePackages
             val matchPlatform = platform == null || isSamePackage(shop.packageName, packageName)
             val matchQuery = query.isEmpty() ||
                     shop.shopName.contains(query, ignoreCase = true) ||
                     shop.shopId.contains(query, ignoreCase = true)
-            matchPlatform && matchQuery
+            visiblePlatform && matchPlatform && matchQuery
         }
     }
 
@@ -197,6 +209,17 @@ class HomeViewModel : ViewModel() {
 
     fun getCurrentUserId(): Long {
         return tokenManager.getUser()?.id ?: 0L
+    }
+
+    private fun nextPendingShopName(): String {
+        val maxExisting = allShops.maxOfOrNull { shop ->
+            pendingShopNamePattern.matchEntire(shop.shopName)
+                ?.groupValues
+                ?.getOrNull(1)
+                ?.toIntOrNull() ?: 0
+        } ?: 0
+        pendingShopNameCounter = maxOf(pendingShopNameCounter, maxExisting) + 1
+        return "新增店铺-[$pendingShopNameCounter]"
     }
 
     fun reportShop(shop: Shop, showMessage: Boolean = true, onComplete: (() -> Unit)? = null) {
@@ -291,10 +314,9 @@ class HomeViewModel : ViewModel() {
                 _operationMessageLiveData.value = "您已添加新店铺但未成功登录，请先完成登录后再添加"
                 return@launch
             }
-            val user = tokenManager.getUser()
             val request = ShopDto(
                 id = 0,
-                shopName = "User[${user?.id ?: 0}]-未知",
+                shopName = nextPendingShopName(),
                 shopId = "${ShopDto.TEMP_SHOP_ID_PREFIX}${System.currentTimeMillis()}",
                 platform = platformItem.platform.id,
                 platformName = platformItem.displayName,

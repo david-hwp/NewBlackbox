@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.launch
 import com.zhirang.zhanghaoguanjia.bean.dto.UserDto
+import com.zhirang.zhanghaoguanjia.data.BaseRepository
 import com.zhirang.zhanghaoguanjia.data.TokenManager
 import com.zhirang.zhanghaoguanjia.data.UserRepository
 import com.zhirang.zhanghaoguanjia.network.RetrofitClient
@@ -15,7 +16,7 @@ class LoginViewModel : ViewModel() {
     private val tokenManager = TokenManager.getInstance()
 
     val loginResultLiveData = MutableLiveData<Result<UserDto>>()
-    val registerResultLiveData = MutableLiveData<Result<UserDto>>()
+    val registerResultLiveData = MutableLiveData<Result<Unit>>()
     val loadingLiveData = MutableLiveData<Boolean>()
     val errorLiveData = MutableLiveData<String>()
 
@@ -25,6 +26,7 @@ class LoginViewModel : ViewModel() {
             val result = userRepository.login(phone, password)
             result.fold(
                 onSuccess = { (userDto, token) ->
+                    BaseRepository.clearAuthRedirecting()
                     tokenManager.saveToken(token)
                     tokenManager.saveUser(userDto)
                     loginResultLiveData.value = Result.success(userDto)
@@ -42,10 +44,8 @@ class LoginViewModel : ViewModel() {
             loadingLiveData.value = true
             val result = userRepository.register(phone, password, username)
             result.fold(
-                onSuccess = { userDto ->
-                    userDto.token?.let { tokenManager.saveToken(it) }
-                    tokenManager.saveUser(userDto)
-                    registerResultLiveData.value = Result.success(userDto)
+                onSuccess = {
+                    registerResultLiveData.value = Result.success(Unit)
                 },
                 onFailure = { e ->
                     errorLiveData.value = e.message ?: "注册失败"

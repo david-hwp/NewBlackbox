@@ -1,7 +1,10 @@
 package com.zhirang.zhanghaoguanjia.view.home
 
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
+import android.os.Build
 import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
@@ -9,18 +12,18 @@ import android.os.Looper
 import android.text.Editable
 import android.text.TextWatcher
 import android.util.Log
-import android.view.MotionEvent
+import android.view.View
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.ViewModelProvider
-import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.LinearLayoutManager
-import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.zhirang.zhanghaoguanjia.R
 import com.zhirang.zhanghaoguanjia.app.App
 import com.zhirang.zhanghaoguanjia.bean.Shop
 import com.zhirang.zhanghaoguanjia.bean.dto.AnnouncementDto
+import com.zhirang.zhanghaoguanjia.data.BaseRepository
+import com.zhirang.zhanghaoguanjia.data.TokenManager
 import com.zhirang.zhanghaoguanjia.databinding.ActivityHomeBinding
 import com.zhirang.zhanghaoguanjia.engine.EngineInstaller
 import com.zhirang.zhanghaoguanjia.engine.EngineProxy
@@ -35,6 +38,7 @@ import com.zhirang.zhanghaoguanjia.view.dialog.DeleteShopSheetFragment
 import com.zhirang.zhanghaoguanjia.view.dialog.EditShopSheetFragment
 import com.zhirang.zhanghaoguanjia.view.dialog.EngineUpgradeDialog
 import com.zhirang.zhanghaoguanjia.view.logs.LogsActivity
+import com.zhirang.zhanghaoguanjia.view.login.LoginActivity
 import com.zhirang.zhanghaoguanjia.view.profile.ProfileActivity
 import com.zhirang.zhanghaoguanjia.view.splash.EngineInstallActivity
 import kotlinx.coroutines.Dispatchers
@@ -48,8 +52,6 @@ class HomeActivity : AppCompatActivity() {
     private lateinit var viewModel: HomeViewModel
     private lateinit var platformAdapter: PlatformSidebarAdapter
     private lateinit var shopAdapter: ShopListAdapter
-    private lateinit var swipeHelper: ShopSwipeHelper
-    private lateinit var itemTouchHelper: ItemTouchHelper
     private val handler = Handler(Looper.getMainLooper())
     private val pendingRecognitionKeys = mutableSetOf<String>()
     private var shouldRetryPendingOnNextList = false
@@ -58,6 +60,14 @@ class HomeActivity : AppCompatActivity() {
     private var shownAnnouncementId: Long? = null
     private val promptedCloneSwitchKeys = mutableSetOf<String>()
     private var engineUpgradeCheckInFlight = false
+    private var authReceiverRegistered = false
+    private val authExpiredReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == BaseRepository.ACTION_AUTH_EXPIRED) {
+                redirectToLogin()
+            }
+        }
+    }
 
     companion object {
         private const val TAG = "HomeActivity"
@@ -83,6 +93,33 @@ class HomeActivity : AppCompatActivity() {
         observeData()
         App.ensureEngineConnection()
         checkForEngineUpgrade(force = true)
+    }
+
+    override fun onStart() {
+        super.onStart()
+        registerAuthReceiver()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (!TokenManager.getInstance().isLoggedIn()) {
+            redirectToLogin()
+            return
+        }
+        shouldRetryPendingOnNextList = true
+        shouldSyncCloneShopsOnNextList = true
+        App.ensureEngineConnection()
+        viewModel.refreshUserInfo()
+        viewModel.loadShops()
+        checkForEngineUpgrade()
+    }
+
+    override fun onStop() {
+        super.onStop()
+        if (authReceiverRegistered) {
+            unregisterReceiver(authExpiredReceiver)
+            authReceiverRegistered = false
+        }
     }
 
     private fun initViewModel() {
@@ -112,57 +149,44 @@ class HomeActivity : AppCompatActivity() {
             },
             onEditClick = { _, shop ->
                 showEditShopSheet(shop)
-                collapseSwipe()
             },
             onAutoRenewClick = { _, shop ->
-                viewModel.updateShop(shop, autoRenew = !shop.autoRenew)
-                collapseSwipe()
+                handleAutoRenewClick(shop)
             },
             onDeleteClick = { _, shop ->
                 showDeleteShopSheet(shop)
-                collapseSwipe()
             }
         )
 
         viewBinding.rvShops.apply {
             layoutManager = LinearLayoutManager(this@HomeActivity)
             adapter = shopAdapter
-            addOnScrollListener(object : RecyclerView.OnScrollListener() {
-                override fun onScrollStateChanged(recyclerView: RecyclerView, newState: Int) {
-                    if (newState == RecyclerView.SCROLL_STATE_DRAGGING) {
-                        collapseSwipe()
-                    }
-                }
-            })
         }
         viewBinding.swipeRefreshShops.setOnRefreshListener {
-            collapseSwipe()
             shouldSyncCloneShopsOnNextList = true
             viewModel.loadShops()
         }
+    }
 
-        swipeHelper = ShopSwipeHelper(shopAdapter)
-        viewBinding.rvShops.addOnItemTouchListener(object : RecyclerView.SimpleOnItemTouchListener() {
-            override fun onInterceptTouchEvent(rv: RecyclerView, e: MotionEvent): Boolean {
-                if (e.actionMasked != MotionEvent.ACTION_DOWN) return false
+    private fun registerAuthReceiver() {
+        if (authReceiverRegistered) {
+            return
+        }
+        val filter = IntentFilter(BaseRepository.ACTION_AUTH_EXPIRED)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(authExpiredReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            registerReceiver(authExpiredReceiver, filter)
+        }
+        authReceiverRegistered = true
+    }
 
-                val child = rv.findChildViewUnder(e.x, e.y) ?: return false
-                val position = rv.getChildAdapterPosition(child)
-                val action = swipeHelper.hitTestAction(rv, child, e.x, e.y)
-                if (action != null && position != RecyclerView.NO_POSITION) {
-                    rv.parent?.requestDisallowInterceptTouchEvent(true)
-                    handleSwipeAction(position, action)
-                    return true
-                }
-                if (swipeHelper.getExpandedPosition() != RecyclerView.NO_POSITION &&
-                    position != swipeHelper.getExpandedPosition()) {
-                    collapseSwipe()
-                }
-                return false
-            }
-        })
-        itemTouchHelper = ItemTouchHelper(swipeHelper)
-        itemTouchHelper.attachToRecyclerView(viewBinding.rvShops)
+    private fun redirectToLogin() {
+        if (isFinishing || isDestroyed) {
+            return
+        }
+        LoginActivity.startClearingTask(this)
+        finish()
     }
 
     private fun initSearch() {
@@ -218,6 +242,10 @@ class HomeActivity : AppCompatActivity() {
                 avatarUrl = avatarUrl,
                 initial = viewBinding.tvHeaderUsername.text?.toString().orEmpty()
             )
+        }
+
+        viewModel.adminLiveData.observe(this) { isAdmin ->
+            viewBinding.tvHeaderAdminTag.visibility = if (isAdmin) View.VISIBLE else View.GONE
         }
 
         viewModel.shopsLiveData.observe(this) {
@@ -464,7 +492,7 @@ class HomeActivity : AppCompatActivity() {
         viewModel.reportShop(
             pendingShop.copy(
                 cloneInstanceId = cloneInstanceId,
-                shopName = pendingShop.shopName.ifBlank { "User[0]-未知" },
+                shopName = pendingShop.shopName.ifBlank { "新增店铺-[1]" },
                 shopId = pendingShop.shopId
             ),
             showMessage = false
@@ -827,26 +855,27 @@ class HomeActivity : AppCompatActivity() {
         sheet.show(supportFragmentManager, "EditShop")
     }
 
+    private fun handleAutoRenewClick(shop: Shop) {
+        if (shop.autoRenew) {
+            viewModel.updateShop(shop, autoRenew = false)
+            return
+        }
+        MaterialAlertDialogBuilder(this)
+            .setTitle("开启自动续时")
+            .setMessage("该店铺有效期为0时自动扣除1点算力，确认要开启吗？")
+            .setNegativeButton("取消", null)
+            .setPositiveButton("确认") { _, _ ->
+                viewModel.updateShop(shop, autoRenew = true)
+            }
+            .show()
+    }
+
     private fun showDeleteShopSheet(shop: Shop) {
         val sheet = DeleteShopSheetFragment()
         sheet.setOnDeleteListener {
             viewModel.deleteShop(shop)
         }
         sheet.show(supportFragmentManager, "DeleteShop")
-    }
-
-    private fun collapseSwipe() {
-        swipeHelper.collapseExpandedItem(viewBinding.rvShops)
-    }
-
-    private fun handleSwipeAction(position: Int, action: ShopSwipeHelper.Action) {
-        val shop = shopAdapter.getShops().getOrNull(position) ?: return
-        when (action) {
-            ShopSwipeHelper.Action.EDIT -> showEditShopSheet(shop)
-            ShopSwipeHelper.Action.AUTO_RENEW -> viewModel.updateShop(shop, autoRenew = !shop.autoRenew)
-            ShopSwipeHelper.Action.DELETE -> showDeleteShopSheet(shop)
-        }
-        collapseSwipe()
     }
 
     private fun checkForEngineUpgrade(force: Boolean = false) {
@@ -925,16 +954,6 @@ class HomeActivity : AppCompatActivity() {
                 }
             }
         )
-    }
-
-    override fun onResume() {
-        super.onResume()
-        shouldRetryPendingOnNextList = true
-        shouldSyncCloneShopsOnNextList = true
-        App.ensureEngineConnection()
-        viewModel.refreshUserInfo()
-        viewModel.loadShops()
-        checkForEngineUpgrade()
     }
 
     override fun onDestroy() {
