@@ -38,9 +38,28 @@ java_major_version() {
     | sed 's/^1$/8/'
 }
 
-if [ "$(java_major_version)" -lt 21 ] && command -v /usr/libexec/java_home >/dev/null 2>&1; then
-  export JAVA_HOME="$(/usr/libexec/java_home -v 21)"
-  export PATH="$JAVA_HOME/bin:$PATH"
+use_java_home() {
+  local candidate="$1"
+  if [ -n "$candidate" ] && [ -x "$candidate/bin/java" ]; then
+    export JAVA_HOME="$candidate"
+    export PATH="$JAVA_HOME/bin:$PATH"
+  fi
+}
+
+if [ "$(java_major_version)" -lt 21 ]; then
+  if command -v /usr/libexec/java_home >/dev/null 2>&1; then
+    use_java_home "$(/usr/libexec/java_home -v 21)"
+  else
+    for candidate in \
+      /usr/lib/jvm/java-21-openjdk-amd64 \
+      /usr/lib/jvm/java-1.21.0-openjdk-amd64 \
+      /usr/lib/jvm/openjdk-21; do
+      use_java_home "$candidate"
+      if [ "$(java_major_version)" -ge 21 ]; then
+        break
+      fi
+    done
+  fi
 fi
 
 if [ "$(java_major_version)" -lt 21 ]; then
