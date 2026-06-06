@@ -38,7 +38,58 @@ export JAVA_HOME=$(/usr/libexec/java_home -v 21)
 ./gradlew clean --no-daemon
 ```
 
-APKs are written to `app/build/outputs/apk/debug/` with naming pattern `BlackBox_${versionName}_${abi}-debug.apk`.
+App APKs are written to `app/build/outputs/apk/<buildType>/` with naming pattern `zhanghaoguanjia_${versionName}_${abi}-${buildType}.apk`.
+Engine APKs are written to `Bcore/build/outputs/apk/<buildType>/` with naming pattern `FxEngine_${versionName}_${buildType}.apk`.
+
+### Release Checklist
+
+Use this checklist for every public release.
+
+```bash
+export JAVA_HOME=$(/usr/libexec/java_home -v 21)
+
+# 1. Pick a monotonically increasing versionCode in root build.gradle.
+# Check the server first so app/engine versionCode is higher than active engine_versions.
+
+# 2. Build the signed release APKs.
+./gradlew :app:assembleRelease --no-daemon
+
+# 3. Verify app and engine package metadata.
+AAPT=/opt/homebrew/share/android-commandlinetools/build-tools/35.0.0/aapt
+$AAPT dump badging app/build/outputs/apk/release/zhanghaoguanjia_${VERSION_NAME}_universal-release.apk | sed -n '1,4p'
+$AAPT dump badging Bcore/build/outputs/apk/release/FxEngine_${VERSION_NAME}_release.apk | sed -n '1,4p'
+
+# 4. Verify both APK signatures. Engine must verify before upload.
+APKSIGNER=/opt/homebrew/share/android-commandlinetools/build-tools/35.0.0/apksigner
+$APKSIGNER verify --verbose --print-certs app/build/outputs/apk/release/zhanghaoguanjia_${VERSION_NAME}_universal-release.apk
+$APKSIGNER verify --verbose --print-certs Bcore/build/outputs/apk/release/FxEngine_${VERSION_NAME}_release.apk
+
+# 5. Verify the app-embedded engine is exactly the engine release APK.
+shasum -a 256 \
+  Bcore/build/outputs/apk/release/FxEngine_${VERSION_NAME}_release.apk \
+  app/src/main/assets/engine/engine-base.apk
+```
+
+Release verification must include:
+- Install the universal release APK on an emulator/device with `adb install -r -d`.
+- Launch with `adb shell monkey -p com.zhirang.zhanghaoguanjia -c android.intent.category.LAUNCHER 1`.
+- Scan logcat for `FATAL EXCEPTION`, `AndroidRuntime`, `ClassCastException`, and `Missing type parameter`.
+- If the installed engine is older, confirm the app creates a `PackageInstaller` session, opens the system engine update dialog, and the engine package upgrades to the new `versionCode` after confirmation.
+
+When uploading/registering an engine release:
+- Upload the engine APK through the admin `/api/files/engine-packages` file service so local/OBS storage behavior stays unified.
+- Store a checksum matching the uploaded APK. The app supports MD5 (32 hex chars) and SHA-256 (64 hex chars).
+- Verify the public download URL returns the same checksum and `apksigner verify` passes on the downloaded APK.
+- Verify `/api/engine-versions?available=true` returns the new version first.
+
+For any manual MySQL writes that include text, always force UTF-8 on the client/session:
+
+```bash
+docker exec -i admin-duodian-mysql-1 sh -lc 'mysql --default-character-set=utf8mb4 -uroot -p"$MYSQL_ROOT_PASSWORD" duodian_admin'
+SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
+```
+
+Do not use a plain `mysql` session for Chinese text. The server and tables are `utf8mb4`, but the client/session charset can still corrupt manually inserted strings.
 
 ### Admin Deployment
 

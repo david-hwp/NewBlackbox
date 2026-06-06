@@ -431,8 +431,31 @@ object EngineInstaller {
      * Compute MD5 hash of a file for verification.
      */
     fun computeFileMd5(file: File): String? {
+        return computeFileDigest(file, "MD5")
+    }
+
+    fun computeFileSha256(file: File): String? {
+        return computeFileDigest(file, "SHA-256")
+    }
+
+    fun verifyFileChecksum(file: File, expectedChecksum: String?): Boolean {
+        val expected = expectedChecksum?.trim()?.takeIf { it.isNotBlank() } ?: return true
+        val algorithm = when (expected.length) {
+            32 -> "MD5"
+            64 -> "SHA-256"
+            else -> return false
+        }
+        val actual = computeFileDigest(file, algorithm) ?: return false
+        val matched = actual.equals(expected, ignoreCase = true)
+        if (!matched) {
+            Log.e(TAG, "Engine checksum mismatch: algorithm=$algorithm expected=$expected actual=$actual")
+        }
+        return matched
+    }
+
+    private fun computeFileDigest(file: File, algorithm: String): String? {
         return try {
-            val md = MessageDigest.getInstance("MD5")
+            val md = MessageDigest.getInstance(algorithm)
             file.inputStream().use { input ->
                 val buffer = ByteArray(8192)
                 var read: Int
@@ -442,7 +465,7 @@ object EngineInstaller {
             }
             md.digest().joinToString("") { "%02x".format(it) }
         } catch (e: Exception) {
-            Log.w(TAG, "Error computing MD5: ${e.message}")
+            Log.w(TAG, "Error computing $algorithm: ${e.message}")
             null
         }
     }

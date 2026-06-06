@@ -60,7 +60,7 @@ services:
       duodian-mysql:
         condition: service_healthy
     environment:
-      SPRING_DATASOURCE_URL: jdbc:mysql://duodian-mysql:3306/duodian_admin?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
+      SPRING_DATASOURCE_URL: jdbc:mysql://duodian-mysql:3306/duodian_admin?useUnicode=true&characterEncoding=UTF-8&connectionCollation=utf8mb4_unicode_ci&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
       SPRING_DATASOURCE_USERNAME: ${MYSQL_USER:-duodian}
       SPRING_DATASOURCE_PASSWORD: ${MYSQL_PASSWORD:-duodian123}
       SPRING_JPA_HIBERNATE_DDL_AUTO: update

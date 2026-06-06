@@ -51,13 +51,10 @@ class EngineSwitchViewModel(application: Application) : AndroidViewModel(applica
             try {
                 val file = download(version)
                 val checksum = version.checksum?.takeIf { it.isNotBlank() }
-                if (checksum != null) {
-                    val actual = EngineInstaller.computeFileMd5(file)
-                    if (!actual.equals(checksum, ignoreCase = true)) {
-                        _messageLiveData.postValue("引擎包校验失败")
-                        _loadingLiveData.postValue(false)
-                        return@launch
-                    }
+                if (!EngineInstaller.verifyFileChecksum(file, checksum)) {
+                    _messageLiveData.postValue("引擎包校验失败")
+                    _loadingLiveData.postValue(false)
+                    return@launch
                 }
                 val validation = EngineInstaller.validateInstallCandidate(getApplication(), file)
                 if (validation.isFailure) {

@@ -107,13 +107,7 @@ object EngineUpgradeManager {
         file: File,
         upgradeInfo: EngineVersionChecker.UpgradeInfo
     ): Boolean {
-        val expectedMd5 = upgradeInfo.checksum?.takeIf { it.isNotBlank() } ?: return true
-        val actualMd5 = EngineInstaller.computeFileMd5(file) ?: return false
-        val matched = actualMd5.equals(expectedMd5, ignoreCase = true)
-        if (!matched) {
-            Log.e(TAG, "Engine MD5 mismatch: expected=$expectedMd5 actual=$actualMd5")
-        }
-        return matched
+        return EngineInstaller.verifyFileChecksum(file, upgradeInfo.checksum)
     }
 
     /**
