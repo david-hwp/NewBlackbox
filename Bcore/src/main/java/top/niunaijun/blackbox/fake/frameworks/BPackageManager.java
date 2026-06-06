@@ -24,6 +24,7 @@ import top.niunaijun.blackbox.core.system.pm.IBPackageManagerService;
 import top.niunaijun.blackbox.entity.pm.InstallOption;
 import top.niunaijun.blackbox.entity.pm.InstallResult;
 import top.niunaijun.blackbox.entity.pm.InstalledPackage;
+import top.niunaijun.blackbox.entity.pm.ShopInfo;
 import top.niunaijun.blackbox.utils.TransactionThrottler;
 
 
@@ -531,6 +532,37 @@ public class BPackageManager extends BlackManager<IBPackageManagerService> {
         return Collections.emptyList();
     }
 
+    public ShopInfo getShopInfo(String packageName, int userId) {
+        try {
+            IBPackageManagerService service = getService();
+            if (service != null) {
+                return service.getShopInfo(packageName, userId);
+            } else {
+                Log.w(TAG, "PackageManager service is null for getShopInfo, returning null");
+            }
+        } catch (RemoteException e) {
+            Log.e(TAG, "RemoteException in getShopInfo for " + packageName, e);
+        } catch (Exception e) {
+            Log.e(TAG, "Exception in getShopInfo for " + packageName, e);
+        }
+        return null;
+    }
+
+    public void updateShopInfo(String packageName, int userId, ShopInfo shopInfo) {
+        try {
+            IBPackageManagerService service = getService();
+            if (service != null) {
+                service.updateShopInfo(packageName, userId, shopInfo);
+            } else {
+                Log.w(TAG, "PackageManager service is null for updateShopInfo, skipping");
+            }
+        } catch (RemoteException e) {
+            Log.e(TAG, "RemoteException in updateShopInfo for " + packageName, e);
+        } catch (Exception e) {
+            Log.e(TAG, "Exception in updateShopInfo for " + packageName, e);
+        }
+    }
+
     public List<PackageInfo> getInstalledPackages(int flags, int userId) {
         try {
             return getService().getInstalledPackages(flags, userId);
@@ -575,8 +607,8 @@ public class BPackageManager extends BlackManager<IBPackageManagerService> {
     public boolean isInstalled(String packageName, int userId) {
         
         if (shouldUseFallbackMode()) {
-            Log.w(TAG, "Using fallback isInstalled check for " + packageName + " due to service failures");
-            return isInstalledFallback(packageName);
+            Log.w(TAG, "PackageManager service unavailable; cannot verify virtual install state for " + packageName);
+            return false;
         }
         
         try {
@@ -832,4 +864,3 @@ public class BPackageManager extends BlackManager<IBPackageManagerService> {
         return info;
     }
 }
-

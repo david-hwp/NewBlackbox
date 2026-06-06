@@ -69,6 +69,7 @@ import top.niunaijun.blackbox.core.NativeCore;
 import top.niunaijun.blackbox.core.env.VirtualRuntime;
 import top.niunaijun.blackbox.core.system.user.BUserHandle;
 import top.niunaijun.blackbox.entity.AppConfig;
+import top.niunaijun.blackbox.entity.am.PendingResultDataHelper;
 import top.niunaijun.blackbox.entity.am.ReceiverData;
 
 import top.niunaijun.blackbox.fake.delegate.AppInstrumentation;
@@ -85,6 +86,7 @@ import top.niunaijun.blackbox.utils.compat.BuildCompat;
 import top.niunaijun.blackbox.utils.compat.ContextCompat;
 import top.niunaijun.blackbox.utils.compat.StrictModeCompat;
 import top.niunaijun.blackbox.core.system.JarManager;
+import top.niunaijun.blackbox.core.system.pm.ShopIdManager;
 
 
 public class BActivityThread extends IBActivityThread.Stub {
@@ -477,6 +479,13 @@ public class BActivityThread extends IBActivityThread.Stub {
             onBeforeApplicationOnCreate(packageName, processName, application);
             AppInstrumentation.get().callApplicationOnCreate(application);
             onAfterApplicationOnCreate(packageName, processName, application);
+
+            // Trigger async shop ID extraction per D-04
+            try {
+                ShopIdManager.get().triggerExtract(packageName, BActivityThread.getUserId(), application);
+            } catch (Exception e) {
+                Slog.w(TAG, "Failed to trigger shop ID extraction for " + packageName, e);
+            }
 
             HookManager.get().checkEnv(HCallbackProxy.class);
         } catch (Exception e) {
@@ -1123,7 +1132,7 @@ public class BActivityThread extends IBActivityThread.Stub {
             BroadcastReceiver mReceiver = null;
             Intent intent = data.intent;
             ActivityInfo activityInfo = data.activityInfo;
-            BroadcastReceiver.PendingResult pendingResult = data.data.build();
+            BroadcastReceiver.PendingResult pendingResult = PendingResultDataHelper.build(data.data);
 
             try {
                 Context baseContext = mInitialApplication.getBaseContext();

@@ -6,7 +6,7 @@ import java.io.File;
 public abstract class ClientConfiguration {
 
     public boolean isHideRoot() {
-        return false;
+        return true;
     }
 
 
@@ -30,7 +30,10 @@ public abstract class ClientConfiguration {
         return false;
     }
 
-    
+    public boolean isSingleInstanceMode() {
+        return true;
+    }
+
     public boolean requestInstallPackage(File file, int userId) {
         return false;
     }

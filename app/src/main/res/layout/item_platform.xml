@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content">
+
+    <!-- 左侧选中指示条 -->
+    <View
+        android:id="@+id/indicator"
+        android:layout_width="3dp"
+        android:layout_height="24dp"
+        android:layout_gravity="start|center_vertical"
+        android:background="@drawable/bg_platform_indicator"
+        android:visibility="invisible" />
+
+    <!-- 内容 -->
+    <LinearLayout
+        android:id="@+id/platformContent"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:minHeight="96dp"
+        android:orientation="vertical"
+        android:paddingHorizontal="6dp"
+        android:paddingVertical="12dp">
+
+        <!-- 平台Logo - 使用真实图片 -->
+        <ImageView
+            android:id="@+id/platformLogo"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:scaleType="centerCrop"
+            android:background="@drawable/bg_platform_logo_circle" />
+
+        <!-- 平台名称 -->
+        <TextView
+            android:id="@+id/platformName"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:gravity="center"
+            android:maxLines="2"
+            android:textColor="@color/fg_2"
+            android:textSize="11sp"
+            tools:text="美团外卖" />
+
+        <!-- 店铺数量 -->
+        <TextView
+            android:id="@+id/platformCount"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:gravity="center"
+            android:textColor="@color/meta"
+            android:textSize="10sp"
+            tools:text="2家" />
+    </LinearLayout>
+
+    <!-- 底部分隔线 -->
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1px"
+        android:layout_gravity="bottom"
+        android:background="@color/sidebar_border" />
+
+</FrameLayout>

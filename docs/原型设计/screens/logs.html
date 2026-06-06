@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>交易日志 - 多店管家</title>
+  <style>
+    :root {
+      --bg: #f8f9fa;
+      --surface: #ffffff;
+      --fg: #1e293b;
+      --fg-2: #475569;
+      --muted: #64748b;
+      --meta: #94a3b8;
+      --border: #e2e8f0;
+      --accent: #059669;
+      --accent-light: #d1fae5;
+      --danger: #dc2626;
+      --danger-light: #fee2e2;
+      --warn-bg: #fef3c7;
+      --warn-fg: #d97706;
+      --info-bg: #e0f2fe;
+      --info-fg: #0284c7;
+
+      --font-body: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', system-ui, sans-serif;
+      --font-mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: var(--font-body);
+      background: var(--bg);
+      color: var(--fg);
+      width: 100%;
+      max-width: 412px;
+      margin: 0 auto;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .header {
+      background: var(--surface);
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .header-back {
+      width: 36px;
+      height: 36px;
+      display: grid;
+      place-items: center;
+      border-radius: 10px;
+      color: var(--fg);
+      text-decoration: none;
+    }
+
+    .header-title {
+      font-size: 17px;
+      font-weight: 700;
+      color: var(--fg);
+      flex: 1;
+    }
+
+    .content {
+      flex: 1;
+      padding: 16px;
+      overflow-y: auto;
+    }
+
+    .log-filter {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+      overflow-x: auto;
+      padding-bottom: 4px;
+    }
+
+    .log-filter::-webkit-scrollbar { display: none; }
+
+    .log-filter-chip {
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 500;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--fg-2);
+      white-space: nowrap;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-family: var(--font-body);
+    }
+
+    .log-filter-chip.active {
+      background: var(--fg);
+      color: white;
+      border-color: var(--fg);
+    }
+
+    .log-date-group { margin-bottom: 20px; }
+
+    .log-date {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--muted);
+      margin-bottom: 12px;
+      padding-left: 4px;
+    }
+
+    .log-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    /* ── Card ── */
+    .log-item {
+      background: var(--surface);
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* Main content area */
+    .log-item-main {
+      padding: 14px 16px;
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+    }
+
+    .log-item-left {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    /* Right: Amount */
+    .log-item-right {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      justify-content: flex-start;
+      gap: 4px;
+      padding-top: 2px;
+    }
+
+    .log-amount {
+      font-size: 26px;
+      font-weight: 700;
+      font-family: var(--font-mono);
+      line-height: 1.1;
+    }
+
+    .log-amount.out { color: var(--warn-fg); }
+    .log-amount.in { color: var(--accent); }
+    .log-amount.consume { color: var(--info-fg); }
+
+    /* Badge */
+    .log-badge {
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 6px;
+      font-weight: 600;
+      white-space: nowrap;
+      display: inline-block;
+      width: fit-content;
+    }
+
+    .log-badge.out {
+      background: var(--warn-bg);
+      color: var(--warn-fg);
+    }
+
+    .log-badge.in {
+      background: var(--accent-light);
+      color: var(--accent);
+    }
+
+    .log-badge.consume {
+      background: var(--info-bg);
+      color: var(--info-fg);
+    }
+
+    /* Parties */
+    .log-parties {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .log-party {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+    }
+
+    .log-party-label {
+      color: var(--muted);
+      font-size: 12px;
+      min-width: 48px;
+    }
+
+    .log-party-phone {
+      font-family: var(--font-mono);
+      color: var(--fg);
+      font-weight: 500;
+      font-size: 12px;
+    }
+
+    .log-party-name {
+      color: var(--fg-2);
+      font-size: 12px;
+    }
+
+    /* Shop info for consume */
+    .log-shop-info {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      flex-wrap: wrap;
+    }
+
+    .log-shop-label {
+      color: var(--muted);
+      font-size: 12px;
+      min-width: 48px;
+    }
+
+    .log-shop-name {
+      color: var(--fg);
+      font-weight: 500;
+    }
+
+    .log-shop-platform {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    /* ── Footer divider + timestamp ── */
+    .log-item-footer {
+      padding: 10px 16px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      background: #fafbfc;
+    }
+
+    .log-time {
+      font-size: 12px;
+      color: var(--meta);
+      font-family: var(--font-mono);
+      letter-spacing: 0.02em;
+    }
+  </style>
+</head>
+<body>
+  <header class="header">
+    <a href="profile.html" class="header-back">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M19 12H5M12 19l-7-7 7-7"/>
+      </svg>
+    </a>
+    <h1 class="header-title">交易日志</h1>
+  </header>
+
+  <main class="content">
+    <!-- 筛选 -->
+    <div class="log-filter">
+      <button class="log-filter-chip active">全部</button>
+      <button class="log-filter-chip">转出</button>
+      <button class="log-filter-chip">转入</button>
+      <button class="log-filter-chip">消耗</button>
+    </div>
+
+    <!-- 2026.05.19 -->
+    <div class="log-date-group">
+      <div class="log-date">2026年5月19日</div>
+      <div class="log-list">
+        <!-- 消耗 -->
+        <div class="log-item">
+          <div class="log-item-main">
+            <div class="log-item-left">
+              <span class="log-badge consume">消耗</span>
+              <div class="log-shop-info">
+                <span class="log-shop-label">关联平台</span>
+                <span class="log-shop-name">美团</span>
+              </div>
+              <div class="log-shop-info">
+                <span class="log-shop-label">关联店铺</span>
+                <span class="log-shop-name">美团外卖·xx路店</span>
+              </div>
+            </div>
+            <div class="log-item-right">
+              <div class="log-amount consume">-1</div>
+            </div>
+          </div>
+          <div class="log-item-footer">
+            <div class="log-time">16:30:00</div>
+          </div>
+        </div>
+
+        <!-- 转出 -->
+        <div class="log-item">
+          <div class="log-item-main">
+            <div class="log-item-left">
+              <span class="log-badge out">转出</span>
+              <div class="log-parties">
+                <div class="log-party">
+                  <span class="log-party-label">转出方</span>
+                  <span class="log-party-phone">138****5678</span>
+                  <span class="log-party-name">管理员</span>
+                </div>
+                <div class="log-party">
+                  <span class="log-party-label">接收方</span>
+                  <span class="log-party-phone">139****1234</span>
+                  <span class="log-party-name">张经理</span>
+                </div>
+              </div>
+            </div>
+            <div class="log-item-right">
+              <div class="log-amount out">-100</div>
+            </div>
+          </div>
+          <div class="log-item-footer">
+            <div class="log-time">09:45:32</div>
+          </div>
+        </div>
+
+        <!-- 转入 -->
+        <div class="log-item">
+          <div class="log-item-main">
+            <div class="log-item-left">
+              <span class="log-badge in">转入</span>
+              <div class="log-parties">
+                <div class="log-party">
+                  <span class="log-party-label">转出方</span>
+                  <span class="log-party-phone">186****9876</span>
+                  <span class="log-party-name">李总</span>
+                </div>
+                <div class="log-party">
+                  <span class="log-party-label">接收方</span>
+                  <span class="log-party-phone">138****5678</span>
+                  <span class="log-party-name">管理员</span>
+                </div>
+              </div>
+            </div>
+            <div class="log-item-right">
+              <div class="log-amount in">+500</div>
+            </div>
+          </div>
+          <div class="log-item-footer">
+            <div class="log-time">08:30:15</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2026.05.18 -->
+    <div class="log-date-group">
+      <div class="log-date">2026年5月18日</div>
+      <div class="log-list">
+        <!-- 消耗 -->
+        <div class="log-item">
+          <div class="log-item-main">
+            <div class="log-item-left">
+              <span class="log-badge consume">消耗</span>
+              <div class="log-shop-info">
+                <span class="log-shop-label">关联平台</span>
+                <span class="log-shop-name">京东</span>
+              </div>
+              <div class="log-shop-info">
+                <span class="log-shop-label">关联店铺</span>
+                <span class="log-shop-name">京东闪送·xx便利店</span>
+              </div>
+            </div>
+            <div class="log-item-right">
+              <div class="log-amount consume">-1</div>
+            </div>
+          </div>
+          <div class="log-item-footer">
+            <div class="log-time">22:00:00</div>
+          </div>
+        </div>
+
+        <!-- 消耗 -->
+        <div class="log-item">
+          <div class="log-item-main">
+            <div class="log-item-left">
+              <span class="log-badge consume">消耗</span>
+              <div class="log-shop-info">
+                <span class="log-shop-label">关联平台</span>
+                <span class="log-shop-name">淘宝</span>
+              </div>
+              <div class="log-shop-info">
+                <span class="log-shop-label">关联店铺</span>
+                <span class="log-shop-name">淘宝·xx品牌旗舰店</span>
+              </div>
+            </div>
+            <div class="log-item-right">
+              <div class="log-amount consume">-1</div>
+            </div>
+          </div>
+          <div class="log-item-footer">
+            <div class="log-time">14:00:00</div>
+          </div>
+        </div>
+
+        <!-- 转出 -->
+        <div class="log-item">
+          <div class="log-item-main">
+            <div class="log-item-left">
+              <span class="log-badge out">转出</span>
+              <div class="log-parties">
+                <div class="log-party">
+                  <span class="log-party-label">转出方</span>
+                  <span class="log-party-phone">138****5678</span>
+                  <span class="log-party-name">管理员</span>
+                </div>
+                <div class="log-party">
+                  <span class="log-party-label">接收方</span>
+                  <span class="log-party-phone">150****2468</span>
+                  <span class="log-party-name">王运营</span>
+                </div>
+              </div>
+            </div>
+            <div class="log-item-right">
+              <div class="log-amount out">-200</div>
+            </div>
+          </div>
+          <div class="log-item-footer">
+            <div class="log-time">14:22:08</div>
+          </div>
+        </div>
+
+        <!-- 转入 -->
+        <div class="log-item">
+          <div class="log-item-main">
+            <div class="log-item-left">
+              <span class="log-badge in">转入</span>
+              <div class="log-parties">
+                <div class="log-party">
+                  <span class="log-party-label">转出方</span>
+                  <span class="log-party-phone">137****5555</span>
+                  <span class="log-party-name">赵主管</span>
+                </div>
+                <div class="log-party">
+                  <span class="log-party-label">接收方</span>
+                  <span class="log-party-phone">138****5678</span>
+                  <span class="log-party-name">管理员</span>
+                </div>
+              </div>
+            </div>
+            <div class="log-item-right">
+              <div class="log-amount in">+1,000</div>
+            </div>
+          </div>
+          <div class="log-item-footer">
+            <div class="log-time">10:15:45</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</body>
+</html>

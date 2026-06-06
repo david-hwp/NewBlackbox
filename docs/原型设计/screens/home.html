@@ -1,0 +1,1357 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>首页 - 多店管家</title>
+  <style>
+    :root {
+      --bg: #f5f6f8;
+      --surface: #ffffff;
+      --fg: #1e293b;
+      --fg-2: #475569;
+      --muted: #64748b;
+      --meta: #94a3b8;
+      --border: #e2e8f0;
+      --accent: #059669;
+      --accent-hover: #047857;
+      --accent-light: #d1fae5;
+      --warn: #f59e0b;
+      --danger: #dc2626;
+      --danger-light: #fee2e2;
+
+      --brand-meituan: #ff4d4f;
+      --brand-taobao: #fa8c16;
+      --brand-jd: #2f54eb;
+      --brand-kuaishou: #52c41a;
+      --brand-xhs: #eb2f96;
+      --brand-ali: #fa541c;
+      --brand-dy: #000000;
+
+      --sidebar-bg: #f8f9fa;
+      --sidebar-active: #e8f5e9;
+      --sidebar-border: #e0e0e0;
+
+      --font-body: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', system-ui, sans-serif;
+      --font-mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: var(--font-body);
+      background: var(--bg);
+      color: var(--fg);
+      width: 100%;
+      max-width: 412px;
+      margin: 0 auto;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+
+    /* ========== 顶部算力信息条 ========== */
+    .top-bar {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .top-bar-brand {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .top-bar-logo {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: var(--accent);
+      display: grid;
+      place-items: center;
+      color: white;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .top-bar-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--fg);
+    }
+
+    .top-bar-meta {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .top-meta-item {
+      text-align: right;
+    }
+
+    .top-meta-label {
+      font-size: 10px;
+      color: var(--meta);
+    }
+
+    .top-meta-value {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--fg);
+      font-family: var(--font-mono);
+    }
+
+    /* ========== 算力信息行 ========== */
+    .compute-strip {
+      background: var(--surface);
+      padding: 8px 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .compute-strip-left {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .compute-strip-label {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .compute-strip-value {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--accent);
+      font-family: var(--font-mono);
+    }
+
+    .compute-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .compute-btn {
+      padding: 5px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 500;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--fg-2);
+      cursor: pointer;
+    }
+
+    .compute-btn.primary {
+      background: var(--accent);
+      color: white;
+      border-color: var(--accent);
+    }
+
+    /* ========== 主体：左右分栏 ========== */
+    .main-body {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+      min-height: 0;
+    }
+
+    /* ---- 左侧平台栏 ---- */
+    .platform-sidebar {
+      width: 92px;
+      min-width: 92px;
+      background: var(--sidebar-bg);
+      border-right: 1px solid var(--sidebar-border);
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+    }
+
+    .platform-sidebar::-webkit-scrollbar { display: none; }
+
+    .platform-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 12px 6px;
+      gap: 4px;
+      cursor: pointer;
+      border-bottom: 1px solid var(--sidebar-border);
+      transition: background 0.15s;
+      position: relative;
+    }
+
+    .platform-item.active {
+      background: var(--sidebar-active);
+    }
+
+    .platform-item.active::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 3px;
+      height: 24px;
+      background: var(--accent);
+      border-radius: 0 2px 2px 0;
+    }
+
+    .platform-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      object-fit: cover;
+      flex-shrink: 0;
+      border: 1px solid var(--border);
+    }
+
+    .platform-name {
+      font-size: 11px;
+      color: var(--fg-2);
+      text-align: center;
+      line-height: 1.3;
+    }
+
+    .platform-count {
+      font-size: 10px;
+      color: var(--meta);
+    }
+
+    /* ---- 右侧内容区 ---- */
+    .content-area {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .content-scroll {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px;
+    }
+
+    .content-scroll::-webkit-scrollbar { display: none; }
+
+    /* 搜索框 */
+    .search-box {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 8px 12px;
+      margin-bottom: 12px;
+    }
+
+    .search-box svg {
+      width: 16px;
+      height: 16px;
+      color: var(--meta);
+      flex-shrink: 0;
+    }
+
+    .search-box input {
+      border: none;
+      outline: none;
+      background: transparent;
+      font-size: 13px;
+      color: var(--fg);
+      flex: 1;
+      min-width: 0;
+    }
+
+    .search-box input::placeholder {
+      color: var(--meta);
+    }
+
+    /* 店铺列表标题 */
+    .shop-section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+
+    .shop-section-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--fg);
+    }
+
+    .shop-section-count {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    /* 店铺列表 */
+    .shop-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding-bottom: 12px;
+    }
+
+    /* ========== 左滑卡片 ========== */
+    .swipe-card {
+      position: relative;
+      overflow: hidden;
+      border-radius: 12px;
+      -webkit-user-select: none;
+      user-select: none;
+      touch-action: pan-y;
+    }
+
+    .swipe-content {
+      position: relative;
+      z-index: 2;
+      background: var(--surface);
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      will-change: transform;
+    }
+
+    .swipe-content.open {
+      transform: translateX(-204px);
+    }
+
+    .swipe-actions {
+      position: absolute;
+      right: 0;
+      top: 0;
+      bottom: 0;
+      z-index: 1;
+      display: flex;
+      align-items: stretch;
+      border-radius: 0 12px 12px 0;
+      overflow: hidden;
+    }
+
+    .swipe-action-btn {
+      width: 68px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      color: white;
+      font-size: 11px;
+      font-weight: 500;
+      border: none;
+      cursor: pointer;
+      padding: 0;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+
+    .swipe-action-btn svg {
+      width: 18px;
+      height: 18px;
+      pointer-events: none;
+    }
+
+    .swipe-action-btn span {
+      pointer-events: none;
+    }
+
+    .swipe-action-btn.edit {
+      background: #6b7280;
+    }
+
+    .swipe-action-btn.renew {
+      background: var(--accent);
+    }
+
+    .swipe-action-btn.renew.on {
+      background: #047857;
+    }
+
+    .swipe-action-btn.delete {
+      background: var(--danger);
+    }
+
+    /* 卡片内容 */
+    .shop-card-body {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px;
+      cursor: pointer;
+      position: relative;
+    }
+
+    /* 自动续时右上角三角标 */
+    .renew-wrap {
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 32px;
+      height: 32px;
+      z-index: 2;
+    }
+
+    .renew-triangle {
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 0;
+      height: 0;
+      border-top: 28px solid var(--accent);
+      border-left: 28px solid transparent;
+      border-radius: 0 12px 0 0;
+    }
+
+    .renew-check {
+      position: absolute;
+      top: 3px;
+      right: 4px;
+      font-size: 11px;
+      color: white;
+      font-weight: 800;
+      line-height: 1;
+      z-index: 3;
+      pointer-events: none;
+    }
+
+    .shop-logo {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      object-fit: cover;
+      flex-shrink: 0;
+      border: 1px solid var(--border);
+    }
+
+    .shop-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .shop-name-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 4px;
+    }
+
+    .shop-name {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--fg);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .renew-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      font-size: 10px;
+      font-weight: 500;
+      color: var(--accent);
+      background: var(--accent-light);
+      padding: 2px 6px;
+      border-radius: 4px;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .renew-tag svg {
+      width: 10px;
+      height: 10px;
+    }
+
+    .shop-id {
+      font-size: 11px;
+      color: var(--muted);
+      font-family: var(--font-mono);
+    }
+
+    .shop-days {
+      font-size: 12px;
+      color: var(--muted);
+      text-align: right;
+      flex-shrink: 0;
+    }
+
+    .shop-days strong {
+      color: var(--fg);
+      font-family: var(--font-mono);
+    }
+
+    .shop-days.warning strong { color: var(--warn); }
+    .shop-days.danger strong { color: var(--danger); }
+
+    /* 底部个人中心入口 */
+    .sidebar-footer {
+      border-top: 1px solid var(--sidebar-border);
+      padding: 12px 6px;
+    }
+
+    .profile-entry {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      text-decoration: none;
+      color: var(--fg-2);
+    }
+
+    .profile-entry svg {
+      width: 24px;
+      height: 24px;
+      color: var(--muted);
+    }
+
+    .profile-entry span {
+      font-size: 11px;
+    }
+
+    /* 空状态 */
+    .empty-state {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--meta);
+    }
+
+    .empty-state svg {
+      width: 48px;
+      height: 48px;
+      margin-bottom: 12px;
+      opacity: 0.4;
+    }
+
+    .empty-state p {
+      font-size: 13px;
+    }
+
+    /* 底部添加店铺栏 */
+    .add-shop-bar {
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+    }
+
+    .add-shop-btn {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 12px;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 600;
+      color: white;
+      background: var(--accent);
+      border: none;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .add-shop-btn:active {
+      background: var(--accent-hover);
+    }
+
+    .add-shop-btn svg {
+      width: 18px;
+      height: 18px;
+    }
+
+    /* 滑动提示 toast */
+    .swipe-hint {
+      position: fixed;
+      bottom: 72px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,0.7);
+      color: white;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-size: 12px;
+      z-index: 1000;
+      opacity: 0;
+      transition: opacity 0.3s;
+      pointer-events: none;
+      white-space: nowrap;
+    }
+
+    .swipe-hint.show {
+      opacity: 1;
+    }
+
+    /* ========== 删除确认抽屉 ========== */
+    .delete-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.4);
+      z-index: 2000;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.2s, visibility 0.2s;
+    }
+
+    .delete-overlay.show {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .delete-sheet {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: var(--surface);
+      border-radius: 20px 20px 0 0;
+      padding: 20px 16px 28px;
+      transform: translateY(100%);
+      transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+    }
+
+    .delete-overlay.show .delete-sheet {
+      transform: translateY(0);
+    }
+
+    .delete-sheet-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--fg);
+      margin-bottom: 6px;
+    }
+
+    .delete-sheet-sub {
+      font-size: 14px;
+      color: var(--muted);
+      margin-bottom: 20px;
+      line-height: 1.5;
+    }
+
+    .delete-sheet-actions {
+      display: flex;
+      gap: 12px;
+    }
+
+    .delete-sheet-btn {
+      flex: 1;
+      padding: 14px;
+      border-radius: 12px;
+      font-size: 15px;
+      font-weight: 600;
+      border: none;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .delete-sheet-btn.cancel {
+      background: var(--bg);
+      color: var(--fg-2);
+    }
+
+    .delete-sheet-btn.cancel:active {
+      background: var(--border);
+    }
+
+    .delete-sheet-btn.confirm {
+      background: var(--danger);
+      color: white;
+    }
+
+    .delete-sheet-btn.confirm:active {
+      background: #b91c1c;
+    }
+
+    /* ========== 编辑店铺抽屉 ========== */
+    .edit-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.4);
+      z-index: 2000;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.2s, visibility 0.2s;
+    }
+
+    .edit-overlay.show {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .edit-sheet {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: var(--surface);
+      border-radius: 20px 20px 0 0;
+      padding: 20px 16px 28px;
+      transform: translateY(100%);
+      transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+    }
+
+    .edit-overlay.show .edit-sheet {
+      transform: translateY(0);
+    }
+
+    .edit-sheet-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--fg);
+      margin-bottom: 16px;
+    }
+
+    .edit-field {
+      margin-bottom: 20px;
+    }
+
+    .edit-field-label {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--fg-2);
+      margin-bottom: 8px;
+      display: block;
+    }
+
+    .edit-input {
+      width: 100%;
+      padding: 14px 16px;
+      border: 1.5px solid var(--border);
+      border-radius: 12px;
+      font-size: 16px;
+      color: var(--fg);
+      background: var(--bg);
+      outline: none;
+      font-family: var(--font-body);
+    }
+
+    .edit-input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-light);
+    }
+
+    .edit-actions {
+      display: flex;
+      gap: 12px;
+    }
+
+    .edit-sheet-btn {
+      flex: 1;
+      padding: 14px;
+      border-radius: 12px;
+      font-size: 15px;
+      font-weight: 600;
+      border: none;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .edit-sheet-btn.cancel {
+      background: var(--bg);
+      color: var(--fg-2);
+    }
+
+    .edit-sheet-btn.confirm {
+      background: var(--accent);
+      color: white;
+    }
+  </style>
+</head>
+<body>
+  <!-- 顶部栏 -->
+  <div class="top-bar">
+    <div class="top-bar-brand">
+      <div class="top-bar-logo">多</div>
+      <span class="top-bar-title">多店管家</span>
+    </div>
+    <div class="top-bar-meta">
+      <div class="top-meta-item">
+        <div class="top-meta-label">我的账号</div>
+        <div class="top-meta-value">138****5678</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 算力信息行 -->
+  <div class="compute-strip">
+    <div class="compute-strip-left">
+      <span class="compute-strip-label">算力余额</span>
+      <span class="compute-strip-value">200</span>
+    </div>
+    <div class="compute-actions">
+      <button class="compute-btn" onclick="location.href='logs.html'">交易日志</button>
+    </div>
+  </div>
+
+  <!-- 主体：左右分栏 -->
+  <div class="main-body">
+    <!-- 左侧平台分类 -->
+    <aside class="platform-sidebar">
+      <div class="platform-item active" data-platform="meituan" onclick="selectPlatform(this, 'meituan')">
+        <img class="platform-icon" src="../assets/logo/meituan.png" alt="美团">
+        <span class="platform-name">美团外卖</span>
+        <span class="platform-count">2家</span>
+      </div>
+      <div class="platform-item" data-platform="taobao" onclick="selectPlatform(this, 'taobao')">
+        <img class="platform-icon" src="../assets/logo/qianniu.png" alt="千牛">
+        <span class="platform-name">淘宝网购</span>
+        <span class="platform-count">1家</span>
+      </div>
+      <div class="platform-item" data-platform="jd" onclick="selectPlatform(this, 'jd')">
+        <img class="platform-icon" src="../assets/logo/jd.png" alt="京东">
+        <span class="platform-name">京东闪送</span>
+        <span class="platform-count">1家</span>
+      </div>
+      <div class="platform-item" data-platform="kuaishou" onclick="selectPlatform(this, 'kuaishou')">
+        <img class="platform-icon" src="../assets/logo/kuaishou.png" alt="快手">
+        <span class="platform-name">快手小店</span>
+        <span class="platform-count">1家</span>
+      </div>
+      <div class="platform-item" data-platform="xhs" onclick="selectPlatform(this, 'xhs')">
+        <img class="platform-icon" src="../assets/logo/xiaohongshu.png" alt="小红书">
+        <span class="platform-name">小红书</span>
+        <span class="platform-count">1家</span>
+      </div>
+      <div class="platform-item" data-platform="ali" onclick="selectPlatform(this, 'ali')">
+        <img class="platform-icon" src="../assets/logo/koubei.png" alt="阿里本地通">
+        <span class="platform-name">阿里本地</span>
+        <span class="platform-count">1家</span>
+      </div>
+      <div style="flex:1"></div>
+      <div class="sidebar-footer">
+        <a href="profile.html" class="profile-entry">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+            <circle cx="12" cy="7" r="4"/>
+          </svg>
+          <span>个人中心</span>
+        </a>
+      </div>
+    </aside>
+
+    <!-- 右侧店铺列表 -->
+    <div class="content-area">
+      <div class="content-scroll">
+        <!-- 搜索框 -->
+        <div class="search-box">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"/>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          <input type="text" placeholder="搜索店名/ID" id="shopSearch">
+        </div>
+
+        <!-- 店铺列表 -->
+        <div class="shop-section-header">
+          <span class="shop-section-title" id="shopSectionTitle">美团外卖</span>
+          <span class="shop-section-count" id="shopSectionCount">共 2 家</span>
+        </div>
+
+        <div class="shop-list" id="shopList">
+          <!-- 由 JS 填充 -->
+        </div>
+      </div>
+
+      <!-- 底部添加店铺 -->
+      <div class="add-shop-bar">
+        <button class="add-shop-btn" onclick="showToast('添加店铺功能开发中')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <line x1="12" y1="5" x2="12" y2="19"/>
+            <line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
+          添加店铺
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 滑动提示 -->
+  <div class="swipe-hint" id="swipeHint">左滑可编辑、删除或设置自动续时</div>
+
+  <!-- 删除确认抽屉 -->
+  <div class="delete-overlay" id="deleteOverlay" onclick="closeDeleteConfirm(event)">
+    <div class="delete-sheet" onclick="event.stopPropagation()">
+      <div class="delete-sheet-title">确认删除</div>
+      <div class="delete-sheet-sub" id="deleteConfirmText">确定删除该店铺吗？</div>
+      <div class="delete-sheet-actions">
+        <button class="delete-sheet-btn cancel" onclick="closeDeleteConfirm()">取消</button>
+        <button class="delete-sheet-btn confirm" onclick="confirmDelete()">确认删除</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 编辑店铺抽屉 -->
+  <div class="edit-overlay" id="editOverlay" onclick="closeEditSheet(event)">
+    <div class="edit-sheet" onclick="event.stopPropagation()">
+      <div class="edit-sheet-title">编辑店铺名称</div>
+      <div class="edit-field">
+        <label class="edit-field-label">店铺名称</label>
+        <input type="text" class="edit-input" id="editShopNameInput" placeholder="请输入店铺名称">
+      </div>
+      <div class="edit-actions">
+        <button class="edit-sheet-btn cancel" onclick="closeEditSheet()">取消</button>
+        <button class="edit-sheet-btn confirm" onclick="saveEditShop()">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ========== 全局状态 ==========
+    window.__swipeJustEnded = false;
+    let pendingDeleteId = null;
+    let pendingEditId = null;
+    let hintShown = false;
+
+    // ========== 店铺数据 ==========
+    const shopData = {
+      meituan: {
+        name: '美团外卖',
+        color: '#ff4d4f',
+        shops: [
+          { id: 'M123456', name: '美团外卖·xx路店', days: 7, autoRenew: true },
+          { id: 'M789012', name: '美团外卖·xx广场店', days: 15, autoRenew: true }
+        ]
+      },
+      taobao: {
+        name: '淘宝网购',
+        color: '#fa8c16',
+        shops: [
+          { id: 'TB789012', name: '淘宝·xx品牌旗舰店', days: 3, autoRenew: false }
+        ]
+      },
+      jd: {
+        name: '京东闪送',
+        color: '#2f54eb',
+        shops: [
+          { id: 'JD345678', name: '京东闪送·xx便利店', days: 30, autoRenew: true }
+        ]
+      },
+      kuaishou: {
+        name: '快手小店',
+        color: '#52c41a',
+        shops: [
+          { id: 'KS901234', name: '快手小店·xx美妆', days: 1, autoRenew: false }
+        ]
+      },
+      xhs: {
+        name: '小红书',
+        color: '#eb2f96',
+        shops: [
+          { id: 'XHS567890', name: '小红书·xx生活馆', days: 12, autoRenew: true }
+        ]
+      },
+      ali: {
+        name: '阿里本地',
+        color: '#fa541c',
+        shops: [
+          { id: 'ALI123456', name: '阿里本地通·xx门店', days: 8, autoRenew: true }
+        ]
+      }
+    };
+
+    let currentPlatform = 'meituan';
+
+    // ========== 平台切换 ==========
+    function selectPlatform(el, platform) {
+      currentPlatform = platform;
+      document.querySelectorAll('.platform-item').forEach(item => item.classList.remove('active'));
+      el.classList.add('active');
+      renderShops();
+    }
+
+    // ========== 渲染店铺列表 ==========
+    function renderShops() {
+      const data = shopData[currentPlatform];
+      const list = document.getElementById('shopList');
+      const title = document.getElementById('shopSectionTitle');
+      const count = document.getElementById('shopSectionCount');
+
+      title.textContent = data.name;
+      count.textContent = `共 ${data.shops.length} 家`;
+
+      const filter = document.getElementById('shopSearch').value.trim().toLowerCase();
+      const filtered = data.shops.filter(s =>
+        s.name.toLowerCase().includes(filter) || s.id.toLowerCase().includes(filter)
+      );
+
+      let html = '';
+
+      if (filtered.length === 0) {
+        html = `
+          <div class="empty-state">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <rect x="3" y="3" width="18" height="18" rx="2"/>
+              <line x1="9" y1="9" x2="15" y2="15"/>
+              <line x1="15" y1="9" x2="9" y2="15"/>
+            </svg>
+            <p>没有找到匹配店铺</p>
+          </div>`;
+      } else {
+        html = filtered.map((shop) => {
+          const daysClass = shop.days <= 3 ? 'danger' : shop.days <= 7 ? 'warning' : '';
+          const renewDot = shop.autoRenew ? '<div class="renew-wrap"><div class="renew-triangle"></div><span class="renew-check">✓</span></div>' : '';
+          return `
+            <div class="shop-card swipe-card" data-shop-id="${shop.id}">
+              <div class="swipe-content">
+                <div class="shop-card-body" data-action="open" data-platform="${currentPlatform}" data-shop="${shop.id}">
+                  ${renewDot}
+                  <img class="shop-logo" src="../assets/logo/${currentPlatform}.png" alt="${data.name}"
+                       title="点击进入店铺">
+                  <div class="shop-info">
+                    <div class="shop-name-row">
+                      <div class="shop-name">${shop.name}</div>
+                    </div>
+                    <div class="shop-id">ID: ${shop.id}</div>
+                  </div>
+                  <div class="shop-days ${daysClass}">剩余 <strong>${shop.days}</strong> 天</div>
+                </div>
+              </div>
+              <div class="swipe-actions">
+                <button class="swipe-action-btn edit" data-action="edit" data-shop="${shop.id}">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                  </svg>
+                  <span>编辑</span>
+                </button>
+                <button class="swipe-action-btn renew ${shop.autoRenew ? 'on' : ''}" data-action="renew" data-shop="${shop.id}">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="20 6 9 17 4 12"/>
+                  </svg>
+                  <span>${shop.autoRenew ? '已开启' : '自动续时'}</span>
+                </button>
+                <button class="swipe-action-btn delete" data-action="delete" data-shop="${shop.id}">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="3 6 5 6 21 6"/>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                  </svg>
+                  <span>删除</span>
+                </button>
+              </div>
+            </div>`;
+        }).join('');
+      }
+
+      list.innerHTML = html;
+
+      // 初始化左滑
+      initSwipeCards();
+
+      // 首次提示
+      if (!hintShown && filtered.length > 0) {
+        hintShown = true;
+        const hint = document.getElementById('swipeHint');
+        hint.classList.add('show');
+        setTimeout(() => hint.classList.remove('show'), 2500);
+      }
+    }
+
+    // ========== 左滑交互（touch + mouse） ==========
+    function initSwipeCards() {
+      document.querySelectorAll('.swipe-card').forEach(card => {
+        const content = card.querySelector('.swipe-content');
+        if (!content || content.dataset.swipeInit) return;
+        content.dataset.swipeInit = '1';
+
+        const maxSwipe = 204;
+        let startX = 0, startY = 0;
+        let isDragging = false, hasMoved = false;
+
+        // ---- 共享逻辑 ----
+        function onDragStart(x, y) {
+          startX = x;
+          startY = y;
+          isDragging = true;
+          hasMoved = false;
+          content.style.transition = 'none';
+
+          // 收起其他已展开的卡片
+          document.querySelectorAll('.swipe-content.open').forEach(c => {
+            if (c !== content) {
+              c.classList.remove('open');
+              c.style.transform = '';
+            }
+          });
+        }
+
+        function onDragMove(x, y) {
+          if (!isDragging) return false;
+
+          const dx = x - startX;
+          const dy = y - startY;
+
+          // 垂直滑动 > 水平滑动 → 取消（让用户滚动页面）
+          if (!hasMoved && Math.abs(dx) < Math.abs(dy) && Math.abs(dy) > 8) {
+            isDragging = false;
+            return false;
+          }
+
+          // 向右滑超过 5px → 取消，收起
+          if (dx > 5) {
+            isDragging = false;
+            content.classList.remove('open');
+            content.style.transform = '';
+            return false;
+          }
+
+          // 标记为已移动
+          if (Math.abs(dx) > 6) {
+            hasMoved = true;
+          }
+
+          // 实时跟随
+          const targetX = Math.max(-maxSwipe, Math.min(0, dx));
+          content.style.transform = `translateX(${targetX}px)`;
+          return true;
+        }
+
+        function onDragEnd(x) {
+          if (!isDragging) return;
+          isDragging = false;
+          content.style.transition = 'transform 0.28s cubic-bezier(0.32, 0.72, 0, 1)';
+
+          const dx = x - startX;
+
+          // 标记刚滑动过，防止触发 click
+          if (hasMoved) {
+            window.__swipeJustEnded = true;
+            setTimeout(() => window.__swipeJustEnded = false, 80);
+          }
+
+          // 超过阈值展开，否则回弹
+          if (dx < -maxSwipe / 3) {
+            content.classList.add('open');
+            content.style.transform = '';
+          } else {
+            content.classList.remove('open');
+            content.style.transform = '';
+          }
+        }
+
+        // ---- Touch 事件 ----
+        content.addEventListener('touchstart', (e) => {
+          onDragStart(e.touches[0].clientX, e.touches[0].clientY);
+        }, { passive: true });
+
+        content.addEventListener('touchmove', (e) => {
+          const prevent = onDragMove(e.touches[0].clientX, e.touches[0].clientY);
+          if (prevent && hasMoved) e.preventDefault();
+        }, { passive: false });
+
+        content.addEventListener('touchend', (e) => {
+          onDragEnd(e.changedTouches[0].clientX);
+        }, { passive: true });
+
+        content.addEventListener('touchcancel', () => {
+          isDragging = false;
+          content.style.transition = 'transform 0.28s cubic-bezier(0.32, 0.72, 0, 1)';
+          content.classList.remove('open');
+          content.style.transform = '';
+        });
+
+        // ---- Mouse 事件（桌面浏览器） ----
+        content.addEventListener('mousedown', (e) => {
+          if (e.button !== 0) return; // 只响应左键
+          e.preventDefault(); // 阻止文本选择
+          onDragStart(e.clientX, e.clientY);
+
+          const onMove = (ev) => {
+            onDragMove(ev.clientX, ev.clientY);
+          };
+
+          const onUp = (ev) => {
+            document.removeEventListener('mousemove', onMove);
+            document.removeEventListener('mouseup', onUp);
+            onDragEnd(ev.clientX);
+          };
+
+          document.addEventListener('mousemove', onMove);
+          document.addEventListener('mouseup', onUp);
+        });
+      });
+    }
+
+    // ========== 点击店铺打开APP ==========
+    function openShopApp(platform, shopId) {
+      if (window.__swipeJustEnded) return;
+      const platformNames = {
+        meituan: '美团外卖', taobao: '淘宝', jd: '京东',
+        kuaishou: '快手', xhs: '小红书', ali: '阿里本地通'
+      };
+      showToast(`正在打开 ${platformNames[platform]} APP…`);
+    }
+
+    function closeSwipe(shopId) {
+      const card = document.querySelector(`.swipe-card[data-shop-id="${shopId}"]`);
+      if (card) {
+        const content = card.querySelector('.swipe-content');
+        content.classList.remove('open');
+      }
+    }
+
+    function editShop(shopId) {
+      closeSwipe(shopId);
+      const shop = findShop(shopId);
+      if (!shop) return;
+      pendingEditId = shopId;
+      document.getElementById('editShopNameInput').value = shop.name;
+      document.getElementById('editOverlay').classList.add('show');
+      setTimeout(() => document.getElementById('editShopNameInput').focus(), 100);
+    }
+
+    function closeEditSheet(e) {
+      if (e && e.target !== e.currentTarget) return;
+      document.getElementById('editOverlay').classList.remove('show');
+      pendingEditId = null;
+    }
+
+    function saveEditShop() {
+      if (!pendingEditId) return;
+      const newName = document.getElementById('editShopNameInput').value.trim();
+      if (!newName) {
+        showToast('请输入店铺名称');
+        return;
+      }
+      const shop = findShop(pendingEditId);
+      if (shop) {
+        shop.name = newName;
+        renderShops();
+        showToast('店铺名称已更新');
+      }
+      closeEditSheet();
+    }
+
+    function deleteShop(shopId) {
+      closeSwipe(shopId);
+      const shop = findShop(shopId);
+      pendingDeleteId = shopId;
+      const name = shop ? shop.name : shopId;
+      document.getElementById('deleteConfirmText').textContent =
+        `删除后该店铺将不再出现在列表中，未到期但已扣除的算力不予退还，确定删除「${name}」？`;
+      document.getElementById('deleteOverlay').classList.add('show');
+    }
+
+    function confirmDelete() {
+      if (!pendingDeleteId) return;
+      const shop = findShop(pendingDeleteId);
+      const shopName = shop ? shop.name : pendingDeleteId;
+      removeShop(pendingDeleteId);
+      pendingDeleteId = null;
+      closeDeleteConfirm();
+      renderShops();
+      showToast(`已删除「${shopName}」`);
+    }
+
+    function closeDeleteConfirm(e) {
+      if (e && e.target !== e.currentTarget) return;
+      document.getElementById('deleteOverlay').classList.remove('show');
+      pendingDeleteId = null;
+    }
+
+    function toggleRenew(shopId) {
+      const shop = findShop(shopId);
+      if (!shop) return;
+      shop.autoRenew = !shop.autoRenew;
+      closeSwipe(shopId);
+      showToast(`「${shop.name}」自动续时已${shop.autoRenew ? '开启' : '关闭'}`);
+      renderShops();
+    }
+
+    // ========== 工具函数 ==========
+    function findShop(shopId) {
+      for (const key in shopData) {
+        const found = shopData[key].shops.find(s => s.id === shopId);
+        if (found) return found;
+      }
+      return null;
+    }
+
+    function removeShop(shopId) {
+      for (const key in shopData) {
+        const idx = shopData[key].shops.findIndex(s => s.id === shopId);
+        if (idx !== -1) {
+          shopData[key].shops.splice(idx, 1);
+          updatePlatformCount(key);
+          break;
+        }
+      }
+    }
+
+    function updatePlatformCount(platform) {
+      const item = document.querySelector(`.platform-item[data-platform="${platform}"]`);
+      if (item) {
+        const countEl = item.querySelector('.platform-count');
+        const count = shopData[platform].shops.length;
+        countEl.textContent = `${count}家`;
+      }
+    }
+
+    function showToast(msg) {
+      const toast = document.createElement('div');
+      toast.style.cssText = `
+        position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+        background: rgba(0,0,0,0.75); color: white; padding: 12px 24px;
+        border-radius: 10px; font-size: 14px; z-index: 9999; pointer-events: none;
+        white-space: pre-line; text-align: center;
+      `;
+      toast.textContent = msg;
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 1800);
+    }
+
+    // ========== 事件委托（点击卡片/按钮） ==========
+    document.getElementById('shopList').addEventListener('click', (e) => {
+      // action 按钮
+      const btn = e.target.closest('[data-action]');
+      if (!btn) return;
+
+      const action = btn.dataset.action;
+      const shopId = btn.dataset.shop;
+      const platform = btn.dataset.platform;
+
+      if (action === 'open') {
+        openShopApp(platform, shopId);
+      } else if (action === 'edit') {
+        editShop(shopId);
+      } else if (action === 'delete') {
+        deleteShop(shopId);
+      } else if (action === 'renew') {
+        toggleRenew(shopId);
+      }
+    });
+
+    // 搜索监听
+    document.getElementById('shopSearch').addEventListener('input', renderShops);
+
+    // 点击空白处收起展开的卡片
+    document.addEventListener('click', (e) => {
+      const insideCard = e.target.closest('.swipe-card');
+      if (!insideCard) {
+        document.querySelectorAll('.swipe-content.open').forEach(c => {
+          c.classList.remove('open');
+        });
+      }
+    });
+
+    // 初始化
+    renderShops();
+  </script>
+</body>
+</html>

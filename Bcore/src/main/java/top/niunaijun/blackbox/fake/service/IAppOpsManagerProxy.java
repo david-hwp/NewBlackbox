@@ -236,7 +236,16 @@ public class IAppOpsManagerProxy extends BinderInvocationStub {
                 || n.contains("BLUETOOTH_CONNECT")
                 || n.contains("BLUETOOTH_ADVERTISE")
                 || n.contains("NEARBY_WIFI_DEVICES")
-                || n.contains("POST_NOTIFICATIONS");
+                || n.contains("POST_NOTIFICATIONS")
+                || n.contains("READ_PHONE_STATE")
+                || n.contains("READ_PHONE_NUMBERS")
+                || n.contains("CALL_PHONE")
+                || n.contains("READ_CONTACTS")
+                || n.contains("WRITE_CONTACTS")
+                || n.contains("GET_ACCOUNTS")
+                || n.contains("SEND_SMS")
+                || n.contains("READ_SMS")
+                || n.contains("RECEIVE_SMS");
     }
 
     private static String getOpPublicName(int op) {

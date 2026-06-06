@@ -9,32 +9,41 @@ import android.graphics.drawable.Drawable;
 import java.util.Locale;
 
 import top.niunaijun.blackbox.BlackBoxCore;
-import top.niunaijun.blackbox.app.BActivityThread;
+import top.niunaijun.blackbox.entity.pm.ShopInfo;
+import top.niunaijun.blackbox.fake.frameworks.BPackageManager;
 import top.niunaijun.blackbox.utils.DrawableUtils;
 
 public class TaskDescriptionCompat {
     public static ActivityManager.TaskDescription fix(ActivityManager.TaskDescription td) {
-        String label = td.getLabel();
-        Bitmap icon = td.getIcon();
-
-        if (label != null && icon != null)
-            return td;
-
-        label = getTaskDescriptionLabel(BlackBoxCore.getUserId(), getApplicationLabel());
-        
-        
-        
-        
-
-        
-        
-        
-        td = new ActivityManager.TaskDescription(label, null, td.getPrimaryColor());
-        return td;
+        String label = getTaskDescriptionLabel(BlackBoxCore.getUserId(), getApplicationLabel());
+        Bitmap icon = getTaskDescriptionIcon();
+        return new ActivityManager.TaskDescription(label, icon, td.getPrimaryColor());
     }
 
     public static String getTaskDescriptionLabel(int userId, CharSequence label) {
-        return String.format(Locale.CHINA, "[B%d]%s", userId, label);
+        ShopInfo shopInfo = getCurrentShopInfo(userId);
+        if (shopInfo != null && shopInfo.shopName != null && !shopInfo.shopName.trim().isEmpty()) {
+            return shopInfo.shopName.trim();
+        }
+        if (label == null) {
+            return String.format(Locale.CHINA, "User %d", userId);
+        }
+        return label.toString();
+    }
+
+    public static Bitmap getTaskDescriptionIcon() {
+        Drawable drawable = getApplicationIcon();
+        if (drawable == null) {
+            return null;
+        }
+        try {
+            Context context = BlackBoxCore.getContext();
+            ActivityManager am = (ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE);
+            int iconSize = am != null ? am.getLauncherLargeIconSize() : 96;
+            return DrawableUtils.drawableToBitmap(drawable, iconSize, iconSize);
+        } catch (Throwable ignore) {
+            return null;
+        }
     }
 
     private static CharSequence getApplicationLabel() {
@@ -48,9 +57,25 @@ public class TaskDescriptionCompat {
 
     private static Drawable getApplicationIcon() {
         try {
-            
+            PackageManager pm = BlackBoxCore.getPackageManager();
+            String packageName = BlackBoxCore.getAppPackageName();
+            if (packageName == null || packageName.isEmpty()) {
+                return null;
+            }
+            return pm.getApplicationIcon(packageName);
+        } catch (Throwable ignore) {
             return null;
-        } catch (Exception ignore) {
+        }
+    }
+
+    private static ShopInfo getCurrentShopInfo(int userId) {
+        String packageName = BlackBoxCore.getAppPackageName();
+        if (packageName == null || packageName.isEmpty() || userId < 0) {
+            return null;
+        }
+        try {
+            return BPackageManager.get().getShopInfo(packageName, userId);
+        } catch (Throwable ignore) {
             return null;
         }
     }

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Internal files directory for Engine APK -->
+    <files-path
+        name="engine_files"
+        path="engine/" />
+    <!-- Cache directory for update files -->
+    <cache-path
+        name="engine_cache"
+        path="engine-update/" />
+    <!-- External files directory -->
+    <external-files-path
+        name="external_files"
+        path="." />
+</paths>

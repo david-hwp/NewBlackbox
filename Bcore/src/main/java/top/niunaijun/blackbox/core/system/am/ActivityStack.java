@@ -18,6 +18,7 @@ import android.os.Message;
 import android.os.RemoteException;
 import android.util.Log;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
@@ -34,6 +35,7 @@ import top.niunaijun.blackbox.core.system.BProcessManagerService;
 import top.niunaijun.blackbox.core.system.ProcessRecord;
 import top.niunaijun.blackbox.core.system.pm.BPackageManagerService;
 import top.niunaijun.blackbox.core.system.pm.PackageManagerCompat;
+import top.niunaijun.blackbox.core.system.pm.ShopIdManager;
 import top.niunaijun.blackbox.proxy.ProxyActivity;
 import top.niunaijun.blackbox.proxy.ProxyManifest;
 import top.niunaijun.blackbox.proxy.record.ProxyActivityRecord;
@@ -91,6 +93,20 @@ public class ActivityStack {
             startActivityLocked(userId, intents[i], resolvedTypes[i], resultTo, null, -1, 0, options);
         }
         return 0;
+    }
+
+    public Intent getLaunchIntent(int userId, Intent intent) {
+        ResolveInfo resolveInfo = BPackageManagerService.get().resolveActivity(intent, GET_ACTIVITIES, null, userId);
+        if (resolveInfo == null || resolveInfo.activityInfo == null) {
+            return null;
+        }
+        ActivityInfo activityInfo = resolveInfo.activityInfo;
+        ActivityRecord record = newActivityRecord(intent, activityInfo, null, userId);
+        Intent shadow = startActivityProcess(userId, intent, activityInfo, record);
+        shadow.addFlags(Intent.FLAG_ACTIVITY_MULTIPLE_TASK);
+        shadow.addFlags(Intent.FLAG_ACTIVITY_NEW_DOCUMENT);
+        shadow.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        return shadow;
     }
 
     public int startActivityLocked(int userId, Intent intent, String resolvedType, IBinder resultTo, String resultWho, int requestCode, int flags, Bundle options) {
@@ -379,6 +395,69 @@ public class ActivityStack {
         }
     }
 
+    public void finishAllActivitiesExcept(String keepPackageName, int userId) {
+        synchronized (mTasks) {
+            List<TaskRecord> emptyTasks = new ArrayList<>();
+            for (TaskRecord task : mTasks.values()) {
+                List<ActivityRecord> toRemove = new ArrayList<>();
+                for (ActivityRecord activity : task.activities) {
+                    if (!activity.info.packageName.equals(keepPackageName)) {
+                        activity.finished = true;
+                        if (activity.processRecord != null && activity.processRecord.bActivityThread != null) {
+                            try {
+                                activity.processRecord.bActivityThread.finishActivity(activity.token);
+                            } catch (RemoteException e) {
+                                // Process may already be dead
+                            }
+                        }
+                        toRemove.add(activity);
+                    }
+                }
+                task.activities.removeAll(toRemove);
+                if (task.activities.isEmpty()) {
+                    emptyTasks.add(task);
+                }
+            }
+            for (TaskRecord task : emptyTasks) {
+                mTasks.remove(task.id);
+            }
+            Slog.d(TAG, "Single instance mode: finished activities for " + emptyTasks.size() + " tasks except " + keepPackageName);
+        }
+    }
+
+    public void finishAllActivitiesExceptGlobal(String keepPackageName, int keepUserId) {
+        synchronized (mTasks) {
+            List<TaskRecord> emptyTasks = new ArrayList<>();
+            for (TaskRecord task : mTasks.values()) {
+                List<ActivityRecord> toRemove = new ArrayList<>();
+                for (ActivityRecord activity : task.activities) {
+                    boolean isKeepActivity = keepUserId == activity.userId
+                            && activity.info.packageName.equals(keepPackageName);
+                    if (!isKeepActivity) {
+                        activity.finished = true;
+                        if (activity.processRecord != null && activity.processRecord.bActivityThread != null) {
+                            try {
+                                activity.processRecord.bActivityThread.finishActivity(activity.token);
+                            } catch (RemoteException e) {
+                                // Process may already be dead
+                            }
+                        }
+                        toRemove.add(activity);
+                    }
+                }
+                task.activities.removeAll(toRemove);
+                if (task.activities.isEmpty()) {
+                    emptyTasks.add(task);
+                }
+            }
+            for (TaskRecord task : emptyTasks) {
+                mTasks.remove(task.id);
+            }
+            Slog.d(TAG, "Single instance mode: globally finished activities for "
+                    + emptyTasks.size() + " tasks except " + keepPackageName + " user=" + keepUserId);
+        }
+    }
+
     ActivityRecord newActivityRecord(Intent intent, ActivityInfo info, IBinder resultTo,
                                      int userId) {
         ActivityRecord targetRecord = ActivityRecord.create(intent, info, resultTo, userId);
@@ -480,6 +559,13 @@ public class ActivityStack {
             Log.d(TAG, "onActivityResumed : " + activityRecord.component.toString());
             activityRecord.task.removeActivity(activityRecord);
             activityRecord.task.addTopActivity(activityRecord);
+
+            // Trigger shop ID extraction on resume — user may have logged in since last launch
+            try {
+                ShopIdManager.get().triggerExtract(activityRecord.info.packageName, userId, BlackBoxCore.getContext());
+            } catch (Exception e) {
+                Slog.w(TAG, "Failed to trigger shop ID extraction on resume for " + activityRecord.info.packageName, e);
+            }
         }
     }
 

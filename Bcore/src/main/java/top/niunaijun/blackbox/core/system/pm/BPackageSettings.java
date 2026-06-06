@@ -13,6 +13,7 @@ import java.util.Map;
 import top.niunaijun.blackbox.core.env.BEnvironment;
 import top.niunaijun.blackbox.core.system.user.BUserHandle;
 import top.niunaijun.blackbox.entity.pm.InstallOption;
+import top.niunaijun.blackbox.entity.pm.ShopInfo;
 import top.niunaijun.blackbox.utils.CloseUtils;
 import top.niunaijun.blackbox.utils.FileUtils;
 
@@ -57,6 +58,20 @@ public class BPackageSettings implements Parcelable {
 
     public void setHidden(boolean hidden, int userId) {
         modifyUserState(userId).hidden = hidden;
+    }
+
+    public void setShopInfo(ShopInfo shopInfo, int userId) {
+        BPackageUserState state = modifyUserState(userId);
+        state.shopId = shopInfo.shopId;
+        state.shopName = shopInfo.shopName;
+        state.platform = shopInfo.platform;
+    }
+
+    public void clearShopInfo(int userId) {
+        BPackageUserState state = modifyUserState(userId);
+        state.shopId = null;
+        state.shopName = null;
+        state.platform = null;
     }
 
     public void removeUser(int userId) {

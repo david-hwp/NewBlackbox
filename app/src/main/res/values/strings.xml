@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">BlackBox</string>
+    <string name="app_name">zhanghaoguanjia</string>
     <string name="choose">Choose</string>
     <string name="choose_app">Choose App</string>
     <string name="installed_app">Installed App</string>
@@ -37,7 +37,7 @@
     <string name="app_shortcut">Create Shortcut</string>
     <string name="shortcut_name">Shortcut Name</string>
     <string name="try_add_shortcut">Try Added To Desktop</string>
-    <string name="add_shortcut_fail_msg">If the addition fails, please go to system settings and open the permission of "create desktop shortcut" for BlackBox</string>
+    <string name="add_shortcut_fail_msg">If the addition fails, please go to system settings and open the permission of "create desktop shortcut" for zhanghaoguanjia</string>
     <string name="install_success">Installed Successfully</string>
     <string name="install_fail">Installed Failed: %s</string>
     <string name="install_fail_no_msg">Installed Failed</string>
@@ -60,6 +60,8 @@
     <string name="use_vpn_network_summary">Route traffic through VPN for sandboxed apps (may improve network access)</string>
     <string name="disable_flag_secure">Disable Flag Secure</string>
     <string name="disable_flag_secure_summary">Allow screenshots and screen recording in apps</string>
+    <string name="single_instance_mode">Single Instance Mode</string>
+    <string name="single_instance_mode_summary">Only keep one clone app running at a time to save memory</string>
     <string name="gms_manager">GMS Manager</string>
     <string name="jump_gms">Go to Gms Manager</string>
     <string name="enable_gms">Enable Service</string>
@@ -67,4 +69,94 @@
     <string name="disable_gms">Disable Service</string>
     <string name="disable_gms_hint">Clear the current Google service environment? Google service data will be cleared.</string>
     <string name="no_gms">Currently, there is no Google service environment on mobile phones.</string>
+
+    <!-- 多店管家 -->
+    <string name="duodian_app_name">账号管家</string>
+    <string name="duodian_login_title">账号管家</string>
+    <string name="duodian_login_subtitle">多平台店铺管理专家</string>
+    <string name="duodian_phone_hint">请输入手机号</string>
+    <string name="duodian_password_hint">请输入密码</string>
+    <string name="show_password">显示密码</string>
+    <string name="hide_password">隐藏密码</string>
+    <string name="duodian_login_btn">登 录</string>
+    <string name="duodian_register_link">注册账号</string>
+    <string name="duodian_register_title">注册账号</string>
+    <string name="duodian_register_subtitle">创建后赠送3点不可转赠算力</string>
+    <string name="duodian_register_phone_label">手机号</string>
+    <string name="duodian_register_username_label">用户名</string>
+    <string name="duodian_register_password_label">登录密码</string>
+    <string name="duodian_register_password_hint">请输入至少6位密码</string>
+    <string name="duodian_register_bonus_hint">注册成功后请使用手机号和密码登录，赠送算力不可转赠。</string>
+    <string name="duodian_login_empty">请输入手机号和密码</string>
+    <string name="duodian_login_dev">登录功能开发中</string>
+    <string name="duodian_tab_home">首页</string>
+    <string name="duodian_tab_profile">我的</string>
+    <string name="duodian_shop_list">店铺列表</string>
+    <string name="duodian_add_shop">添加店铺</string>
+    <string name="duodian_gift_center">福利中心</string>
+    <string name="duodian_logs">操作日志</string>
+    <string name="duodian_settings">设置</string>
+    <string name="duodian_compute_balance">算力余额</string>
+    <string name="duodian_remaining_days">剩余天数</string>
+    <string name="duodian_auto_renew">自动续费</string>
+    <string name="duodian_platform">平台</string>
+    <string name="duodian_shop_id">店铺ID</string>
+
+    <!-- Phase 8 Wave 1 -->
+    <string name="profile_title">我的</string>
+    <string name="gift_title">算力赠送</string>
+    <string name="logs_title">交易日志</string>
+    <string name="menu_gift_compute">算力赠送</string>
+    <string name="menu_transaction_logs">交易日志</string>
+    <string name="menu_change_username">修改用户名</string>
+    <string name="menu_change_password">修改密码</string>
+    <string name="menu_system_settings">软件设置</string>
+    <string name="feedback_hint">请输入您遇到的问题...</string>
+    <string name="feedback_submit">提交反馈</string>
+    <string name="gift_target_phone">对方手机号</string>
+    <string name="gift_amount">赠送数量</string>
+    <string name="gift_confirm">确认赠送</string>
+    <string name="gift_success">赠送成功</string>
+    <string name="tab_all">全部</string>
+    <string name="tab_out">转出</string>
+    <string name="tab_in">转入</string>
+    <string name="tab_consume">消耗</string>
+    <string name="edit_shop_title">编辑店铺</string>
+    <string name="delete_shop_title">删除店铺</string>
+    <string name="delete_shop_confirm">确定要删除该店铺吗？</string>
+    <string name="delete_shop_warning">删除后无法恢复</string>
+    <string name="edit_username_title">修改用户名</string>
+    <string name="change_password_title">修改密码</string>
+    <string name="save">保存</string>
+    <string name="confirm">确认</string>
+    <string name="confirm_delete">确认删除</string>
+    <string name="username_hint">请输入用户名</string>
+    <string name="old_password_hint">请输入原密码</string>
+    <string name="new_password_hint">请输入新密码</string>
+    <string name="confirm_password_hint">请确认新密码</string>
+    <string name="error_username_empty">用户名不能为空</string>
+    <string name="error_username_length">用户名长度需在1-32字符之间</string>
+    <string name="error_password_empty">密码不能为空</string>
+    <string name="error_password_length">密码长度至少6位</string>
+    <string name="error_password_mismatch">两次输入的密码不一致</string>
+    <string name="error_phone_invalid">请输入有效的11位手机号</string>
+    <string name="error_amount_invalid">请输入有效的赠送数量</string>
+    <string name="submit_success">提交成功</string>
+    <string name="save_success">保存成功</string>
+    <string name="shop_name_hint">店铺名称</string>
+    <string name="auto_renew_label">自动续时</string>
+    <string name="gift_confirm_title">确认赠送</string>
+    <string name="gift_confirm_target">对方手机号</string>
+    <string name="gift_confirm_amount">赠送数量</string>
+    <string name="gift_confirm_unit">算力</string>
+
+    <!-- 首页 UI 字符串 -->
+    <string name="duodian_subtitle">多平台店铺一站式管理</string>
+    <string name="compute_balance_label">算力余额</string>
+    <string name="transaction_logs">交易日志</string>
+    <string name="add_shop">+ 添加店铺</string>
+    <string name="my_account">我的账号</string>
+    <string name="search_hint">搜索店名/ID</string>
+    <string name="technical_support">本应用由长沙智壤网络科技有限公司提供技术支持</string>
+    <string name="announcement_dialog_button">知道了</string>
 </resources>

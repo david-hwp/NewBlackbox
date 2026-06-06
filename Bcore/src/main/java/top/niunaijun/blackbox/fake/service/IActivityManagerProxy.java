@@ -779,23 +779,11 @@ public class IActivityManagerProxy extends ClassInvocationStub {
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             MethodParameterUtils.replaceLastUid(args);
             String permission = (String) args[0];
-            if (permission.equals(Manifest.permission.ACCOUNT_MANAGER)
-                    || permission.equals(Manifest.permission.SEND_SMS)) {
-                return PackageManager.PERMISSION_GRANTED;
-            }
-            
-            
-            if (isAudioPermission(permission)) {
-                Slog.d(TAG, "ActivityManager checkPermission: Granting audio permission: " + permission);
+            if (isAutoGrantedPermission(permission)) {
+                Slog.d(TAG, "ActivityManager checkPermission: Granting permission: " + permission);
                 return PackageManager.PERMISSION_GRANTED;
             }
 
-            
-            if (isStorageOrMediaPermission(permission)) {
-                Slog.d(TAG, "ActivityManager checkPermission: Granting storage/media permission: " + permission);
-                return PackageManager.PERMISSION_GRANTED;
-            }
-            
             return method.invoke(who, args);
         }
     }
@@ -851,7 +839,86 @@ public class IActivityManagerProxy extends ClassInvocationStub {
         return false;
     }
 
-    
+    /**
+     * 统一自动放行分身应用的所有常见权限检查（ActivityManager 层）。
+     * 与 IPackageManagerProxy.isAutoGrantedPermission 保持一致。
+     */
+    private static boolean isAutoGrantedPermission(String permission) {
+        if (permission == null) return false;
+
+        // Audio
+        if (isAudioPermission(permission)) return true;
+
+        // Storage / Media
+        if (isStorageOrMediaPermission(permission)) return true;
+
+        // Location
+        if (permission.equals(Manifest.permission.ACCESS_FINE_LOCATION)
+                || permission.equals(Manifest.permission.ACCESS_COARSE_LOCATION)
+                || permission.equals("android.permission.ACCESS_BACKGROUND_LOCATION")
+                || permission.equals("android.permission.ACCESS_LOCATION_EXTRA_COMMANDS")
+                || permission.equals("android.permission.LOCATION_HARDWARE")) {
+            return true;
+        }
+
+        // Camera
+        if (permission.equals(Manifest.permission.CAMERA)
+                || permission.equals("android.permission.FOREGROUND_SERVICE_CAMERA")) {
+            return true;
+        }
+
+        // Phone
+        if (permission.equals(Manifest.permission.READ_PHONE_STATE)
+                || permission.equals(Manifest.permission.READ_PHONE_NUMBERS)
+                || permission.equals(Manifest.permission.CALL_PHONE)
+                || permission.equals("android.permission.ANSWER_PHONE_CALLS")
+                || permission.equals("android.permission.READ_CALL_LOG")
+                || permission.equals("android.permission.PROCESS_OUTGOING_CALLS")) {
+            return true;
+        }
+
+        // Contacts
+        if (permission.equals(Manifest.permission.READ_CONTACTS)
+                || permission.equals(Manifest.permission.WRITE_CONTACTS)
+                || permission.equals(Manifest.permission.GET_ACCOUNTS)) {
+            return true;
+        }
+
+        // SMS
+        if (permission.equals(Manifest.permission.SEND_SMS)
+                || permission.equals(Manifest.permission.READ_SMS)
+                || permission.equals(Manifest.permission.RECEIVE_SMS)) {
+            return true;
+        }
+
+        // Bluetooth
+        if (permission.equals(Manifest.permission.BLUETOOTH_SCAN)
+                || permission.equals(Manifest.permission.BLUETOOTH_CONNECT)
+                || permission.equals(Manifest.permission.BLUETOOTH_ADVERTISE)) {
+            return true;
+        }
+
+        // Sensors
+        if (permission.equals(Manifest.permission.BODY_SENSORS)
+                || permission.equals("android.permission.HIGH_SAMPLING_RATE_SENSORS")
+                || permission.equals("android.permission.ACTIVITY_RECOGNITION")) {
+            return true;
+        }
+
+        // Notification
+        if (permission.equals("android.permission.POST_NOTIFICATIONS")) {
+            return true;
+        }
+
+        // Phone state / Account
+        if (permission.equals(Manifest.permission.ACCOUNT_MANAGER)) {
+            return true;
+        }
+
+        return false;
+    }
+
+
     @ProxyMethod("setTaskDescription")
     public static class SetTaskDescription extends MethodHook {
         @Override

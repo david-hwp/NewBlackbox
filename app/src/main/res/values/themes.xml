@@ -29,4 +29,24 @@
         <item name="android:windowBackground">@drawable/splash</item>
     </style>
 
+    <style name="Theme.Duodian" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/duodian_primary</item>
+        <item name="colorPrimaryDark">@color/duodian_primary_dark</item>
+        <item name="colorAccent">@color/duodian_accent</item>
+        <item name="android:windowBackground">@color/duodian_background</item>
+        <item name="android:statusBarColor">@color/duodian_primary</item>
+    </style>
+
+    <style name="BottomSheetDialogTheme" parent="Theme.MaterialComponents.Light.BottomSheetDialog">
+        <item name="bottomSheetStyle">@style/BottomSheetStyle</item>
+        <item name="android:windowIsFloating">false</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:windowSoftInputMode">adjustResize</item>
+    </style>
+
+    <style name="BottomSheetStyle" parent="Widget.MaterialComponents.BottomSheet.Modal">
+        <item name="android:background">@android:color/transparent</item>
+        <item name="behavior_peekHeight">0dp</item>
+    </style>
+
 </resources>

@@ -250,6 +250,109 @@ public class BProcessManagerService implements ISystemService {
         }
     }
 
+    public void killAllOtherProcesses(String keepPackageName, int userId) {
+        synchronized (mProcessLock) {
+            List<ProcessRecord> toKill = performKillAllOtherProcessesLocked(keepPackageName);
+            for (ProcessRecord record : toKill) {
+                try {
+                    BNotificationManagerService.get().deletePackageNotification(record.getPackageName(), record.userId);
+                } catch (Exception e) {
+                    Slog.w(TAG, "Failed to delete notification for " + record.getPackageName(), e);
+                }
+            }
+            // Note: finishAllActivitiesExcept is called BEFORE killAllOtherProcesses
+            // in BActivityManagerService.killAllOtherProcesses() to ensure bActivityThread
+            // is still alive when finishing activities.
+        }
+    }
+
+    public void killAllOtherProcessesGlobal(String keepPackageName, int keepUserId) {
+        synchronized (mProcessLock) {
+            List<ProcessRecord> toKill = performKillAllOtherProcessesGlobalLocked(keepPackageName, keepUserId);
+            for (ProcessRecord record : toKill) {
+                try {
+                    BNotificationManagerService.get().deletePackageNotification(record.getPackageName(), record.userId);
+                } catch (Exception e) {
+                    Slog.w(TAG, "Failed to delete notification for " + record.getPackageName(), e);
+                }
+            }
+        }
+    }
+
+    /**
+     * Core logic for killing all processes except the target package.
+     * Package-private for unit testing. Does NOT touch notifications or ActivityStack.
+     *
+     * @param keepPackageName package to keep alive
+     * @return list of processes that were killed
+     */
+    List<ProcessRecord> performKillAllOtherProcessesLocked(String keepPackageName) {
+        List<ProcessRecord> toKill = new ArrayList<>();
+        debugLog("killAllOtherProcesses: mPidsSelfLocked.size=" + mPidsSelfLocked.size()
+                + ", keepPackageName=" + keepPackageName);
+        for (int i = 0; i < mPidsSelfLocked.size(); i++) {
+            ProcessRecord record = mPidsSelfLocked.get(i);
+            debugLog("killAllOtherProcesses: record[" + i + "] pkg=" + record.getPackageName()
+                    + " proc=" + record.processName + " pid=" + record.pid + " buid=" + record.buid);
+            if (!record.getPackageName().equals(keepPackageName)) {
+                toKill.add(record);
+            }
+        }
+        debugLog("killAllOtherProcesses: toKill.size=" + toKill.size());
+        for (ProcessRecord record : toKill) {
+            debugLog("killAllOtherProcesses: killing pkg=" + record.getPackageName()
+                    + " proc=" + record.processName + " pid=" + record.pid);
+            record.kill();
+            Map<String, ProcessRecord> process = mProcessMap.get(record.buid);
+            if (process != null) {
+                process.remove(record.processName);
+                if (process.isEmpty()) {
+                    mProcessMap.remove(record.buid);
+                }
+            }
+            mPidsSelfLocked.remove(record);
+        }
+        debugLog("Single instance mode: killed " + toKill.size() + " other process(es), keeping " + keepPackageName);
+        return toKill;
+    }
+
+    List<ProcessRecord> performKillAllOtherProcessesGlobalLocked(String keepPackageName, int keepUserId) {
+        List<ProcessRecord> toKill = new ArrayList<>();
+        debugLog("killAllOtherProcessesGlobal: mPidsSelfLocked.size=" + mPidsSelfLocked.size()
+                + ", keepPackageName=" + keepPackageName + ", keepUserId=" + keepUserId);
+        for (int i = 0; i < mPidsSelfLocked.size(); i++) {
+            ProcessRecord record = mPidsSelfLocked.get(i);
+            boolean isKeepProcess = record.userId == keepUserId
+                    && record.getPackageName().equals(keepPackageName);
+            if (!isKeepProcess) {
+                toKill.add(record);
+            }
+        }
+        for (ProcessRecord record : toKill) {
+            debugLog("killAllOtherProcessesGlobal: killing pkg=" + record.getPackageName()
+                    + " userId=" + record.userId + " proc=" + record.processName + " pid=" + record.pid);
+            record.kill();
+            Map<String, ProcessRecord> process = mProcessMap.get(record.buid);
+            if (process != null) {
+                process.remove(record.processName);
+                if (process.isEmpty()) {
+                    mProcessMap.remove(record.buid);
+                }
+            }
+            mPidsSelfLocked.remove(record);
+        }
+        debugLog("Single instance mode: globally killed " + toKill.size()
+                + " other process(es), keeping " + keepPackageName + " user=" + keepUserId);
+        return toKill;
+    }
+
+    private void debugLog(String message) {
+        try {
+            Slog.d(TAG, message);
+        } catch (RuntimeException ignored) {
+        }
+    }
+
     public List<ProcessRecord> getPackageProcessAsUser(String packageName, int userId) {
         synchronized (mProcessMap) {
             int buid = BUserHandle.getUid(userId, BPackageManagerService.get().getAppId(packageName));
@@ -302,17 +405,55 @@ public class BProcessManagerService implements ISystemService {
     }
 
     public static int getPid(Context context, String processName) {
+        // Method 1: ActivityManager.getRunningAppProcesses() (fast, but restricted on Android 11+)
         try {
             ActivityManager manager = (ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE);
             List<ActivityManager.RunningAppProcessInfo> runningAppProcesses = manager.getRunningAppProcesses();
-            for (ActivityManager.RunningAppProcessInfo runningAppProcess : runningAppProcesses) {
-                if (runningAppProcess.processName.equals(processName)) {
-                    return runningAppProcess.pid;
+            if (runningAppProcesses != null) {
+                for (ActivityManager.RunningAppProcessInfo runningAppProcess : runningAppProcesses) {
+                    if (processName.equals(runningAppProcess.processName)) {
+                        return runningAppProcess.pid;
+                    }
                 }
             }
         } catch (Throwable e) {
-            e.printStackTrace();
+            Slog.w(TAG, "getPid via ActivityManager failed: " + e.getMessage());
         }
+
+        // Method 2: Fallback via /proc (works on all Android versions, no extra permissions)
+        try {
+            java.io.File procDir = new java.io.File("/proc");
+            java.io.File[] pidDirs = procDir.listFiles();
+            if (pidDirs != null) {
+                for (java.io.File pidDir : pidDirs) {
+                    if (!pidDir.isDirectory()) continue;
+                    String name = pidDir.getName();
+                    if (!name.matches("\\d+")) continue;
+                    try {
+                        java.io.File cmdlineFile = new java.io.File(pidDir, "cmdline");
+                        if (!cmdlineFile.exists()) continue;
+                        String cmdline = new String(java.nio.file.Files.readAllBytes(cmdlineFile.toPath()), "UTF-8").trim();
+                        // cmdline may contain null chars; replace them
+                        cmdline = cmdline.replace("\0", "").trim();
+                        if (cmdline.isEmpty()) {
+                            java.io.File commFile = new java.io.File(pidDir, "comm");
+                            if (commFile.exists()) {
+                                cmdline = new String(java.nio.file.Files.readAllBytes(commFile.toPath()), "UTF-8").trim();
+                            }
+                        }
+                        if (processName.equals(cmdline)) {
+                            Slog.d(TAG, "getPid fallback found PID " + name + " for " + processName);
+                            return Integer.parseInt(name);
+                        }
+                    } catch (Exception ignored) {
+                    }
+                }
+            }
+        } catch (Throwable e) {
+            Slog.w(TAG, "getPid via /proc fallback failed: " + e.getMessage());
+        }
+
+        Slog.w(TAG, "getPid: could not resolve PID for " + processName);
         return -1;
     }
 

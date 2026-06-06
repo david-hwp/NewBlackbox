@@ -144,6 +144,10 @@ public class BEnvironment {
     }
 
     public static File getXSharedPreferences(String packageName, String prefFileName) {
-       return new File(BEnvironment.getDataDir(packageName, BlackBoxCore.getUserId()), "shared_prefs/" + prefFileName + ".xml");
+       return getXSharedPreferences(packageName, BlackBoxCore.getUserId(), prefFileName);
+    }
+
+    public static File getXSharedPreferences(String packageName, int userId, String prefFileName) {
+       return new File(BEnvironment.getDataDir(packageName, userId), "shared_prefs/" + prefFileName + ".xml");
     }
 }

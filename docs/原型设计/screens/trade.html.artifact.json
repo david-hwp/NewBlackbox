@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "screens/trade.html",
+  "entry": "screens/trade.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-06-04T17:19:31.691Z",
+  "updatedAt": "2026-06-04T17:19:31.691Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

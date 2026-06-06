@@ -5,15 +5,16 @@ plugins {
 
 android {
 
-    namespace 'top.niunaijun.blackboxa'
+    namespace 'com.zhirang.zhanghaoguanjia'
     compileSdk rootProject.ext.compileSdkVersion
     ndkVersion = "29.0.13846066"
     defaultConfig {
-        applicationId "top.niunaijun.blackbox"
+        applicationId "com.zhirang.zhanghaoguanjia"
         minSdk rootProject.ext.minSdk
         targetSdk rootProject.ext.targetSdkVersion
         versionCode rootProject.ext.versionCode
         versionName rootProject.ext.versionName
+        buildConfigField "String", "API_BASE_URL", "\"${project.findProperty('DUODIAN_API_BASE_URL') ?: 'http://dpgj.zrnh.cn/api/'}\""
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
 
@@ -41,6 +42,7 @@ android {
     }
     buildFeatures {
         viewBinding true
+        buildConfig true
     }
     kotlinOptions {
         jvmTarget = '21'
@@ -48,14 +50,34 @@ android {
 
     applicationVariants.configureEach { variant ->
         variant.outputs.configureEach { output ->
-            output.outputFileName = "BlackBox_${variant.versionName}_${output.baseName}.apk"
+            output.outputFileName = "zhanghaoguanjia_${variant.versionName}_${output.baseName}.apk"
+        }
+    }
+
+    sourceSets {
+        main {
+            assets {
+                srcDirs += ['src/main/assets']
+            }
         }
     }
 }
 
+// Dynamically create copy tasks per variant to handle both debug and release engine APKs
+android.applicationVariants.configureEach { variant ->
+    def copyTask = tasks.register("copyEngineApk${variant.name.capitalize()}", Copy) {
+        from "${project(':Bcore').buildDir}/outputs/apk/${variant.buildType.name}"
+        into "src/main/assets/engine/"
+        include "FxEngine_${variant.versionName}_${variant.buildType.name}.apk"
+        rename { "engine-base.apk" }
+    }
+    copyTask.get().dependsOn ":Bcore:assemble${variant.buildType.name.capitalize()}"
+    variant.preBuildProvider.get().dependsOn copyTask
+}
+
 dependencies {
     implementation fileTree(dir: "libs", include: ["*.jar", "*.aar"])
-    implementation project(':Bcore')
+    implementation project(':engine-aidl')
 
     implementation libs.appcompat
     implementation libs.material
@@ -67,12 +89,22 @@ dependencies {
 
     implementation "androidx.preference:preference-ktx:1.1.1"
     
-    implementation "androidx.lifecycle:lifecycle-viewmodel-ktx:2.3.1"
-    implementation "androidx.lifecycle:lifecycle-livedata-ktx:2.3.1"
-    implementation "androidx.lifecycle:lifecycle-runtime-ktx:2.3.1"
+    implementation "androidx.lifecycle:lifecycle-viewmodel-ktx:2.7.0"
+    implementation "androidx.lifecycle:lifecycle-livedata-ktx:2.7.0"
+    implementation "androidx.lifecycle:lifecycle-runtime-ktx:2.7.0"
+
+    // Network
+    implementation 'com.squareup.retrofit2:retrofit:2.9.0'
+    implementation 'com.squareup.retrofit2:converter-gson:2.9.0'
+    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+    implementation 'com.squareup.okhttp3:logging-interceptor:4.12.0'
+
+    // Security
+    implementation 'androidx.security:security-crypto:1.1.0-alpha06'
 
     
     implementation 'androidx.recyclerview:recyclerview:1.2.1'
+    implementation 'androidx.swiperefreshlayout:swiperefreshlayout:1.1.0'
     implementation 'com.gitee.cbfg5210:RVAdapter:0.3.7'
 
     

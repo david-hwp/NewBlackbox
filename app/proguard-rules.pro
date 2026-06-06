@@ -30,6 +30,13 @@
 -keep @top.niunaijun.blackreflection.annotation.BClass class * {*;}
 -keep @top.niunaijun.blackreflection.annotation.BClassName class * {*;}
 -keep @top.niunaijun.blackreflection.annotation.BClassNameNotProcess class * {*;}
+-keepattributes Signature,*Annotation*
+-keep class com.google.gson.reflect.TypeToken { *; }
+-keep class * extends com.google.gson.reflect.TypeToken
+-keep interface com.zhirang.zhanghaoguanjia.network.ApiService { *; }
+-keep class com.zhirang.zhanghaoguanjia.network.ApiResponse { *; }
+-keep class com.zhirang.zhanghaoguanjia.network.PagedResult { *; }
+-keep class com.zhirang.zhanghaoguanjia.bean.dto.** { *; }
 -keepclasseswithmembernames class * {
     @top.niunaijun.blackreflection.annotation.BField.* <methods>;
     @top.niunaijun.blackreflection.annotation.BFieldNotProcess.* <methods>;

@@ -11,6 +11,7 @@ import android.os.Bundle;
 import android.os.IBinder;
 import android.os.RemoteException;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -23,6 +24,7 @@ import top.niunaijun.blackbox.core.system.pm.BPackageManagerService;
 import top.niunaijun.blackbox.entity.AppConfig;
 import top.niunaijun.blackbox.entity.UnbindRecord;
 import top.niunaijun.blackbox.entity.am.PendingResultData;
+import top.niunaijun.blackbox.entity.am.PendingResultDataHelper;
 import top.niunaijun.blackbox.entity.am.ReceiverData;
 import top.niunaijun.blackbox.entity.am.RunningAppProcessInfo;
 import top.niunaijun.blackbox.entity.am.RunningServiceInfo;
@@ -190,7 +192,7 @@ public class BActivityManagerService extends IBActivityManagerService.Stub imple
         List<ResolveInfo> resolves = BPackageManagerService.get().queryBroadcastReceivers(intent, GET_META_DATA, null, userId);
 
         if (resolves.isEmpty()) {
-            pendingResultData.build().finish();
+            PendingResultDataHelper.build(pendingResultData).finish();
             Slog.d(TAG, "scheduleBroadcastReceiver empty");
             return;
         }
@@ -333,11 +335,64 @@ public class BActivityManagerService extends IBActivityManagerService.Stub imple
     }
 
     @Override
+    public Intent getLaunchIntent(Intent intent, int userId) {
+        UserSpace userSpace = getOrCreateSpaceLocked(userId);
+        synchronized (userSpace.mStack) {
+            return userSpace.mStack.getLaunchIntent(userId, intent);
+        }
+    }
+
+    @Override
     public void startActivity(Intent intent, int userId) {
         UserSpace userSpace = getOrCreateSpaceLocked(userId);
         synchronized (userSpace.mStack) {
             userSpace.mStack.startActivityLocked(userId, intent, null, null, null, -1, -1, null);
         }
+    }
+
+    public void finishAllActivitiesExcept(String keepPackageName, int userId) {
+        UserSpace userSpace = getOrCreateSpaceLocked(userId);
+        synchronized (userSpace.mStack) {
+            userSpace.mStack.finishAllActivitiesExcept(keepPackageName, userId);
+        }
+    }
+
+    @Override
+    public void killAllOtherProcesses(String keepPackageName, int userId) throws RemoteException {
+        Slog.d(TAG, "killAllOtherProcesses called from Binder, keep=" + keepPackageName + " userId=" + userId);
+        // Step 1: Finish all non-target activities FIRST (while process is alive and bActivityThread is valid)
+        UserSpace userSpace = getOrCreateSpaceLocked(userId);
+        synchronized (userSpace.mStack) {
+            userSpace.mStack.finishAllActivitiesExcept(keepPackageName, userId);
+        }
+        // BActivityThread.finishActivity() posts to Handler — give it time to process
+        // before killing the process, otherwise the finish request is lost
+        try {
+            Thread.sleep(300);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        // Step 2: Kill the processes after activities are finished
+        BProcessManagerService.get().killAllOtherProcesses(keepPackageName, userId);
+        Slog.d(TAG, "killAllOtherProcesses completed");
+    }
+
+    @Override
+    public void killAllOtherProcessesGlobal(String keepPackageName, int userId) throws RemoteException {
+        Slog.d(TAG, "killAllOtherProcessesGlobal called from Binder, keep=" + keepPackageName + " userId=" + userId);
+        getOrCreateSpaceLocked(userId);
+        for (UserSpace userSpace : new ArrayList<>(mUserSpace.values())) {
+            synchronized (userSpace.mStack) {
+                userSpace.mStack.finishAllActivitiesExceptGlobal(keepPackageName, userId);
+            }
+        }
+        try {
+            Thread.sleep(300);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        BProcessManagerService.get().killAllOtherProcessesGlobal(keepPackageName, userId);
+        Slog.d(TAG, "killAllOtherProcessesGlobal completed");
     }
 
     @Override

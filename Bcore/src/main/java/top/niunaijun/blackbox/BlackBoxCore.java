@@ -22,12 +22,16 @@ import android.os.Looper;
 import android.os.Process;
 
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 
 import black.android.app.BRActivityThread;
@@ -40,6 +44,7 @@ import top.niunaijun.blackbox.app.configuration.ClientConfiguration;
 import top.niunaijun.blackbox.core.GmsCore;
 import top.niunaijun.blackbox.core.NativeCore;
 import top.niunaijun.blackbox.core.env.BEnvironment;
+import top.niunaijun.blackbox.core.system.BProcessManagerService;
 import top.niunaijun.blackbox.core.system.DaemonService;
 import top.niunaijun.blackbox.core.system.ServiceManager;
 import top.niunaijun.blackbox.core.system.user.BUserHandle;
@@ -128,6 +133,8 @@ public class BlackBoxCore extends ClientConfiguration {
     private int mCurrentAppUid = -1;
     private String mCurrentAppPackage = null;
     private boolean mIsSandboxedEnvironment = false;
+    private volatile String mLogUploadEndpointUrl;
+    private volatile String mLogUploadAuthToken;
 
     public static BlackBoxCore get() {
         return sBlackBoxCore;
@@ -1095,22 +1102,52 @@ public class BlackBoxCore extends ClientConfiguration {
         return StoragePermissionHelper.REQUEST_CODE_MANAGE_STORAGE;
     }
 
+    public Intent getLaunchIntent(String packageName, int userId) {
+        onBeforeMainLaunchApk(packageName, userId);
+
+        boolean singleInstance = mClientConfiguration != null && mClientConfiguration.isSingleInstanceMode();
+        if (singleInstance) {
+            try {
+                getBActivityManager().killAllOtherProcessesGlobal(packageName, userId);
+            } catch (Exception e) {
+                Slog.e(TAG, "Failed to kill other running apps in single instance mode", e);
+            }
+        }
+
+        Intent launchIntentForPackage = getBPackageManager().getLaunchIntentForPackage(packageName, userId);
+        if (launchIntentForPackage == null) {
+            return null;
+        }
+        return getBActivityManager().getLaunchIntent(launchIntentForPackage, userId);
+    }
+
     public boolean launchApk(String packageName, int userId) {
         onBeforeMainLaunchApk(packageName, userId);
-        
-        
+
+        // Single instance mode: kill other running clone apps before launching
+        boolean singleInstance = mClientConfiguration != null && mClientConfiguration.isSingleInstanceMode();
+        Slog.d(TAG, "launchApk: singleInstanceMode=" + singleInstance + " pkg=" + packageName);
+        if (singleInstance) {
+            Slog.d(TAG, "Single instance mode: killing other running apps before launching " + packageName);
+            try {
+                getBActivityManager().killAllOtherProcessesGlobal(packageName, userId);
+            } catch (Exception e) {
+                Slog.e(TAG, "Failed to kill other running apps in single instance mode", e);
+            }
+        }
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             if (!hasAllFilesAccess()) {
                 Slog.w(TAG, "All files access not granted for launching: " + packageName);
-                
+
                 for (AppLifecycleCallback callback : mAppLifecycleCallbacks) {
                     if (callback.onStoragePermissionNeeded(packageName, userId)) {
-                        
+
                         Slog.d(TAG, "Launch cancelled - host app handling permission request");
                         return false;
                     }
                 }
-                
+
                 Slog.w(TAG, "Launching without all files access - some file operations may fail");
             }
         }
@@ -2064,19 +2101,29 @@ public class BlackBoxCore extends ClientConfiguration {
         void onFailure(String error);
     }
 
+    public void configureLogUpload(String endpointUrl, String authToken) {
+        mLogUploadEndpointUrl = endpointUrl;
+        mLogUploadAuthToken = authToken;
+    }
+
     public void sendLogs(String caption, boolean async) {
         sendLogs(caption, async, null);
     }
 
     public void sendLogs(String caption, boolean async, LogSendListener listener) {
+        sendLogs(caption, async, mLogUploadEndpointUrl, mLogUploadAuthToken, listener);
+    }
+
+    public void sendLogs(String caption, boolean async, String endpointUrl, String authToken, LogSendListener listener) {
         String chatId = mClientConfiguration != null ? mClientConfiguration.getLogSenderChatId() : null;
-        if (chatId == null || chatId.isEmpty()) return;
+        if ((endpointUrl == null || endpointUrl.isEmpty()) && (chatId == null || chatId.isEmpty())) return;
 
         Runnable sendTask = () -> {
             try {
                 
                 File cacheDir = getContext().getCacheDir();
                 File tempLog = File.createTempFile("crash_log_", ".txt", cacheDir);
+                File uploadLog = null;
 
 
                 String deviceInfo = getDeviceInfoString();
@@ -2100,7 +2147,10 @@ public class BlackBoxCore extends ClientConfiguration {
                 }
                 
                 
-                String error = LogSender.send(chatId, tempLog, deviceInfo);
+                uploadLog = zipLogFile(tempLog);
+                String error = endpointUrl != null && !endpointUrl.isEmpty()
+                        ? LogSender.sendToEndpoint(endpointUrl, authToken, uploadLog, caption, deviceInfo)
+                        : LogSender.send(chatId, uploadLog, deviceInfo);
                 if (error != null) {
                     Slog.e(TAG, "Log upload failed: " + error);
                     
@@ -2168,6 +2218,9 @@ public class BlackBoxCore extends ClientConfiguration {
                 
                 
                 tempLog.delete();
+                if (uploadLog != null) {
+                    uploadLog.delete();
+                }
             } catch (Exception e) {
                 Slog.e(TAG, "Failed to send logs: " + e.getMessage());
                 new Handler(Looper.getMainLooper()).post(() -> {
@@ -2183,6 +2236,21 @@ public class BlackBoxCore extends ClientConfiguration {
         } else {
             sendTask.run();
         }
+    }
+
+    private File zipLogFile(File logFile) throws java.io.IOException {
+        File zipFile = File.createTempFile("crash_log_", ".zip", logFile.getParentFile());
+        try (ZipOutputStream zip = new ZipOutputStream(new FileOutputStream(zipFile));
+             FileInputStream input = new FileInputStream(logFile)) {
+            zip.putNextEntry(new ZipEntry("logcat.txt"));
+            byte[] buffer = new byte[8192];
+            int len;
+            while ((len = input.read(buffer)) != -1) {
+                zip.write(buffer, 0, len);
+            }
+            zip.closeEntry();
+        }
+        return zipFile;
     }
 
     private String getDeviceInfoString() {
