@@ -5,6 +5,14 @@ ADMIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENV_FILE="${ENV_FILE:-}"
 COMPOSE_ENV_ARGS=()
 
+if [ -z "$ENV_FILE" ]; then
+  if [ -f "$ADMIN_DIR/.env.product" ]; then
+    ENV_FILE=".env.product"
+  elif [ -f "$ADMIN_DIR/.env" ]; then
+    ENV_FILE=".env"
+  fi
+fi
+
 if [ -n "$ENV_FILE" ]; then
   if [ ! -f "$ADMIN_DIR/$ENV_FILE" ]; then
     echo "ENV_FILE not found: $ADMIN_DIR/$ENV_FILE" >&2
