@@ -4,13 +4,8 @@ import android.annotation.SuppressLint
 import android.app.Application
 import android.content.Context
 import android.util.Log
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.launch
 import com.zhirang.zhanghaoguanjia.engine.EngineConnection
 import com.zhirang.zhanghaoguanjia.engine.EngineLoader
-import com.zhirang.zhanghaoguanjia.engine.EngineVersionChecker
 
 
 class App : Application() {
@@ -40,7 +35,6 @@ class App : Application() {
     }
 
     private val engineConnection = EngineConnection()
-    private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     override fun attachBaseContext(base: Context?) {
         try {
@@ -100,34 +94,10 @@ class App : Application() {
                 Log.d("App", "Engine Service bind requested successfully")
             }
 
-            // Check for Engine upgrades in background after successful bind
-            checkForEngineUpgrade()
             return bound
         } catch (e: Exception) {
             Log.e("App", "Error initializing Engine connection: ${e.message}")
             return false
-        }
-    }
-
-    /**
-     * Check for Engine upgrades in the background.
-     * This runs silently and does not block app startup.
-     */
-    private fun checkForEngineUpgrade() {
-        appScope.launch {
-            try {
-                Log.d("App", "Checking for Engine upgrades...")
-                val upgradeInfo = EngineVersionChecker.checkForUpgrade(mContext)
-                if (upgradeInfo != null) {
-                    Log.i("App", "Engine upgrade available: ${upgradeInfo.versionName} (${upgradeInfo.versionCode})")
-                    // Upgrade dialog will be shown by MainActivity observing this state
-                    // For now, just log it. MainActivity will check again when resumed.
-                } else {
-                    Log.d("App", "No Engine upgrade available")
-                }
-            } catch (e: Exception) {
-                Log.e("App", "Error checking for Engine upgrade: ${e.message}")
-            }
         }
     }
 

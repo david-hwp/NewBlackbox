@@ -2,21 +2,31 @@ package com.duodian.admin.controller;
 
 import com.duodian.admin.config.AuthContext;
 import com.duodian.admin.controller.dto.ApiResponse;
+import com.duodian.admin.controller.dto.CloneShopCreateRequest;
+import com.duodian.admin.controller.dto.CloneShopCreateResponse;
+import com.duodian.admin.controller.dto.PagedResponse;
 import com.duodian.admin.controller.dto.PendingShopDeductResponse;
+import com.duodian.admin.controller.dto.ShopRenewRequest;
 import com.duodian.admin.controller.dto.ShopRenewResponse;
 import com.duodian.admin.controller.dto.ShopReportRequest;
 import com.duodian.admin.controller.dto.ShopResponse;
+import com.duodian.admin.entity.ComputeDeduction;
 import com.duodian.admin.entity.Shop;
 import com.duodian.admin.entity.User;
+import com.duodian.admin.service.CloneAuthorizationTokenService;
 import com.duodian.admin.service.ComputeService;
 import com.duodian.admin.service.ShopService;
 import com.duodian.admin.service.UserService;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -24,26 +34,59 @@ import java.util.Optional;
 @RestController
 @RequestMapping("/shops")
 public class ShopController {
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
+    private static final int DEFAULT_AUTH_DAYS = 30;
 
     private final ShopService shopService;
     private final UserService userService;
     private final ComputeService computeService;
+    private final CloneAuthorizationTokenService cloneAuthorizationTokenService;
 
-    public ShopController(ShopService shopService, UserService userService, ComputeService computeService) {
+    public ShopController(
+            ShopService shopService,
+            UserService userService,
+            ComputeService computeService,
+            CloneAuthorizationTokenService cloneAuthorizationTokenService
+    ) {
         this.shopService = shopService;
         this.userService = userService;
         this.computeService = computeService;
+        this.cloneAuthorizationTokenService = cloneAuthorizationTokenService;
     }
 
     @GetMapping
-    public ApiResponse<List<ShopResponse>> list(
+    public ApiResponse<?> list(
             @RequestParam(required = false) Long userId,
-            @RequestParam(required = false) String packageName) {
+            @RequestParam(required = false) String packageName,
+            @RequestParam(required = false) String platform,
+            @RequestParam(required = false) String phone,
+            @RequestParam(required = false) String userKeyword,
+            @RequestParam(required = false) String shopName,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size) {
         User currentUser = getCurrentUser();
         if (currentUser == null) {
             return ApiResponse.error(401, "未登录");
         }
         String packageFilter = normalize(packageName);
+        boolean pagedRequest = page != null || size != null || hasText(platform) || hasText(phone)
+                || hasText(userKeyword) || hasText(shopName);
+        if (pagedRequest) {
+            int pageNumber = Math.max(1, page == null ? 1 : page);
+            int pageSize = Math.max(1, Math.min(100, size == null ? 20 : size));
+            Long effectiveUserId = isAdmin(currentUser) ? userId : currentUser.getId();
+            Page<ShopResponse> shops = shopService.search(
+                            effectiveUserId,
+                            packageFilter,
+                            normalize(platform),
+                            isAdmin(currentUser) ? normalize(phone) : null,
+                            isAdmin(currentUser) ? normalize(userKeyword) : null,
+                            normalize(shopName),
+                            PageRequest.of(pageNumber - 1, pageSize, Sort.by(Sort.Direction.DESC, "createdAt"))
+                    )
+                    .map(shop -> ShopResponse.from(shop, userService.findById(shop.getUserId()).orElse(null)));
+            return ApiResponse.success(PagedResponse.from(shops));
+        }
 
         List<Shop> shops;
         if (!isAdmin(currentUser)) {
@@ -88,7 +131,7 @@ public class ShopController {
             return ApiResponse.error(401, "未登录");
         }
         if (!isAdmin(currentUser)) {
-            shop.setUserId(currentUser.getId());
+            return ApiResponse.error(403, "请使用分身创建接口新增店铺");
         }
         Shop saved = shopService.create(shop);
         userService.refreshShopStats(saved.getUserId());
@@ -101,21 +144,7 @@ public class ShopController {
         if (userId == null) {
             return ApiResponse.error(401, "未登录");
         }
-        String packageName = normalize(shop.getPackageName());
-        if (packageName == null) {
-            return ApiResponse.error("缺少应用包名，无法添加店铺卡片");
-        }
-        if (shopService.hasPendingShopByPackage(userId, packageName, "NEW-")) {
-            return ApiResponse.error("您已添加新店铺但未成功登录，请先完成登录后再添加");
-        }
-        shop.setId(null);
-        shop.setUserId(userId);
-        shop.setPackageName(packageName);
-        shop.setRemainingDays(shop.getRemainingDays() == null ? 30 : shop.getRemainingDays());
-        shop.setAutoRenew(Boolean.TRUE.equals(shop.getAutoRenew()));
-        Shop saved = shopService.create(shop);
-        userService.refreshShopStats(userId);
-        return ApiResponse.success(saved);
+        return ApiResponse.error("请使用分身创建接口新增店铺");
     }
 
     @PostMapping("/pending-deduct")
@@ -125,52 +154,123 @@ public class ShopController {
         if (userId == null) {
             return ApiResponse.error(401, "未登录");
         }
+        return ApiResponse.error("请使用分身创建接口新增店铺");
+    }
 
-        String detectedShopId = normalize(request.getShopId());
+    @PostMapping("/clone/create")
+    @Transactional
+    public ApiResponse<CloneShopCreateResponse> createCloneShop(@RequestBody CloneShopCreateRequest request) {
+        Long userId = AuthContext.getUserId();
+        if (userId == null) {
+            return ApiResponse.error(401, "未登录");
+        }
+        if (request == null) {
+            return ApiResponse.error("请求不能为空");
+        }
+        String operationKey = normalize(request.getOperationKey());
+        if (operationKey == null) {
+            return ApiResponse.error("缺少操作标识，无法新增");
+        }
+        Optional<ComputeDeduction> existingOperation = computeService.findExistingCloneCreateOperation(userId, operationKey);
+        if (existingOperation.isPresent()) {
+            Optional<Shop> existingShop = shopService.findByUserIdAndCloneInstanceId(
+                    userId,
+                    existingOperation.get().getCloneInstanceId()
+            );
+            if (existingShop.isPresent()) {
+                User user = userService.refreshShopStats(userId);
+                String token = cloneAuthorizationTokenService.signToken(existingShop.get(), user);
+                return ApiResponse.success(CloneShopCreateResponse.from(
+                        existingShop.get(),
+                        user,
+                        false,
+                        token,
+                        cloneAuthorizationTokenService.getPublicKeyId()
+                ));
+            }
+            return ApiResponse.error("该创建请求状态异常，请刷新后重试");
+        }
+
         String platform = normalize(request.getPlatform());
         String packageName = normalize(request.getPackageName());
-        if (!isRealShopId(detectedShopId) || packageName == null) {
-            return ApiResponse.error("店铺信息无效，无法新增");
+        Integer localVirtualUserId = request.getLocalVirtualUserId();
+        if (packageName == null) {
+            return ApiResponse.error("缺少应用包名，无法新增");
         }
+        if (localVirtualUserId == null || localVirtualUserId < 0) {
+            return ApiResponse.error("缺少虚拟用户目录号，无法扣减算力");
+        }
+
         String displayPlatform = platform == null ? packageName : platform;
-
-        if (shopService.findByUserIdAndShopIdAndPackageName(userId, detectedShopId, packageName).isPresent()) {
-            return ApiResponse.error("该店铺已添加");
+        User currentUser = computeService.lockActiveUser(userId).orElse(null);
+        if (currentUser == null) {
+            return ApiResponse.error("用户不存在");
         }
 
-        String pendingShopId = buildPendingSwitchShopId(packageName, detectedShopId);
-        Optional<Shop> existingPending = shopService.findByUserIdAndShopIdAndPackageName(userId, pendingShopId, packageName);
-        if (existingPending.isPresent()) {
-            User user = userService.refreshShopStats(userId);
-            return ApiResponse.success(PendingShopDeductResponse.from(existingPending.get(), user, false));
+        if (shopService.hasPendingShopByPackage(userId, packageName, "NEW-")) {
+            return ApiResponse.error("您已添加新店铺但未成功登录，请先完成登录后再添加");
         }
 
-        boolean deducted = computeService.deductCompute(
+        String phone = firstNonBlank(currentUser.getPhone(), "unknown");
+        int cloneSequence = (int) shopService.countByUserIdAndPackageName(userId, packageName) + 1;
+        String validationCode;
+        String cloneInstanceId;
+        do {
+            validationCode = randomHex(16);
+            cloneInstanceId = buildReadableCloneInstanceId(
+                    phone,
+                    packageName,
+                    cloneSequence,
+                    localVirtualUserId,
+                    validationCode
+            );
+        } while (shopService.findByCloneInstanceId(cloneInstanceId).isPresent());
+
+        String shopName = "User[" + localVirtualUserId + "]-未知";
+        ComputeService.DeductionResult deduction = computeService.deductComputeForCloneCreate(
                 userId,
-                detectedShopId,
-                firstNonBlank(request.getShopName(), request.getPlatformName(), displayPlatform + "-" + detectedShopId),
-                displayPlatform
+                cloneInstanceId,
+                operationKey,
+                displayPlatform,
+                shopName
         );
-        if (!deducted) {
+        if (!deduction.isSuccess()) {
             return ApiResponse.error(402, "算力余额不足");
         }
 
         LocalDateTime now = LocalDateTime.now();
+        LocalDateTime expireAt = now.plusDays(DEFAULT_AUTH_DAYS);
         Shop shop = new Shop();
         shop.setUserId(userId);
-        shop.setShopName(firstNonBlank(request.getShopName(), request.getPlatformName(), displayPlatform + "-" + detectedShopId));
-        shop.setShopId(pendingShopId);
+        shop.setShopName(shopName);
+        shop.setShopId("NEW-" + sha256(cloneInstanceId).substring(0, 32));
         shop.setPlatform(displayPlatform);
         shop.setPlatformName(firstNonBlank(request.getPlatformName(), displayPlatform));
         shop.setPackageName(packageName);
-        shop.setRemainingDays(request.getRemainingDays() == null ? 30 : request.getRemainingDays());
+        shop.setRemainingDays(DEFAULT_AUTH_DAYS);
         shop.setAutoRenew(Boolean.TRUE.equals(request.getAutoRenew()));
+        shop.setCloneInstanceId(cloneInstanceId);
+        shop.setCloneSequence(cloneSequence);
+        shop.setLocalVirtualUserId(localVirtualUserId);
+        shop.setCloneValidationCode(validationCode);
+        shop.setCloneValidationHash(sha256(cloneInstanceId + ":" + validationCode));
+        shop.setCredentialVersion(1);
+        shop.setAuthStartAt(now);
+        shop.setAuthExpireAt(expireAt);
+        shop.setAuthorizationJti(randomHex(16));
         shop.setLastDeductedAt(now);
-        shop.setExpireAt(now.plusDays(30));
+        shop.setExpireAt(expireAt);
 
         Shop saved = shopService.create(shop);
         User user = userService.refreshShopStats(userId);
-        return ApiResponse.success(PendingShopDeductResponse.from(saved, user, true));
+        String token = cloneAuthorizationTokenService.signToken(saved, user);
+        return ApiResponse.success(CloneShopCreateResponse.from(
+                saved,
+                user,
+                deduction.isDeducted(),
+                token,
+                cloneAuthorizationTokenService.getPublicKeyId()
+        ));
     }
 
     @PutMapping("/{id}")
@@ -204,7 +304,7 @@ public class ShopController {
     }
 
     @PostMapping("/{id}/renew")
-    public ApiResponse<ShopRenewResponse> renew(@PathVariable Long id) {
+    public ApiResponse<ShopRenewResponse> renew(@PathVariable Long id, @RequestBody(required = false) ShopRenewRequest request) {
         Long userId = AuthContext.getUserId();
         if (userId == null) {
             return ApiResponse.error(401, "未登录");
@@ -215,21 +315,85 @@ public class ShopController {
         if (shop == null) {
             return ApiResponse.error("店铺不存在");
         }
-        boolean deducted = computeService.deductComputeForRenewal(
+        String cloneInstanceId = normalize(shop.getCloneInstanceId());
+        if (cloneInstanceId == null) {
+            return ApiResponse.error("店铺缺少分身标识，无法续期");
+        }
+        String operationKey = normalize(request != null ? request.getOperationKey() : null);
+        if (operationKey == null) {
+            operationKey = "renew-" + id + "-" + System.currentTimeMillis();
+        }
+        ComputeService.DeductionResult deduction = computeService.deductComputeForCloneRenew(
                 userId,
-                shop.getShopId(),
-                shop.getShopName(),
-                shop.getPlatform()
+                cloneInstanceId,
+                operationKey,
+                shop.getPlatform(),
+                shop.getShopName()
         );
-        if (!deducted) {
+        if (!deduction.isSuccess()) {
             return ApiResponse.error(402, "算力余额不足");
         }
-        shop.setRemainingDays(30);
-        shop.setExpireAt(LocalDateTime.now().plusDays(30));
-        shop.setLastDeductedAt(LocalDateTime.now());
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime base = shop.getAuthExpireAt() != null && shop.getAuthExpireAt().isAfter(now)
+                ? shop.getAuthExpireAt()
+                : now;
+        LocalDateTime expireAt = base.plusDays(DEFAULT_AUTH_DAYS);
+        shop.setRemainingDays(DEFAULT_AUTH_DAYS);
+        shop.setExpireAt(expireAt);
+        shop.setAuthStartAt(shop.getAuthStartAt() == null ? now : shop.getAuthStartAt());
+        shop.setAuthExpireAt(expireAt);
+        shop.setCredentialVersion((shop.getCredentialVersion() == null ? 1 : shop.getCredentialVersion()) + 1);
+        shop.setAuthorizationJti(randomHex(16));
+        shop.setLastDeductedAt(now);
         Shop saved = shopService.update(shop.getId(), shop);
         User user = userService.refreshShopStats(userId);
-        return ApiResponse.success(ShopRenewResponse.from(saved, user));
+        String token = cloneAuthorizationTokenService.signToken(saved, user);
+        return ApiResponse.success(ShopRenewResponse.from(saved, user, token, cloneAuthorizationTokenService.getPublicKeyId()));
+    }
+
+    @PostMapping("/{id}/auth-token")
+    public ApiResponse<CloneShopCreateResponse> issueAuthorizationToken(@PathVariable Long id) {
+        Long userId = AuthContext.getUserId();
+        if (userId == null) {
+            return ApiResponse.error(401, "未登录");
+        }
+        Shop shop = shopService.findById(id)
+                .filter(this::canAccessShop)
+                .orElse(null);
+        if (shop == null) {
+            return ApiResponse.error("店铺不存在");
+        }
+        if (normalize(shop.getCloneInstanceId()) == null) {
+            return ApiResponse.error("店铺缺少分身标识，无法授权");
+        }
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime expireAt = firstPresent(shop.getAuthExpireAt(), shop.getExpireAt());
+        if (expireAt == null || !expireAt.isAfter(now)) {
+            return ApiResponse.error(402, "店铺已到期，请续期后再打开");
+        }
+        if (shop.getAuthStartAt() == null) {
+            shop.setAuthStartAt(now);
+        }
+        shop.setAuthExpireAt(expireAt);
+        if (shop.getExpireAt() == null) {
+            shop.setExpireAt(expireAt);
+        }
+        if (shop.getCredentialVersion() == null || shop.getCredentialVersion() < 1) {
+            shop.setCredentialVersion(1);
+        }
+        if (normalize(shop.getAuthorizationJti()) == null) {
+            shop.setAuthorizationJti(randomHex(16));
+        }
+        Shop saved = shopService.update(shop.getId(), shop);
+        User user = userService.refreshShopStats(userId);
+        String token = cloneAuthorizationTokenService.signToken(saved, user);
+        return ApiResponse.success(CloneShopCreateResponse.from(
+                saved,
+                user,
+                false,
+                token,
+                cloneAuthorizationTokenService.getPublicKeyId()
+        ));
     }
 
     private User getCurrentUser() {
@@ -268,6 +432,19 @@ public class ShopController {
         return value.trim();
     }
 
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
+    }
+
+    private LocalDateTime firstPresent(LocalDateTime... values) {
+        for (LocalDateTime value : values) {
+            if (value != null) {
+                return value;
+            }
+        }
+        return null;
+    }
+
     private String firstNonBlank(String... values) {
         for (String value : values) {
             String normalized = normalize(value);
@@ -278,15 +455,44 @@ public class ShopController {
         return "";
     }
 
-    private boolean isRealShopId(String shopId) {
-        return shopId != null
-                && !shopId.isBlank()
-                && !"-".equals(shopId)
-                && !shopId.startsWith("NEW-");
+    private String buildReadableCloneInstanceId(
+            String phone,
+            String packageName,
+            int cloneSequence,
+            int localVirtualUserId,
+            String validationCode
+    ) {
+        String readablePhone = normalizePhoneForCloneId(phone);
+        String readablePackage = normalizePackageForCloneId(packageName);
+        String randomDigest = sha256(validationCode).substring(0, 8);
+        return "CLN1-" + readablePhone
+                + "-" + readablePackage
+                + "-N" + cloneSequence
+                + "-U" + localVirtualUserId
+                + "-R" + randomDigest;
     }
 
-    private String buildPendingSwitchShopId(String packageName, String shopId) {
-        return "NEW-SWITCH-" + sha256(packageName).substring(0, 10) + "-" + sha256(shopId).substring(0, 16);
+    private String normalizePhoneForCloneId(String phone) {
+        String normalized = firstNonBlank(phone, "unknown").replaceAll("[^0-9A-Za-z]", "");
+        return normalized.isBlank() ? "unknown" : normalized;
+    }
+
+    private String normalizePackageForCloneId(String packageName) {
+        String normalized = firstNonBlank(packageName, "unknown").replaceAll("[^0-9A-Za-z._]", "_");
+        if (normalized.length() <= 80) {
+            return normalized;
+        }
+        return normalized.substring(0, 64) + "." + sha256(normalized).substring(0, 8);
+    }
+
+    private String randomHex(int byteCount) {
+        byte[] bytes = new byte[byteCount];
+        SECURE_RANDOM.nextBytes(bytes);
+        StringBuilder builder = new StringBuilder(byteCount * 2);
+        for (byte b : bytes) {
+            builder.append(String.format("%02x", b));
+        }
+        return builder.toString();
     }
 
     private String sha256(String value) {
@@ -302,4 +508,5 @@ public class ShopController {
             throw new IllegalStateException("SHA-256 not available", e);
         }
     }
+
 }

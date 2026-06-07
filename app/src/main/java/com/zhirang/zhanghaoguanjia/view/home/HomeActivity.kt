@@ -24,6 +24,7 @@ import com.zhirang.zhanghaoguanjia.R
 import com.zhirang.zhanghaoguanjia.app.App
 import com.zhirang.zhanghaoguanjia.bean.Shop
 import com.zhirang.zhanghaoguanjia.bean.dto.AnnouncementDto
+import com.zhirang.zhanghaoguanjia.bean.dto.PlatformItemDto
 import com.zhirang.zhanghaoguanjia.data.BaseRepository
 import com.zhirang.zhanghaoguanjia.data.TokenManager
 import com.zhirang.zhanghaoguanjia.databinding.ActivityHomeBinding
@@ -95,7 +96,6 @@ class HomeActivity : AppCompatActivity() {
         initClickListeners()
         observeData()
         App.ensureEngineConnection()
-        checkForEngineUpgrade(force = true)
     }
 
     override fun onStart() {
@@ -114,7 +114,6 @@ class HomeActivity : AppCompatActivity() {
         App.ensureEngineConnection()
         viewModel.refreshUserInfo()
         viewModel.loadShops()
-        checkForEngineUpgrade()
     }
 
     override fun onStop() {
@@ -254,6 +253,7 @@ class HomeActivity : AppCompatActivity() {
         viewModel.shopsLiveData.observe(this) {
             viewBinding.swipeRefreshShops.isRefreshing = false
             updateShopList()
+            ensureCloneMappingsForServerShops()
             if (shouldRetryPendingOnNextList) {
                 shouldRetryPendingOnNextList = false
                 handler.postDelayed({ retryPendingShopRecognition() }, 800)
@@ -298,6 +298,23 @@ class HomeActivity : AppCompatActivity() {
         // Initial load
         viewModel.loadShops()
         loadAnnouncementForOpen()
+    }
+
+    private fun ensureCloneMappingsForServerShops() {
+        if (!EngineProxy.isConnected()) {
+            if (EngineInstaller.isEngineInstalled(this)) {
+                EngineProxy.addServiceAvailableCallback {
+                    runOnUiThread { ensureCloneMappingsForServerShops() }
+                }
+                App.ensureEngineConnection()
+            }
+            return
+        }
+        viewModel.getAllShops().forEach { shop ->
+            val packageName = resolveShopPackageName(shop) ?: return@forEach
+            val cloneInstanceId = shop.cloneInstanceId?.takeIf { it.isNotBlank() } ?: return@forEach
+            EngineProxy.ensureCloneUser(cloneInstanceId, packageName, viewModel.getCurrentUserId())
+        }
     }
 
     private fun loadAnnouncementForOpen() {
@@ -396,8 +413,8 @@ class HomeActivity : AppCompatActivity() {
 
     private fun renewExpiredShopBeforeOpen(shop: Shop) {
         if (shop.autoRenew) {
-            viewModel.renewShop(shop) { renewedShop ->
-                openPlatformForShop(renewedShop)
+            viewModel.renewShopWithToken(shop) { renewedShop, token ->
+                openPlatformForShop(renewedShop, token)
             }
             return
         }
@@ -406,20 +423,20 @@ class HomeActivity : AppCompatActivity() {
             .setMessage("是否扣减 1 点算力为该店铺续期 30 天？")
             .setNegativeButton("取消", null)
             .setPositiveButton("确认") { _, _ ->
-                viewModel.renewShop(shop) { renewedShop ->
-                    openPlatformForShop(renewedShop)
+                viewModel.renewShopWithToken(shop) { renewedShop, token ->
+                    openPlatformForShop(renewedShop, token)
                 }
             }
             .show()
     }
 
-    private fun openPlatformForShop(shop: Shop) {
+    private fun openPlatformForShop(shop: Shop, freshAuthorizationToken: String? = null) {
         ensureEngineReady {
-            openPlatformForShopWithEngine(shop)
+            openPlatformForShopWithEngine(shop, freshAuthorizationToken)
         }
     }
 
-    private fun openPlatformForShopWithEngine(shop: Shop) {
+    private fun openPlatformForShopWithEngine(shop: Shop, freshAuthorizationToken: String? = null) {
         val packageName = resolveShopPackageName(shop)
         if (packageName.isNullOrEmpty()) {
             toast("该店铺暂无关联应用")
@@ -434,7 +451,10 @@ class HomeActivity : AppCompatActivity() {
 
         var targetUserId = findUserIdForCloneInstance(shop, packageName)
         if (targetUserId != null && EngineProxy.isInstalled(packageName, targetUserId)) {
-            if (!launchVirtualApp(packageName, targetUserId, platformName)) {
+            if (freshAuthorizationToken != null) {
+                writeCloneAuthorization(shop, packageName, targetUserId, freshAuthorizationToken, null)
+            }
+            if (!launchVirtualApp(shop, packageName, targetUserId, platformName)) {
                 return
             }
             if (shop.isNew) {
@@ -479,7 +499,7 @@ class HomeActivity : AppCompatActivity() {
                 if (shop.isNew) {
                     reportCloneCreated(shop, installUserId)
                 }
-                if (launchVirtualApp(packageName, installUserId, platformName)) {
+                if (launchVirtualApp(shop, packageName, installUserId, platformName)) {
                     schedulePendingShopRecognition(shop, installUserId, showFailureToast = shop.isNew)
                 }
             } else {
@@ -518,9 +538,18 @@ class HomeActivity : AppCompatActivity() {
         }
     }
 
-    private fun launchVirtualApp(packageName: String, userId: Int, platformName: String): Boolean {
+    private fun launchVirtualApp(shop: Shop, packageName: String, userId: Int, platformName: String): Boolean {
         return try {
-            val launchIntent = EngineProxy.getLaunchIntent(packageName, userId)
+            val cloneInstanceId = shop.cloneInstanceId?.takeIf { it.isNotBlank() }
+            val launchIntent = if (cloneInstanceId == null) {
+                EngineProxy.getLaunchIntent(packageName, userId)
+            } else {
+                EngineProxy.getAuthorizedLaunchIntent(cloneInstanceId, packageName, userId)
+                    ?: run {
+                        requestAndWriteAuthorizationThenLaunch(shop, packageName, userId, platformName)
+                        return false
+                    }
+            }
             if (launchIntent == null) {
                 Log.w(TAG, "No virtual launch intent for $packageName user=$userId")
                 toast("启动失败，请重新创建分身")
@@ -536,6 +565,48 @@ class HomeActivity : AppCompatActivity() {
         }
     }
 
+    private fun requestAndWriteAuthorizationThenLaunch(shop: Shop, packageName: String, userId: Int, platformName: String) {
+        viewModel.issueShopAuthToken(
+            shop,
+            onSuccess = { authorizedShop, token, publicKeyId ->
+                if (writeCloneAuthorization(authorizedShop, packageName, userId, token, publicKeyId)) {
+                    val launchIntent = authorizedShop.cloneInstanceId?.takeIf { it.isNotBlank() }
+                        ?.let { EngineProxy.getAuthorizedLaunchIntent(it, packageName, userId) }
+                    if (launchIntent != null) {
+                        toast("正在打开 ${platformName}…")
+                        startActivity(launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                    } else {
+                        toast("分身授权校验失败，请续期后重试")
+                    }
+                } else {
+                    toast("分身授权写入失败，请重试")
+                }
+            },
+            onFailure = { message ->
+                toast(message)
+            }
+        )
+    }
+
+    private fun writeCloneAuthorization(
+        shop: Shop,
+        packageName: String,
+        userId: Int,
+        authorizationToken: String,
+        publicKeyId: String?
+    ): Boolean {
+        val cloneInstanceId = shop.cloneInstanceId?.takeIf { it.isNotBlank() } ?: return false
+        return EngineProxy.writeCloneAuthorization(
+            cloneInstanceId = cloneInstanceId,
+            packageName = packageName,
+            serverUserId = viewModel.getCurrentUserId(),
+            phone = viewModel.getCurrentUserPhone(),
+            userId = userId,
+            publicKeyId = publicKeyId ?: "rsa_2026_01",
+            authorizationToken = authorizationToken
+        )
+    }
+
     private fun addShopForSelectedPlatform() {
         val platformItem = viewModel.getSelectedPlatformItem()
         if (platformItem == null) {
@@ -546,12 +617,106 @@ class HomeActivity : AppCompatActivity() {
             toast("该平台的店铺管理功能暂不支持")
             return
         }
-        viewModel.createPendingShop(platformItem)
+        val packageName = platformItem.packageName?.takeIf { it.isNotBlank() }
+        if (packageName == null) {
+            toast("该平台暂无关联应用")
+            return
+        }
+        if (viewModel.hasPendingNewShopForPackage(packageName)) {
+            toast("您已添加新店铺但未成功登录，请先完成登录后再添加")
+            return
+        }
+        if (viewModel.getCurrentComputeBalance() < 1) {
+            toast("算力余额不足")
+            return
+        }
+        MaterialAlertDialogBuilder(this)
+            .setTitle("添加店铺")
+            .setMessage("创建新店铺需要扣除 1 点算力，确认继续吗？")
+            .setNegativeButton("取消", null)
+            .setPositiveButton("确认") { _, _ ->
+                createCloneAndPendingShop(platformItem, launchAfterCreate = true)
+            }
+            .show()
+    }
+
+    private fun createCloneAndPendingShop(platformItem: PlatformItemDto, launchAfterCreate: Boolean) {
+        ensureEngineReady {
+            val packageName = platformItem.packageName?.takeIf { it.isNotBlank() }
+            if (packageName == null) {
+                toast("该平台暂无关联应用")
+                return@ensureEngineReady
+            }
+            if (viewModel.hasPendingNewShopForPackage(packageName)) {
+                toast("您已添加新店铺但未成功登录，请先完成登录后再添加")
+                return@ensureEngineReady
+            }
+            val platformName = platformItem.displayName.ifBlank { resolvePlatformName(platformItem.platform) }
+            val isHostInstalled = try {
+                packageManager.getPackageInfo(packageName, 0) != null
+            } catch (e: Exception) {
+                false
+            }
+            if (!isHostInstalled) {
+                toast("检测到您尚未安装 ${platformName}，请前往应用市场下载安装后重试")
+                openAppMarket(packageName)
+                return@ensureEngineReady
+            }
+
+            val userId = createFreshVirtualUserId() ?: run {
+                toast("创建分身用户失败，请稍后重试")
+                return@ensureEngineReady
+            }
+            toast("正在为新店铺创建 ${platformName} 分身，请稍候…")
+            try {
+                if (!EngineProxy.isInstalled(packageName, userId)) {
+                    val result = EngineProxy.installPackageAsUser(packageName, userId)
+                    if (!result.success && !EngineProxy.isInstalled(packageName, userId)) {
+                        EngineProxy.deleteUser(userId)
+                        toast("分身创建失败: ${result.msg}")
+                        return@ensureEngineReady
+                    }
+                }
+                viewModel.createPendingShopWithClone(
+                    platformItem = platformItem,
+                    localUserId = userId,
+                    onSuccess = { pendingShop, createResult ->
+                        val cloneInstanceId = pendingShop.cloneInstanceId?.takeIf { it.isNotBlank() }
+                        if (cloneInstanceId == null) {
+                            EngineProxy.deleteUser(userId)
+                            toast("服务器未返回分身标识，请重试")
+                            return@createPendingShopWithClone
+                        }
+                        EngineProxy.bindCloneUser(cloneInstanceId, packageName, viewModel.getCurrentUserId(), userId)
+                        if (!writeCloneAuthorization(pendingShop, packageName, userId, createResult.authorizationToken, createResult.publicKeyId)) {
+                            EngineProxy.deleteUser(userId)
+                            toast("分身授权写入失败，请重试")
+                            return@createPendingShopWithClone
+                        }
+                        if (launchAfterCreate) {
+                            if (launchVirtualApp(pendingShop, packageName, userId, platformName)) {
+                                schedulePendingShopRecognition(pendingShop, userId, showFailureToast = true)
+                            }
+                        } else {
+                            toast("新店铺分身已准备好，请点击 new 店铺登录")
+                        }
+                    },
+                    onFailure = {
+                        EngineProxy.deleteUser(userId)
+                    }
+                )
+            } catch (e: Exception) {
+                EngineProxy.deleteUser(userId)
+                toast("新分身创建异常: ${e.message}")
+            }
+        }
     }
 
     private fun reportCloneCreated(pendingShop: Shop, userId: Int) {
         val packageName = resolveShopPackageName(pendingShop) ?: return
-        val cloneInstanceId = buildCloneInstanceId(pendingShop, packageName, userId)
+        val cloneInstanceId = pendingShop.cloneInstanceId?.takeIf { it.isNotBlank() }
+            ?: buildLegacyCloneInstanceId(packageName, userId)
+        EngineProxy.bindCloneUser(cloneInstanceId, packageName, viewModel.getCurrentUserId(), userId)
         if (cloneInstanceId == pendingShop.cloneInstanceId) {
             return
         }
@@ -643,7 +808,7 @@ class HomeActivity : AppCompatActivity() {
                 remainingDays = pendingShop.remainingDays,
                 autoRenew = pendingShop.autoRenew,
                 packageName = packageName,
-                cloneInstanceId = buildCloneInstanceId(pendingShop, packageName, userId)
+                cloneInstanceId = pendingShop.cloneInstanceId?.takeIf { it.isNotBlank() }
             ),
             showMessage = pendingShop.isNew
         )
@@ -655,7 +820,7 @@ class HomeActivity : AppCompatActivity() {
         return "${shop.id}:$packageName:$userId"
     }
 
-    private fun buildCloneInstanceId(@Suppress("UNUSED_PARAMETER") shop: Shop, packageName: String, userId: Int): String {
+    private fun buildLegacyCloneInstanceId(packageName: String, userId: Int): String {
         val appUserId = viewModel.getCurrentUserId()
         val source = "$appUserId:$packageName:$userId"
         val digest = MessageDigest.getInstance("SHA-256")
@@ -720,102 +885,32 @@ class HomeActivity : AppCompatActivity() {
                 return@forEach
             }
             val alreadyExists = allShops.any {
-                resolveShopPackageName(it) == packageName &&
-                        (it.shopId == detectedShopId || it.shopId == buildPendingSwitchShopId(packageName, detectedShopId))
+                resolveShopPackageName(it) == packageName && it.shopId == detectedShopId
             }
             if (alreadyExists) {
                 return@forEach
             }
-            val promptKey = "${cloneOwner.id}:${buildPendingSwitchShopId(packageName, detectedShopId)}"
+            val promptKey = "${cloneOwner.id}:$packageName:$detectedShopId"
             if (!promptedCloneSwitchKeys.add(promptKey)) {
                 return@forEach
             }
             val detectedShopName = shopInfo.shopName?.takeIf { it.isNotBlank() }
                 ?: "${resolvePlatformName(detectedPlatform)}-$detectedShopId"
-            showCloneShopSwitchDialog(
-                sourceShop = cloneOwner,
-                detectedShop = Shop(
-                    id = 0,
+            viewModel.reportShop(
+                cloneOwner.copy(
                     shopName = detectedShopName,
                     shopId = detectedShopId,
                     platform = detectedPlatform,
-                    remainingDays = 30,
-                    autoRenew = false,
+                    remainingDays = cloneOwner.remainingDays,
+                    autoRenew = cloneOwner.autoRenew,
                     packageName = packageName,
-                    cloneInstanceId = null
+                    cloneInstanceId = cloneOwner.cloneInstanceId
                 ),
-                promptKey = promptKey
+                showMessage = false,
+                onComplete = {
+                    promptedCloneSwitchKeys.remove(promptKey)
+                }
             )
-        }
-    }
-
-    private fun showCloneShopSwitchDialog(sourceShop: Shop, detectedShop: Shop, promptKey: String) {
-        if (isFinishing || isDestroyed) {
-            return
-        }
-        MaterialAlertDialogBuilder(this)
-            .setTitle("检测到店铺切换")
-            .setMessage("当前分身「${sourceShop.shopName}」已切换到「${detectedShop.shopName}」。确认后将扣减 1 点算力，并创建一个新的干净分身；当前分身不会被改动。")
-            .setNegativeButton("取消", null)
-            .setPositiveButton("确认") { _, _ ->
-                viewModel.createPendingShopFromDetectedSwitch(detectedShop) { pendingShop ->
-                    prepareCleanCloneForPendingShop(pendingShop)
-                }
-            }
-            .setOnDismissListener { promptedCloneSwitchKeys.remove(promptKey) }
-            .show()
-    }
-
-    private fun prepareCleanCloneForPendingShop(pendingShop: Shop) {
-        ensureEngineReady {
-            val packageName = resolveShopPackageName(pendingShop)
-            if (packageName.isNullOrBlank()) {
-                toast("新店铺暂无关联应用")
-                return@ensureEngineReady
-            }
-            val platformName = resolvePlatformName(pendingShop.platform)
-            val isHostInstalled = try {
-                packageManager.getPackageInfo(packageName, 0) != null
-            } catch (e: Exception) {
-                false
-            }
-            if (!isHostInstalled) {
-                toast("新店铺卡片已添加，请先安装 ${platformName} 后再打开")
-                openAppMarket(packageName)
-                return@ensureEngineReady
-            }
-
-            val existingUserId = findUserIdForCloneInstance(pendingShop, packageName)
-            val createdFreshUser = existingUserId == null
-            val userId = existingUserId ?: createFreshVirtualUserId() ?: run {
-                toast("创建分身用户失败，请稍后重试")
-                return@ensureEngineReady
-            }
-            if (EngineProxy.isInstalled(packageName, userId)) {
-                if (existingUserId == null) {
-                    reportCloneCreated(pendingShop, userId)
-                }
-                toast("新店铺分身已准备好，请点击 new 店铺登录并切换店铺")
-                return@ensureEngineReady
-            }
-            toast("正在为新店铺创建干净分身，请稍候…")
-            try {
-                val result = EngineProxy.installPackageAsUser(packageName, userId)
-                if (result.success || EngineProxy.isInstalled(packageName, userId)) {
-                    reportCloneCreated(pendingShop, userId)
-                    toast("新店铺分身已准备好，请点击 new 店铺登录并切换店铺")
-                } else {
-                    if (createdFreshUser) {
-                        EngineProxy.deleteUser(userId)
-                    }
-                    toast("新分身创建失败: ${result.msg}")
-                }
-            } catch (e: Exception) {
-                if (createdFreshUser) {
-                    EngineProxy.deleteUser(userId)
-                }
-                toast("新分身创建异常: ${e.message}")
-            }
         }
     }
 
@@ -837,8 +932,12 @@ class HomeActivity : AppCompatActivity() {
     private fun findUserIdForCloneInstance(shop: Shop, packageName: String): Int? {
         val users = EngineProxy.getUsers()
         shop.cloneInstanceId?.takeIf { it.isNotBlank() }?.let { cloneInstanceId ->
-            users.firstOrNull { buildCloneInstanceId(shop, packageName, it.id) == cloneInstanceId }?.let {
+            users.firstOrNull { buildLegacyCloneInstanceId(packageName, it.id) == cloneInstanceId }?.let {
+                EngineProxy.bindCloneUser(cloneInstanceId, packageName, viewModel.getCurrentUserId(), it.id)
                 return it.id
+            }
+            EngineProxy.ensureCloneUser(cloneInstanceId, packageName, viewModel.getCurrentUserId())?.let {
+                return it
             }
         }
         shop.shopId.takeIf { it.isNotBlank() && it != "-" && !it.startsWith("NEW-") }?.let { realShopId ->
@@ -858,10 +957,6 @@ class HomeActivity : AppCompatActivity() {
 
     private fun resolvePlatformName(platform: Platform): String {
         return PlatformRegistry.displayName(platform)
-    }
-
-    private fun buildPendingSwitchShopId(packageName: String, shopId: String): String {
-        return "NEW-SWITCH-${sha256(packageName.trim()).take(10)}-${sha256(shopId.trim()).take(16)}"
     }
 
     private fun sha256(value: String): String {
@@ -914,9 +1009,9 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun showEditShopSheet(shop: Shop) {
-        val sheet = EditShopSheetFragment.newInstance(shop.shopName, shop.autoRenew)
-        sheet.setOnSaveListener { name, autoRenew ->
-            viewModel.updateShop(shop, name, autoRenew)
+        val sheet = EditShopSheetFragment.newInstance(shop.shopName, shop.shopId, shop.autoRenew)
+        sheet.setOnSaveListener { name, shopId, autoRenew ->
+            viewModel.updateShop(shop, name, shopId, autoRenew)
         }
         sheet.show(supportFragmentManager, "EditShop")
     }
@@ -939,9 +1034,34 @@ class HomeActivity : AppCompatActivity() {
     private fun showDeleteShopSheet(shop: Shop) {
         val sheet = DeleteShopSheetFragment()
         sheet.setOnDeleteListener {
-            viewModel.deleteShop(shop)
+            deleteShopAndClone(shop)
         }
         sheet.show(supportFragmentManager, "DeleteShop")
+    }
+
+    private fun deleteShopAndClone(shop: Shop) {
+        val cloneInstanceId = shop.cloneInstanceId?.takeIf { it.isNotBlank() }
+        val packageName = resolveShopPackageName(shop)
+        if (cloneInstanceId == null || packageName.isNullOrBlank()) {
+            viewModel.deleteShop(shop)
+            return
+        }
+        ensureEngineReady {
+            val userId = findUserIdForCloneInstance(shop, packageName)
+            try {
+                if (userId != null) {
+                    EngineProxy.uninstallPackageAsUser(packageName, userId)
+                }
+                EngineProxy.clearCloneUser(cloneInstanceId, packageName, viewModel.getCurrentUserId())
+                if (userId != null) {
+                    EngineProxy.deleteUser(userId)
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to clear clone before deleting shop ${shop.id}", e)
+            } finally {
+                viewModel.deleteShop(shop)
+            }
+        }
     }
 
     private fun checkForEngineUpgrade(force: Boolean = false) {

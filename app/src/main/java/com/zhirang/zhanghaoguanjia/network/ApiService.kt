@@ -43,8 +43,8 @@ interface ApiService {
     @POST("shops/report")
     suspend fun reportShop(@Body request: ShopReportRequest): ApiResponse<ShopReportResult>
 
-    @POST("shops/pending")
-    suspend fun createPendingShop(@Body request: ShopDto): ApiResponse<ShopDto>
+    @POST("shops/clone/create")
+    suspend fun createCloneShop(@Body request: CloneShopCreateRequest): ApiResponse<CloneShopCreateResult>
 
     @POST("shops/pending-deduct")
     suspend fun createPendingShopWithDeduction(@Body request: ShopReportRequest): ApiResponse<PendingShopDeductResult>
@@ -53,7 +53,10 @@ interface ApiService {
     suspend fun updateShop(@Path("id") id: Long, @Body request: ShopDto): ApiResponse<ShopDto>
 
     @POST("shops/{id}/renew")
-    suspend fun renewShop(@Path("id") id: Long): ApiResponse<ShopRenewResponse>
+    suspend fun renewShop(@Path("id") id: Long, @Body request: ShopRenewRequest): ApiResponse<ShopRenewResponse>
+
+    @POST("shops/{id}/auth-token")
+    suspend fun issueShopAuthToken(@Path("id") id: Long): ApiResponse<CloneShopCreateResult>
 
     @DELETE("shops/{id}")
     suspend fun deleteShop(@Path("id") id: Long): ApiResponse<Unit>

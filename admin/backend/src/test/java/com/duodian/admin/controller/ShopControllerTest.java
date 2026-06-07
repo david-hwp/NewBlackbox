@@ -1,23 +1,36 @@
 package com.duodian.admin.controller;
 
 import com.duodian.admin.config.AuthContext;
+import com.duodian.admin.config.CloneAuthorizationProperties;
 import com.duodian.admin.controller.dto.ApiResponse;
-import com.duodian.admin.controller.dto.PendingShopDeductResponse;
+import com.duodian.admin.controller.dto.CloneShopCreateRequest;
+import com.duodian.admin.controller.dto.CloneShopCreateResponse;
+import com.duodian.admin.controller.dto.PagedResponse;
+import com.duodian.admin.controller.dto.ShopRenewRequest;
 import com.duodian.admin.controller.dto.ShopRenewResponse;
-import com.duodian.admin.controller.dto.ShopReportRequest;
 import com.duodian.admin.controller.dto.ShopResponse;
+import com.duodian.admin.entity.ComputeDeduction;
 import com.duodian.admin.entity.Shop;
 import com.duodian.admin.entity.User;
+import com.duodian.admin.service.CloneAuthorizationTokenService;
 import com.duodian.admin.service.ComputeService;
 import com.duodian.admin.service.ShopService;
 import com.duodian.admin.service.UserService;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 
+import java.security.KeyPairGenerator;
+import java.time.LocalDateTime;
+import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -30,7 +43,9 @@ class ShopControllerTest {
     private final ShopService shopService = mock(ShopService.class);
     private final UserService userService = mock(UserService.class);
     private final ComputeService computeService = mock(ComputeService.class);
-    private final ShopController controller = new ShopController(shopService, userService, computeService);
+    private final CloneAuthorizationTokenService tokenService =
+            new CloneAuthorizationTokenService(testCloneAuthProperties());
+    private final ShopController controller = new ShopController(shopService, userService, computeService, tokenService);
 
     @AfterEach
     void tearDown() {
@@ -45,75 +60,98 @@ class ShopControllerTest {
         when(userService.findById(1L)).thenReturn(Optional.of(normalUser));
         when(shopService.findByUserId(1L)).thenReturn(List.of(ownShop));
 
-        ApiResponse<List<ShopResponse>> response = controller.list(2L, null);
+        ApiResponse<?> response = controller.list(2L, null, null, null, null, null, null, null);
 
         assertThat(response.getCode()).isEqualTo(200);
-        assertThat(response.getData()).extracting(ShopResponse::getUserId).containsExactly(1L);
+        @SuppressWarnings("unchecked")
+        List<ShopResponse> data = (List<ShopResponse>) response.getData();
+        assertThat(data).extracting(ShopResponse::getUserId).containsExactly(1L);
         verify(shopService).findByUserId(1L);
         verify(shopService, never()).findByUserId(2L);
         verify(shopService, never()).findAll();
     }
 
     @Test
-    void listAllowsAdminToViewAllShops() {
+    void listSupportsPagedAdminFilters() {
         AuthContext.setUserId(1L);
         User admin = user(1L, "ADMIN");
-        Shop first = shop(10L, 1L, "first");
-        Shop second = shop(11L, 2L, "second");
+        Shop first = shop(10L, 2L, "京东店");
+        first.setPackageName("com.jd.mrd.jingming");
         when(userService.findById(1L)).thenReturn(Optional.of(admin));
-        when(shopService.findAll()).thenReturn(List.of(first, second));
+        when(userService.findById(2L)).thenReturn(Optional.of(user(2L, "USER")));
+        when(shopService.search(
+                eq(null),
+                eq(null),
+                eq("jd"),
+                eq("138"),
+                eq("user"),
+                eq("京东"),
+                any(Pageable.class)
+        )).thenReturn(new PageImpl<>(List.of(first), PageRequest.of(0, 20), 1));
 
-        ApiResponse<List<ShopResponse>> response = controller.list(null, null);
+        ApiResponse<?> response = controller.list(null, null, "jd", "138", "user", "京东", 1, 20);
 
         assertThat(response.getCode()).isEqualTo(200);
-        assertThat(response.getData()).extracting(ShopResponse::getUserId).containsExactly(1L, 2L);
-        verify(shopService).findAll();
+        @SuppressWarnings("unchecked")
+        PagedResponse<ShopResponse> page = (PagedResponse<ShopResponse>) response.getData();
+        assertThat(page.getTotal()).isEqualTo(1);
+        assertThat(page.getList()).extracting(ShopResponse::getShopName).containsExactly("京东店");
     }
 
     @Test
-    void renewDeductsComputeAndExtendsOwnExpiredShop() {
+    void createRejectsNormalUserToAvoidBypassingCloneDeduction() {
         AuthContext.setUserId(1L);
         User normalUser = user(1L, "USER");
-        normalUser.setComputeBalance(8);
-        normalUser.setShopCount(1);
-        normalUser.setPlatformCount(1);
-        Shop expiredShop = shop(10L, 1L, "expired");
-        expiredShop.setRemainingDays(0);
         when(userService.findById(1L)).thenReturn(Optional.of(normalUser));
-        when(shopService.findById(10L)).thenReturn(Optional.of(expiredShop));
-        when(computeService.deductComputeForRenewal(1L, "shop-10", "expired", "jd")).thenReturn(true);
-        when(shopService.update(10L, expiredShop)).thenReturn(expiredShop);
-        when(userService.refreshShopStats(1L)).thenReturn(normalUser);
 
-        ApiResponse<ShopRenewResponse> response = controller.renew(10L);
+        ApiResponse<Shop> response = controller.create(shop(20L, 1L, "manual"));
 
-        assertThat(response.getCode()).isEqualTo(200);
-        assertThat(response.getData().getShop().getRemainingDays()).isEqualTo(30);
-        assertThat(response.getData().getBalance()).isEqualTo(8);
-        assertThat(expiredShop.getExpireAt()).isNotNull();
-        verify(computeService).deductComputeForRenewal(1L, "shop-10", "expired", "jd");
+        assertThat(response.getCode()).isEqualTo(403);
+        verify(shopService, never()).create(argThat(shop -> true));
     }
 
     @Test
-    void createPendingWithDeductionCreatesNewTaggedShopAndDeductsOnce() {
+    void legacyPendingDeductIsBlocked() {
+        AuthContext.setUserId(1L);
+
+        ApiResponse<?> response = controller.createPendingWithDeduction(null);
+
+        assertThat(response.getCode()).isEqualTo(500);
+        assertThat(response.getMessage()).isEqualTo("请使用分身创建接口新增店铺");
+        verify(computeService, never()).deductComputeForClone(any(), any(), any(), any());
+    }
+
+    @Test
+    void cloneCreateCreatesNewTaggedShopAndReturnsAuthorizationToken() throws Exception {
         AuthContext.setUserId(1L);
         User normalUser = user(1L, "USER");
         normalUser.setComputeBalance(7);
         normalUser.setShopCount(1);
         normalUser.setPlatformCount(1);
-        ShopReportRequest request = reportRequest("detected-shop", "检测店铺");
+        CloneShopCreateRequest request = createRequest("op-create-1", 3);
 
-        when(shopService.findByUserIdAndShopIdAndPackageName(1L, "detected-shop", "com.jd.mrd.jingming")).thenReturn(Optional.empty());
-        when(shopService.findByUserIdAndShopIdAndPackageName(
+        when(computeService.lockActiveUser(1L)).thenReturn(Optional.of(normalUser));
+        when(computeService.findExistingCloneCreateOperation(1L, "op-create-1")).thenReturn(Optional.empty());
+        when(shopService.countByUserIdAndPackageName(1L, "com.jd.mrd.jingming")).thenReturn(0L);
+        when(shopService.findByCloneInstanceId(argThat(id -> id != null && id.startsWith("CLN1-13800000001-com.jd.mrd.jingming-N1-U3-R"))))
+                .thenReturn(Optional.empty());
+        when(computeService.deductComputeForCloneCreate(
                 eq(1L),
-                argThat(shopId -> shopId != null && shopId.startsWith("NEW-SWITCH-")),
-                eq("com.jd.mrd.jingming"))
-        ).thenReturn(Optional.empty());
-        when(computeService.deductCompute(1L, "detected-shop", "检测店铺", "jd")).thenReturn(true);
+                argThat(id -> id != null && id.startsWith("CLN1-13800000001-com.jd.mrd.jingming-N1-U3-R")),
+                eq("op-create-1"),
+                eq("jd"),
+                eq("User[3]-未知")
+        )).thenReturn(new ComputeService.DeductionResult(true, true, 88L));
         when(shopService.create(argThat(shop ->
-                shop.getShopId().startsWith("NEW-SWITCH-")
-                        && shop.getCloneInstanceId() == null
-                        && shop.getLastDeductedAt() != null
+                shop.getShopId().startsWith("NEW-")
+                        && shop.getCloneInstanceId().startsWith("CLN1-13800000001-com.jd.mrd.jingming-N1-U3-R")
+                        && shop.getCloneSequence().equals(1)
+                        && shop.getLocalVirtualUserId().equals(3)
+                        && shop.getCloneValidationCode() != null
+                        && shop.getCloneValidationHash() != null
+                        && shop.getCredentialVersion().equals(1)
+                        && shop.getAuthorizationJti() != null
+                        && shop.getAuthExpireAt() != null
         ))).thenAnswer(invocation -> {
             Shop saved = invocation.getArgument(0);
             saved.setId(99L);
@@ -121,14 +159,110 @@ class ShopControllerTest {
         });
         when(userService.refreshShopStats(1L)).thenReturn(normalUser);
 
-        ApiResponse<PendingShopDeductResponse> response = controller.createPendingWithDeduction(request);
+        ApiResponse<CloneShopCreateResponse> response = controller.createCloneShop(request);
 
         assertThat(response.getCode()).isEqualTo(200);
         assertThat(response.getData().getDeducted()).isTrue();
-        assertThat(response.getData().getShop().getShopId()).startsWith("NEW-SWITCH-");
-        assertThat(response.getData().getShop().getCloneInstanceId()).isNull();
-        assertThat(response.getData().getBalance()).isEqualTo(7);
-        verify(computeService).deductCompute(1L, "detected-shop", "检测店铺", "jd");
+        assertThat(response.getData().getShop().getShopId()).startsWith("NEW-");
+        assertThat(response.getData().getShop().getCloneInstanceId())
+                .startsWith("CLN1-13800000001-com.jd.mrd.jingming-N1-U3-R");
+        assertThat(response.getData().getAuthorizationToken()).contains(".");
+        assertThat(response.getData().getAuthorizationToken()).doesNotContain("User[3]-未知");
+        assertThat(response.getData().getAuthorizationToken()).doesNotContain(response.getData().getShop().getShopId());
+        assertThat(Shop.class.getMethod("getCloneValidationCode").isAnnotationPresent(JsonIgnore.class)).isTrue();
+        assertThat(Shop.class.getMethod("getCloneValidationHash").isAnnotationPresent(JsonIgnore.class)).isTrue();
+    }
+
+    @Test
+    void cloneCreateRejectsWhenPendingNewShopAlreadyExistsBeforeDeduction() {
+        AuthContext.setUserId(1L);
+        User normalUser = user(1L, "USER");
+        CloneShopCreateRequest request = createRequest("op-create-2", 4);
+
+        when(computeService.findExistingCloneCreateOperation(1L, "op-create-2")).thenReturn(Optional.empty());
+        when(computeService.lockActiveUser(1L)).thenReturn(Optional.of(normalUser));
+        when(shopService.hasPendingShopByPackage(1L, "com.jd.mrd.jingming", "NEW-")).thenReturn(true);
+
+        ApiResponse<CloneShopCreateResponse> response = controller.createCloneShop(request);
+
+        assertThat(response.getCode()).isEqualTo(500);
+        assertThat(response.getMessage()).isEqualTo("您已添加新店铺但未成功登录，请先完成登录后再添加");
+        verify(computeService, never()).deductComputeForCloneCreate(any(), any(), any(), any(), any());
+        verify(shopService, never()).create(any(Shop.class));
+    }
+
+    @Test
+    void cloneCreateDuplicateOperationReturnsExistingShopWithoutDeductingAgain() {
+        AuthContext.setUserId(1L);
+        User normalUser = user(1L, "USER");
+        normalUser.setComputeBalance(7);
+        Shop existingShop = shop(99L, 1L, "User[3]-未知");
+        existingShop.setPackageName("com.jd.mrd.jingming");
+        existingShop.setCloneInstanceId("CLN1-13800000001-com.jd.mrd.jingming-N1-U3-Rabcd1234");
+        existingShop.setLocalVirtualUserId(3);
+        existingShop.setAuthStartAt(LocalDateTime.now().minusMinutes(1));
+        existingShop.setAuthExpireAt(LocalDateTime.now().plusDays(30));
+        existingShop.setAuthorizationJti("jti");
+        ComputeDeduction deduction = new ComputeDeduction();
+        deduction.setCloneInstanceId(existingShop.getCloneInstanceId());
+
+        when(userService.findById(1L)).thenReturn(Optional.of(normalUser));
+        when(computeService.findExistingCloneCreateOperation(1L, "op-create-1")).thenReturn(Optional.of(deduction));
+        when(shopService.findByUserIdAndCloneInstanceId(1L, existingShop.getCloneInstanceId())).thenReturn(Optional.of(existingShop));
+        when(userService.refreshShopStats(1L)).thenReturn(normalUser);
+
+        ApiResponse<CloneShopCreateResponse> response = controller.createCloneShop(createRequest("op-create-1", 3));
+
+        assertThat(response.getCode()).isEqualTo(200);
+        assertThat(response.getData().getDeducted()).isFalse();
+        assertThat(response.getData().getShop().getId()).isEqualTo(99L);
+        verify(computeService, never()).deductComputeForCloneCreate(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void renewDeductsByCloneAndReturnsNewAuthorizationToken() {
+        AuthContext.setUserId(1L);
+        User normalUser = user(1L, "USER");
+        normalUser.setComputeBalance(8);
+        normalUser.setShopCount(1);
+        normalUser.setPlatformCount(1);
+        Shop expiredShop = shop(10L, 1L, "expired");
+        expiredShop.setCloneInstanceId("CLN1-13800000001-com.jd.mrd.jingming-N1-U3-Rabcd1234");
+        expiredShop.setPackageName("com.jd.mrd.jingming");
+        expiredShop.setLocalVirtualUserId(3);
+        expiredShop.setAuthStartAt(LocalDateTime.now().minusDays(31));
+        expiredShop.setAuthExpireAt(LocalDateTime.now().minusDays(1));
+        expiredShop.setAuthorizationJti("old");
+        expiredShop.setRemainingDays(0);
+        ShopRenewRequest request = new ShopRenewRequest();
+        request.setOperationKey("op-renew-1");
+
+        when(userService.findById(1L)).thenReturn(Optional.of(normalUser));
+        when(shopService.findById(10L)).thenReturn(Optional.of(expiredShop));
+        when(computeService.deductComputeForCloneRenew(
+                1L,
+                expiredShop.getCloneInstanceId(),
+                "op-renew-1",
+                "jd",
+                "expired"
+        )).thenReturn(new ComputeService.DeductionResult(true, true, 89L));
+        when(shopService.update(10L, expiredShop)).thenReturn(expiredShop);
+        when(userService.refreshShopStats(1L)).thenReturn(normalUser);
+
+        ApiResponse<ShopRenewResponse> response = controller.renew(10L, request);
+
+        assertThat(response.getCode()).isEqualTo(200);
+        assertThat(response.getData().getShop().getRemainingDays()).isEqualTo(30);
+        assertThat(response.getData().getAuthorizationToken()).contains(".");
+        assertThat(expiredShop.getAuthExpireAt()).isAfter(LocalDateTime.now());
+        assertThat(expiredShop.getCredentialVersion()).isEqualTo(2);
+        verify(computeService).deductComputeForCloneRenew(
+                1L,
+                expiredShop.getCloneInstanceId(),
+                "op-renew-1",
+                "jd",
+                "expired"
+        );
     }
 
     private User user(Long id, String role) {
@@ -153,15 +287,25 @@ class ShopControllerTest {
         return shop;
     }
 
-    private ShopReportRequest reportRequest(String shopId, String shopName) {
-        ShopReportRequest request = new ShopReportRequest();
-        request.setShopId(shopId);
-        request.setShopName(shopName);
+    private CloneShopCreateRequest createRequest(String operationKey, int localVirtualUserId) {
+        CloneShopCreateRequest request = new CloneShopCreateRequest();
         request.setPlatform("jd");
         request.setPlatformName("京东秒送");
         request.setPackageName("com.jd.mrd.jingming");
-        request.setRemainingDays(30);
-        request.setAutoRenew(false);
+        request.setLocalVirtualUserId(localVirtualUserId);
+        request.setOperationKey(operationKey);
         return request;
+    }
+
+    private CloneAuthorizationProperties testCloneAuthProperties() {
+        try {
+            KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");
+            generator.initialize(2048);
+            CloneAuthorizationProperties properties = new CloneAuthorizationProperties();
+            properties.setPrivateKey(Base64.getEncoder().encodeToString(generator.generateKeyPair().getPrivate().getEncoded()));
+            return properties;
+        } catch (Exception e) {
+            throw new IllegalStateException("Failed to create test clone auth key", e);
+        }
     }
 }

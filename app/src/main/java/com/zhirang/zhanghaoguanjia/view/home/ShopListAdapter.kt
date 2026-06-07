@@ -58,7 +58,7 @@ class ShopListAdapter(
 
             shopName.text = shop.shopName
             newTag.visibility = if (shop.isNew) View.VISIBLE else View.GONE
-            shopId.text = "ID: ${if (shop.isNew) "-" else shop.shopId}"
+            shopId.text = "店铺ID: ${if (shop.isNew) "-" else shop.shopId}"
 
             // 剩余天数显示（带颜色逻辑）
             remainingDaysBadge.text = "${shop.remainingDays}天"

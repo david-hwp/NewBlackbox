@@ -21,6 +21,7 @@ import com.afollestad.materialdialogs.input.input
 import com.zhirang.zhanghaoguanjia.R
 import com.zhirang.zhanghaoguanjia.app.App
 import com.zhirang.zhanghaoguanjia.app.AppManager
+import com.zhirang.zhanghaoguanjia.data.TokenManager
 import com.zhirang.zhanghaoguanjia.databinding.ActivityMainBinding
 import com.zhirang.zhanghaoguanjia.engine.EngineInstaller
 import com.zhirang.zhanghaoguanjia.engine.EngineConnection
@@ -128,6 +129,9 @@ class MainActivity : LoadingActivity() {
      * Check for Engine upgrades and show dialog if available.
      */
     private fun checkForEngineUpgrade() {
+        if (!TokenManager.getInstance().isLoggedIn()) {
+            return
+        }
         try {
             lifecycleScope.launch {
                 val upgradeInfo = withContext(Dispatchers.IO) {

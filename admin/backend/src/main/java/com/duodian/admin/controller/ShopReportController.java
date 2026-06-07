@@ -5,7 +5,6 @@ import com.duodian.admin.controller.dto.ApiResponse;
 import com.duodian.admin.controller.dto.ShopReportRequest;
 import com.duodian.admin.entity.Shop;
 import com.duodian.admin.entity.User;
-import com.duodian.admin.service.ComputeService;
 import com.duodian.admin.service.ShopService;
 import com.duodian.admin.service.UserService;
 import org.springframework.web.bind.annotation.*;
@@ -15,20 +14,23 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @RestController
 @RequestMapping("/shops")
 public class ShopReportController {
 
+    private static final Pattern CLONE_RANDOM_DIGEST_PATTERN = Pattern.compile(".*-R([0-9a-fA-F]{8})$");
+
     private final ShopService shopService;
-    private final ComputeService computeService;
     private final UserService userService;
 
-    public ShopReportController(ShopService shopService, ComputeService computeService, UserService userService) {
+    public ShopReportController(ShopService shopService, UserService userService) {
         this.shopService = shopService;
-        this.computeService = computeService;
         this.userService = userService;
     }
 
@@ -49,45 +51,25 @@ public class ShopReportController {
         boolean hasRealShopId = isRealShopId(shopId);
         Optional<Shop> existing = Optional.empty();
 
+        if (cloneInstanceId != null) {
+            existing = shopService.findByUserIdAndCloneInstanceId(userId, cloneInstanceId);
+        }
         if (hasRealShopId) {
-            existing = packageName == null
-                    ? Optional.empty()
-                    : shopService.findByUserIdAndShopIdAndPackageName(userId, shopId, packageName);
-            if (existing.isEmpty() && cloneInstanceId != null) {
-                Optional<Shop> cloneOwner = shopService.findByUserIdAndCloneInstanceId(userId, cloneInstanceId);
-                if (cloneOwner.isPresent() && isDifferentRealShop(cloneOwner.get(), shopId, packageName)) {
-                    String switchedCloneInstanceId = buildSwitchedCloneInstanceId(cloneInstanceId, packageName, shopId);
-                    Optional<Shop> switchedShop = shopService.findByUserIdAndCloneInstanceId(userId, switchedCloneInstanceId);
-                    if (switchedShop.isPresent()) {
-                        existing = switchedShop;
-                    } else {
-                        return createNewShop(userId, request, switchedCloneInstanceId, true);
-                    }
-                } else {
-                    existing = cloneOwner;
-                }
+            if (existing.isEmpty()) {
+                existing = shopService.findByUserIdAndShopIdAndPackageName(userId, shopId, packageName);
             }
             if (existing.isEmpty()) {
-                existing = packageName == null
-                        ? Optional.empty()
-                        : shopService.findPendingByUserPackage(userId, packageName);
+                existing = shopService.findPendingByUserPackage(userId, packageName);
             }
         } else {
-            if (cloneInstanceId != null) {
-                existing = shopService.findByUserIdAndCloneInstanceId(userId, cloneInstanceId);
-            }
             if (existing.isEmpty() && "-".equals(shopId)) {
-                existing = packageName == null
-                        ? Optional.empty()
-                        : shopService.findPendingByUserPackage(userId, packageName);
+                existing = shopService.findPendingByUserPackage(userId, packageName);
             } else if (existing.isEmpty()) {
-                existing = packageName == null
-                        ? shopService.findByUserIdAndShopId(userId, request.getShopId())
-                        : shopService.findByUserIdAndShopIdAndPackageName(userId, request.getShopId(), packageName);
+                existing = shopService.findByUserIdAndShopIdAndPackageName(userId, request.getShopId(), packageName);
             }
         }
 
-        if (existing.isEmpty() && !hasRealShopId) {
+        if (existing.isEmpty()) {
             return ApiResponse.error("待登录店铺不存在，请先添加店铺卡片");
         }
 
@@ -95,87 +77,33 @@ public class ShopReportController {
         result.put("shopId", request.getShopId());
         result.put("cloneInstanceId", cloneInstanceId);
 
-        if (existing.isPresent()) {
-            Shop shop = existing.get();
-            boolean wasPending = shop.getShopId() != null && shop.getShopId().startsWith("NEW-");
-
-            if (wasPending && hasRealShopId) {
-                if (isPendingSwitchShopId(shop.getShopId())) {
-                    String expectedPendingShopId = buildPendingSwitchShopId(
-                            packageName == null ? shop.getPackageName() : packageName,
-                            request.getShopId()
-                    );
-                    if (!shop.getShopId().equals(expectedPendingShopId)) {
-                        return ApiResponse.error("请在新分身中切换到对应店铺后重试");
-                    }
-                }
-                if (shop.getLastDeductedAt() == null) {
-                    boolean deducted = computeService.deductCompute(userId, request.getShopId(), request.getShopName(), request.getPlatform());
-                    if (!deducted) {
-                        return ApiResponse.error(402, "算力余额不足");
-                    }
-                    shop.setLastDeductedAt(LocalDateTime.now());
-                    result.put("deducted", true);
-                } else {
-                    result.put("deducted", false);
-                }
-                shop.setShopId(request.getShopId());
-                shop.setExpireAt(LocalDateTime.now().plusDays(30));
-                result.put("isNew", true);
-            } else {
-                result.put("deducted", false);
-                result.put("isNew", false);
-            }
-            fillShopFromRequest(shop, request);
-            if (cloneInstanceId != null && canAssignCloneInstanceId(userId, shop.getId(), cloneInstanceId)) {
-                shop.setCloneInstanceId(cloneInstanceId);
-            }
-            shopService.update(shop.getId(), shop);
-            result.put("cloneInstanceId", shop.getCloneInstanceId());
-        } else {
-            return createNewShop(userId, request, cloneInstanceId, false);
+        Shop shop = existing.get();
+        if (!validateCloneOwnership(shop, cloneInstanceId)) {
+            return ApiResponse.error(403, "分身标识校验失败");
         }
+        boolean wasPending = shop.getShopId() != null && shop.getShopId().startsWith("NEW-");
+        if (hasRealShopId) {
+            Optional<Shop> duplicate = shopService.findByUserIdAndShopIdAndPackageName(userId, shopId, packageName);
+            if (duplicate.isPresent() && !duplicate.get().getId().equals(shop.getId())) {
+                return ApiResponse.error("该店铺已添加");
+            }
+            if (shop.getExpireAt() == null) {
+                shop.setExpireAt(LocalDateTime.now().plusDays(30));
+            }
+        }
+        result.put("deducted", false);
+        result.put("isNew", wasPending && hasRealShopId);
+
+        fillShopFromRequest(shop, request);
+        if (cloneInstanceId != null && canAssignCloneInstanceId(userId, shop.getId(), cloneInstanceId)) {
+            shop.setCloneInstanceId(cloneInstanceId);
+        }
+        shopService.update(shop.getId(), shop);
+        result.put("cloneInstanceId", shop.getCloneInstanceId());
 
         fillUserStats(result, userId);
         result.put("switchedShop", false);
 
-        return ApiResponse.success(result);
-    }
-
-    private ApiResponse<Map<String, Object>> createNewShop(
-            Long userId,
-            ShopReportRequest request,
-            String cloneInstanceId,
-            boolean switchedShop
-    ) {
-        boolean deducted = computeService.deductCompute(
-                userId,
-                request.getShopId(),
-                request.getShopName(),
-                request.getPlatform()
-        );
-        if (!deducted) {
-            return ApiResponse.error(402, "算力余额不足");
-        }
-
-        Shop shop = new Shop();
-        shop.setUserId(userId);
-        fillShopFromRequest(shop, request);
-        shop.setCloneInstanceId(cloneInstanceId);
-        shop.setExpireAt(LocalDateTime.now().plusDays(30));
-        shop.setLastDeductedAt(LocalDateTime.now());
-        shopService.create(shop);
-
-        Map<String, Object> result = new HashMap<>();
-        result.put("shopId", request.getShopId());
-        result.put("cloneInstanceId", shop.getCloneInstanceId());
-        result.put("deducted", true);
-        result.put("isNew", true);
-        result.put("switchedShop", switchedShop);
-        if (switchedShop) {
-            result.put("message", "检测到店铺切换，已创建新店铺并扣划算力");
-        }
-        fillUserStats(result, userId);
         return ApiResponse.success(result);
     }
 
@@ -187,6 +115,7 @@ public class ShopReportController {
         shop.setPackageName(request.getPackageName());
         shop.setRemainingDays(request.getRemainingDays());
         shop.setAutoRenew(request.getAutoRenew());
+        shop.setLocalVirtualUserId(request.getLocalVirtualUserId());
     }
 
     private void fillUserStats(Map<String, Object> result, Long userId) {
@@ -197,53 +126,37 @@ public class ShopReportController {
     }
 
     private boolean canAssignCloneInstanceId(Long userId, Long currentShopId, String cloneInstanceId) {
-        Optional<Shop> owner = shopService.findByUserIdAndCloneInstanceId(userId, cloneInstanceId);
-        return owner.isEmpty() || owner.get().getId().equals(currentShopId);
+        Optional<Shop> owner = shopService.findByCloneInstanceId(cloneInstanceId);
+        return owner.isEmpty()
+                || (owner.get().getId().equals(currentShopId) && owner.get().getUserId().equals(userId));
     }
 
-    private boolean isDifferentRealShop(Shop existing, String shopId, String packageName) {
-        if (!isRealShopId(existing.getShopId())) {
+    private boolean validateCloneOwnership(Shop shop, String requestCloneInstanceId) {
+        String storedCloneInstanceId = normalize(shop.getCloneInstanceId());
+        if (storedCloneInstanceId == null) {
+            return true;
+        }
+        if (!storedCloneInstanceId.equals(requestCloneInstanceId)) {
             return false;
         }
-        return !equalsNormalized(existing.getShopId(), shopId)
-                || !equalsNormalized(existing.getPackageName(), packageName);
-    }
-
-    private boolean equalsNormalized(String left, String right) {
-        String normalizedLeft = normalize(left);
-        String normalizedRight = normalize(right);
-        if (normalizedLeft == null) {
-            return normalizedRight == null;
+        String validationCode = normalize(shop.getCloneValidationCode());
+        String validationHash = normalize(shop.getCloneValidationHash());
+        if (validationCode == null && validationHash == null) {
+            return true;
         }
-        return normalizedLeft.equals(normalizedRight);
-    }
-
-    private String buildSwitchedCloneInstanceId(String cloneInstanceId, String packageName, String shopId) {
-        String source = cloneInstanceId + ":" + normalize(packageName) + ":" + normalize(shopId);
-        return "clone-switch-" + sha256(source);
-    }
-
-    private boolean isPendingSwitchShopId(String shopId) {
-        String normalized = normalize(shopId);
-        return normalized != null && normalized.startsWith("NEW-SWITCH-");
-    }
-
-    private String buildPendingSwitchShopId(String packageName, String shopId) {
-        return "NEW-SWITCH-" + sha256(normalize(packageName)).substring(0, 10) + "-" + sha256(normalize(shopId)).substring(0, 16);
-    }
-
-    private String sha256(String value) {
-        try {
-            byte[] digest = MessageDigest.getInstance("SHA-256")
-                    .digest(value.getBytes(StandardCharsets.UTF_8));
-            StringBuilder builder = new StringBuilder(digest.length * 2);
-            for (byte b : digest) {
-                builder.append(String.format("%02x", b));
-            }
-            return builder.toString();
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("SHA-256 not available", e);
+        if (validationCode == null || validationHash == null) {
+            return false;
         }
+        Matcher matcher = CLONE_RANDOM_DIGEST_PATTERN.matcher(storedCloneInstanceId);
+        if (!matcher.matches()) {
+            return false;
+        }
+        String digestInCloneId = matcher.group(1).toLowerCase(Locale.ROOT);
+        if (!sha256(validationCode).startsWith(digestInCloneId)) {
+            return false;
+        }
+        String expectedHash = sha256(storedCloneInstanceId + ":" + validationCode);
+        return expectedHash.equalsIgnoreCase(validationHash);
     }
 
     private String normalize(String value) {
@@ -258,5 +171,19 @@ public class ShopReportController {
                 && !shopId.isBlank()
                 && !"-".equals(shopId)
                 && !shopId.startsWith("NEW-");
+    }
+
+    private String sha256(String value) {
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256")
+                    .digest(value.getBytes(StandardCharsets.UTF_8));
+            StringBuilder builder = new StringBuilder(digest.length * 2);
+            for (byte b : digest) {
+                builder.append(String.format("%02x", b));
+            }
+            return builder.toString();
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 not available", e);
+        }
     }
 }

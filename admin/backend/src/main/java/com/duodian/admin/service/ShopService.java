@@ -2,6 +2,8 @@ package com.duodian.admin.service;
 
 import com.duodian.admin.entity.Shop;
 import com.duodian.admin.repository.ShopRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -38,6 +40,27 @@ public class ShopService {
         return shopRepository.findByPackageNameAndDeleted(packageName, ACTIVE);
     }
 
+    public Page<Shop> search(
+            Long userId,
+            String packageName,
+            String platform,
+            String phone,
+            String userKeyword,
+            String shopName,
+            Pageable pageable
+    ) {
+        return shopRepository.searchShops(
+                ACTIVE,
+                userId,
+                normalize(packageName),
+                normalize(platform),
+                normalize(phone),
+                normalize(userKeyword),
+                normalize(shopName),
+                pageable
+        );
+    }
+
     public Shop create(Shop shop) {
         shop.setDeleted(ACTIVE);
         return shopRepository.save(shop);
@@ -53,6 +76,14 @@ public class ShopService {
 
     public Optional<Shop> findByUserIdAndCloneInstanceId(Long userId, String cloneInstanceId) {
         return shopRepository.findByUserIdAndCloneInstanceIdAndDeleted(userId, cloneInstanceId, ACTIVE);
+    }
+
+    public Optional<Shop> findByCloneInstanceId(String cloneInstanceId) {
+        return shopRepository.findByCloneInstanceIdAndDeleted(cloneInstanceId, ACTIVE);
+    }
+
+    public long countByUserIdAndPackageName(Long userId, String packageName) {
+        return shopRepository.countByUserIdAndPackageNameAndDeleted(userId, packageName, ACTIVE);
     }
 
     public Optional<Shop> findPendingByUserPackage(Long userId, String packageName) {
@@ -78,9 +109,40 @@ public class ShopService {
         existing.setRemainingDays(shop.getRemainingDays());
         existing.setAutoRenew(shop.getAutoRenew());
         existing.setPackageName(shop.getPackageName());
-        existing.setCloneInstanceId(shop.getCloneInstanceId());
-        existing.setLastDeductedAt(shop.getLastDeductedAt());
-        existing.setExpireAt(shop.getExpireAt());
+        if (shop.getCloneInstanceId() != null &&
+                (existing.getCloneInstanceId() == null || existing.getCloneInstanceId().equals(shop.getCloneInstanceId()))) {
+            existing.setCloneInstanceId(shop.getCloneInstanceId());
+        }
+        if (shop.getCloneSequence() != null) {
+            existing.setCloneSequence(shop.getCloneSequence());
+        }
+        if (shop.getLocalVirtualUserId() != null) {
+            existing.setLocalVirtualUserId(shop.getLocalVirtualUserId());
+        }
+        if (shop.getCloneValidationCode() != null) {
+            existing.setCloneValidationCode(shop.getCloneValidationCode());
+        }
+        if (shop.getCloneValidationHash() != null) {
+            existing.setCloneValidationHash(shop.getCloneValidationHash());
+        }
+        if (shop.getCredentialVersion() != null) {
+            existing.setCredentialVersion(shop.getCredentialVersion());
+        }
+        if (shop.getAuthStartAt() != null) {
+            existing.setAuthStartAt(shop.getAuthStartAt());
+        }
+        if (shop.getAuthExpireAt() != null) {
+            existing.setAuthExpireAt(shop.getAuthExpireAt());
+        }
+        if (shop.getAuthorizationJti() != null) {
+            existing.setAuthorizationJti(shop.getAuthorizationJti());
+        }
+        if (shop.getLastDeductedAt() != null) {
+            existing.setLastDeductedAt(shop.getLastDeductedAt());
+        }
+        if (shop.getExpireAt() != null) {
+            existing.setExpireAt(shop.getExpireAt());
+        }
         return shopRepository.save(existing);
     }
 
@@ -90,5 +152,12 @@ public class ShopService {
         shop.setCloneInstanceId(null);
         shop.setDeleted(DELETED);
         shopRepository.save(shop);
+    }
+
+    private String normalize(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        return value.trim();
     }
 }

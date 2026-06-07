@@ -63,15 +63,21 @@ class BlackBoxEngineService : Service() {
         }
 
         override fun getLaunchIntent(packageName: String?, userId: Int): android.content.Intent? {
-            return if (packageName != null) {
-                BlackBoxCore.get().getLaunchIntent(packageName, userId)
-            } else null
+            val pkg = packageName?.takeIf { it.isNotBlank() } ?: return null
+            if (!isLegacyLaunchAuthorized(pkg, userId)) {
+                Slog.w(TAG, "legacy launch blocked package=$pkg userId=$userId")
+                return null
+            }
+            return BlackBoxCore.get().getLaunchIntent(pkg, userId)
         }
 
         override fun launchApk(packageName: String?, userId: Int): Boolean {
-            return if (packageName != null) {
-                BlackBoxCore.get().launchApk(packageName, userId)
-            } else false
+            val pkg = packageName?.takeIf { it.isNotBlank() } ?: return false
+            if (!isLegacyLaunchAuthorized(pkg, userId)) {
+                Slog.w(TAG, "legacy launchApk blocked package=$pkg userId=$userId")
+                return false
+            }
+            return BlackBoxCore.get().launchApk(pkg, userId)
         }
 
         override fun installPackageAsUser(path: String?, userId: Int): InstallResult {
@@ -117,6 +123,58 @@ class BlackBoxEngineService : Service() {
             return if (packageName != null) {
                 BlackBoxCore.get().isInstalled(packageName, userId)
             } else false
+        }
+
+        override fun ensureCloneUser(cloneInstanceId: String?, packageName: String?, serverUserId: Long): Int {
+            return CloneInstanceStore.ensureCloneUser(cloneInstanceId, packageName, serverUserId)
+        }
+
+        override fun bindCloneUser(cloneInstanceId: String?, packageName: String?, serverUserId: Long, userId: Int) {
+            CloneInstanceStore.bindCloneUser(cloneInstanceId, packageName, serverUserId, userId)
+        }
+
+        override fun clearCloneUser(cloneInstanceId: String?, packageName: String?, serverUserId: Long) {
+            CloneInstanceStore.clearCloneUser(cloneInstanceId, packageName, serverUserId)
+        }
+
+        override fun writeCloneAuthorization(
+            cloneInstanceId: String?,
+            packageName: String?,
+            serverUserId: Long,
+            phone: String?,
+            userId: Int,
+            publicKeyId: String?,
+            authorizationToken: String?
+        ): Boolean {
+            return CloneInstanceStore.writeAuthorization(
+                cloneInstanceId,
+                packageName,
+                serverUserId,
+                phone,
+                userId,
+                publicKeyId,
+                authorizationToken
+            )
+        }
+
+        override fun getAuthorizedLaunchIntent(cloneInstanceId: String?, packageName: String?, userId: Int): android.content.Intent? {
+            val cloneId = cloneInstanceId?.takeIf { it.isNotBlank() } ?: return null
+            val pkg = packageName?.takeIf { it.isNotBlank() } ?: return null
+            val serverUserId = extractServerUserIdFromAuth(cloneId, pkg, userId)
+            if (serverUserId == null || !CloneInstanceStore.isAuthorized(cloneId, pkg, serverUserId, userId)) {
+                Slog.w(TAG, "authorized launch blocked clone=$cloneId package=$pkg userId=$userId")
+                return null
+            }
+            return BlackBoxCore.get().getLaunchIntent(pkg, userId)
+        }
+
+        override fun isCloneAuthorized(cloneInstanceId: String?, packageName: String?, serverUserId: Long, userId: Int): Boolean {
+            return CloneInstanceStore.isAuthorized(cloneInstanceId, packageName, serverUserId, userId)
+        }
+
+        private fun isLegacyLaunchAuthorized(packageName: String, userId: Int): Boolean {
+            val mapping = CloneInstanceStore.findMappingForPackageUser(packageName, userId)
+            return CloneInstanceStore.isAuthorizedMapping(mapping)
         }
 
         override fun clearPackage(packageName: String?, userId: Int) {
@@ -255,6 +313,32 @@ class BlackBoxEngineService : Service() {
                     }
                 }
             }
+        }
+
+        private fun extractServerUserIdFromAuth(cloneInstanceId: String, packageName: String, userId: Int): Long? {
+            val users = BlackBoxCore.get().getUsers().orEmpty()
+            if (users.none { it.id == userId }) {
+                return null
+            }
+            // Server user id is verified again by CloneInstanceStore using the stored meta.
+            // The AIDL launch call intentionally does not accept it from APP.
+            val meta = java.io.File(
+                java.io.File(top.niunaijun.blackbox.core.env.BEnvironment.getSystemDir(), "clone-auth"),
+                cloneInstanceId.replace(Regex("[^A-Za-z0-9._-]"), "_") + "/meta.json"
+            )
+            if (!meta.exists()) {
+                return null
+            }
+            return runCatching {
+                val json = org.json.JSONObject(meta.readText())
+                if (json.optString("packageName") == packageName &&
+                    json.optInt("localVirtualUserId", -1) == userId
+                ) {
+                    json.optLong("serverUserId", -1L).takeIf { it >= 0 }
+                } else {
+                    null
+                }
+            }.getOrNull()
         }
     }
 

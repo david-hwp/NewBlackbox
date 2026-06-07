@@ -18,6 +18,12 @@ public class ShopResponse {
     private Boolean autoRenew;
     private String packageName;
     private String cloneInstanceId;
+    private Integer cloneSequence;
+    private Integer localVirtualUserId;
+    private Integer credentialVersion;
+    private LocalDateTime authStartAt;
+    private LocalDateTime authExpireAt;
+    private String authorizationJti;
     private LocalDateTime lastDeductedAt;
     private LocalDateTime expireAt;
     private LocalDateTime createdAt;
@@ -37,6 +43,12 @@ public class ShopResponse {
         response.setAutoRenew(shop.getAutoRenew());
         response.setPackageName(shop.getPackageName());
         response.setCloneInstanceId(shop.getCloneInstanceId());
+        response.setCloneSequence(shop.getCloneSequence());
+        response.setLocalVirtualUserId(shop.getLocalVirtualUserId());
+        response.setCredentialVersion(shop.getCredentialVersion());
+        response.setAuthStartAt(shop.getAuthStartAt());
+        response.setAuthExpireAt(shop.getAuthExpireAt());
+        response.setAuthorizationJti(shop.getAuthorizationJti());
         response.setLastDeductedAt(shop.getLastDeductedAt());
         response.setExpireAt(shop.getExpireAt());
         response.setCreatedAt(shop.getCreatedAt());
@@ -79,6 +91,24 @@ public class ShopResponse {
 
     public String getCloneInstanceId() { return cloneInstanceId; }
     public void setCloneInstanceId(String cloneInstanceId) { this.cloneInstanceId = cloneInstanceId; }
+
+    public Integer getCloneSequence() { return cloneSequence; }
+    public void setCloneSequence(Integer cloneSequence) { this.cloneSequence = cloneSequence; }
+
+    public Integer getLocalVirtualUserId() { return localVirtualUserId; }
+    public void setLocalVirtualUserId(Integer localVirtualUserId) { this.localVirtualUserId = localVirtualUserId; }
+
+    public Integer getCredentialVersion() { return credentialVersion; }
+    public void setCredentialVersion(Integer credentialVersion) { this.credentialVersion = credentialVersion; }
+
+    public LocalDateTime getAuthStartAt() { return authStartAt; }
+    public void setAuthStartAt(LocalDateTime authStartAt) { this.authStartAt = authStartAt; }
+
+    public LocalDateTime getAuthExpireAt() { return authExpireAt; }
+    public void setAuthExpireAt(LocalDateTime authExpireAt) { this.authExpireAt = authExpireAt; }
+
+    public String getAuthorizationJti() { return authorizationJti; }
+    public void setAuthorizationJti(String authorizationJti) { this.authorizationJti = authorizationJti; }
 
     public LocalDateTime getLastDeductedAt() { return lastDeductedAt; }
     public void setLastDeductedAt(LocalDateTime lastDeductedAt) { this.lastDeductedAt = lastDeductedAt; }
