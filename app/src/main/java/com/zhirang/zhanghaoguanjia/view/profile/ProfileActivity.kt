@@ -62,6 +62,7 @@ class ProfileActivity : AppCompatActivity() {
 
         viewModel.loadProfile()
         viewModel.refreshEngineUpgradeState()
+        viewModel.refreshAppUpdateState()
     }
 
     override fun onStart() {
@@ -187,6 +188,10 @@ class ProfileActivity : AppCompatActivity() {
             binding.tvEngineUpgradeNew?.visibility = if (hasUpgrade) View.VISIBLE else View.GONE
         }
 
+        viewModel.hasAppUpdateLiveData.observe(this) { hasUpdate ->
+            binding.tvAboutNew?.visibility = if (hasUpdate) View.VISIBLE else View.GONE
+        }
+
         viewModel.appUpdateLiveData.observe(this) { result ->
             result?.fold(
                 onSuccess = { version ->
@@ -222,6 +227,7 @@ class ProfileActivity : AppCompatActivity() {
         }
         if (::viewModel.isInitialized) {
             viewModel.refreshEngineUpgradeState()
+            viewModel.refreshAppUpdateState()
         }
     }
 

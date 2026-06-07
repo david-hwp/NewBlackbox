@@ -12,4 +12,5 @@ public interface AppVersionRepository extends JpaRepository<AppVersion, Long> {
     List<AppVersion> findByDeletedOrderByVersionCodeDesc(Byte deleted);
     Optional<AppVersion> findByIdAndDeleted(Long id, Byte deleted);
     List<AppVersion> findByPublishedAndDeletedOrderByVersionCodeDesc(Boolean published, Byte deleted);
+    Optional<AppVersion> findByVersionCodeAndPublishedAndDeleted(Integer versionCode, Boolean published, Byte deleted);
 }

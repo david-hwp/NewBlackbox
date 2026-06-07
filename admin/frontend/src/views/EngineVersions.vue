@@ -130,12 +130,20 @@ const handleApkChange = async (uploadFile) => {
   data.append('file', uploadFile.raw)
   uploading.value = true
   try {
+    const checksum = await sha256(uploadFile.raw)
     const res = await request.post('/files/engine-packages', data)
     form.value.apkUrl = res.url
+    form.value.checksum = checksum
     ElMessage.success('APK上传成功')
   } finally {
     uploading.value = false
   }
+}
+
+const sha256 = async (file) => {
+  const buffer = await file.arrayBuffer()
+  const hash = await crypto.subtle.digest('SHA-256', buffer)
+  return Array.from(new Uint8Array(hash)).map((b) => b.toString(16).padStart(2, '0')).join('')
 }
 
 const handleSubmit = async () => {

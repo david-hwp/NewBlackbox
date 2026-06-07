@@ -12,4 +12,5 @@ public interface EngineVersionRepository extends JpaRepository<EngineVersion, Lo
     List<EngineVersion> findByDeletedOrderByVersionCodeDesc(Byte deleted);
     Optional<EngineVersion> findByIdAndDeleted(Long id, Byte deleted);
     List<EngineVersion> findByAvailableAndDeletedOrderByVersionCodeDesc(Boolean available, Byte deleted);
+    Optional<EngineVersion> findByVersionCodeAndAvailableAndDeleted(Integer versionCode, Boolean available, Byte deleted);
 }

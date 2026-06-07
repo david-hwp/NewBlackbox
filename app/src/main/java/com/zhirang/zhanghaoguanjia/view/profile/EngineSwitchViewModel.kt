@@ -11,12 +11,18 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import com.zhirang.zhanghaoguanjia.bean.dto.EngineVersionDto
 import com.zhirang.zhanghaoguanjia.data.EngineVersionRepository
+import com.zhirang.zhanghaoguanjia.data.TokenManager
 import com.zhirang.zhanghaoguanjia.engine.EngineInstaller
 import com.zhirang.zhanghaoguanjia.engine.EngineUpgradeState
 import com.zhirang.zhanghaoguanjia.network.RetrofitClient
+import com.zhirang.zhanghaoguanjia.update.PackageIntegrityVerifier
 import java.io.File
+import android.util.Log
 
 class EngineSwitchViewModel(application: Application) : AndroidViewModel(application) {
+    private companion object {
+        private const val TAG = "EngineSwitchViewModel"
+    }
 
     private val repository = EngineVersionRepository(RetrofitClient.apiService)
     private val httpClient = OkHttpClient()
@@ -49,16 +55,31 @@ class EngineSwitchViewModel(application: Application) : AndroidViewModel(applica
         viewModelScope.launch(Dispatchers.IO) {
             _loadingLiveData.postValue(true)
             try {
-                val file = download(version)
-                val checksum = version.checksum?.takeIf { it.isNotBlank() }
-                if (!EngineInstaller.verifyFileChecksum(file, checksum)) {
-                    _messageLiveData.postValue("引擎包校验失败")
+                if (!TokenManager.getInstance().isLoggedIn()) {
+                    _messageLiveData.postValue("请先登录后再升级")
                     _loadingLiveData.postValue(false)
                     return@launch
                 }
+                val file = download(version)
                 val validation = EngineInstaller.validateInstallCandidate(getApplication(), file)
                 if (validation.isFailure) {
                     _messageLiveData.postValue(validation.exceptionOrNull()?.message ?: "引擎包不可安装")
+                    _loadingLiveData.postValue(false)
+                    return@launch
+                }
+                if (validation.getOrThrow().versionCode != version.versionCode) {
+                    _messageLiveData.postValue("引擎包版本号与发布记录不一致")
+                    _loadingLiveData.postValue(false)
+                    return@launch
+                }
+                if (!PackageIntegrityVerifier.verifyBeforeUpgrade(
+                        PackageIntegrityVerifier.PackageType.ENGINE,
+                        file,
+                        version.versionCode,
+                        version.checksum
+                    )
+                ) {
+                    _messageLiveData.postValue(PackageIntegrityVerifier.VERIFY_FAILED_MESSAGE)
                     _loadingLiveData.postValue(false)
                     return@launch
                 }

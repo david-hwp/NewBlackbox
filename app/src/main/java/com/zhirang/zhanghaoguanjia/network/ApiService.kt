@@ -22,8 +22,14 @@ interface ApiService {
     @GET("engine-versions")
     suspend fun getEngineVersions(@Query("available") available: Boolean? = null): ApiResponse<List<EngineVersionDto>>
 
+    @POST("engine-versions/verify")
+    suspend fun verifyEnginePackage(@Body request: PackageVerifyRequest): ApiResponse<PackageVerifyResponse>
+
     @GET("app-versions")
     suspend fun getAppVersions(@Query("published") published: Boolean? = null): ApiResponse<List<AppVersionDto>>
+
+    @POST("app-versions/verify")
+    suspend fun verifyAppPackage(@Body request: PackageVerifyRequest): ApiResponse<PackageVerifyResponse>
 
     @GET("announcements")
     suspend fun getAnnouncements(

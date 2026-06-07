@@ -12,6 +12,8 @@ import java.util.List;
 public class AnnouncementController {
     private static final byte ACTIVE = 0;
     private static final byte DELETED = 1;
+    private static final String APP_RELEASE_TYPE = "APP_RELEASE";
+    private static final String APP_RELEASE_TITLE = "新版本发布";
 
     private final AnnouncementRepository repository;
 
@@ -40,6 +42,7 @@ public class AnnouncementController {
     @PostMapping
     public ApiResponse<Announcement> create(@RequestBody Announcement announcement) {
         announcement.setDeleted(ACTIVE);
+        normalizeReleaseTitle(announcement);
         return ApiResponse.success(repository.save(announcement));
     }
 
@@ -50,6 +53,7 @@ public class AnnouncementController {
         existing.setTitle(announcement.getTitle());
         existing.setContent(announcement.getContent());
         existing.setType(announcement.getType());
+        normalizeReleaseTitle(existing);
         existing.setPublished(announcement.getPublished());
         return ApiResponse.success(repository.save(existing));
     }
@@ -68,5 +72,11 @@ public class AnnouncementController {
             return null;
         }
         return type.trim();
+    }
+
+    private void normalizeReleaseTitle(Announcement announcement) {
+        if (announcement != null && APP_RELEASE_TYPE.equalsIgnoreCase(announcement.getType())) {
+            announcement.setTitle(APP_RELEASE_TITLE);
+        }
     }
 }

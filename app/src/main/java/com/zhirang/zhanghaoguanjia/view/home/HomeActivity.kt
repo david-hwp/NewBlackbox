@@ -311,7 +311,7 @@ class HomeActivity : AppCompatActivity() {
         }
         shownAnnouncementId = announcement.id
         MaterialAlertDialogBuilder(this)
-            .setTitle(announcement.title)
+            .setTitle(announcement.displayTitle())
             .setMessage(announcement.content)
             .setNegativeButton("立即升级") { _, _ ->
                 checkMainAppUpdateFromAnnouncement()
@@ -330,6 +330,10 @@ class HomeActivity : AppCompatActivity() {
 
     private fun AnnouncementDto.hasMainAppUpgradeAction(): Boolean {
         return type.equals("APP_RELEASE", ignoreCase = true)
+    }
+
+    private fun AnnouncementDto.displayTitle(): String {
+        return if (hasMainAppUpgradeAction()) "新版本发布" else title
     }
 
     private fun checkMainAppUpdateFromAnnouncement() {

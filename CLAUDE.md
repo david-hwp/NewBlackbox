@@ -78,9 +78,11 @@ Release verification must include:
 
 When uploading/registering an engine release:
 - Upload the engine APK through the admin `/api/files/engine-packages` file service so local/OBS storage behavior stays unified.
-- Store a checksum matching the uploaded APK. The app supports MD5 (32 hex chars) and SHA-256 (64 hex chars).
+- Store a checksum matching the uploaded APK. The app supports MD5 (32 hex chars) and SHA-256 (64 hex chars), and checksum mismatches must block installation.
 - Verify the public download URL returns the same checksum and `apksigner verify` passes on the downloaded APK.
 - Verify `/api/engine-versions?available=true` returns the new version first.
+- Engine upgrade eligibility is based on the engine APK's real `versionCode`: the candidate engine `versionCode` must be greater than the installed engine `versionCode`. Do not compare engine versions against the main APK version; a main APK can install a newer engine release.
+- Engine upgrades require a logged-in user token. Before starting the Android install flow, the app must send the candidate package `versionCode`, MD5, and SHA-256 to `/api/engine-versions/verify`; only `valid=true` may proceed. `valid=false` must show `您使用的安装包未通过检验，不可升级`.
 
 When uploading/registering a main APK release:
 - Upload the main APK through the admin `/api/files/app-packages` file service. Do not copy APKs directly into local or OBS storage; the file service owns the local/OBS mapping.
@@ -89,6 +91,7 @@ When uploading/registering a main APK release:
 - Version release announcements are independent from ordinary announcements: app startup first checks `/api/app-versions?published=true`; it fetches `APP_RELEASE` announcements only when the latest published `versionCode` is greater than the installed app `versionCode`.
 - If the installed app version equals the latest published version, `APP_RELEASE` must not be shown; normal announcements still follow the existing `NORMAL` announcement flow.
 - The release announcement content should include the public download URL, and the app also exposes the one-click upgrade action from the release announcement and `我的 -> 关于 -> 检查更新`.
+- Main APK upgrades also require a logged-in user token. Before starting the Android install flow, the app must send the candidate package `versionCode`, MD5, and SHA-256 to `/api/app-versions/verify`; only `valid=true` may proceed. `valid=false` must show `您使用的安装包未通过检验，不可升级`.
 
 Example `1.1.0-release` server verification:
 

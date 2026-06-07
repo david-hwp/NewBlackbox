@@ -1,8 +1,11 @@
 package com.duodian.admin.controller;
 
 import com.duodian.admin.controller.dto.ApiResponse;
+import com.duodian.admin.controller.dto.PackageVerifyRequest;
+import com.duodian.admin.controller.dto.PackageVerifyResponse;
 import com.duodian.admin.entity.EngineVersion;
 import com.duodian.admin.repository.EngineVersionRepository;
+import com.duodian.admin.service.PackageIntegrityService;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -14,9 +17,11 @@ public class EngineVersionController {
     private static final byte DELETED = 1;
 
     private final EngineVersionRepository repository;
+    private final PackageIntegrityService packageIntegrityService;
 
-    public EngineVersionController(EngineVersionRepository repository) {
+    public EngineVersionController(EngineVersionRepository repository, PackageIntegrityService packageIntegrityService) {
         this.repository = repository;
+        this.packageIntegrityService = packageIntegrityService;
     }
 
     @GetMapping
@@ -31,6 +36,24 @@ public class EngineVersionController {
     public ApiResponse<EngineVersion> create(@RequestBody EngineVersion version) {
         version.setDeleted(ACTIVE);
         return ApiResponse.success(repository.save(version));
+    }
+
+    @PostMapping("/verify")
+    public ApiResponse<PackageVerifyResponse> verify(@RequestBody PackageVerifyRequest request) {
+        EngineVersion version = repository
+                .findByVersionCodeAndAvailableAndDeleted(request == null ? null : request.getVersionCode(), true, ACTIVE)
+                .orElse(null);
+        if (version == null) {
+            return ApiResponse.success(new PackageVerifyResponse(false));
+        }
+        boolean valid = packageIntegrityService.verify(
+                "engine",
+                version.getApkUrl(),
+                version.getVersionCode(),
+                version.getChecksum(),
+                request
+        );
+        return ApiResponse.success(new PackageVerifyResponse(valid));
     }
 
     @PutMapping("/{id}")

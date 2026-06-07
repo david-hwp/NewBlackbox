@@ -39,7 +39,12 @@
     <el-dialog v-model="dialogVisible" :title="isEdit ? '编辑公告' : '发布公告'" width="640px">
       <el-form :model="form" :rules="rules" ref="formRef" label-width="80px">
         <el-form-item label="标题" prop="title">
-          <el-input v-model="form.title" maxlength="128" show-word-limit />
+          <el-input
+            v-model="form.title"
+            :disabled="form.type === APP_RELEASE_TYPE"
+            maxlength="128"
+            show-word-limit
+          />
         </el-form-item>
         <el-form-item label="类型" prop="type">
           <el-select v-model="form.type" style="width: 100%">
@@ -63,7 +68,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, watch, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import request from '../utils/request'
 
@@ -72,6 +77,8 @@ const loading = ref(false)
 const dialogVisible = ref(false)
 const isEdit = ref(false)
 const formRef = ref()
+const APP_RELEASE_TYPE = 'APP_RELEASE'
+const APP_RELEASE_TITLE = '新版本发布'
 const form = ref({ title: '', content: '', type: 'NORMAL', published: true })
 
 const rules = {
@@ -81,9 +88,18 @@ const rules = {
 }
 
 const typeLabel = (type) => {
-  if (type === 'APP_RELEASE') return '版本发布'
+  if (type === APP_RELEASE_TYPE) return '版本发布'
   return '普通公告'
 }
+
+watch(
+  () => form.value.type,
+  (type) => {
+    if (type === APP_RELEASE_TYPE) {
+      form.value.title = APP_RELEASE_TITLE
+    }
+  }
+)
 
 const fetchAnnouncements = async () => {
   loading.value = true
@@ -103,10 +119,16 @@ const showAddDialog = () => {
 const showEditDialog = (row) => {
   isEdit.value = true
   form.value = { ...row, type: row.type || 'NORMAL' }
+  if (form.value.type === APP_RELEASE_TYPE) {
+    form.value.title = APP_RELEASE_TITLE
+  }
   dialogVisible.value = true
 }
 
 const handleSubmit = async () => {
+  if (form.value.type === APP_RELEASE_TYPE) {
+    form.value.title = APP_RELEASE_TITLE
+  }
   const valid = await formRef.value.validate().catch(() => false)
   if (!valid) return
 

@@ -15,6 +15,7 @@ import android.util.Log
 import androidx.core.content.FileProvider
 import com.zhirang.zhanghaoguanjia.bean.dto.AppVersionDto
 import com.zhirang.zhanghaoguanjia.data.AppVersionRepository
+import com.zhirang.zhanghaoguanjia.data.TokenManager
 import com.zhirang.zhanghaoguanjia.network.RetrofitClient
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -62,19 +63,32 @@ object AppUpdateManager {
         context.startActivity(intent)
     }
 
-    fun downloadAndInstall(context: Context, version: AppVersionDto): Result<Unit> {
+    suspend fun downloadAndInstall(context: Context, version: AppVersionDto): Result<Unit> {
         return try {
+            if (!TokenManager.getInstance().isLoggedIn()) {
+                return Result.failure(IllegalStateException("请先登录后再升级"))
+            }
             if (!canInstallUnknownApps(context)) {
                 openInstallPermissionSettings(context)
                 return Result.failure(IllegalStateException("请先允许本应用安装未知来源应用"))
             }
             val file = download(context.applicationContext as Application, version)
-            if (!verifyFileChecksum(file, version.checksum)) {
-                return Result.failure(SecurityException("主 APK 校验失败"))
-            }
             val validation = validateInstallCandidate(context, file)
             if (validation.isFailure) {
                 return Result.failure(validation.exceptionOrNull() ?: IllegalStateException("主 APK 不可安装"))
+            }
+            val candidateVersionCode = getVersionCode(validation.getOrThrow())
+            if (candidateVersionCode != version.versionCode) {
+                return Result.failure(SecurityException(PackageIntegrityVerifier.VERIFY_FAILED_MESSAGE))
+            }
+            if (!PackageIntegrityVerifier.verifyBeforeUpgrade(
+                    PackageIntegrityVerifier.PackageType.APP,
+                    file,
+                    candidateVersionCode,
+                    version.checksum
+                )
+            ) {
+                return Result.failure(SecurityException(PackageIntegrityVerifier.VERIFY_FAILED_MESSAGE))
             }
             installApk(context, file)
         } catch (e: Exception) {
@@ -180,38 +194,6 @@ object AppUpdateManager {
 
     private fun getCurrentVersionCode(context: Context): Int {
         return getVersionCode(context.packageManager.getPackageInfo(context.packageName, 0))
-    }
-
-    private fun verifyFileChecksum(file: File, expectedChecksum: String?): Boolean {
-        val expected = expectedChecksum?.trim()?.takeIf { it.isNotBlank() } ?: return true
-        val algorithm = when (expected.length) {
-            32 -> "MD5"
-            64 -> "SHA-256"
-            else -> return false
-        }
-        val actual = computeFileDigest(file, algorithm) ?: return false
-        val matched = actual.equals(expected, ignoreCase = true)
-        if (!matched) {
-            Log.e(TAG, "Checksum mismatch: algorithm=$algorithm expected=$expected actual=$actual")
-        }
-        return matched
-    }
-
-    private fun computeFileDigest(file: File, algorithm: String): String? {
-        return try {
-            val md = MessageDigest.getInstance(algorithm)
-            file.inputStream().use { input ->
-                val buffer = ByteArray(8192)
-                var read: Int
-                while (input.read(buffer).also { read = it } > 0) {
-                    md.update(buffer, 0, read)
-                }
-            }
-            md.digest().joinToString("") { "%02x".format(it) }
-        } catch (e: Exception) {
-            Log.w(TAG, "Digest failed: ${e.message}", e)
-            null
-        }
     }
 
     private fun signatureFlags(): Int {

@@ -23,8 +23,7 @@ object EngineVersionChecker {
         val downloadUrl: String,
         val checksum: String?,
         val isForce: Boolean,
-        val changelog: String,
-        val minAppVersion: Int
+        val changelog: String
     )
 
     /**
@@ -46,11 +45,10 @@ object EngineVersionChecker {
 
             val localVersion = EngineInstaller.getInstalledEngineVersion(context)
             val builtinVersion = EngineInstaller.getBuiltinEngineVersion(context)
-            val appVersion = getAppVersionCode(context)
             val currentComparableVersion = maxOf(localVersion, builtinVersion)
             EngineUpgradeState.clearPendingIfInstalled(context, localVersion)
 
-            Log.d(TAG, "Checking for upgrade: local=$localVersion, builtin=$builtinVersion, app=$appVersion")
+            Log.d(TAG, "Checking for upgrade: local=$localVersion, builtin=$builtinVersion")
 
             val upgradeInfo = checkForBuiltinUpgrade(localVersion, builtinVersion)
                 ?: checkForServerUpgrade(currentComparableVersion)
@@ -100,24 +98,6 @@ object EngineVersionChecker {
         return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     }
 
-    /**
-     * Get the app version code from PackageManager.
-     */
-    private fun getAppVersionCode(context: Context): Int {
-        return try {
-            val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
-                packageInfo.longVersionCode.toInt()
-            } else {
-                @Suppress("DEPRECATION")
-                packageInfo.versionCode
-            }
-        } catch (e: Exception) {
-            Log.w(TAG, "Error getting app version code: ${e.message}")
-            0
-        }
-    }
-
     private fun checkForBuiltinUpgrade(
         localVersion: Int,
         builtinVersion: Int
@@ -130,8 +110,7 @@ object EngineVersionChecker {
                 downloadUrl = "", // Local upgrade uses bundled APK, no download needed
                 checksum = null,
                 isForce = true,   // Force upgrade to prevent data loss from manual uninstall
-                changelog = "Engine update with latest features and fixes",
-                minAppVersion = 0
+                changelog = "Engine update with latest features and fixes"
             )
         }
         return null
@@ -156,8 +135,7 @@ object EngineVersionChecker {
             downloadUrl = latest.apkUrl,
             checksum = latest.checksum,
             isForce = false,
-            changelog = latest.changelog?.takeIf { it.isNotBlank() } ?: "发现新的引擎版本，请升级后继续使用最新能力",
-            minAppVersion = 0
+            changelog = latest.changelog?.takeIf { it.isNotBlank() } ?: "发现新的引擎版本，请升级后继续使用最新能力"
         )
     }
 }

@@ -30,6 +30,7 @@ class ProfileViewModel : ViewModel() {
     val passwordResultLiveData = MutableLiveData<Result<Unit>>()
     val errorLiveData = MutableLiveData<String>()
     val hasEngineUpgradeLiveData = MutableLiveData<Boolean>()
+    val hasAppUpdateLiveData = MutableLiveData<Boolean>()
     val appUpdateLiveData = MutableLiveData<Result<AppVersionDto?>>()
     val appInstallResultLiveData = MutableLiveData<Result<Unit>>()
 
@@ -124,6 +125,13 @@ class ProfileViewModel : ViewModel() {
                     hasEngineUpgradeLiveData.value = EngineUpgradeState.hasPendingUpgrade(context, current)
                 }
             )
+        }
+    }
+
+    fun refreshAppUpdateState() {
+        viewModelScope.launch {
+            val result = AppUpdateManager.checkForUpdate(App.getContext())
+            hasAppUpdateLiveData.value = result.getOrNull() != null
         }
     }
 

@@ -554,6 +554,22 @@
                         android:textColor="@color/duodian_text_primary"
                         android:textSize="15sp" />
 
+                    <TextView
+                        android:id="@+id/tvAboutNew"
+                        android:layout_width="wrap_content"
+                        android:layout_height="20dp"
+                        android:layout_marginEnd="8dp"
+                        android:background="@drawable/bg_badge_new"
+                        android:gravity="center"
+                        android:minWidth="36dp"
+                        android:paddingHorizontal="8dp"
+                        android:text="new"
+                        android:textAllCaps="false"
+                        android:textColor="@color/white"
+                        android:textSize="11sp"
+                        android:textStyle="bold"
+                        android:visibility="gone" />
+
                     <ImageView
                         android:layout_width="20dp"
                         android:layout_height="20dp"
