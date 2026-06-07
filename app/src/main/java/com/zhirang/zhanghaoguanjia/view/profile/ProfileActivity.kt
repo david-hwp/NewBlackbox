@@ -12,6 +12,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.ViewModelProvider
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.zhirang.zhanghaoguanjia.bean.dto.AppVersionDto
+import com.zhirang.zhanghaoguanjia.bean.dto.EngineVersionDto
 import com.zhirang.zhanghaoguanjia.bean.dto.UserDto
 import com.zhirang.zhanghaoguanjia.data.BaseRepository
 import com.zhirang.zhanghaoguanjia.data.TokenManager
@@ -207,6 +208,17 @@ class ProfileActivity : AppCompatActivity() {
             )
         }
 
+        viewModel.updateCheckLiveData.observe(this) { result ->
+            result?.fold(
+                onSuccess = { update ->
+                    showCombinedUpdateResult(update.appVersion, update.engineVersion)
+                },
+                onFailure = { e ->
+                    Toast.makeText(this, e.message ?: "检查更新失败", Toast.LENGTH_SHORT).show()
+                }
+            )
+        }
+
         viewModel.appInstallResultLiveData.observe(this) { result ->
             result?.fold(
                 onSuccess = {
@@ -299,10 +311,46 @@ class ProfileActivity : AppCompatActivity() {
             .setTitle("关于")
             .setMessage(content)
             .setNegativeButton("检查更新") { _, _ ->
-                viewModel.checkAppUpdate()
+                viewModel.checkUpdates()
             }
             .setPositiveButton("确定", null)
             .show()
+    }
+
+    private fun showCombinedUpdateResult(appVersion: AppVersionDto?, engineVersion: EngineVersionDto?) {
+        when {
+            appVersion != null -> showAppUpdateDialog(appVersion)
+            engineVersion != null -> showEngineUpdateDialog(engineVersion)
+            else -> Toast.makeText(this, "当前已是最新版本", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun showEngineUpdateDialog(version: EngineVersionDto) {
+        val changelog = version.changelog?.takeIf { it.isNotBlank() } ?: "暂无更新说明"
+        val content = """
+            当前引擎版本：${currentEngineVersionLabel()}
+            最新引擎版本：${version.versionName} (${version.versionCode})
+
+            $changelog
+        """.trimIndent()
+        MaterialAlertDialogBuilder(this)
+            .setTitle("发现引擎更新")
+            .setMessage(content)
+            .setNegativeButton("稍后", null)
+            .setPositiveButton("去升级") { _, _ ->
+                EngineSwitchActivity.start(this)
+            }
+            .show()
+    }
+
+    private fun currentEngineVersionLabel(): String {
+        val engineVersionCode = EngineInstaller.getInstalledEngineVersion(this)
+        val engineVersionName = EngineInstaller.getInstalledEngineVersionName(this)
+        return if (engineVersionCode > 0) {
+            engineVersionName?.let { "$it ($engineVersionCode)" } ?: engineVersionCode.toString()
+        } else {
+            "未安装"
+        }
     }
 
     private fun showAppUpdateDialog(version: AppVersionDto) {

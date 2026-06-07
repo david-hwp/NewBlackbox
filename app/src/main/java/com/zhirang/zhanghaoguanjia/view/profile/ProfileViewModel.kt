@@ -8,6 +8,7 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.launch
 import com.zhirang.zhanghaoguanjia.app.App
 import com.zhirang.zhanghaoguanjia.bean.dto.AppVersionDto
+import com.zhirang.zhanghaoguanjia.bean.dto.EngineVersionDto
 import com.zhirang.zhanghaoguanjia.bean.dto.UserDto
 import com.zhirang.zhanghaoguanjia.update.AppUpdateManager
 import com.zhirang.zhanghaoguanjia.data.EngineVersionRepository
@@ -32,6 +33,7 @@ class ProfileViewModel : ViewModel() {
     val hasEngineUpgradeLiveData = MutableLiveData<Boolean>()
     val hasAppUpdateLiveData = MutableLiveData<Boolean>()
     val appUpdateLiveData = MutableLiveData<Result<AppVersionDto?>>()
+    val updateCheckLiveData = MutableLiveData<Result<UpdateCheckResult>>()
     val appInstallResultLiveData = MutableLiveData<Result<Unit>>()
 
     fun loadProfile() {
@@ -106,23 +108,24 @@ class ProfileViewModel : ViewModel() {
             val context = App.getContext()
             val installed = EngineInstaller.getInstalledEngineVersion(context)
             val builtin = EngineInstaller.getBuiltinEngineVersion(context)
-            val current = maxOf(installed, builtin)
             EngineUpgradeState.clearPendingIfInstalled(context, installed)
+            val hasBuiltinUpgrade = installed > 0 && builtin > installed
 
             val result = engineVersionRepository.getAvailableVersions()
             result.fold(
                 onSuccess = { versions ->
                     val latest = versions.maxByOrNull { it.versionCode }
                     val latestVersionCode = latest?.versionCode ?: 0
-                    val hasServerUpgrade = latestVersionCode > current
+                    val hasServerUpgrade = latestVersionCode > installed
                     if (hasServerUpgrade) {
                         EngineUpgradeState.markPending(context, latestVersionCode)
                     }
                     hasEngineUpgradeLiveData.value =
-                        hasServerUpgrade || EngineUpgradeState.hasPendingUpgrade(context, current)
+                        hasBuiltinUpgrade || hasServerUpgrade || EngineUpgradeState.hasPendingUpgrade(context, installed)
                 },
                 onFailure = {
-                    hasEngineUpgradeLiveData.value = EngineUpgradeState.hasPendingUpgrade(context, current)
+                    hasEngineUpgradeLiveData.value =
+                        hasBuiltinUpgrade || EngineUpgradeState.hasPendingUpgrade(context, installed)
                 }
             )
         }
@@ -142,6 +145,36 @@ class ProfileViewModel : ViewModel() {
         }
     }
 
+    fun checkUpdates() {
+        viewModelScope.launch {
+            val appResult = AppUpdateManager.checkForUpdate(App.getContext())
+            val engineResult = checkEngineUpdate()
+            if (appResult.isFailure && engineResult.isFailure) {
+                updateCheckLiveData.value = Result.failure(
+                    appResult.exceptionOrNull()
+                        ?: engineResult.exceptionOrNull()
+                        ?: IllegalStateException("检查更新失败")
+                )
+                return@launch
+            }
+            updateCheckLiveData.value = Result.success(
+                UpdateCheckResult(
+                    appVersion = appResult.getOrNull(),
+                    engineVersion = engineResult.getOrNull()
+                )
+            )
+        }
+    }
+
+    private suspend fun checkEngineUpdate(): Result<EngineVersionDto?> {
+        val installed = EngineInstaller.getInstalledEngineVersion(App.getContext())
+        return engineVersionRepository.getAvailableVersions().map { versions ->
+            versions
+                .filter { it.available && it.versionCode > installed }
+                .maxByOrNull { it.versionCode }
+        }
+    }
+
     fun downloadAndInstallApp(version: AppVersionDto) {
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             val result = AppUpdateManager.downloadAndInstall(App.getContext(), version)
@@ -153,4 +186,9 @@ class ProfileViewModel : ViewModel() {
         tokenManager.clearToken()
         tokenManager.clearUser()
     }
+
+    data class UpdateCheckResult(
+        val appVersion: AppVersionDto?,
+        val engineVersion: EngineVersionDto?
+    )
 }
