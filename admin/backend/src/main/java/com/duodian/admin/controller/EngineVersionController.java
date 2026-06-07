@@ -3,9 +3,13 @@ package com.duodian.admin.controller;
 import com.duodian.admin.controller.dto.ApiResponse;
 import com.duodian.admin.controller.dto.PackageVerifyRequest;
 import com.duodian.admin.controller.dto.PackageVerifyResponse;
+import com.duodian.admin.controller.dto.PagedResponse;
 import com.duodian.admin.entity.EngineVersion;
 import com.duodian.admin.repository.EngineVersionRepository;
 import com.duodian.admin.service.PackageIntegrityService;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -25,7 +29,22 @@ public class EngineVersionController {
     }
 
     @GetMapping
-    public ApiResponse<List<EngineVersion>> list(@RequestParam(required = false) Boolean available) {
+    public ApiResponse<?> list(
+            @RequestParam(required = false) Boolean available,
+            @RequestParam(required = false) Integer versionCode,
+            @RequestParam(required = false) String versionName,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size) {
+        if (page != null || size != null || versionCode != null || hasText(versionName)) {
+            Page<EngineVersion> versions = repository.searchEngineVersions(
+                    ACTIVE,
+                    versionCode,
+                    normalize(versionName),
+                    available,
+                    PageRequest.of(pageNumber(page) - 1, pageSize(size), Sort.by(Sort.Direction.DESC, "versionCode"))
+            );
+            return ApiResponse.success(PagedResponse.from(versions));
+        }
         if (available != null) {
             return ApiResponse.success(repository.findByAvailableAndDeletedOrderByVersionCodeDesc(available, ACTIVE));
         }
@@ -76,5 +95,21 @@ public class EngineVersionController {
         existing.setDeleted(DELETED);
         repository.save(existing);
         return ApiResponse.success();
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
+    }
+
+    private String normalize(String value) {
+        return hasText(value) ? value.trim() : null;
+    }
+
+    private int pageNumber(Integer page) {
+        return Math.max(1, page == null ? 1 : page);
+    }
+
+    private int pageSize(Integer size) {
+        return Math.max(1, Math.min(100, size == null ? 20 : size));
     }
 }

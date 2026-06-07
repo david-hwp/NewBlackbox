@@ -8,6 +8,25 @@
         </div>
       </template>
 
+      <el-form class="filter-bar" :model="filters" inline @submit.prevent>
+        <el-form-item label="版本号">
+          <el-input v-model="filters.versionCode" clearable placeholder="输入版本号" style="width: 140px" @keyup.enter="handleSearch" />
+        </el-form-item>
+        <el-form-item label="版本名称">
+          <el-input v-model="filters.versionName" clearable placeholder="输入版本名称" style="width: 180px" @keyup.enter="handleSearch" />
+        </el-form-item>
+        <el-form-item label="发布">
+          <el-select v-model="filters.published" clearable placeholder="全部状态" style="width: 140px">
+            <el-option label="已发布" :value="true" />
+            <el-option label="草稿" :value="false" />
+          </el-select>
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" @click="handleSearch">查询</el-button>
+          <el-button @click="resetFilters">重置</el-button>
+        </el-form-item>
+      </el-form>
+
       <el-table :data="versions" v-loading="loading" style="width: 100%">
         <el-table-column prop="id" label="ID" width="70" />
         <el-table-column prop="versionCode" label="版本号" width="100" />
@@ -42,6 +61,19 @@
           </template>
         </el-table-column>
       </el-table>
+
+      <div class="pagination-row">
+        <el-pagination
+          background
+          layout="total, sizes, prev, pager, next, jumper"
+          :total="pagination.total"
+          :current-page="pagination.page"
+          :page-size="pagination.size"
+          :page-sizes="[10, 20, 50, 100]"
+          @current-change="handlePageChange"
+          @size-change="handleSizeChange"
+        />
+      </div>
     </el-card>
 
     <el-dialog v-model="dialogVisible" :title="isEdit ? '编辑版本' : '新增版本'" width="660px">
@@ -104,6 +136,16 @@ const uploading = ref(false)
 const dialogVisible = ref(false)
 const isEdit = ref(false)
 const formRef = ref()
+const filters = ref({
+  versionCode: '',
+  versionName: '',
+  published: null
+})
+const pagination = ref({
+  page: 1,
+  size: 20,
+  total: 0
+})
 
 const emptyForm = () => ({
   versionCode: 1,
@@ -126,10 +168,56 @@ const rules = {
 const fetchVersions = async () => {
   loading.value = true
   try {
-    versions.value = await request.get('/app-versions')
+    const result = await request.get('/app-versions', {
+      params: {
+        page: pagination.value.page,
+        size: pagination.value.size,
+        versionCode: normalizeVersionCode(filters.value.versionCode),
+        versionName: filters.value.versionName || undefined,
+        published: normalizeBooleanFilter(filters.value.published)
+      }
+    })
+    versions.value = result.list || result.content || []
+    pagination.value.total = Number(result.total ?? result.totalElements ?? 0)
   } finally {
     loading.value = false
   }
+}
+
+const handleSearch = () => {
+  pagination.value.page = 1
+  fetchVersions()
+}
+
+const resetFilters = () => {
+  filters.value = {
+    versionCode: '',
+    versionName: '',
+    published: null
+  }
+  pagination.value.page = 1
+  fetchVersions()
+}
+
+const handlePageChange = (page) => {
+  pagination.value.page = page
+  fetchVersions()
+}
+
+const handleSizeChange = (size) => {
+  pagination.value.size = size
+  pagination.value.page = 1
+  fetchVersions()
+}
+
+const normalizeVersionCode = (value) => {
+  if (value === null || value === undefined || value === '') return undefined
+  const parsed = Number(value)
+  return Number.isFinite(parsed) && parsed > 0 ? Math.trunc(parsed) : undefined
+}
+
+const normalizeBooleanFilter = (value) => {
+  return value === true || value === false ? value : undefined
 }
 
 const showAddDialog = () => {
@@ -218,5 +306,22 @@ onMounted(fetchVersions)
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0;
+  margin-bottom: 16px;
+  padding: 12px 12px 0;
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+}
+
+.pagination-row {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 16px;
 }
 </style>

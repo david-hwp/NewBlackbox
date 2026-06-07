@@ -8,6 +8,26 @@
         </div>
       </template>
 
+      <el-form class="filter-bar" :model="filters" inline @submit.prevent>
+        <el-form-item label="手机号">
+          <el-input v-model="filters.userPhone" clearable placeholder="输入用户手机号" style="width: 180px" @keyup.enter="handleSearch" />
+        </el-form-item>
+        <el-form-item label="状态">
+          <el-select v-model="filters.status" clearable placeholder="全部状态" style="width: 150px">
+            <el-option label="待处理" value="PENDING" />
+            <el-option label="处理中" value="PROCESSING" />
+            <el-option label="已解决" value="RESOLVED" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="内容">
+          <el-input v-model="filters.content" clearable placeholder="反馈/日志/设备关键词" style="width: 220px" @keyup.enter="handleSearch" />
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" @click="handleSearch">查询</el-button>
+          <el-button @click="resetFilters">重置</el-button>
+        </el-form-item>
+      </el-form>
+
       <el-table :data="feedbacks" v-loading="loading" style="width: 100%">
         <el-table-column prop="id" label="ID" width="70" />
         <el-table-column prop="userPhone" label="用户手机号" width="140" />
@@ -74,6 +94,19 @@
           </template>
         </el-table-column>
       </el-table>
+
+      <div class="pagination-row">
+        <el-pagination
+          background
+          layout="total, sizes, prev, pager, next, jumper"
+          :total="pagination.total"
+          :current-page="pagination.page"
+          :page-size="pagination.size"
+          :page-sizes="[10, 20, 50, 100]"
+          @current-change="handlePageChange"
+          @size-change="handleSizeChange"
+        />
+      </div>
     </el-card>
 
     <el-dialog
@@ -123,6 +156,16 @@ const loading = ref(false)
 const thumbnailUrls = reactive({})
 const objectUrlCache = new Map()
 const previewStageRef = ref(null)
+const filters = ref({
+  userPhone: '',
+  status: '',
+  content: ''
+})
+const pagination = ref({
+  page: 1,
+  size: 20,
+  total: 0
+})
 const preview = reactive({
   visible: false,
   urls: [],
@@ -147,11 +190,47 @@ const previewImageStyle = computed(() => {
 const fetchFeedbacks = async () => {
   loading.value = true
   try {
-    feedbacks.value = await request.get('/feedbacks')
+    const result = await request.get('/feedbacks', {
+      params: {
+        page: pagination.value.page,
+        size: pagination.value.size,
+        userPhone: filters.value.userPhone || undefined,
+        status: filters.value.status || undefined,
+        content: filters.value.content || undefined
+      }
+    })
+    feedbacks.value = result.list || result.content || []
+    pagination.value.total = Number(result.total ?? result.totalElements ?? 0)
     await loadThumbnails(feedbacks.value)
   } finally {
     loading.value = false
   }
+}
+
+const handleSearch = () => {
+  pagination.value.page = 1
+  fetchFeedbacks()
+}
+
+const resetFilters = () => {
+  filters.value = {
+    userPhone: '',
+    status: '',
+    content: ''
+  }
+  pagination.value.page = 1
+  fetchFeedbacks()
+}
+
+const handlePageChange = (page) => {
+  pagination.value.page = page
+  fetchFeedbacks()
+}
+
+const handleSizeChange = (size) => {
+  pagination.value.size = size
+  pagination.value.page = 1
+  fetchFeedbacks()
 }
 
 const imageList = (value) => {
@@ -319,6 +398,23 @@ onMounted(fetchFeedbacks)
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0;
+  margin-bottom: 16px;
+  padding: 12px 12px 0;
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+}
+
+.pagination-row {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 16px;
 }
 
 .thumb-list {

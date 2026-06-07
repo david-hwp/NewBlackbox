@@ -8,6 +8,25 @@
         </div>
       </template>
 
+      <el-form class="filter-bar" :model="filters" inline @submit.prevent>
+        <el-form-item label="用户名">
+          <el-input v-model="filters.username" clearable placeholder="输入用户名" style="width: 180px" @keyup.enter="handleSearch" />
+        </el-form-item>
+        <el-form-item label="手机号">
+          <el-input v-model="filters.phone" clearable placeholder="输入手机号" style="width: 180px" @keyup.enter="handleSearch" />
+        </el-form-item>
+        <el-form-item label="角色">
+          <el-select v-model="filters.role" clearable placeholder="全部角色" style="width: 140px">
+            <el-option label="管理员" value="ADMIN" />
+            <el-option label="用户" value="USER" />
+          </el-select>
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" @click="handleSearch">查询</el-button>
+          <el-button @click="resetFilters">重置</el-button>
+        </el-form-item>
+      </el-form>
+
       <el-table :data="users" v-loading="loading" style="width: 100%">
         <el-table-column prop="id" label="ID" width="60" />
         <el-table-column prop="username" label="用户名" />
@@ -28,6 +47,19 @@
           </template>
         </el-table-column>
       </el-table>
+
+      <div class="pagination-row">
+        <el-pagination
+          background
+          layout="total, sizes, prev, pager, next, jumper"
+          :total="pagination.total"
+          :current-page="pagination.page"
+          :page-size="pagination.size"
+          :page-sizes="[10, 20, 50, 100]"
+          @current-change="handlePageChange"
+          @size-change="handleSizeChange"
+        />
+      </div>
     </el-card>
 
     <!-- 新增/编辑弹窗 -->
@@ -73,6 +105,16 @@ const loading = ref(false)
 const dialogVisible = ref(false)
 const isEdit = ref(false)
 const formRef = ref()
+const filters = ref({
+  username: '',
+  phone: '',
+  role: ''
+})
+const pagination = ref({
+  page: 1,
+  size: 20,
+  total: 0
+})
 const form = ref({ username: '', phone: '', password: '', role: 'USER', computeBalance: 0, nonTransferableComputeBalance: 0 })
 
 const rules = {
@@ -84,10 +126,46 @@ const rules = {
 const fetchUsers = async () => {
   loading.value = true
   try {
-    users.value = await request.get('/users')
+    const result = await request.get('/users', {
+      params: {
+        page: pagination.value.page,
+        size: pagination.value.size,
+        username: filters.value.username || undefined,
+        phone: filters.value.phone || undefined,
+        role: filters.value.role || undefined
+      }
+    })
+    users.value = result.list || result.content || []
+    pagination.value.total = Number(result.total ?? result.totalElements ?? 0)
   } finally {
     loading.value = false
   }
+}
+
+const handleSearch = () => {
+  pagination.value.page = 1
+  fetchUsers()
+}
+
+const resetFilters = () => {
+  filters.value = {
+    username: '',
+    phone: '',
+    role: ''
+  }
+  pagination.value.page = 1
+  fetchUsers()
+}
+
+const handlePageChange = (page) => {
+  pagination.value.page = page
+  fetchUsers()
+}
+
+const handleSizeChange = (size) => {
+  pagination.value.size = size
+  pagination.value.page = 1
+  fetchUsers()
 }
 
 const showAddDialog = () => {
@@ -140,5 +218,22 @@ onMounted(fetchUsers)
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0;
+  margin-bottom: 16px;
+  padding: 12px 12px 0;
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+}
+
+.pagination-row {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 16px;
 }
 </style>

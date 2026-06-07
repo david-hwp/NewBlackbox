@@ -18,6 +18,27 @@ public interface TransactionLogRepository extends JpaRepository<TransactionLog, 
     List<TransactionLog> findByUserIdAndDeletedOrderByCreatedAtDesc(Long userId, Byte deleted);
     List<TransactionLog> findByTypeAndDeletedOrderByCreatedAtDesc(String type, Byte deleted);
 
+    @Query("""
+            select t
+            from TransactionLog t
+            left join User u on u.id = t.userId and u.deleted = :active
+            where t.deleted = :active
+              and (:userId is null or t.userId = :userId)
+              and (:type is null or t.type = :type)
+              and (:phone is null or t.fromPhone like concat('%', :phone, '%')
+                   or t.toPhone like concat('%', :phone, '%')
+                   or u.phone like concat('%', :phone, '%'))
+              and (:shopName is null or t.shopName like concat('%', :shopName, '%'))
+            """)
+    Page<TransactionLog> searchLogs(
+            @Param("active") Byte active,
+            @Param("userId") Long userId,
+            @Param("type") String type,
+            @Param("phone") String phone,
+            @Param("shopName") String shopName,
+            Pageable pageable
+    );
+
     @Query("SELECT t FROM TransactionLog t WHERE t.userId = :userId " +
            "AND t.deleted = :active " +
            "AND (:type IS NULL OR t.type = :type) " +

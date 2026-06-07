@@ -1,9 +1,13 @@
 package com.duodian.admin.controller;
 
 import com.duodian.admin.controller.dto.ApiResponse;
+import com.duodian.admin.controller.dto.PagedResponse;
 import com.duodian.admin.controller.dto.PlatformInfo;
 import com.duodian.admin.entity.PlatformConfig;
 import com.duodian.admin.repository.PlatformConfigRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -21,7 +25,26 @@ public class PlatformController {
     }
 
     @GetMapping
-    public ApiResponse<List<PlatformInfo>> list() {
+    public ApiResponse<?> list(
+            @RequestParam(required = false) String name,
+            @RequestParam(required = false) String platformId,
+            @RequestParam(required = false) String packageName,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size) {
+        if (page != null || size != null || hasText(name) || hasText(platformId) || hasText(packageName)) {
+            Page<PlatformInfo> platforms = repository.searchPlatforms(
+                    ACTIVE,
+                    normalize(name),
+                    normalize(platformId),
+                    normalize(packageName),
+                    PageRequest.of(
+                            pageNumber(page) - 1,
+                            pageSize(size),
+                            Sort.by(Sort.Direction.ASC, "sortOrder").and(Sort.by(Sort.Direction.ASC, "id"))
+                    )
+            ).map(this::toInfo);
+            return ApiResponse.success(PagedResponse.from(platforms));
+        }
         return ApiResponse.success(repository.findByDeletedOrderBySortOrderAscIdAsc(ACTIVE).stream()
                 .map(this::toInfo)
                 .toList());
@@ -84,5 +107,21 @@ public class PlatformController {
         info.setDbId(config.getId());
         info.setSortOrder(config.getSortOrder());
         return info;
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
+    }
+
+    private String normalize(String value) {
+        return hasText(value) ? value.trim() : null;
+    }
+
+    private int pageNumber(Integer page) {
+        return Math.max(1, page == null ? 1 : page);
+    }
+
+    private int pageSize(Integer size) {
+        return Math.max(1, Math.min(100, size == null ? 20 : size));
     }
 }

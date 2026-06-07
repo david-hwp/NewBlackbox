@@ -3,12 +3,17 @@ package com.duodian.admin.controller;
 import com.duodian.admin.config.AuthContext;
 import com.duodian.admin.controller.dto.ApiResponse;
 import com.duodian.admin.controller.dto.FeedbackCreateRequest;
+import com.duodian.admin.controller.dto.PagedResponse;
 import com.duodian.admin.entity.Feedback;
 import com.duodian.admin.entity.User;
 import com.duodian.admin.config.JwtUtil;
+import com.duodian.admin.repository.FeedbackRepository;
 import com.duodian.admin.service.FeedbackService;
 import com.duodian.admin.service.FileStorageService;
 import com.duodian.admin.service.UserService;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -19,26 +24,50 @@ import java.util.List;
 @RestController
 @RequestMapping("/feedbacks")
 public class FeedbackController {
+    private static final byte ACTIVE = 0;
 
     private final FeedbackService feedbackService;
     private final UserService userService;
     private final FileStorageService fileStorageService;
     private final JwtUtil jwtUtil;
+    private final FeedbackRepository feedbackRepository;
 
     private static final long MAX_ATTACHMENT_SIZE = 10 * 1024 * 1024; // 10MB
     private static final long MAX_LOG_SIZE = 10 * 1024 * 1024; // 10MB
     private static final List<String> ALLOWED_IMAGE_TYPES = List.of("image/jpeg", "image/png", "image/webp");
     private static final int MAX_IMAGES = 5;
 
-    public FeedbackController(FeedbackService feedbackService, UserService userService, FileStorageService fileStorageService, JwtUtil jwtUtil) {
+    public FeedbackController(
+            FeedbackService feedbackService,
+            UserService userService,
+            FileStorageService fileStorageService,
+            JwtUtil jwtUtil,
+            FeedbackRepository feedbackRepository
+    ) {
         this.feedbackService = feedbackService;
         this.userService = userService;
         this.fileStorageService = fileStorageService;
         this.jwtUtil = jwtUtil;
+        this.feedbackRepository = feedbackRepository;
     }
 
     @GetMapping
-    public ApiResponse<List<Feedback>> list(@RequestParam(required = false) String status) {
+    public ApiResponse<?> list(
+            @RequestParam(required = false) String userPhone,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String content,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size) {
+        if (page != null || size != null || hasText(userPhone) || hasText(content)) {
+            Page<Feedback> feedbacks = feedbackRepository.searchFeedbacks(
+                    ACTIVE,
+                    normalize(userPhone),
+                    normalize(status),
+                    normalize(content),
+                    PageRequest.of(pageNumber(page) - 1, pageSize(size), Sort.by(Sort.Direction.DESC, "createdAt"))
+            );
+            return ApiResponse.success(PagedResponse.from(feedbacks));
+        }
         if (status != null && !status.isBlank()) {
             return ApiResponse.success(feedbackService.findByStatus(status));
         }
@@ -231,6 +260,22 @@ public class FeedbackController {
         }
         String trimmed = value.trim();
         return trimmed.length() > maxLength ? trimmed.substring(0, maxLength) : trimmed;
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
+    }
+
+    private String normalize(String value) {
+        return hasText(value) ? value.trim() : null;
+    }
+
+    private int pageNumber(Integer page) {
+        return Math.max(1, page == null ? 1 : page);
+    }
+
+    private int pageSize(Integer size) {
+        return Math.max(1, Math.min(100, size == null ? 20 : size));
     }
 
     private List<String> sanitizeUrls(List<String> urls) {

@@ -2,9 +2,13 @@ package com.duodian.admin.controller;
 
 import com.duodian.admin.config.AuthContext;
 import com.duodian.admin.controller.dto.ApiResponse;
+import com.duodian.admin.controller.dto.PagedResponse;
 import com.duodian.admin.entity.TransactionLog;
+import com.duodian.admin.repository.TransactionLogRepository;
 import com.duodian.admin.service.TransactionLogService;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
@@ -17,17 +21,35 @@ import java.util.Map;
 @RestController
 @RequestMapping("/logs")
 public class TransactionLogController {
+    private static final byte ACTIVE = 0;
 
     private final TransactionLogService logService;
+    private final TransactionLogRepository logRepository;
 
-    public TransactionLogController(TransactionLogService logService) {
+    public TransactionLogController(TransactionLogService logService, TransactionLogRepository logRepository) {
         this.logService = logService;
+        this.logRepository = logRepository;
     }
 
     @GetMapping
-    public ApiResponse<List<TransactionLog>> list(
+    public ApiResponse<?> list(
             @RequestParam(required = false) Long userId,
-            @RequestParam(required = false) String type) {
+            @RequestParam(required = false) String type,
+            @RequestParam(required = false) String phone,
+            @RequestParam(required = false) String shopName,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size) {
+        if (page != null || size != null || hasText(phone) || hasText(shopName)) {
+            Page<TransactionLog> logs = logRepository.searchLogs(
+                    ACTIVE,
+                    userId,
+                    normalize(type),
+                    normalize(phone),
+                    normalize(shopName),
+                    PageRequest.of(pageNumber(page) - 1, pageSize(size), Sort.by(Sort.Direction.DESC, "createdAt"))
+            );
+            return ApiResponse.success(PagedResponse.from(logs));
+        }
         List<TransactionLog> logs;
         if (userId != null) {
             logs = logService.findByUserId(userId);
@@ -93,5 +115,21 @@ public class TransactionLogController {
         response.put("totalPages", result.getTotalPages());
 
         return ApiResponse.success(response);
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
+    }
+
+    private String normalize(String value) {
+        return hasText(value) ? value.trim() : null;
+    }
+
+    private int pageNumber(Integer page) {
+        return Math.max(1, page == null ? 1 : page);
+    }
+
+    private int pageSize(Integer size) {
+        return Math.max(1, Math.min(100, size == null ? 20 : size));
     }
 }

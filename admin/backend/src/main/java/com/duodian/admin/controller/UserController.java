@@ -4,9 +4,14 @@ import com.duodian.admin.config.AuthContext;
 import com.duodian.admin.controller.dto.ApiResponse;
 import com.duodian.admin.controller.dto.ChangePasswordRequest;
 import com.duodian.admin.controller.dto.LoginRequest;
+import com.duodian.admin.controller.dto.PagedResponse;
 import com.duodian.admin.entity.User;
+import com.duodian.admin.repository.UserRepository;
 import com.duodian.admin.service.UserService;
 import jakarta.validation.Valid;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -15,15 +20,33 @@ import java.util.Map;
 @RestController
 @RequestMapping("/users")
 public class UserController {
+    private static final byte ACTIVE = 0;
 
     private final UserService userService;
+    private final UserRepository userRepository;
 
-    public UserController(UserService userService) {
+    public UserController(UserService userService, UserRepository userRepository) {
         this.userService = userService;
+        this.userRepository = userRepository;
     }
 
     @GetMapping
-    public ApiResponse<List<User>> list() {
+    public ApiResponse<?> list(
+            @RequestParam(required = false) String username,
+            @RequestParam(required = false) String phone,
+            @RequestParam(required = false) String role,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size) {
+        if (page != null || size != null || hasText(username) || hasText(phone) || hasText(role)) {
+            Page<User> users = userRepository.searchUsers(
+                    ACTIVE,
+                    normalize(username),
+                    normalize(phone),
+                    normalize(role),
+                    PageRequest.of(pageNumber(page) - 1, pageSize(size), Sort.by(Sort.Direction.DESC, "createdAt"))
+            );
+            return ApiResponse.success(PagedResponse.from(users));
+        }
         return ApiResponse.success(userService.findAll());
     }
 
@@ -103,5 +126,21 @@ public class UserController {
         }
         userService.updatePassword(userId, request.getNewPassword());
         return ApiResponse.success();
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
+    }
+
+    private String normalize(String value) {
+        return hasText(value) ? value.trim() : null;
+    }
+
+    private int pageNumber(Integer page) {
+        return Math.max(1, page == null ? 1 : page);
+    }
+
+    private int pageSize(Integer size) {
+        return Math.max(1, Math.min(100, size == null ? 20 : size));
     }
 }

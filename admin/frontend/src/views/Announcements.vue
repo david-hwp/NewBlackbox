@@ -8,6 +8,28 @@
         </div>
       </template>
 
+      <el-form class="filter-bar" :model="filters" inline @submit.prevent>
+        <el-form-item label="标题">
+          <el-input v-model="filters.title" clearable placeholder="输入公告标题" style="width: 200px" @keyup.enter="handleSearch" />
+        </el-form-item>
+        <el-form-item label="类型">
+          <el-select v-model="filters.type" clearable placeholder="全部类型" style="width: 150px">
+            <el-option label="普通公告" value="NORMAL" />
+            <el-option label="版本发布" value="APP_RELEASE" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="状态">
+          <el-select v-model="filters.published" clearable placeholder="全部状态" style="width: 140px">
+            <el-option label="已发布" :value="true" />
+            <el-option label="草稿" :value="false" />
+          </el-select>
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" @click="handleSearch">查询</el-button>
+          <el-button @click="resetFilters">重置</el-button>
+        </el-form-item>
+      </el-form>
+
       <el-table :data="announcements" v-loading="loading" style="width: 100%">
         <el-table-column prop="id" label="ID" width="70" />
         <el-table-column prop="title" label="标题" min-width="180" />
@@ -34,6 +56,19 @@
           </template>
         </el-table-column>
       </el-table>
+
+      <div class="pagination-row">
+        <el-pagination
+          background
+          layout="total, sizes, prev, pager, next, jumper"
+          :total="pagination.total"
+          :current-page="pagination.page"
+          :page-size="pagination.size"
+          :page-sizes="[10, 20, 50, 100]"
+          @current-change="handlePageChange"
+          @size-change="handleSizeChange"
+        />
+      </div>
     </el-card>
 
     <el-dialog v-model="dialogVisible" :title="isEdit ? '编辑公告' : '发布公告'" width="640px">
@@ -79,6 +114,16 @@ const isEdit = ref(false)
 const formRef = ref()
 const APP_RELEASE_TYPE = 'APP_RELEASE'
 const APP_RELEASE_TITLE = '新版本发布'
+const filters = ref({
+  title: '',
+  type: '',
+  published: null
+})
+const pagination = ref({
+  page: 1,
+  size: 20,
+  total: 0
+})
 const form = ref({ title: '', content: '', type: 'NORMAL', published: true })
 
 const rules = {
@@ -104,10 +149,50 @@ watch(
 const fetchAnnouncements = async () => {
   loading.value = true
   try {
-    announcements.value = await request.get('/announcements')
+    const result = await request.get('/announcements', {
+      params: {
+        page: pagination.value.page,
+        size: pagination.value.size,
+        title: filters.value.title || undefined,
+        type: filters.value.type || undefined,
+        published: normalizeBooleanFilter(filters.value.published)
+      }
+    })
+    announcements.value = result.list || result.content || []
+    pagination.value.total = Number(result.total ?? result.totalElements ?? 0)
   } finally {
     loading.value = false
   }
+}
+
+const handleSearch = () => {
+  pagination.value.page = 1
+  fetchAnnouncements()
+}
+
+const resetFilters = () => {
+  filters.value = {
+    title: '',
+    type: '',
+    published: null
+  }
+  pagination.value.page = 1
+  fetchAnnouncements()
+}
+
+const handlePageChange = (page) => {
+  pagination.value.page = page
+  fetchAnnouncements()
+}
+
+const handleSizeChange = (size) => {
+  pagination.value.size = size
+  pagination.value.page = 1
+  fetchAnnouncements()
+}
+
+const normalizeBooleanFilter = (value) => {
+  return value === true || value === false ? value : undefined
 }
 
 const showAddDialog = () => {
@@ -162,5 +247,22 @@ onMounted(fetchAnnouncements)
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0;
+  margin-bottom: 16px;
+  padding: 12px 12px 0;
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+}
+
+.pagination-row {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 16px;
 }
 </style>
