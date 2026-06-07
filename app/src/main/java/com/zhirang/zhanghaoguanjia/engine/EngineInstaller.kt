@@ -6,15 +6,14 @@ import android.content.Intent
 import android.content.pm.PackageInfo
 import android.content.pm.PackageInstaller
 import android.content.pm.PackageManager
-import android.content.pm.Signature
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import android.util.Log
 import androidx.core.content.FileProvider
+import com.zhirang.zhanghaoguanjia.update.PackageSignatureUtils
 import java.io.File
 import java.io.IOException
-import java.security.MessageDigest
 
 /**
  * EngineInstaller handles first-time installation of the Engine APK from assets.
@@ -83,7 +82,7 @@ object EngineInstaller {
     fun getApkPackageInfo(context: Context, apkFile: File): EnginePackageInfo? {
         val packageInfo = context.packageManager.getPackageArchiveInfo(
             apkFile.absolutePath,
-            signatureFlags()
+            PackageSignatureUtils.signatureFlags()
         ) ?: return null
         return EnginePackageInfo(
             packageName = packageInfo.packageName,
@@ -430,38 +429,22 @@ object EngineInstaller {
     private fun hasCompatibleSignature(context: Context, apkFile: File): Boolean {
         return try {
             val packageManager = context.packageManager
-            val installed = packageManager.getPackageInfo(ENGINE_PACKAGE, signatureFlags())
-            val candidate = packageManager.getPackageArchiveInfo(apkFile.absolutePath, signatureFlags())
+            val installed = packageManager.getPackageInfo(ENGINE_PACKAGE, PackageSignatureUtils.signatureFlags())
+            val candidate = packageManager.getPackageArchiveInfo(apkFile.absolutePath, PackageSignatureUtils.signatureFlags())
                 ?: return false
-            signatureFingerprints(installed) == signatureFingerprints(candidate)
+            val compatible = PackageSignatureUtils.signaturesCompatible(installed, candidate)
+            if (!compatible) {
+                Log.w(
+                    TAG,
+                    "Engine signature mismatch: installed=${PackageSignatureUtils.signatureFingerprints(installed).size} " +
+                        "candidate=${PackageSignatureUtils.signatureFingerprints(candidate).size}"
+                )
+            }
+            compatible
         } catch (e: Exception) {
             Log.w(TAG, "Error checking engine signature compatibility: ${e.message}")
             false
         }
-    }
-
-    private fun signatureFlags(): Int {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            PackageManager.GET_SIGNING_CERTIFICATES
-        } else {
-            @Suppress("DEPRECATION")
-            PackageManager.GET_SIGNATURES
-        }
-    }
-
-    private fun signatureFingerprints(packageInfo: PackageInfo): Set<String> {
-        val signatures = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            packageInfo.signingInfo?.apkContentsSigners ?: emptyArray()
-        } else {
-            @Suppress("DEPRECATION")
-            packageInfo.signatures ?: emptyArray()
-        }
-        return signatures.map { signatureFingerprint(it) }.toSet()
-    }
-
-    private fun signatureFingerprint(signature: Signature): String {
-        val md = MessageDigest.getInstance("SHA-256")
-        return md.digest(signature.toByteArray()).joinToString("") { "%02x".format(it) }
     }
 
     private fun getVersionCode(packageInfo: PackageInfo): Int {

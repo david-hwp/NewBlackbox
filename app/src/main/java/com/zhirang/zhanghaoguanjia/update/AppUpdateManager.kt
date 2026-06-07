@@ -7,7 +7,6 @@ import android.content.Intent
 import android.content.pm.PackageInfo
 import android.content.pm.PackageInstaller
 import android.content.pm.PackageManager
-import android.content.pm.Signature
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
@@ -21,7 +20,6 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
 import java.io.IOException
-import java.security.MessageDigest
 
 object AppUpdateManager {
     private const val TAG = "AppUpdateManager"
@@ -117,16 +115,16 @@ object AppUpdateManager {
     private fun validateInstallCandidate(context: Context, apkFile: File): Result<PackageInfo> {
         return try {
             val packageManager = context.packageManager
-            val candidate = packageManager.getPackageArchiveInfo(apkFile.absolutePath, signatureFlags())
+            val candidate = packageManager.getPackageArchiveInfo(apkFile.absolutePath, PackageSignatureUtils.signatureFlags())
                 ?: return Result.failure(IOException("下载的文件不是有效 APK"))
             if (candidate.packageName != context.packageName) {
                 return Result.failure(SecurityException("主 APK 包名不匹配: ${candidate.packageName}"))
             }
-            val current = packageManager.getPackageInfo(context.packageName, signatureFlags())
+            val current = packageManager.getPackageInfo(context.packageName, PackageSignatureUtils.signatureFlags())
             if (getVersionCode(candidate) <= getVersionCode(current)) {
                 return Result.failure(IllegalStateException("当前已是最新版本或目标版本更低"))
             }
-            if (signatureFingerprints(current) != signatureFingerprints(candidate)) {
+            if (!PackageSignatureUtils.signaturesCompatible(current, candidate)) {
                 return Result.failure(SecurityException("主 APK 签名不一致，无法覆盖安装"))
             }
             Result.success(candidate)
@@ -194,30 +192,6 @@ object AppUpdateManager {
 
     private fun getCurrentVersionCode(context: Context): Int {
         return getVersionCode(context.packageManager.getPackageInfo(context.packageName, 0))
-    }
-
-    private fun signatureFlags(): Int {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            PackageManager.GET_SIGNING_CERTIFICATES
-        } else {
-            @Suppress("DEPRECATION")
-            PackageManager.GET_SIGNATURES
-        }
-    }
-
-    private fun signatureFingerprints(packageInfo: PackageInfo): Set<String> {
-        val signatures = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            packageInfo.signingInfo?.apkContentsSigners ?: emptyArray()
-        } else {
-            @Suppress("DEPRECATION")
-            packageInfo.signatures ?: emptyArray()
-        }
-        return signatures.map { signatureFingerprint(it) }.toSet()
-    }
-
-    private fun signatureFingerprint(signature: Signature): String {
-        val md = MessageDigest.getInstance("SHA-256")
-        return md.digest(signature.toByteArray()).joinToString("") { "%02x".format(it) }
     }
 
     private fun getVersionCode(packageInfo: PackageInfo): Int {
