@@ -82,6 +82,45 @@ When uploading/registering an engine release:
 - Verify the public download URL returns the same checksum and `apksigner verify` passes on the downloaded APK.
 - Verify `/api/engine-versions?available=true` returns the new version first.
 
+When uploading/registering a main APK release:
+- Upload the main APK through the admin `/api/files/app-packages` file service. Do not copy APKs directly into local or OBS storage; the file service owns the local/OBS mapping.
+- Add or update the matching row in `/api/app-versions` with `versionCode`, `versionName`, `apkUrl`, SHA-256 `checksum`, `fileSize`, and `published=true`.
+- Add a system announcement with `type=APP_RELEASE` for the same release. Ordinary announcements must use `type=NORMAL`.
+- Version release announcements are independent from ordinary announcements: app startup first checks `/api/app-versions?published=true`; it fetches `APP_RELEASE` announcements only when the latest published `versionCode` is greater than the installed app `versionCode`.
+- If the installed app version equals the latest published version, `APP_RELEASE` must not be shown; normal announcements still follow the existing `NORMAL` announcement flow.
+- The release announcement content should include the public download URL, and the app also exposes the one-click upgrade action from the release announcement and `我的 -> 关于 -> 检查更新`.
+
+Example `1.1.0-release` server verification:
+
+```bash
+# Public APK download must not require auth.
+curl -I http://dpgj.zrnh.cn/api/files/app-packages/<apk-file>.apk
+
+# Authenticated checks should show exactly one active published app version and release announcement.
+curl -H "Authorization: Bearer $TOKEN" \
+  "http://dpgj.zrnh.cn/api/app-versions?published=true"
+curl -H "Authorization: Bearer $TOKEN" \
+  "http://dpgj.zrnh.cn/api/announcements?published=true&type=APP_RELEASE"
+```
+
+Pixel 8 release smoke test:
+
+```bash
+ADB=/opt/homebrew/share/android-commandlinetools/platform-tools/adb
+
+# Confirm the emulator. Do not use Pixel 9 for release smoke tests.
+$ADB -s emulator-5554 emu avd name
+
+$ADB -s emulator-5554 install -r -d app/build/outputs/apk/release/zhanghaoguanjia_${VERSION_NAME}_universal-release.apk
+$ADB -s emulator-5554 shell dumpsys package com.zhirang.zhanghaoguanjia | rg "versionCode|versionName"
+
+$ADB -s emulator-5554 logcat -c
+$ADB -s emulator-5554 shell monkey -p com.zhirang.zhanghaoguanjia -c android.intent.category.LAUNCHER 1
+$ADB -s emulator-5554 logcat -d -t 1200 | rg "GET http://dpgj.zrnh.cn/api/(announcements|app-versions)|FATAL EXCEPTION|AndroidRuntime"
+```
+
+For a same-version smoke test, logs should show `type=NORMAL` announcements and `app-versions`, but no `type=APP_RELEASE` request and no update dialog text such as `发现新版本` or `立即升级`.
+
 For any manual MySQL writes that include text, always force UTF-8 on the client/session:
 
 ```bash
