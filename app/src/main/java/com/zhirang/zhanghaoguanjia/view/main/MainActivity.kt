@@ -251,8 +251,8 @@ class MainActivity : LoadingActivity() {
     }
 
     /**
-     * 统一申请分身应用需要的所有运行时权限。
-     * 避免用户在使用分身时逐个遇到权限弹窗。
+     * 统一申请店铺应用需要的所有运行时权限。
+     * 避免用户在使用店铺时逐个遇到权限弹窗。
      */
     private fun checkAllPermissions() {
         try {

@@ -70,7 +70,7 @@ class ComputeServiceTest {
         when(userRepository.findByIdAndDeleted(1L, (byte) 0)).thenReturn(Optional.of(user));
         when(transactionLogRepository.save(argThat(log ->
                 "CONSUME".equals(log.getType())
-                        && "分身创建扣减: CLN1-abc".equals(log.getRemark())
+                        && "店铺创建扣减: CLN1-abc".equals(log.getRemark())
         ))).thenAnswer(invocation -> {
             TransactionLog log = invocation.getArgument(0);
             log.setId(77L);

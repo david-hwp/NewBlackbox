@@ -368,9 +368,9 @@ class HomeViewModel : ViewModel() {
                         )
                     }
                     _operationMessageLiveData.value = if (it.deducted) {
-                        "已扣划 1 点算力，新店铺分身已创建"
+                        "已扣划 1 点算力，新店铺已创建"
                     } else {
-                        "新店铺分身已存在"
+                        "新店铺已存在"
                     }
                     val pendingShop = it.shop.toShop()
                     loadShops()
@@ -492,7 +492,7 @@ class HomeViewModel : ViewModel() {
                     onSuccess(it.shop.toShop(), it.authorizationToken, it.publicKeyId)
                 },
                 onFailure = { e ->
-                    val message = e.message ?: "获取分身授权失败"
+                    val message = e.message ?: "获取店铺授权失败"
                     _loadErrorLiveData.value = message
                     onFailure(message)
                 }

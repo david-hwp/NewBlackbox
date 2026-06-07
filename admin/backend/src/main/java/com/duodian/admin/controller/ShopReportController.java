@@ -79,7 +79,7 @@ public class ShopReportController {
 
         Shop shop = existing.get();
         if (!validateCloneOwnership(shop, cloneInstanceId)) {
-            return ApiResponse.error(403, "分身标识校验失败");
+            return ApiResponse.error(403, "店铺标识校验失败");
         }
         boolean wasPending = shop.getShopId() != null && shop.getShopId().startsWith("NEW-");
         if (hasRealShopId) {

@@ -121,7 +121,7 @@ class ShopReportControllerTest {
         ApiResponse<Map<String, Object>> response = controller.report(request("real-shop", "真实店铺", pendingShop.getCloneInstanceId()));
 
         assertThat(response.getCode()).isEqualTo(403);
-        assertThat(response.getMessage()).isEqualTo("分身标识校验失败");
+        assertThat(response.getMessage()).isEqualTo("店铺标识校验失败");
         verify(shopService, never()).update(eq(20L), any(Shop.class));
     }
 

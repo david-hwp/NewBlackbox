@@ -481,7 +481,7 @@ class HomeActivity : AppCompatActivity() {
         var createdFreshUser = false
         val installUserId = targetUserId ?: if (shop.isNew) {
             val freshUserId = createFreshVirtualUserId() ?: run {
-                toast("创建分身用户失败，请重试")
+                toast("创建店铺失败，请重试")
                 return
             }
             createdFreshUser = true
@@ -490,12 +490,12 @@ class HomeActivity : AppCompatActivity() {
             ensureVirtualUserId()
         }
 
-        toast("正在为您创建 ${platformName} 分身，请稍候…")
+        toast("正在为您创建 ${platformName} 店铺，请稍候…")
 
         try {
             val result = EngineProxy.installPackageAsUser(packageName, installUserId)
             if (result.success || EngineProxy.isInstalled(packageName, installUserId)) {
-                toast("${platformName} 分身创建成功")
+                toast("${platformName} 店铺创建成功")
                 if (shop.isNew) {
                     reportCloneCreated(shop, installUserId)
                 }
@@ -509,14 +509,14 @@ class HomeActivity : AppCompatActivity() {
                     if (createdFreshUser) {
                         EngineProxy.deleteUser(installUserId)
                     }
-                    toast("分身创建失败: ${result.msg}")
+                    toast("店铺创建失败: ${result.msg}")
                 }
             }
         } catch (e: Exception) {
             if (createdFreshUser) {
                 EngineProxy.deleteUser(installUserId)
             }
-            toast("分身创建异常: ${e.message}")
+            toast("店铺创建异常: ${e.message}")
         }
     }
 
@@ -552,7 +552,7 @@ class HomeActivity : AppCompatActivity() {
             }
             if (launchIntent == null) {
                 Log.w(TAG, "No virtual launch intent for $packageName user=$userId")
-                toast("启动失败，请重新创建分身")
+                toast("启动失败，请重新创建店铺")
                 return false
             }
             toast("正在打开 ${platformName}…")
@@ -580,11 +580,11 @@ class HomeActivity : AppCompatActivity() {
                         startActivity(launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
                     } else {
                         Log.w(TAG, "Authorized launch intent missing for $packageName user=$userId shop=${authorizedShop.id}")
-                        toast("分身授权校验失败，请续期后重试")
+                        toast("店铺授权校验失败，请续期后重试")
                     }
                 } else {
                     Log.w(TAG, "Failed to write clone authorization for $packageName user=$userId shop=${shop.id}")
-                    toast("分身授权写入失败，请重试")
+                    toast("店铺授权写入失败，请重试")
                 }
             },
             onFailure = { message ->
@@ -669,16 +669,16 @@ class HomeActivity : AppCompatActivity() {
             }
 
             val userId = createFreshVirtualUserId() ?: run {
-                toast("创建分身用户失败，请稍后重试")
+                toast("创建店铺失败，请稍后重试")
                 return@ensureEngineReady
             }
-            toast("正在为新店铺创建 ${platformName} 分身，请稍候…")
+            toast("正在为新店铺创建 ${platformName} 店铺，请稍候…")
             try {
                 if (!EngineProxy.isInstalled(packageName, userId)) {
                     val result = EngineProxy.installPackageAsUser(packageName, userId)
                     if (!result.success && !EngineProxy.isInstalled(packageName, userId)) {
                         EngineProxy.deleteUser(userId)
-                        toast("分身创建失败: ${result.msg}")
+                        toast("店铺创建失败: ${result.msg}")
                         return@ensureEngineReady
                     }
                 }
@@ -689,13 +689,13 @@ class HomeActivity : AppCompatActivity() {
                         val cloneInstanceId = pendingShop.cloneInstanceId?.takeIf { it.isNotBlank() }
                         if (cloneInstanceId == null) {
                             EngineProxy.deleteUser(userId)
-                            toast("服务器未返回分身标识，请重试")
+                            toast("服务器未返回店铺标识，请重试")
                             return@createPendingShopWithClone
                         }
                         EngineProxy.bindCloneUser(cloneInstanceId, packageName, viewModel.getCurrentUserId(), userId)
                         if (!writeCloneAuthorization(pendingShop, packageName, userId, createResult.authorizationToken, createResult.publicKeyId)) {
                             EngineProxy.deleteUser(userId)
-                            toast("分身授权写入失败，请重试")
+                            toast("店铺授权写入失败，请重试")
                             return@createPendingShopWithClone
                         }
                         if (launchAfterCreate) {
@@ -703,7 +703,7 @@ class HomeActivity : AppCompatActivity() {
                                 schedulePendingShopRecognition(pendingShop, userId, showFailureToast = true)
                             }
                         } else {
-                            toast("新店铺分身已准备好，请点击 new 店铺登录")
+                            toast("新店铺已准备好，请点击 new 店铺登录")
                         }
                     },
                     onFailure = {
@@ -712,7 +712,7 @@ class HomeActivity : AppCompatActivity() {
                 )
             } catch (e: Exception) {
                 EngineProxy.deleteUser(userId)
-                toast("新分身创建异常: ${e.message}")
+                toast("新店铺创建异常: ${e.message}")
             }
         }
     }

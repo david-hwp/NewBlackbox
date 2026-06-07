@@ -118,7 +118,7 @@ class ShopControllerTest {
         ApiResponse<?> response = controller.createPendingWithDeduction(null);
 
         assertThat(response.getCode()).isEqualTo(500);
-        assertThat(response.getMessage()).isEqualTo("请使用分身创建接口新增店铺");
+        assertThat(response.getMessage()).isEqualTo("请使用店铺创建接口新增店铺");
         verify(computeService, never()).deductComputeForClone(any(), any(), any(), any());
     }
 

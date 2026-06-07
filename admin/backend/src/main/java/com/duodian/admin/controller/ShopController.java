@@ -132,7 +132,7 @@ public class ShopController {
             return ApiResponse.error(401, "未登录");
         }
         if (!isAdmin(currentUser)) {
-            return ApiResponse.error(403, "请使用分身创建接口新增店铺");
+            return ApiResponse.error(403, "请使用店铺创建接口新增店铺");
         }
         Shop saved = shopService.create(shop);
         userService.refreshShopStats(saved.getUserId());
@@ -145,7 +145,7 @@ public class ShopController {
         if (userId == null) {
             return ApiResponse.error(401, "未登录");
         }
-        return ApiResponse.error("请使用分身创建接口新增店铺");
+        return ApiResponse.error("请使用店铺创建接口新增店铺");
     }
 
     @PostMapping("/pending-deduct")
@@ -155,7 +155,7 @@ public class ShopController {
         if (userId == null) {
             return ApiResponse.error(401, "未登录");
         }
-        return ApiResponse.error("请使用分身创建接口新增店铺");
+        return ApiResponse.error("请使用店铺创建接口新增店铺");
     }
 
     @PostMapping("/clone/create")
@@ -318,7 +318,7 @@ public class ShopController {
         }
         String cloneInstanceId = normalize(shop.getCloneInstanceId());
         if (cloneInstanceId == null) {
-            return ApiResponse.error("店铺缺少分身标识，无法续期");
+            return ApiResponse.error("店铺缺少店铺标识，无法续期");
         }
         String operationKey = normalize(request != null ? request.getOperationKey() : null);
         if (operationKey == null) {
@@ -368,7 +368,7 @@ public class ShopController {
             return ApiResponse.error("店铺不存在");
         }
         if (normalize(shop.getCloneInstanceId()) == null) {
-            return ApiResponse.error("店铺缺少分身标识，无法授权");
+            return ApiResponse.error("店铺缺少店铺标识，无法授权");
         }
         Integer requestedUserId = request != null ? request.getLocalVirtualUserId() : null;
         if (requestedUserId != null) {

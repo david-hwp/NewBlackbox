@@ -53,7 +53,7 @@ public class ComputeService {
 
     @Transactional
     public boolean deductComputeForClone(Long userId, String cloneInstanceId, String shopName, String platform) {
-        return deductCompute(userId, cloneInstanceId, shopName, platform, "分身创建扣减: ");
+        return deductCompute(userId, cloneInstanceId, shopName, platform, "店铺创建扣减: ");
     }
 
     @Transactional
@@ -71,7 +71,7 @@ public class ComputeService {
                 operationKey,
                 platform,
                 displayName,
-                "分身创建扣减: "
+                "店铺创建扣减: "
         );
     }
 
@@ -100,7 +100,7 @@ public class ComputeService {
                 operationKey,
                 platform,
                 displayName,
-                "分身续期扣减: "
+                "店铺续期扣减: "
         );
     }
 
@@ -113,7 +113,7 @@ public class ComputeService {
             String displayName,
             String remarkPrefix
     ) {
-        String normalizedCloneId = normalizeRequired(cloneInstanceId, "分身标识不能为空");
+        String normalizedCloneId = normalizeRequired(cloneInstanceId, "店铺标识不能为空");
         String normalizedOperationKey = normalizeRequired(operationKey, "操作标识不能为空");
         Optional<ComputeDeduction> existing = computeDeductionRepository
                 .findByUserIdAndCloneInstanceIdAndDeductionTypeAndOperationKeyAndDeleted(
