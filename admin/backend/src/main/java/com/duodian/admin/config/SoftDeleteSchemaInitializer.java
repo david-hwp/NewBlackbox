@@ -79,6 +79,12 @@ public class SoftDeleteSchemaInitializer implements CommandLineRunner {
             jdbcTemplate.execute("ALTER TABLE shops ADD COLUMN authorization_jti VARCHAR(64)");
         }
         jdbcTemplate.execute("ALTER TABLE shops MODIFY COLUMN clone_instance_id VARCHAR(255)");
+        if (hasIndex("shops", "uk_clone_instance_id")) {
+            jdbcTemplate.execute("ALTER TABLE shops DROP INDEX uk_clone_instance_id");
+        }
+        if (!hasIndex("shops", "idx_clone_instance_id")) {
+            jdbcTemplate.execute("CREATE INDEX idx_clone_instance_id ON shops (clone_instance_id)");
+        }
     }
 
     private void ensureComputeDeductionTable() {
@@ -114,6 +120,27 @@ public class SoftDeleteSchemaInitializer implements CommandLineRunner {
     private boolean hasColumn(DatabaseMetaData metaData, String catalog, String table, String column) throws Exception {
         try (ResultSet resultSet = metaData.getColumns(catalog, null, table, column)) {
             return resultSet.next();
+        }
+    }
+
+    private boolean hasIndex(String table, String index) throws Exception {
+        try (Connection connection = dataSource.getConnection()) {
+            DatabaseMetaData metaData = connection.getMetaData();
+            String catalog = connection.getCatalog();
+            return hasIndex(metaData, catalog, table, index)
+                    || hasIndex(metaData, catalog, table.toUpperCase(), index.toUpperCase());
+        }
+    }
+
+    private boolean hasIndex(DatabaseMetaData metaData, String catalog, String table, String index) throws Exception {
+        try (ResultSet resultSet = metaData.getIndexInfo(catalog, null, table, false, false)) {
+            while (resultSet.next()) {
+                String indexName = resultSet.getString("INDEX_NAME");
+                if (index.equalsIgnoreCase(indexName)) {
+                    return true;
+                }
+            }
+            return false;
         }
     }
 }

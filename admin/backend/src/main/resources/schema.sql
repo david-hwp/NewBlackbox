@@ -53,7 +53,7 @@ CREATE TABLE IF NOT EXISTS shops (
     INDEX idx_user_id (user_id),
     INDEX idx_platform (platform),
     INDEX idx_deleted (deleted),
-    UNIQUE KEY uk_clone_instance_id (clone_instance_id)
+    INDEX idx_clone_instance_id (clone_instance_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='店铺表';
 
 -- 算力扣费幂等表
