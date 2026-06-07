@@ -143,8 +143,11 @@ class MainActivity : LoadingActivity() {
                     // to prevent data loss from manual uninstall/reinstall
                     if (info.downloadUrl.isNullOrEmpty()) {
                         Log.i(TAG, "Auto-upgrading engine from built-in APK to version ${info.versionCode}")
-                        withContext(Dispatchers.IO) {
+                        val result = withContext(Dispatchers.IO) {
                             EngineInstaller.installFromAssets(this@MainActivity)
+                        }
+                        result.onFailure {
+                            Log.e(TAG, "Built-in engine install failed: ${it.message}", it)
                         }
                         return@launch
                     }

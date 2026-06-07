@@ -11,6 +11,7 @@ import com.zhirang.zhanghaoguanjia.bean.dto.LogEntryDto
 import com.zhirang.zhanghaoguanjia.data.LogRepository
 import com.zhirang.zhanghaoguanjia.network.PagedResult
 import com.zhirang.zhanghaoguanjia.network.RetrofitClient
+import com.zhirang.zhanghaoguanjia.util.PlatformRegistry
 import java.text.SimpleDateFormat
 import java.util.*
 import java.time.LocalDateTime
@@ -108,7 +109,7 @@ class LogsViewModel : ViewModel() {
     private fun LogEntryDto.toLogEntry(): LogEntry {
         val logType = runCatching { LogType.valueOf(type.uppercase()) }.getOrDefault(LogType.CONSUME)
         val description = when (logType) {
-            LogType.CONSUME -> listOfNotNull(platform, shopName).joinToString(" - ").ifBlank { "算力消耗" }
+            LogType.CONSUME -> listOfNotNull(platformDisplayName(platform), shopName).joinToString(" - ").ifBlank { "算力消耗" }
             LogType.OUT -> "转给 ${fromPhone ?: toPhone ?: "-"}"
             LogType.IN -> "来自 ${fromPhone ?: toPhone ?: "-"}"
         }
@@ -119,6 +120,20 @@ class LogsViewModel : ViewModel() {
             description = description,
             timestamp = parseCreatedAt(createdAt)
         )
+    }
+
+    private fun platformDisplayName(platform: String?): String? {
+        val value = platform?.trim()?.takeIf { it.isNotBlank() } ?: return null
+        PlatformRegistry.get(value)?.displayName?.takeIf { it.isNotBlank() }?.let { return it }
+        return when (value.lowercase(Locale.ROOT)) {
+            "jd" -> "京东秒送"
+            "meituan" -> "美团"
+            "taobao" -> "淘宝"
+            "kuaishou" -> "快手"
+            "xiaohongshu" -> "小红书"
+            "ali" -> "阿里本地"
+            else -> value
+        }
     }
 
     private fun parseCreatedAt(value: String): Long {

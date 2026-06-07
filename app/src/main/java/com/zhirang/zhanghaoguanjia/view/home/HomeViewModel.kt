@@ -19,6 +19,7 @@ import com.zhirang.zhanghaoguanjia.data.AnnouncementRepository
 import com.zhirang.zhanghaoguanjia.data.PlatformRepository
 import com.zhirang.zhanghaoguanjia.data.ShopRepository
 import com.zhirang.zhanghaoguanjia.data.TokenManager
+import com.zhirang.zhanghaoguanjia.data.UserRepository
 import com.zhirang.zhanghaoguanjia.app.App
 import com.zhirang.zhanghaoguanjia.update.AppUpdateManager
 import com.zhirang.zhanghaoguanjia.network.RetrofitClient
@@ -70,6 +71,7 @@ class HomeViewModel : ViewModel() {
     val operationMessageLiveData: LiveData<String?> = _operationMessageLiveData
 
     private val shopRepository = ShopRepository(RetrofitClient.apiService)
+    private val userRepository = UserRepository(RetrofitClient.apiService)
     private val platformRepository = PlatformRepository(RetrofitClient.apiService)
     private val announcementRepository = AnnouncementRepository(RetrofitClient.apiService)
     private val tokenManager = TokenManager.getInstance()
@@ -139,6 +141,25 @@ class HomeViewModel : ViewModel() {
         _displayUsernameLiveData.value = getDisplayUsername(user?.username, user?.phone)
         _avatarUrlLiveData.value = user?.avatarUrl
         _adminLiveData.value = user?.role.equals("ADMIN", ignoreCase = true)
+    }
+
+    fun refreshUserInfoFromServer() {
+        if (!isLoggedIn()) {
+            refreshUserInfo()
+            return
+        }
+        viewModelScope.launch {
+            val result = userRepository.getMe()
+            result.fold(
+                onSuccess = { user ->
+                    tokenManager.saveUser(user)
+                    refreshUserInfo()
+                },
+                onFailure = {
+                    refreshUserInfo()
+                }
+            )
+        }
     }
 
     fun loadShops() {
@@ -249,10 +270,6 @@ class HomeViewModel : ViewModel() {
         return _computeBalanceLiveData.value ?: tokenManager.getUser()?.computeBalance ?: 0
     }
 
-    fun hasPendingNewShopForPackage(packageName: String): Boolean {
-        return allShops.any { it.isNew && isSamePackage(it.packageName, packageName) }
-    }
-
     private fun updatePlatformShopCounts() {
         val platforms = _platformsLiveData.value.orEmpty()
         if (platforms.isEmpty()) {
@@ -295,7 +312,7 @@ class HomeViewModel : ViewModel() {
                 platformName = PlatformRegistry.displayName(shop.platform),
                 packageName = shop.packageName ?: "",
                 cloneInstanceId = shop.cloneInstanceId,
-                localVirtualUserId = null,
+                localVirtualUserId = shop.localVirtualUserId,
                 remainingDays = shop.remainingDays,
                 autoRenew = shop.autoRenew
             )
@@ -387,7 +404,10 @@ class HomeViewModel : ViewModel() {
 
     fun completePendingShop(pendingShop: Shop, detectedShop: Shop, showMessage: Boolean = pendingShop.isNew) {
         reportShop(
-            detectedShop.copy(cloneInstanceId = detectedShop.cloneInstanceId ?: pendingShop.cloneInstanceId),
+            detectedShop.copy(
+                cloneInstanceId = detectedShop.cloneInstanceId ?: pendingShop.cloneInstanceId,
+                localVirtualUserId = detectedShop.localVirtualUserId ?: pendingShop.localVirtualUserId
+            ),
             showMessage = showMessage
         )
     }
@@ -412,7 +432,8 @@ class HomeViewModel : ViewModel() {
                 remainingDays = shop.remainingDays,
                 autoRenew = autoRenew,
                 packageName = shop.packageName,
-                cloneInstanceId = shop.cloneInstanceId
+                cloneInstanceId = shop.cloneInstanceId,
+                localVirtualUserId = shop.localVirtualUserId
             )
             val result = shopRepository.updateShop(shop.id, request)
             result.fold(
@@ -471,11 +492,14 @@ class HomeViewModel : ViewModel() {
         packageName: String,
         localVirtualUserId: Int,
         onSuccess: (Shop, String, String?) -> Unit,
-        onFailure: (String) -> Unit
+        onFailure: (String) -> Unit,
+        showError: Boolean = true
     ) {
         if (!isLoggedIn()) {
             val message = "请先登录后再打开店铺"
-            _loadErrorLiveData.value = message
+            if (showError) {
+                _loadErrorLiveData.value = message
+            }
             onFailure(message)
             return
         }
@@ -493,7 +517,9 @@ class HomeViewModel : ViewModel() {
                 },
                 onFailure = { e ->
                     val message = e.message ?: "获取店铺授权失败"
-                    _loadErrorLiveData.value = message
+                    if (showError) {
+                        _loadErrorLiveData.value = message
+                    }
                     onFailure(message)
                 }
             )

@@ -2,6 +2,7 @@ package com.duodian.admin.controller.dto;
 
 import com.duodian.admin.entity.Shop;
 import com.duodian.admin.entity.User;
+import com.duodian.admin.util.ShopExpiration;
 
 import java.time.LocalDateTime;
 
@@ -39,7 +40,7 @@ public class ShopResponse {
         response.setShopId(shop.getShopId());
         response.setPlatform(shop.getPlatform());
         response.setPlatformName(shop.getPlatformName());
-        response.setRemainingDays(shop.getRemainingDays());
+        response.setRemainingDays(ShopExpiration.remainingDays(shop));
         response.setAutoRenew(shop.getAutoRenew());
         response.setPackageName(shop.getPackageName());
         response.setCloneInstanceId(shop.getCloneInstanceId());

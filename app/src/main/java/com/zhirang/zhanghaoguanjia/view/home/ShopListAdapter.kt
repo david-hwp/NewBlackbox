@@ -16,7 +16,8 @@ class ShopListAdapter(
     private val onItemClick: (Int, Shop) -> Unit,
     private val onEditClick: (Int, Shop) -> Unit,
     private val onAutoRenewClick: (Int, Shop) -> Unit,
-    private val onDeleteClick: (Int, Shop) -> Unit
+    private val onDeleteClick: (Int, Shop) -> Unit,
+    private val onRepairClick: (Int, Shop) -> Unit
 ) : RecyclerView.Adapter<ShopListAdapter.VH>() {
 
     private var shops: List<Shop> = emptyList()
@@ -42,6 +43,7 @@ class ShopListAdapter(
 
     inner class VH(itemView: View) : RecyclerView.ViewHolder(itemView) {
         private val cardView: View = itemView.findViewById(R.id.cardView)
+        private val cardContainer: View = itemView.findViewById(R.id.cardContainer)
         private val shopLogo: ImageView = itemView.findViewById(R.id.shopLogo)
         private val shopName: TextView = itemView.findViewById(R.id.shopName)
         private val newTag: TextView = itemView.findViewById(R.id.newTag)
@@ -52,9 +54,11 @@ class ShopListAdapter(
         private val btnEdit: View? = itemView.findViewById(R.id.btnEdit)
         private val btnAutoRenew: View? = itemView.findViewById(R.id.btnAutoRenew)
         private val btnDelete: View? = itemView.findViewById(R.id.btnDelete)
+        private val btnRepair: View? = itemView.findViewById(R.id.btnRepair)
 
         fun bind(shop: Shop) {
-            cardView.translationX = 0f
+            cardContainer.translationX = 0f
+            cardContainer.bringToFront()
 
             shopName.text = shop.shopName
             newTag.visibility = if (shop.isNew) View.VISIBLE else View.GONE
@@ -111,6 +115,12 @@ class ShopListAdapter(
                 val pos = bindingAdapterPosition
                 if (pos != RecyclerView.NO_POSITION) {
                     onDeleteClick(pos, shops[pos])
+                }
+            }
+            btnRepair?.setOnClickListener {
+                val pos = bindingAdapterPosition
+                if (pos != RecyclerView.NO_POSITION) {
+                    onRepairClick(pos, shops[pos])
                 }
             }
         }

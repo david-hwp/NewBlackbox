@@ -109,12 +109,15 @@ public class ShopController {
     }
 
     @GetMapping("/my")
-    public ApiResponse<List<Shop>> myShops() {
+    public ApiResponse<List<ShopResponse>> myShops() {
         Long userId = AuthContext.getUserId();
         if (userId == null) {
             return ApiResponse.error(401, "未登录");
         }
-        return ApiResponse.success(shopService.findByUserId(userId));
+        User user = userService.findById(userId).orElse(null);
+        return ApiResponse.success(shopService.findByUserId(userId).stream()
+                .map(shop -> ShopResponse.from(shop, user))
+                .toList());
     }
 
     @GetMapping("/{id}")
@@ -206,10 +209,6 @@ public class ShopController {
         User currentUser = computeService.lockActiveUser(userId).orElse(null);
         if (currentUser == null) {
             return ApiResponse.error("用户不存在");
-        }
-
-        if (shopService.hasPendingShopByPackage(userId, packageName, "NEW-")) {
-            return ApiResponse.error("您已添加新店铺但未成功登录，请先完成登录后再添加");
         }
 
         String phone = firstNonBlank(currentUser.getPhone(), "unknown");

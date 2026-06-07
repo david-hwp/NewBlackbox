@@ -73,6 +73,23 @@ class ShopControllerTest {
     }
 
     @Test
+    void myShopsReturnsRemainingDaysCalculatedFromExpiration() {
+        AuthContext.setUserId(1L);
+        User normalUser = user(1L, "USER");
+        Shop shop = shop(10L, 1L, "yesterday");
+        shop.setRemainingDays(30);
+        shop.setExpireAt(LocalDateTime.now().plusDays(29));
+        shop.setAuthExpireAt(shop.getExpireAt());
+        when(userService.findById(1L)).thenReturn(Optional.of(normalUser));
+        when(shopService.findByUserId(1L)).thenReturn(List.of(shop));
+
+        ApiResponse<List<ShopResponse>> response = controller.myShops();
+
+        assertThat(response.getCode()).isEqualTo(200);
+        assertThat(response.getData()).extracting(ShopResponse::getRemainingDays).containsExactly(29);
+    }
+
+    @Test
     void listSupportsPagedAdminFilters() {
         AuthContext.setUserId(1L);
         User admin = user(1L, "ADMIN");
@@ -176,21 +193,44 @@ class ShopControllerTest {
     }
 
     @Test
-    void cloneCreateRejectsWhenPendingNewShopAlreadyExistsBeforeDeduction() {
+    void cloneCreateAllowsAnotherPendingNewShopForSamePackage() {
         AuthContext.setUserId(1L);
         User normalUser = user(1L, "USER");
+        normalUser.setComputeBalance(6);
+        normalUser.setShopCount(2);
+        normalUser.setPlatformCount(1);
         CloneShopCreateRequest request = createRequest("op-create-2", 4);
 
         when(computeService.findExistingCloneCreateOperation(1L, "op-create-2")).thenReturn(Optional.empty());
         when(computeService.lockActiveUser(1L)).thenReturn(Optional.of(normalUser));
-        when(shopService.hasPendingShopByPackage(1L, "com.jd.mrd.jingming", "NEW-")).thenReturn(true);
+        when(shopService.countByUserIdAndPackageName(1L, "com.jd.mrd.jingming")).thenReturn(1L);
+        when(shopService.findByCloneInstanceId(argThat(id -> id != null && id.startsWith("CLN1-13800000001-com.jd.mrd.jingming-N2-U4-R"))))
+                .thenReturn(Optional.empty());
+        when(computeService.deductComputeForCloneCreate(
+                eq(1L),
+                argThat(id -> id != null && id.startsWith("CLN1-13800000001-com.jd.mrd.jingming-N2-U4-R")),
+                eq("op-create-2"),
+                eq("jd"),
+                eq("新增店铺-[2]")
+        )).thenReturn(new ComputeService.DeductionResult(true, true, 89L));
+        when(shopService.create(argThat(shop ->
+                "新增店铺-[2]".equals(shop.getShopName())
+                        && shop.getCloneInstanceId().startsWith("CLN1-13800000001-com.jd.mrd.jingming-N2-U4-R")
+                        && shop.getCloneSequence().equals(2)
+                        && shop.getLocalVirtualUserId().equals(4)
+        ))).thenAnswer(invocation -> {
+            Shop saved = invocation.getArgument(0);
+            saved.setId(100L);
+            return saved;
+        });
+        when(userService.refreshShopStats(1L)).thenReturn(normalUser);
 
         ApiResponse<CloneShopCreateResponse> response = controller.createCloneShop(request);
 
-        assertThat(response.getCode()).isEqualTo(500);
-        assertThat(response.getMessage()).isEqualTo("您已添加新店铺但未成功登录，请先完成登录后再添加");
-        verify(computeService, never()).deductComputeForCloneCreate(any(), any(), any(), any(), any());
-        verify(shopService, never()).create(any(Shop.class));
+        assertThat(response.getCode()).isEqualTo(200);
+        assertThat(response.getData().getDeducted()).isTrue();
+        assertThat(response.getData().getShop().getShopName()).isEqualTo("新增店铺-[2]");
+        assertThat(response.getData().getShop().getLocalVirtualUserId()).isEqualTo(4);
     }
 
     @Test

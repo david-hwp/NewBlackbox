@@ -45,7 +45,7 @@ public class BPackageManager extends BlackManager<IBPackageManagerService> {
     
     
     private boolean shouldUseFallbackMode() {
-        return transactionThrottler.getFailureCount() >= 2 || !isServiceHealthy();
+        return transactionThrottler.getFailureCount() >= 2;
     }
 
     

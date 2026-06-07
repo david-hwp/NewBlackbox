@@ -2,6 +2,7 @@ package com.duodian.admin.service;
 
 import com.duodian.admin.entity.Shop;
 import com.duodian.admin.repository.ShopRepository;
+import com.duodian.admin.util.ShopExpiration;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -63,6 +64,7 @@ public class ShopService {
 
     public Shop create(Shop shop) {
         shop.setDeleted(ACTIVE);
+        ShopExpiration.applyRemainingDays(shop);
         return shopRepository.save(shop);
     }
 
@@ -93,10 +95,6 @@ public class ShopService {
                 "NEW-",
                 ACTIVE
         );
-    }
-
-    public boolean hasPendingShopByPackage(Long userId, String packageName, String shopIdPrefix) {
-        return shopRepository.existsByUserIdAndPackageNameAndShopIdStartingWithAndDeleted(userId, packageName, shopIdPrefix, ACTIVE);
     }
 
     public Shop update(Long id, Shop shop) {
@@ -143,7 +141,20 @@ public class ShopService {
         if (shop.getExpireAt() != null) {
             existing.setExpireAt(shop.getExpireAt());
         }
+        ShopExpiration.applyRemainingDays(existing);
         return shopRepository.save(existing);
+    }
+
+    public int refreshRemainingDays() {
+        List<Shop> shops = shopRepository.findActiveShopsWithExpiration(ACTIVE);
+        int updated = 0;
+        for (Shop shop : shops) {
+            if (ShopExpiration.applyRemainingDays(shop)) {
+                shopRepository.save(shop);
+                updated++;
+            }
+        }
+        return updated;
     }
 
     public void delete(Long id) {

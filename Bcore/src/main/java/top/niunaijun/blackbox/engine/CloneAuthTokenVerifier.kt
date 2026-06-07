@@ -9,6 +9,8 @@ import java.security.spec.X509EncodedKeySpec
 
 object CloneAuthTokenVerifier {
     const val DEFAULT_PUBLIC_KEY_ID = "rsa_2026_01"
+    private const val CLOCK_SKEW_SECONDS = 300L
+    private const val NOT_BEFORE_SKEW_SECONDS = 1800L
     private const val DEFAULT_PUBLIC_KEY_BASE64 =
         "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAqriGm/MjBo+b8Jh8wq3lGtFuampim/we1dOP00FRAW8Sc1n2tusSqCihem+Y5bkPRIg5Dt4yN+UIAsef6gPywqmKMSrdhEkb6MomeeSv55bB6bKFop+7jUTd5JrGXDmYQLJUZb1yEnn6D+kQ2KO3HdshCMUUT0MN2VSe79vmpp2Mhg6d6vAQ4NwSRlljrFDVpBLL8HuxphV3iJuDdC9WdwOyvhO2AhtROMnyZNgWzPF9UB8muHxpCgRtblONIVAu1v62HnJZkdIZzzZy3IT0V4ySXPm+7C6QVkwHXdb/RILd+hPDHFpk481uhhEuuTCBCwagy34vTHIgruik4msCdQIDAQAB"
     private val publicKeys = mapOf(DEFAULT_PUBLIC_KEY_ID to DEFAULT_PUBLIC_KEY_BASE64)
@@ -64,7 +66,12 @@ object CloneAuthTokenVerifier {
         val start = claims.optLong("authStartAt", -1L)
         val expire = claims.optLong("authExpireAt", -1L)
         val exp = claims.optLong("exp", expire)
-        if (start < 0 || expire <= 0 || nowSeconds < start || nowSeconds >= expire || nowSeconds >= exp) {
+        if (start < 0 ||
+            expire <= 0 ||
+            nowSeconds + NOT_BEFORE_SKEW_SECONDS < start ||
+            nowSeconds - CLOCK_SKEW_SECONDS >= expire ||
+            nowSeconds - CLOCK_SKEW_SECONDS >= exp
+        ) {
             return VerificationResult(false, "授权已过期")
         }
         return VerificationResult(true, "ok")

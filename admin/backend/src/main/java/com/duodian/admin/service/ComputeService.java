@@ -149,7 +149,7 @@ public class ComputeService {
         log.setUserId(userId);
         log.setType("CONSUME");
         log.setAmount(1);
-        log.setPlatform(platform);
+        log.setPlatform(displayPlatformName(platform));
         log.setShopName(displayName);
         log.setRemark(remarkPrefix + normalizedCloneId);
         TransactionLog savedLog = transactionLogRepository.save(log);
@@ -190,7 +190,7 @@ public class ComputeService {
         log.setUserId(userId);
         log.setType("CONSUME");
         log.setAmount(1);
-        log.setPlatform(platform);
+        log.setPlatform(displayPlatformName(platform));
         log.setShopName(shopName);
         log.setRemark(remarkPrefix + shopId);
         transactionLogRepository.save(log);
@@ -203,6 +203,21 @@ public class ComputeService {
             throw new RuntimeException(message);
         }
         return value.trim();
+    }
+
+    private String displayPlatformName(String platform) {
+        if (platform == null || platform.isBlank()) {
+            return platform;
+        }
+        return switch (platform.trim().toLowerCase()) {
+            case "jd" -> "京东秒送";
+            case "meituan" -> "美团";
+            case "taobao" -> "淘宝";
+            case "kuaishou" -> "快手";
+            case "xiaohongshu" -> "小红书";
+            case "ali" -> "阿里本地";
+            default -> platform.trim();
+        };
     }
 
     @Transactional

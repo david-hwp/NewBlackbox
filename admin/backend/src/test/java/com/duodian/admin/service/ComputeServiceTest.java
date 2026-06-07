@@ -53,7 +53,9 @@ class ComputeServiceTest {
         assertThat(user.getNonTransferableComputeBalance()).isEqualTo(1);
         verify(userRepository).save(user);
         verify(transactionLogRepository).save(argThat(log ->
-                "CONSUME".equals(log.getType()) && log.getAmount() == 1
+                "CONSUME".equals(log.getType())
+                        && log.getAmount() == 1
+                        && "京东秒送".equals(log.getPlatform())
         ));
     }
 

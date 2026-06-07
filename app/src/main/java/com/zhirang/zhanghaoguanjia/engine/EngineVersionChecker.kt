@@ -36,22 +36,32 @@ object EngineVersionChecker {
     suspend fun checkForUpgrade(context: Context, force: Boolean = false): UpgradeInfo? {
         return try {
             val prefs = getPrefs(context)
-            val lastCheck = prefs.getLong(KEY_LAST_CHECK_TIME, 0)
-            val now = System.currentTimeMillis()
-            if (!force && now - lastCheck < CHECK_INTERVAL_MS) {
-                Log.d(TAG, "Skipping upgrade check (rate limited)")
-                return null
-            }
-
-            val localVersion = EngineInstaller.getInstalledEngineVersion(context)
-            val builtinVersion = EngineInstaller.getBuiltinEngineVersion(context)
+            val installedEngine = EngineInstaller.getInstalledEnginePackageInfo(context)
+            val builtinEngine = EngineInstaller.getBuiltinEnginePackageInfo(context)
+            val localVersion = installedEngine?.versionCode ?: 0
+            val builtinVersion = builtinEngine?.versionCode ?: 0
             val currentComparableVersion = maxOf(localVersion, builtinVersion)
             EngineUpgradeState.clearPendingIfInstalled(context, localVersion)
 
-            Log.d(TAG, "Checking for upgrade: local=$localVersion, builtin=$builtinVersion")
+            Log.d(
+                TAG,
+                "Checking for upgrade: local=$localVersion(${installedEngine?.sha256.orEmpty()}) " +
+                    "builtin=$builtinVersion(${builtinEngine?.sha256.orEmpty()})"
+            )
 
-            val upgradeInfo = checkForBuiltinUpgrade(localVersion, builtinVersion)
-                ?: checkForServerUpgrade(currentComparableVersion)
+            checkForBuiltinUpgrade(installedEngine, builtinEngine)?.let { upgradeInfo ->
+                Log.i(TAG, "Built-in engine upgrade available: ${upgradeInfo.versionName} (${upgradeInfo.versionCode})")
+                return upgradeInfo
+            }
+
+            val lastCheck = prefs.getLong(KEY_LAST_CHECK_TIME, 0)
+            val now = System.currentTimeMillis()
+            if (!force && now - lastCheck < CHECK_INTERVAL_MS) {
+                Log.d(TAG, "Skipping server upgrade check (rate limited)")
+                return null
+            }
+
+            val upgradeInfo = checkForServerUpgrade(currentComparableVersion)
 
             prefs.edit().putLong(KEY_LAST_CHECK_TIME, now).apply()
 
@@ -99,18 +109,31 @@ object EngineVersionChecker {
     }
 
     private fun checkForBuiltinUpgrade(
-        localVersion: Int,
-        builtinVersion: Int
+        installedEngine: EngineInstaller.EnginePackageInfo?,
+        builtinEngine: EngineInstaller.EnginePackageInfo?
     ): UpgradeInfo? {
-        if (builtinVersion > localVersion && localVersion > 0) {
-            Log.i(TAG, "Built-in engine ($builtinVersion) is newer than installed ($localVersion), triggering local upgrade")
+        val builtinVersion = builtinEngine?.versionCode ?: return null
+        val localVersion = installedEngine?.versionCode ?: 0
+        val installedHash = installedEngine?.sha256
+        val builtinHash = builtinEngine.sha256
+        val sameVersionDifferentHash = localVersion == builtinVersion &&
+                !installedHash.isNullOrBlank() &&
+                !builtinHash.isNullOrBlank() &&
+                !installedHash.equals(builtinHash, ignoreCase = true)
+
+        if (builtinVersion > localVersion || sameVersionDifferentHash) {
+            Log.i(
+                TAG,
+                "Built-in engine update required: local=$localVersion hash=${installedHash.orEmpty()} " +
+                    "builtin=$builtinVersion hash=${builtinHash.orEmpty()}"
+            )
             return UpgradeInfo(
                 versionCode = builtinVersion,
-                versionName = "$builtinVersion",
+                versionName = builtinEngine.versionName ?: "$builtinVersion",
                 downloadUrl = "", // Local upgrade uses bundled APK, no download needed
                 checksum = null,
                 isForce = true,   // Force upgrade to prevent data loss from manual uninstall
-                changelog = "Engine update with latest features and fixes"
+                changelog = "内置引擎版本更新，请完成安装后继续使用"
             )
         }
         return null

@@ -53,6 +53,15 @@ class CloneAuthTokenVerifierTest {
         assertFalse(result.valid)
     }
 
+    @Test
+    fun tokenWithinClockSkewPassesVerification() {
+        val keyPair = generateKeyPair()
+        val token = signToken(keyPair, authStartAt = NOW + 120)
+        val result = verify(token, keyPair)
+
+        assertTrue(result.reason, result.valid)
+    }
+
     private fun verify(
         token: String,
         keyPair: KeyPair
@@ -70,7 +79,7 @@ class CloneAuthTokenVerifierTest {
         )
     }
 
-    private fun signToken(keyPair: KeyPair): String {
+    private fun signToken(keyPair: KeyPair, authStartAt: Long = NOW - 60): String {
         val header = JSONObject()
             .put("alg", "RS256")
             .put("typ", "JWT")
@@ -78,14 +87,17 @@ class CloneAuthTokenVerifierTest {
             .toString()
         val signingInput = base64Url(header.toByteArray(Charsets.UTF_8)) +
                 "." +
-                base64Url(claimsJson().toByteArray(Charsets.UTF_8))
+                base64Url(claimsJson(authStartAt = authStartAt).toByteArray(Charsets.UTF_8))
         val signature = Signature.getInstance("SHA256withRSA")
         signature.initSign(keyPair.private)
         signature.update(signingInput.toByteArray(Charsets.UTF_8))
         return "$signingInput.${base64Url(signature.sign())}"
     }
 
-    private fun claimsJson(localVirtualUserId: Int = LOCAL_USER_ID): String {
+    private fun claimsJson(
+        localVirtualUserId: Int = LOCAL_USER_ID,
+        authStartAt: Long = NOW - 60
+    ): String {
         return JSONObject()
             .put("typ", "clone_auth")
             .put("serverUserId", SERVER_USER_ID)
@@ -94,9 +106,9 @@ class CloneAuthTokenVerifierTest {
             .put("packageName", PACKAGE_NAME)
             .put("localVirtualUserId", localVirtualUserId)
             .put("credentialVersion", 1)
-            .put("authStartAt", NOW - 60)
+            .put("authStartAt", authStartAt)
             .put("authExpireAt", NOW + 3600)
-            .put("iat", NOW - 60)
+            .put("iat", authStartAt)
             .put("exp", NOW + 3600)
             .put("jti", "jti-test")
             .toString()

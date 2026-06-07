@@ -17,6 +17,13 @@ public interface ShopRepository extends JpaRepository<Shop, Long> {
     List<Shop> findByUserIdAndDeleted(Long userId, Byte deleted);
     List<Shop> findByUserIdAndPackageNameAndDeleted(Long userId, String packageName, Byte deleted);
     List<Shop> findByPackageNameAndDeleted(String packageName, Byte deleted);
+    @Query("""
+            select s
+            from Shop s
+            where s.deleted = :active
+              and (s.expireAt is not null or s.authExpireAt is not null)
+            """)
+    List<Shop> findActiveShopsWithExpiration(@Param("active") Byte active);
     long countByUserIdAndDeleted(Long userId, Byte deleted);
     long countByUserIdAndPackageNameAndDeleted(Long userId, String packageName, Byte deleted);
 
@@ -52,8 +59,6 @@ public interface ShopRepository extends JpaRepository<Shop, Long> {
             String shopIdPrefix,
             Byte deleted
     );
-    boolean existsByUserIdAndPackageNameAndShopIdStartingWithAndDeleted(Long userId, String packageName, String shopIdPrefix, Byte deleted);
-
     @Query("""
             select s
             from Shop s

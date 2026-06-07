@@ -29,7 +29,9 @@ class LoginViewModel : ViewModel() {
                     BaseRepository.clearAuthRedirecting()
                     tokenManager.saveToken(token)
                     tokenManager.saveUser(userDto)
-                    loginResultLiveData.value = Result.success(userDto)
+                    val latestUser = userRepository.getMe().getOrElse { userDto }
+                    tokenManager.saveUser(latestUser)
+                    loginResultLiveData.value = Result.success(latestUser)
                 },
                 onFailure = { e ->
                     errorLiveData.value = e.message ?: "登录失败"

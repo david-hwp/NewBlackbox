@@ -26,7 +26,23 @@ public class MethodParameterUtils {
         for (int i = 0; i < args.length; i++) {
             if (args[i] instanceof String) {
                 String value = (String) args[i];
-                if (BlackBoxCore.get().isInstalled(value, BlackBoxCore.getUserId())) {
+                if (isCurrentAppPackage(value) || BlackBoxCore.get().isInstalled(value, BlackBoxCore.getUserId())) {
+                    args[i] = BlackBoxCore.getHostPkg();
+                    return value;
+                }
+            }
+        }
+        return null;
+    }
+
+    public static String replaceFirstAppPkgNonBlocking(Object[] args) {
+        if (args == null) {
+            return null;
+        }
+        for (int i = 0; i < args.length; i++) {
+            if (args[i] instanceof String) {
+                String value = (String) args[i];
+                if (isCurrentAppPackage(value)) {
                     args[i] = BlackBoxCore.getHostPkg();
                     return value;
                 }
@@ -44,7 +60,7 @@ public class MethodParameterUtils {
                 continue;
             if (args[i] instanceof String) {
                 String value = (String) args[i];
-                if (BlackBoxCore.get().isInstalled(value, BlackBoxCore.getUserId())) {
+                if (isCurrentAppPackage(value) || BlackBoxCore.get().isInstalled(value, BlackBoxCore.getUserId())) {
                     args[i] = BlackBoxCore.getHostPkg();
                 }
             }
@@ -78,7 +94,7 @@ public class MethodParameterUtils {
         int index = ArrayUtils.indexOfLast(args, String.class);
         if (index != -1) {
             String pkg = (String) args[index];
-            if (BlackBoxCore.get().isInstalled(pkg, BlackBoxCore.getUserId())) {
+            if (isCurrentAppPackage(pkg) || BlackBoxCore.get().isInstalled(pkg, BlackBoxCore.getUserId())) {
                 args[index] = BlackBoxCore.getHostPkg();
             }
             return pkg;
@@ -90,12 +106,23 @@ public class MethodParameterUtils {
         int index = ArrayUtils.indexOf(args, String.class, sequence);
         if (index != -1) {
             String pkg = (String) args[index];
-            if (BlackBoxCore.get().isInstalled(pkg, BlackBoxCore.getUserId())) {
+            if (isCurrentAppPackage(pkg) || BlackBoxCore.get().isInstalled(pkg, BlackBoxCore.getUserId())) {
                 args[index] = BlackBoxCore.getHostPkg();
             }
             return pkg;
         }
         return null;
+    }
+
+    private static boolean isCurrentAppPackage(String packageName) {
+        if (packageName == null) {
+            return false;
+        }
+        String currentPackage = BActivityThread.getAppPackageName();
+        if (packageName.equals(currentPackage)) {
+            return true;
+        }
+        return packageName.equals(BlackBoxCore.get().getCurrentAppPackage());
     }
 
     public static int getParamsIndex(Class[] args, Class<?> type) {
