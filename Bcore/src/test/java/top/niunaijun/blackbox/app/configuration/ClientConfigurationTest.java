@@ -43,7 +43,7 @@ public class ClientConfigurationTest {
                 return "test.package";
             }
         };
-        assertFalse("hideRoot default should be false", config.isHideRoot());
+        assertTrue("hideRoot default should be true", config.isHideRoot());
         assertTrue("daemon default should be true", config.isEnableDaemonService());
         assertTrue("launcher default should be true", config.isEnableLauncherActivity());
         assertFalse("vpn default should be false", config.isUseVpnNetwork());

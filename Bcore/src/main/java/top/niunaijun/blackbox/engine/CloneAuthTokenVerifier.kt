@@ -20,7 +20,9 @@ object CloneAuthTokenVerifier {
         packageName: String,
         serverUserId: Long,
         localVirtualUserId: Int,
-        nowSeconds: Long = System.currentTimeMillis() / 1000L
+        nowSeconds: Long = System.currentTimeMillis() / 1000L,
+        publicKeyResolver: (String) -> String? = { publicKeys[it] },
+        base64Decoder: (String, Boolean) -> ByteArray = ::decodeBase64
     ): VerificationResult {
         if (meta == null) {
             return VerificationResult(false, "授权元数据不存在")
@@ -39,13 +41,13 @@ object CloneAuthTokenVerifier {
         if (parts.size != 3) {
             return VerificationResult(false, "授权令牌格式错误")
         }
-        val header = decodeJson(parts[0]) ?: return VerificationResult(false, "授权头解析失败")
-        val claims = decodeJson(parts[1]) ?: return VerificationResult(false, "授权内容解析失败")
+        val header = decodeJson(parts[0], base64Decoder) ?: return VerificationResult(false, "授权头解析失败")
+        val claims = decodeJson(parts[1], base64Decoder) ?: return VerificationResult(false, "授权内容解析失败")
         val keyId = header.optString("kid").takeIf { it.isNotBlank() }
             ?: meta.optString("publicKeyId").takeIf { it.isNotBlank() }
             ?: DEFAULT_PUBLIC_KEY_ID
-        val publicKey = publicKeys[keyId] ?: return VerificationResult(false, "授权公钥不存在")
-        if (!verifySignature("${parts[0]}.${parts[1]}", parts[2], publicKey)) {
+        val publicKey = publicKeyResolver(keyId) ?: return VerificationResult(false, "授权公钥不存在")
+        if (!verifySignature("${parts[0]}.${parts[1]}", parts[2], publicKey, base64Decoder)) {
             return VerificationResult(false, "授权签名校验失败")
         }
 
@@ -72,22 +74,36 @@ object CloneAuthTokenVerifier {
         return VerificationResult(true, "ok")
     }
 
-    private fun decodeJson(part: String): JSONObject? {
+    private fun decodeJson(part: String, base64Decoder: (String, Boolean) -> ByteArray): JSONObject? {
         return runCatching {
-            JSONObject(String(Base64.decode(part, Base64.URL_SAFE or Base64.NO_PADDING or Base64.NO_WRAP)))
+            JSONObject(String(base64Decoder(part, true)))
         }.getOrNull()
     }
 
-    private fun verifySignature(signingInput: String, signaturePart: String, publicKeyBase64: String): Boolean {
+    private fun verifySignature(
+        signingInput: String,
+        signaturePart: String,
+        publicKeyBase64: String,
+        base64Decoder: (String, Boolean) -> ByteArray
+    ): Boolean {
         return runCatching {
-            val keyBytes = Base64.decode(publicKeyBase64, Base64.NO_WRAP)
+            val keyBytes = base64Decoder(publicKeyBase64, false)
             val publicKey = KeyFactory.getInstance("RSA")
                 .generatePublic(X509EncodedKeySpec(keyBytes)) as RSAPublicKey
             val signature = Signature.getInstance("SHA256withRSA")
             signature.initVerify(publicKey)
             signature.update(signingInput.toByteArray(Charsets.UTF_8))
-            signature.verify(Base64.decode(signaturePart, Base64.URL_SAFE or Base64.NO_PADDING or Base64.NO_WRAP))
+            signature.verify(base64Decoder(signaturePart, true))
         }.getOrDefault(false)
+    }
+
+    private fun decodeBase64(value: String, urlSafe: Boolean): ByteArray {
+        val flags = if (urlSafe) {
+            Base64.URL_SAFE or Base64.NO_PADDING or Base64.NO_WRAP
+        } else {
+            Base64.NO_WRAP
+        }
+        return Base64.decode(value, flags)
     }
 
     data class VerificationResult(

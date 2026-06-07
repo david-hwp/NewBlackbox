@@ -156,7 +156,7 @@ object CloneInstanceStore {
 
     fun isAuthorizedMapping(mapping: JSONObject?): Boolean {
         if (mapping == null) {
-            return true
+            return false
         }
         return isAuthorized(
             mapping.optString("cloneInstanceId"),

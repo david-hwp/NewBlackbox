@@ -5,12 +5,7 @@ import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(
-        name = "shops",
-        uniqueConstraints = {
-                @UniqueConstraint(name = "uk_clone_instance_id", columnNames = "clone_instance_id")
-        }
-)
+@Table(name = "shops")
 public class Shop {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

@@ -76,6 +76,38 @@ Release verification must include:
 - Scan logcat for `FATAL EXCEPTION`, `AndroidRuntime`, `ClassCastException`, and `Missing type parameter`.
 - If the installed engine is older, confirm the app creates a `PackageInstaller` session, opens the system engine update dialog, and the engine package upgrades to the new `versionCode` after confirmation.
 
+Phase 9 clone-auth release verification must also include:
+
+```bash
+export JAVA_HOME=$(/usr/libexec/java_home -v 21)
+
+# Backend clone billing, token signing, soft-delete schema, and admin shop paging tests.
+cd admin/backend && mvn test
+
+# Engine local token verification tests.
+cd ../.. && ./gradlew :Bcore:testReleaseUnitTest --no-daemon
+
+# Release build with embedded engine.
+./gradlew :app:assembleRelease --no-daemon
+```
+
+Manual Pixel 8 Phase 9 smoke test:
+- Confirm the target device with `adb -s emulator-5554 emu avd name`; do not use Pixel 9 for this test.
+- Log in first. Phase 9 server operations must not run before a logged-in session exists.
+- Add a shop and confirm the UI asks for one compute point before creating the clone.
+- Confirm the backend creates `cloneInstanceId`, deducts exactly one point, and the new shop uses `User[{localVirtualUserId}]-未知` plus a `NEW-*` shop ID until store info is reported or manually edited.
+- Open the clone with a valid token, then corrupt or remove `{BEnvironment.getSystemDir()}/clone-auth/{cloneInstanceId}/auth.token` and confirm launch is blocked.
+- Renew the shop and confirm the server returns a new authorization token, the engine replaces only `auth.token`, and the clone opens again.
+- Manually edit shop name/shopId and confirm the compute balance does not change.
+- Inspect the cloned app visible data directory and confirm it contains no `.clone_meta.json`, `.clone_auth.token`, `meta.json`, `auth.token`, or other clone/token semantic files.
+- Delete the shop and confirm the virtual user/data directory and `clone-auth/{cloneInstanceId}` authorization directory are removed.
+
+Phase 9 server deployment prerequisites:
+- `APP_CLONE_AUTH_PRIVATE_KEY` must be set in `admin/.env.product`; it is a Base64-encoded PKCS#8 RSA private key whose public key matches the engine verifier public key.
+- `APP_CLONE_AUTH_PUBLIC_KEY_ID` defaults to `rsa_2026_01`.
+- `shops.clone_instance_id` must be a normal non-unique index (`idx_clone_instance_id`), not `uk_clone_instance_id`, so soft-deleted historical clone IDs do not block re-creation.
+- `compute_deductions` must contain the idempotency unique keys for create and renew operations.
+
 When uploading/registering an engine release:
 - Upload the engine APK through the admin `/api/files/engine-packages` file service so local/OBS storage behavior stays unified.
 - Store a checksum matching the uploaded APK. The app supports MD5 (32 hex chars) and SHA-256 (64 hex chars), and checksum mismatches must block installation.
