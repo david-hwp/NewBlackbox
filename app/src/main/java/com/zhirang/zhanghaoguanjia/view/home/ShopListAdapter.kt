@@ -21,13 +21,39 @@ class ShopListAdapter(
 ) : RecyclerView.Adapter<ShopListAdapter.VH>() {
 
     private var shops: List<Shop> = emptyList()
+    private var expandedShopId: Long? = null
 
     fun submitList(newList: List<Shop>) {
         shops = newList
+        if (expandedShopId != null && shops.none { it.id == expandedShopId }) {
+            expandedShopId = null
+        }
         notifyDataSetChanged()
     }
 
     fun getShops(): List<Shop> = shops
+
+    fun getExpandedShopId(): Long? = expandedShopId
+
+    fun getShopIdAt(position: Int): Long? = shops.getOrNull(position)?.id
+
+    fun getExpandedShop(): Shop? = expandedShopId?.let { id ->
+        shops.firstOrNull { it.id == id }
+    }
+
+    fun setExpandedShopId(shopId: Long?) {
+        if (expandedShopId == shopId) {
+            return
+        }
+        val previousId = expandedShopId
+        expandedShopId = shopId?.takeIf { id -> shops.any { it.id == id } }
+        previousId?.let { notifyShopChanged(it) }
+        expandedShopId?.let { notifyShopChanged(it) }
+    }
+
+    fun clearExpandedShop() {
+        setExpandedShopId(null)
+    }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
         val view = LayoutInflater.from(parent.context)
@@ -54,11 +80,14 @@ class ShopListAdapter(
         private val btnEdit: View? = itemView.findViewById(R.id.btnEdit)
         private val btnAutoRenew: View? = itemView.findViewById(R.id.btnAutoRenew)
         private val btnDelete: View? = itemView.findViewById(R.id.btnDelete)
+        private val swipeRepairAction: View? = itemView.findViewById(R.id.swipeRepairAction)
         private val btnRepair: View? = itemView.findViewById(R.id.btnRepair)
 
         fun bind(shop: Shop) {
-            cardContainer.translationX = 0f
             cardContainer.bringToFront()
+            val expanded = shop.id == expandedShopId
+            swipeRepairAction?.visibility = if (expanded) View.VISIBLE else View.INVISIBLE
+            cardContainer.translationX = if (expanded) -repairActionWidthPx(itemView) else 0f
 
             shopName.text = shop.shopName
             newTag.visibility = if (shop.isNew) View.VISIBLE else View.GONE
@@ -124,5 +153,16 @@ class ShopListAdapter(
                 }
             }
         }
+    }
+
+    private fun notifyShopChanged(shopId: Long) {
+        val position = shops.indexOfFirst { it.id == shopId }
+        if (position >= 0) {
+            notifyItemChanged(position)
+        }
+    }
+
+    private fun repairActionWidthPx(view: View): Float {
+        return 96f * view.resources.displayMetrics.density
     }
 }

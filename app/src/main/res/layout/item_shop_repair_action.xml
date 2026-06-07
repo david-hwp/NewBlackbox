@@ -9,7 +9,7 @@
         android:layout_width="96dp"
         android:layout_height="match_parent"
         android:layout_gravity="end"
-        android:background="@color/info_fg"
+        android:background="@color/muted"
         android:clickable="true"
         android:focusable="true"
         android:gravity="center"

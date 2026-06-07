@@ -92,6 +92,8 @@ class HomeActivity : AppCompatActivity() {
     private var shouldPrepareDefaultPlatformEnvironment = true
     private var defaultPlatformEnvironmentPreparedPackage: String? = null
     private var pendingScrollToCloneInstanceId: String? = null
+    private val locallyRepairedShopKeys = mutableSetOf<String>()
+    private var suppressNextShopClickAfterSwipeCollapse = false
     private lateinit var shopSwipeHelper: ShopSwipeHelper
     private lateinit var shopItemTouchHelper: ItemTouchHelper
     private val authExpiredReceiver = object : BroadcastReceiver() {
@@ -154,7 +156,7 @@ class HomeActivity : AppCompatActivity() {
         if (
             ev.actionMasked == MotionEvent.ACTION_DOWN &&
             ::shopSwipeHelper.isInitialized &&
-            shopSwipeHelper.getExpandedPosition() != RecyclerView.NO_POSITION
+            shopAdapter.getExpandedShopId() != null
         ) {
             val rv = viewBinding.rvShops
             val rvLocation = IntArray(2)
@@ -162,7 +164,7 @@ class HomeActivity : AppCompatActivity() {
             val localX = ev.rawX - rvLocation[0]
             val localY = ev.rawY - rvLocation[1]
             if (shopSwipeHelper.hitTestExpandedRepair(rv, localX, localY)) {
-                val shop = shopAdapter.getShops().getOrNull(shopSwipeHelper.getExpandedPosition())
+                val shop = shopAdapter.getExpandedShop()
                 if (shop != null) {
                     shopSwipeHelper.collapseExpandedItem(rv)
                     confirmRepairShop(shop)
@@ -245,6 +247,11 @@ class HomeActivity : AppCompatActivity() {
 
     private fun attachShopRepairSwipe() {
         shopSwipeHelper = ShopSwipeHelper()
+        shopSwipeHelper.bindState(
+            shopIdProvider = { position -> shopAdapter.getShopIdAt(position) },
+            expandedShopIdProvider = { shopAdapter.getExpandedShopId() },
+            onExpandedShopChanged = { shopId -> shopAdapter.setExpandedShopId(shopId) }
+        )
         shopItemTouchHelper = ItemTouchHelper(shopSwipeHelper)
         shopItemTouchHelper.attachToRecyclerView(viewBinding.rvShops)
         viewBinding.rvShops.addOnScrollListener(object : RecyclerView.OnScrollListener() {
@@ -256,7 +263,7 @@ class HomeActivity : AppCompatActivity() {
         })
         viewBinding.rvShops.addOnItemTouchListener(object : RecyclerView.SimpleOnItemTouchListener() {
             override fun onInterceptTouchEvent(rv: RecyclerView, e: MotionEvent): Boolean {
-                if (shopSwipeHelper.getExpandedPosition() == RecyclerView.NO_POSITION) {
+                if (shopAdapter.getExpandedShopId() == null) {
                     return false
                 }
                 if (e.actionMasked != MotionEvent.ACTION_DOWN) {
@@ -266,7 +273,7 @@ class HomeActivity : AppCompatActivity() {
                 val hitRepair = shopSwipeHelper.hitTestExpandedRepair(rv, e.x, e.y) ||
                         (child != null && shopSwipeHelper.hitTestRepair(rv, child, e.x, e.y))
                 if (hitRepair) {
-                    val shop = shopAdapter.getShops().getOrNull(shopSwipeHelper.getExpandedPosition())
+                    val shop = shopAdapter.getExpandedShop()
                     if (shop != null) {
                         shopSwipeHelper.collapseExpandedItem(rv)
                         confirmRepairShop(shop)
@@ -274,8 +281,13 @@ class HomeActivity : AppCompatActivity() {
                     }
                     return false
                 }
+                val hitExpandedItem = shopSwipeHelper.hitTestExpandedItem(rv, e.x, e.y)
                 shopSwipeHelper.collapseExpandedItem(rv)
-                return true
+                if (hitExpandedItem) {
+                    suppressNextShopClickAfterSwipeCollapse = true
+                    return true
+                }
+                return false
             }
         })
     }
@@ -507,6 +519,7 @@ class HomeActivity : AppCompatActivity() {
             val prepareKey = buildShopPrepareKey(shop, shopPackageName) ?: return@filter false
             preparedShopUsers[prepareKey] == null &&
                     !preparingShopKeys.contains(prepareKey) &&
+                    !locallyRepairedShopKeys.contains(prepareKey) &&
                     findPreparedUserIdForShop(shop, shopPackageName) == null
         }
     }
@@ -647,15 +660,22 @@ class HomeActivity : AppCompatActivity() {
     private fun collapseShopRepairSwipe() {
         if (::shopSwipeHelper.isInitialized) {
             shopSwipeHelper.collapseExpandedItem(viewBinding.rvShops)
+        } else if (::shopAdapter.isInitialized) {
+            shopAdapter.clearExpandedShop()
         }
     }
 
     private fun onShopClick(shop: Shop) {
+        if (suppressNextShopClickAfterSwipeCollapse) {
+            suppressNextShopClickAfterSwipeCollapse = false
+            return
+        }
         val packageName = resolveShopPackageName(shop)
         if (packageName.isNullOrEmpty()) {
             toast("该店铺暂无关联应用")
             return
         }
+        buildShopPrepareKey(shop, packageName)?.let { locallyRepairedShopKeys.remove(it) }
 
         if (shop.remainingDays <= 0) {
             renewExpiredShopBeforeOpen(shop)
@@ -1946,8 +1966,8 @@ class HomeActivity : AppCompatActivity() {
             val userId = findExistingUserIdForCloneInstance(shop, packageName)
             if (userId == null) {
                 EngineProxy.clearCloneUser(cloneInstanceId, packageName, viewModel.getCurrentUserId())
-                finishShopOperation()
-                openPlatformForShopAfterLocalRepair(shop)
+                clearPreparedShopEnvironment(shop, packageName)
+                finishLocalRepair(shop, packageName)
                 return@ensureEngineReady
             }
             try {
@@ -1957,9 +1977,8 @@ class HomeActivity : AppCompatActivity() {
                 EngineProxy.uninstallPackageAsUser(packageName, userId)
                 EngineProxy.clearCloneUser(cloneInstanceId, packageName, viewModel.getCurrentUserId())
                 EngineProxy.deleteUser(userId)
-                updateShopProgress("正在恢复店铺环境…")
-                finishShopOperation()
-                openPlatformForShopAfterLocalRepair(shop)
+                clearPreparedShopEnvironment(shop, packageName)
+                finishLocalRepair(shop, packageName)
             } catch (e: Exception) {
                 Log.w(TAG, "Failed to repair local shop data ${shop.id}", e)
                 finishShopOperation()
@@ -1968,8 +1987,29 @@ class HomeActivity : AppCompatActivity() {
         }
     }
 
-    private fun openPlatformForShopAfterLocalRepair(shop: Shop) {
-        openPlatformForShop(shop.copy(localVirtualUserId = null))
+    private fun finishLocalRepair(shop: Shop, packageName: String) {
+        runOnUiThread {
+            updateShopProgress("修复完成")
+            clearPreparedShopEnvironment(shop, packageName)
+            buildShopPrepareKey(shop, packageName)?.let { locallyRepairedShopKeys.add(it) }
+            if (pendingPlatformEnvironmentPackage == packageName) {
+                pendingPlatformEnvironmentPackage = null
+            }
+            if (restoreEnvironmentCheckPackage == packageName) {
+                restoreEnvironmentCheckPackage = null
+            }
+            finishShopOperation()
+            toast("本机店铺数据已清除，请重新点击店铺登录")
+        }
+    }
+
+    private fun clearPreparedShopEnvironment(shop: Shop, packageName: String) {
+        buildShopPrepareKey(shop, packageName)?.let { prepareKey ->
+            preparingShopKeys.remove(prepareKey)
+            preparedShopKeys.remove(prepareKey)
+            preparedShopUsers.remove(prepareKey)
+            preparingShopCallbacks.remove(prepareKey)
+        }
     }
 
     private fun deleteShopAndClone(shop: Shop) {
@@ -2086,6 +2126,7 @@ class HomeActivity : AppCompatActivity() {
         preparedShopKeys.clear()
         preparedShopUsers.clear()
         preparingShopCallbacks.clear()
+        locallyRepairedShopKeys.clear()
         pendingPlatformEnvironmentPackage = null
         restoreEnvironmentCheckPackage = null
         waitingForEngineConnectionToRestore = false
