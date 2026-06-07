@@ -1,182 +1,75 @@
-# BlackBox E2E Tests
+# Account Manager JD Captcha Diagnostics
 
-End-to-end automation tests for NewBlackbox, driven via ADB.
+`e2e/tests/run.sh` is a lightweight adb/root wrapper for the JD 秒送 captcha issue. It prepares the device, opens Account Manager directly, switches to JD 秒送, opens an existing `新增店铺` card or creates one, enters the JD clone phone-login flow, clicks `获取验证码`, and immediately captures diagnostics.
 
 ## Quick Start
 
 ```bash
-# Run all tests (uses existing APK if available)
-./e2e/run.sh
+# Pixel 9 emulator
+./e2e/tests/run.sh --serial emulator-5556 --profile pixel9 --skip-build
 
-# Build + reinstall + run all tests
-./e2e/run.sh --build --reinstall
+# Pixel 8 emulator
+./e2e/tests/run.sh --serial emulator-5554 --profile pixel8 --skip-build
 
-# Run only smoke test
-./e2e/run.sh smoke
+# Xiaomi physical device
+./e2e/tests/run.sh --serial <xiaomi_serial> --profile xiaomi --skip-build
 
-# Run Phase 1 single-instance test with clean data
-./e2e/run.sh --clean phase1
-
-# Use custom ADB path
-ADB=/path/to/adb ./e2e/run.sh
+# Stop before clicking JD get-code
+./e2e/tests/run.sh --serial emulator-5556 --profile pixel9 --skip-build --no-click
 ```
 
 ## Directory Structure
 
-```
+```text
 e2e/
-├── run.sh                        # Main test runner entry point
-├── lib/
-│   └── utils.sh                  # Shared utilities (device, ADB, screenshots)
+├── profile/
+│   ├── pixel8.env
+│   ├── pixel9.env
+│   └── xiaomi.env
 ├── tests/
-│   ├── smoke.sh                  # Basic smoke test (install, launch, screenshot)
-│   └── phase1_single_instance.sh # Phase 1 single-instance mode validation
-├── screenshots/                  # Screenshots captured during tests
-│   └── (auto-created)
-├── logs/                         # Logcat dumps
-│   └── (auto-created)
-└── README.md                     # This file
+│   └── run.sh
+├── artifacts/
+│   └── (generated per run)
+└── README.md
 ```
 
-## Test Scripts
+## Profiles
 
-| Script | Description | Key Checks |
-|--------|-------------|------------|
-| `smoke.sh` | Basic sanity check | Build, install, launch, no crashes, screenshot |
-| `phase1_single_instance.sh` | Single-instance mode | Toggle ON/OFF, setting persistence, process behavior |
+Device differences live in `e2e/profile/*.env`.
 
-## Environment Variables
+| Variable | Purpose |
+|----------|---------|
+| `PROFILE_NAME` | Run/profile name. |
+| `DEVICE_KIND` | `emulator` or `physical`. |
+| `AVD_NAME_CONTAINS` | Emulator AVD name selector when `--serial` is omitted. |
+| `APP_PACKAGE` | Account Manager package. |
+| `APP_LAUNCH_ACTIVITY` | Explicit Activity started through `am start -W -n`. |
+| `ENGINE_PACKAGE` | Account Manager engine package. |
+| `JD_PACKAGE` | Host JD package used by the clone. |
+| `POLL_INTERVAL_MS` | adb UI polling interval. |
+| `MEDIUM_TIMEOUT_MS` | Standard control wait timeout. |
+| `LONG_TIMEOUT_MS` | Longer app-state wait timeout. |
+| `CAPTCHA_CAPTURE_SECONDS` | Post-click root capture duration. |
+| `DIALOG_BUTTON_TEXTS` | `|` separated system/app dialog button text list. |
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `ADB` | Auto-detected | Path to adb executable |
-| `JAVA_HOME` | Auto-detected | JDK 21 path for Gradle build |
+## Artifacts
 
-## Adding a New Test
+Each run writes local artifacts to:
 
-1. Create `e2e/tests/my_feature.sh`
-2. Define a `run_test()` function
-3. Source `./e2e/lib/utils.sh` for helpers
-4. Use `take_screenshot`, `tap`, `assert_*` helpers
-5. Run: `./e2e/run.sh my_feature`
-
-### Example Test Template
-
-```bash
-#!/usr/bin/env bash
-set -euo pipefail
-
-run_test() {
-    log_info "=== My Feature Test ==="
-
-    # Setup
-    install_apk
-    start_app
-    sleep 2
-
-    # Action
-    tap 500 800
-    sleep 1
-
-    # Assert + Screenshot
-    assert_package_running
-    TEST_SCREENSHOT=$(basename "$(take_screenshot "my_feature")")
-
-    log_ok "=== My Feature Test Complete ==="
-    return 0
-}
-
-run_test
+```text
+e2e/artifacts/<profile>_jd_captcha_<timestamp>/
 ```
 
-## Report Output
+The wrapper captures:
 
-After each run, a Markdown report is generated:
-
-```
-e2e/report_20250530_143022.md
-```
-
-Example report:
-
-| # | Test | Status | Duration | Screenshot |
-|---|------|--------|----------|------------|
-| 1 | smoke | ✅ PASS | 18s | smoke_launch.png |
-| 2 | phase1 | ✅ PASS | 25s | phase1_settings_default.png |
-
-## Screen-Off / Lock Screen Testing
-
-### Can tests run with the screen off?
-
-| Capability | Status | Notes |
-|-----------|--------|-------|
-| `adb shell input tap` while off | ✅ Works | Injected at system level, but may be intercepted by lock screen |
-| `adb shell am start` while off | ✅ Works | App starts in background; visible after wake |
-| Screenshot while off | ❌ Black | `screencap` outputs a black image — UI assertions fail |
-| Logcat / process checks while off | ✅ Works | Fully unaffected by screen state |
-
-**Bottom line**: Backend/logic tests can run screen-off; any test requiring screenshots or UI interaction needs the screen **on and unlocked**.
-
-### Auto-wake on test start
-
-`run.sh` automatically calls `ensure_unlocked()` before each run:
-
-1. Presses **POWER** (`keyevent 26`) if screen is off
-2. Performs an **upward swipe** to dismiss swipe-only lock
-3. Warns if a PIN/password is still blocking the screen
-
-If your device uses a **PIN/password/pattern**, add the unlock sequence to `lib/utils.sh`:
-
-```bash
-unlock_pin() {
-    wake_screen
-    # Tap PIN digits (example: 1-2-3-4)
-    tap 180 1500  # digit 1
-    tap 540 1500  # digit 2
-    tap 900 1500  # digit 3
-    tap 540 1800  # digit 4
-    tap 540 2100  # OK/Enter
-    sleep 1
-}
-```
-
-Then update `ensure_unlocked()` to call `unlock_pin` instead of `unlock_swipe`.
-
-### Testing with screen deliberately off
-
-To keep the screen off during a test (e.g. background-process validation):
-
-```bash
-run_test() {
-    # Ensure screen is on for setup
-    ensure_unlocked
-
-    # Install and launch
-    install_apk
-    start_app
-    sleep 3
-
-    # Turn screen off
-    $ADB shell input keyevent 26
-    sleep 2
-
-    # ... run background checks (logs, pid, etc.) ...
-
-    # Wake up for final screenshot
-    wake_screen
-    take_screenshot "after_background_test"
-}
-```
-
-## Device Coordinate Reference (MIX 2S — 1080×2160)
-
-| UI Element | Approx Coordinates |
-|------------|-------------------|
-| Bottom nav — Apps tab | (350, 2150) |
-| Bottom nav — Settings tab | (730, 2150) |
-| Settings toggle (single-instance) | (930, 600) |
-| Center of screen | (540, 1080) |
-| Swipe unlock (bottom → top) | (540, 1800) → (540, 600) |
-
-> **Tip:** For other devices, use `adb shell wm size` to get resolution,
-> then scale coordinates proportionally.
+- screenshot PNG files
+- UI XML from `uiautomator dump`
+- foreground Activity/window snapshots
+- `ps -A`
+- `debuggerd -b <pid>` for the virtual JD process when found
+- `/proc/<pid>/status`, `fd`, and `maps`
+- `logcat -b all`
+- `dumpsys webviewupdate`
+- JD package dump
+- `/data/anr` and `/data/tombstones` pulls when `adb root` is available
+- `run-summary.json`

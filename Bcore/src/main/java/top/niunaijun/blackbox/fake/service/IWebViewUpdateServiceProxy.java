@@ -5,9 +5,9 @@ import android.content.pm.PackageInfo;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 
+import top.niunaijun.blackbox.fake.hook.ClassInvocationStub;
 import top.niunaijun.blackbox.fake.hook.MethodHook;
 import top.niunaijun.blackbox.fake.hook.ProxyMethod;
-import top.niunaijun.blackbox.fake.hook.ClassInvocationStub;
 import top.niunaijun.blackbox.utils.Slog;
 
 

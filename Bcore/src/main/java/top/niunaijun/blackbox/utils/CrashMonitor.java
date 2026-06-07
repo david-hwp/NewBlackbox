@@ -231,6 +231,8 @@ public class CrashMonitor {
             
             
             Slog.w(TAG, "Crash detected: " + crashInfo);
+            Slog.w(TAG, "Crash stack for thread " + (thread != null ? thread.getName() : "unknown")
+                    + ": " + crashInfo.errorMessage + "\n" + crashInfo.stackTrace);
             
             
             String crashKey = crashType + "_" + System.currentTimeMillis();
