@@ -6,7 +6,7 @@ import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.RecyclerView
 import com.zhirang.zhanghaoguanjia.R
 
-class ShopSwipeHelper : ItemTouchHelper.SimpleCallback(0, ItemTouchHelper.LEFT) {
+class ShopSwipeHelper : ItemTouchHelper.SimpleCallback(0, ItemTouchHelper.LEFT or ItemTouchHelper.RIGHT) {
 
     companion object {
         private const val SWIPE_THRESHOLD = 0.3f
@@ -24,6 +24,16 @@ class ShopSwipeHelper : ItemTouchHelper.SimpleCallback(0, ItemTouchHelper.LEFT) 
     ): Boolean = false
 
     override fun onSwiped(viewHolder: RecyclerView.ViewHolder, direction: Int) {
+        when (direction) {
+            ItemTouchHelper.LEFT -> expandItem(viewHolder)
+            ItemTouchHelper.RIGHT -> {
+                getCardContainer(viewHolder)?.let { view ->
+                    view.bringToFront()
+                    animateSwipe(view, 0f)
+                }
+                expandedPosition = RecyclerView.NO_POSITION
+            }
+        }
     }
 
     override fun getSwipeThreshold(viewHolder: RecyclerView.ViewHolder): Float = SWIPE_THRESHOLD
@@ -51,7 +61,7 @@ class ShopSwipeHelper : ItemTouchHelper.SimpleCallback(0, ItemTouchHelper.LEFT) 
         val actionWidth = getActionWidth(recyclerView)
         if (cardContainer.translationX <= -actionWidth * SWIPE_THRESHOLD) {
             collapseOtherItem(recyclerView, viewHolder.bindingAdapterPosition)
-            viewHolder.itemView.findViewById<View>(R.id.swipeRepairAction)?.bringToFront()
+            getRepairAction(viewHolder)?.bringToFront()
             animateSwipe(cardContainer, -actionWidth)
             expandedPosition = viewHolder.bindingAdapterPosition
         } else {
@@ -74,6 +84,40 @@ class ShopSwipeHelper : ItemTouchHelper.SimpleCallback(0, ItemTouchHelper.LEFT) 
 
         val actionStart = child.width - getActionWidth(recyclerView)
         return localX in actionStart..child.width.toFloat()
+    }
+
+    fun hitTestExpandedRepair(recyclerView: RecyclerView, x: Float, y: Float): Boolean {
+        if (expandedPosition == RecyclerView.NO_POSITION) return false
+        val holder = recyclerView.findViewHolderForAdapterPosition(expandedPosition) ?: return false
+        val child = holder.itemView
+        val localX = x - child.left
+        val localY = y - child.top
+        if (localY < 0f || localY > child.height) return false
+
+        val actionStart = child.width - getActionWidth(recyclerView)
+        return localX in actionStart..child.width.toFloat()
+    }
+
+    fun hitTestExpandedItem(recyclerView: RecyclerView, x: Float, y: Float): Boolean {
+        if (expandedPosition == RecyclerView.NO_POSITION) return false
+        val holder = recyclerView.findViewHolderForAdapterPosition(expandedPosition) ?: return false
+        val child = holder.itemView
+        val localX = x - child.left
+        val localY = y - child.top
+        return localX in 0f..child.width.toFloat() && localY in 0f..child.height.toFloat()
+    }
+
+    fun dispatchRepairClickIfHit(recyclerView: RecyclerView, x: Float, y: Float): Boolean {
+        if (expandedPosition == RecyclerView.NO_POSITION) return false
+        val holder = recyclerView.findViewHolderForAdapterPosition(expandedPosition) ?: return false
+        val child = holder.itemView
+        val localX = x - child.left
+        val localY = y - child.top
+        if (localY < 0f || localY > child.height) return false
+        val actionStart = child.width - getActionWidth(recyclerView)
+        if (localX !in actionStart..child.width.toFloat()) return false
+        getRepairButton(holder)?.performClick()
+        return true
     }
 
     fun getExpandedPosition(): Int = expandedPosition
@@ -110,8 +154,30 @@ class ShopSwipeHelper : ItemTouchHelper.SimpleCallback(0, ItemTouchHelper.LEFT) 
         return viewHolder.itemView.findViewById(R.id.cardContainer)
     }
 
+    private fun getRepairAction(viewHolder: RecyclerView.ViewHolder): View? {
+        return viewHolder.itemView.findViewById(R.id.swipeRepairAction)
+    }
+
+    private fun getRepairButton(viewHolder: RecyclerView.ViewHolder): View? {
+        return viewHolder.itemView.findViewById(R.id.btnRepair)
+    }
+
     private fun getActionWidth(recyclerView: RecyclerView): Float {
         return ACTION_WIDTH_DP * recyclerView.context.resources.displayMetrics.density
+    }
+
+    private fun getActionWidth(view: View): Float {
+        return ACTION_WIDTH_DP * view.resources.displayMetrics.density
+    }
+
+    private fun expandItem(viewHolder: RecyclerView.ViewHolder) {
+        val position = viewHolder.bindingAdapterPosition.takeIf { it != RecyclerView.NO_POSITION }
+            ?: viewHolder.absoluteAdapterPosition.takeIf { it != RecyclerView.NO_POSITION }
+            ?: return
+        val cardContainer = getCardContainer(viewHolder) ?: return
+        getRepairAction(viewHolder)?.bringToFront()
+        animateSwipe(cardContainer, -getActionWidth(cardContainer))
+        expandedPosition = position
     }
 
     private fun animateSwipe(view: View, targetX: Float) {

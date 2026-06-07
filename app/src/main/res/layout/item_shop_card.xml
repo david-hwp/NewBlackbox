@@ -148,8 +148,8 @@
                     <ImageView
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
-                        android:src="@drawable/bg_auto_renew_triangle"
-                        app:tint="@color/accent_green" />
+                        android:forceDarkAllowed="false"
+                        android:src="@drawable/bg_auto_renew_triangle" />
 
                     <ImageView
                         android:layout_width="14dp"

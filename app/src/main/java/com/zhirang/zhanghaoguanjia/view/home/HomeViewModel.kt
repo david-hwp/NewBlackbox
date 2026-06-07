@@ -104,6 +104,14 @@ class HomeViewModel : ViewModel() {
         }
     }
 
+    fun clearOperationMessage() {
+        _operationMessageLiveData.value = null
+    }
+
+    fun clearLoadError() {
+        _loadErrorLiveData.value = null
+    }
+
     fun loadAppReleaseAnnouncementIfNeeded() {
         if (!isLoggedIn()) {
             _appReleaseAnnouncementLiveData.value = null
@@ -383,11 +391,6 @@ class HomeViewModel : ViewModel() {
                                 platformCount = it.platformCount ?: user.platformCount
                             )
                         )
-                    }
-                    _operationMessageLiveData.value = if (it.deducted) {
-                        "已扣划 1 点算力，新店铺已创建"
-                    } else {
-                        "新店铺已存在"
                     }
                     val pendingShop = it.shop.toShop()
                     loadShops()

@@ -87,6 +87,7 @@ class LogsAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 
     inner class LogEntryViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         private val tvBadgeText: TextView = itemView.findViewById(R.id.tvBadgeText)
+        private val badgeContainer: View = itemView.findViewById(R.id.badgeContainer)
         private val tvTypeName: TextView = itemView.findViewById(R.id.tvTypeName)
         private val tvDescription: TextView = itemView.findViewById(R.id.tvDescription)
         private val tvAmount: TextView = itemView.findViewById(R.id.tvAmount)
@@ -112,7 +113,8 @@ class LogsAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
             }
 
             tvBadgeText.text = badgeText
-            tvBadgeText.background = badgeBg
+            tvBadgeText.background = null
+            badgeContainer.background = badgeBg
             tvTypeName.text = typeName
             tvDescription.text = log.description
             tvAmount.text = "$amountPrefix${log.amount}"

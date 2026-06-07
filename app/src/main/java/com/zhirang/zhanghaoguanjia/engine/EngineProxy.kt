@@ -79,6 +79,32 @@ object EngineProxy {
         }
     }
 
+    fun peekLaunchIntent(packageName: String, userId: Int): android.content.Intent? {
+        if (!isConnected()) {
+            Log.w(TAG, "peekLaunchIntent: Engine not connected")
+            return null
+        }
+        return try {
+            mEngine!!.peekLaunchIntent(packageName, userId)
+        } catch (e: RemoteException) {
+            markRemoteFailure("peekLaunchIntent($packageName, user=$userId)", e)
+            null
+        }
+    }
+
+    fun prepareLaunch(packageName: String, userId: Int): top.niunaijun.blackbox.engine.LaunchPreparationResult? {
+        if (!isConnected()) {
+            Log.w(TAG, "prepareLaunch: Engine not connected")
+            return null
+        }
+        return try {
+            mEngine!!.prepareLaunch(packageName, userId)
+        } catch (e: RemoteException) {
+            markRemoteFailure("prepareLaunch($packageName, user=$userId)", e)
+            null
+        }
+    }
+
     fun launchApk(packageName: String, userId: Int): Boolean {
         if (!isConnected()) {
             Log.w(TAG, "launchApk: Engine not connected")
@@ -257,6 +283,19 @@ object EngineProxy {
             mEngine!!.getAuthorizedLaunchIntent(cloneInstanceId, packageName, userId)
         } catch (e: RemoteException) {
             markRemoteFailure("getAuthorizedLaunchIntent($cloneInstanceId, $packageName, user=$userId)", e)
+            null
+        }
+    }
+
+    fun peekAuthorizedLaunchIntent(cloneInstanceId: String, packageName: String, userId: Int): android.content.Intent? {
+        if (!isConnected()) {
+            Log.w(TAG, "peekAuthorizedLaunchIntent: Engine not connected")
+            return null
+        }
+        return try {
+            mEngine!!.peekAuthorizedLaunchIntent(cloneInstanceId, packageName, userId)
+        } catch (e: RemoteException) {
+            markRemoteFailure("peekAuthorizedLaunchIntent($cloneInstanceId, $packageName, user=$userId)", e)
             null
         }
     }

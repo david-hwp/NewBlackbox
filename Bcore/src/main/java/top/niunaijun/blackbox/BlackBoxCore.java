@@ -1105,20 +1105,30 @@ public class BlackBoxCore extends ClientConfiguration {
     public Intent getLaunchIntent(String packageName, int userId) {
         onBeforeMainLaunchApk(packageName, userId);
 
-        boolean singleInstance = mClientConfiguration != null && mClientConfiguration.isSingleInstanceMode();
-        if (singleInstance) {
-            try {
-                getBActivityManager().killAllOtherProcessesGlobal(packageName, userId);
-            } catch (Exception e) {
-                Slog.e(TAG, "Failed to kill other running apps in single instance mode", e);
-            }
-        }
+        prepareLaunch(packageName, userId);
 
+        return peekLaunchIntent(packageName, userId);
+    }
+
+    public Intent peekLaunchIntent(String packageName, int userId) {
         Intent launchIntentForPackage = getBPackageManager().getLaunchIntentForPackage(packageName, userId);
         if (launchIntentForPackage == null) {
             return null;
         }
         return getBActivityManager().getLaunchIntent(launchIntentForPackage, userId);
+    }
+
+    public int prepareLaunch(String packageName, int userId) {
+        boolean singleInstance = mClientConfiguration != null && mClientConfiguration.isSingleInstanceMode();
+        if (!singleInstance) {
+            return 0;
+        }
+        try {
+            return getBActivityManager().killAllOtherProcessesGlobal(packageName, userId);
+        } catch (Exception e) {
+            Slog.e(TAG, "Failed to kill other running apps in single instance mode", e);
+            return -1;
+        }
     }
 
     public boolean launchApk(String packageName, int userId) {
@@ -1158,6 +1168,10 @@ public class BlackBoxCore extends ClientConfiguration {
         }
         startActivity(launchIntentForPackage, userId);
         return true;
+    }
+
+    public boolean isSingleInstanceModeEnabled() {
+        return mClientConfiguration != null && mClientConfiguration.isSingleInstanceMode();
     }
     public boolean isInstalled(String packageName, int userId) {
         return getBPackageManager().isInstalled(packageName, userId);

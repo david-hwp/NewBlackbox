@@ -80,6 +80,41 @@ class BlackBoxEngineService : Service() {
             return BlackBoxCore.get().launchApk(pkg, userId)
         }
 
+        override fun prepareLaunch(packageName: String?, userId: Int): LaunchPreparationResult {
+            val pkg = packageName?.takeIf { it.isNotBlank() }
+                ?: return LaunchPreparationResult(false, 0, 0, false, "Package is empty")
+            val start = System.currentTimeMillis()
+            return try {
+                val singleInstance = BlackBoxCore.get().isSingleInstanceModeEnabled
+                val killed = BlackBoxCore.get().prepareLaunch(pkg, userId)
+                LaunchPreparationResult(
+                    singleInstance,
+                    killed.coerceAtLeast(0),
+                    System.currentTimeMillis() - start,
+                    killed >= 0,
+                    if (killed < 0) "Failed to prepare launch" else null
+                )
+            } catch (e: Exception) {
+                Slog.e(TAG, "prepareLaunch failed package=$pkg userId=$userId", e)
+                LaunchPreparationResult(
+                    BlackBoxCore.get().isSingleInstanceModeEnabled,
+                    0,
+                    System.currentTimeMillis() - start,
+                    false,
+                    e.message
+                )
+            }
+        }
+
+        override fun peekLaunchIntent(packageName: String?, userId: Int): android.content.Intent? {
+            val pkg = packageName?.takeIf { it.isNotBlank() } ?: return null
+            if (!isLegacyLaunchAuthorized(pkg, userId)) {
+                Slog.w(TAG, "legacy peek launch blocked package=$pkg userId=$userId")
+                return null
+            }
+            return BlackBoxCore.get().peekLaunchIntent(pkg, userId)
+        }
+
         override fun installPackageAsUser(path: String?, userId: Int): InstallResult {
             return if (path != null) {
                 try {
@@ -165,13 +200,24 @@ class BlackBoxEngineService : Service() {
                 Slog.w(TAG, "authorized launch blocked clone=$cloneId package=$pkg userId=$userId")
                 return null
             }
-            val intent = BlackBoxCore.get().getLaunchIntent(pkg, userId)
+            val intent = BlackBoxCore.get().peekLaunchIntent(pkg, userId)
             if (intent == null) {
                 Slog.w(TAG, "authorized launch has no intent clone=$cloneId package=$pkg userId=$userId")
             } else {
                 Slog.d(TAG, "authorized launch intent ok clone=$cloneId package=$pkg userId=$userId")
             }
             return intent
+        }
+
+        override fun peekAuthorizedLaunchIntent(cloneInstanceId: String?, packageName: String?, userId: Int): android.content.Intent? {
+            val cloneId = cloneInstanceId?.takeIf { it.isNotBlank() } ?: return null
+            val pkg = packageName?.takeIf { it.isNotBlank() } ?: return null
+            val serverUserId = extractServerUserIdFromAuth(cloneId, pkg, userId)
+            if (serverUserId == null || !CloneInstanceStore.isAuthorized(cloneId, pkg, serverUserId, userId)) {
+                Slog.w(TAG, "authorized peek launch blocked clone=$cloneId package=$pkg userId=$userId")
+                return null
+            }
+            return BlackBoxCore.get().peekLaunchIntent(pkg, userId)
         }
 
         override fun isCloneAuthorized(cloneInstanceId: String?, packageName: String?, serverUserId: Long, userId: Int): Boolean {
