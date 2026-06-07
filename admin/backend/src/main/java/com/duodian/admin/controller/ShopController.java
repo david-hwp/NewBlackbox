@@ -8,6 +8,7 @@ import com.duodian.admin.controller.dto.PagedResponse;
 import com.duodian.admin.controller.dto.PendingShopDeductResponse;
 import com.duodian.admin.controller.dto.ShopRenewRequest;
 import com.duodian.admin.controller.dto.ShopRenewResponse;
+import com.duodian.admin.controller.dto.ShopAuthTokenRequest;
 import com.duodian.admin.controller.dto.ShopReportRequest;
 import com.duodian.admin.controller.dto.ShopResponse;
 import com.duodian.admin.entity.ComputeDeduction;
@@ -226,7 +227,7 @@ public class ShopController {
             );
         } while (shopService.findByCloneInstanceId(cloneInstanceId).isPresent());
 
-        String shopName = "User[" + localVirtualUserId + "]-未知";
+        String shopName = "新增店铺-[" + cloneSequence + "]";
         ComputeService.DeductionResult deduction = computeService.deductComputeForCloneCreate(
                 userId,
                 cloneInstanceId,
@@ -352,7 +353,10 @@ public class ShopController {
     }
 
     @PostMapping("/{id}/auth-token")
-    public ApiResponse<CloneShopCreateResponse> issueAuthorizationToken(@PathVariable Long id) {
+    public ApiResponse<CloneShopCreateResponse> issueAuthorizationToken(
+            @PathVariable Long id,
+            @RequestBody(required = false) ShopAuthTokenRequest request
+    ) {
         Long userId = AuthContext.getUserId();
         if (userId == null) {
             return ApiResponse.error(401, "未登录");
@@ -366,18 +370,37 @@ public class ShopController {
         if (normalize(shop.getCloneInstanceId()) == null) {
             return ApiResponse.error("店铺缺少分身标识，无法授权");
         }
+        Integer requestedUserId = request != null ? request.getLocalVirtualUserId() : null;
+        if (requestedUserId != null) {
+            if (requestedUserId < 0) {
+                return ApiResponse.error("虚拟用户目录号无效");
+            }
+            shop.setLocalVirtualUserId(requestedUserId);
+        }
+        String requestedPackageName = normalize(request != null ? request.getPackageName() : null);
+        if (requestedPackageName != null) {
+            shop.setPackageName(requestedPackageName);
+        }
+        if (shop.getLocalVirtualUserId() == null || shop.getLocalVirtualUserId() < 0) {
+            return ApiResponse.error("店铺缺少虚拟用户目录号，无法授权");
+        }
+        if (normalize(shop.getPackageName()) == null) {
+            return ApiResponse.error("店铺缺少应用包名，无法授权");
+        }
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime expireAt = firstPresent(shop.getAuthExpireAt(), shop.getExpireAt());
-        if (expireAt == null || !expireAt.isAfter(now)) {
+        boolean legacyWithoutAuthorizationWindow = expireAt == null;
+        if (legacyWithoutAuthorizationWindow) {
+            expireAt = now.plusDays(DEFAULT_AUTH_DAYS);
+            shop.setRemainingDays(DEFAULT_AUTH_DAYS);
+        } else if (!expireAt.isAfter(now)) {
             return ApiResponse.error(402, "店铺已到期，请续期后再打开");
         }
         if (shop.getAuthStartAt() == null) {
             shop.setAuthStartAt(now);
         }
         shop.setAuthExpireAt(expireAt);
-        if (shop.getExpireAt() == null) {
-            shop.setExpireAt(expireAt);
-        }
+        shop.setExpireAt(expireAt);
         if (shop.getCredentialVersion() == null || shop.getCredentialVersion() < 1) {
             shop.setCredentialVersion(1);
         }

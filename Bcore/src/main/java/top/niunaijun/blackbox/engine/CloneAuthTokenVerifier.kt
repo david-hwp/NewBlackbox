@@ -61,10 +61,6 @@ object CloneAuthTokenVerifier {
         ) {
             return VerificationResult(false, "授权内容不匹配")
         }
-        val metaPhone = meta.optString("phone").takeIf { it.isNotBlank() }
-        if (metaPhone != null && claims.optString("phone") != metaPhone) {
-            return VerificationResult(false, "授权手机号不匹配")
-        }
         val start = claims.optLong("authStartAt", -1L)
         val expire = claims.optLong("authExpireAt", -1L)
         val exp = claims.optLong("exp", expire)

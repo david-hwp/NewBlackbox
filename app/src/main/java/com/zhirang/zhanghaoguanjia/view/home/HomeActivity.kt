@@ -568,17 +568,22 @@ class HomeActivity : AppCompatActivity() {
     private fun requestAndWriteAuthorizationThenLaunch(shop: Shop, packageName: String, userId: Int, platformName: String) {
         viewModel.issueShopAuthToken(
             shop,
+            packageName,
+            userId,
             onSuccess = { authorizedShop, token, publicKeyId ->
                 if (writeCloneAuthorization(authorizedShop, packageName, userId, token, publicKeyId)) {
                     val launchIntent = authorizedShop.cloneInstanceId?.takeIf { it.isNotBlank() }
                         ?.let { EngineProxy.getAuthorizedLaunchIntent(it, packageName, userId) }
                     if (launchIntent != null) {
+                        Log.d(TAG, "Authorized launch intent resolved for $packageName user=$userId shop=${authorizedShop.id}")
                         toast("正在打开 ${platformName}…")
                         startActivity(launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
                     } else {
+                        Log.w(TAG, "Authorized launch intent missing for $packageName user=$userId shop=${authorizedShop.id}")
                         toast("分身授权校验失败，请续期后重试")
                     }
                 } else {
+                    Log.w(TAG, "Failed to write clone authorization for $packageName user=$userId shop=${shop.id}")
                     toast("分身授权写入失败，请重试")
                 }
             },

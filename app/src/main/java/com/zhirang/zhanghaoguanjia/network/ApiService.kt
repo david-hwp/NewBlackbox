@@ -56,7 +56,10 @@ interface ApiService {
     suspend fun renewShop(@Path("id") id: Long, @Body request: ShopRenewRequest): ApiResponse<ShopRenewResponse>
 
     @POST("shops/{id}/auth-token")
-    suspend fun issueShopAuthToken(@Path("id") id: Long): ApiResponse<CloneShopCreateResult>
+    suspend fun issueShopAuthToken(
+        @Path("id") id: Long,
+        @Body request: ShopAuthTokenRequest
+    ): ApiResponse<CloneShopCreateResult>
 
     @DELETE("shops/{id}")
     suspend fun deleteShop(@Path("id") id: Long): ApiResponse<Unit>

@@ -8,6 +8,7 @@ import com.duodian.admin.controller.dto.CloneShopCreateResponse;
 import com.duodian.admin.controller.dto.PagedResponse;
 import com.duodian.admin.controller.dto.ShopRenewRequest;
 import com.duodian.admin.controller.dto.ShopRenewResponse;
+import com.duodian.admin.controller.dto.ShopAuthTokenRequest;
 import com.duodian.admin.controller.dto.ShopResponse;
 import com.duodian.admin.entity.ComputeDeduction;
 import com.duodian.admin.entity.Shop;
@@ -140,10 +141,11 @@ class ShopControllerTest {
                 argThat(id -> id != null && id.startsWith("CLN1-13800000001-com.jd.mrd.jingming-N1-U3-R")),
                 eq("op-create-1"),
                 eq("jd"),
-                eq("User[3]-未知")
+                eq("新增店铺-[1]")
         )).thenReturn(new ComputeService.DeductionResult(true, true, 88L));
         when(shopService.create(argThat(shop ->
                 shop.getShopId().startsWith("NEW-")
+                        && "新增店铺-[1]".equals(shop.getShopName())
                         && shop.getCloneInstanceId().startsWith("CLN1-13800000001-com.jd.mrd.jingming-N1-U3-R")
                         && shop.getCloneSequence().equals(1)
                         && shop.getLocalVirtualUserId().equals(3)
@@ -167,7 +169,7 @@ class ShopControllerTest {
         assertThat(response.getData().getShop().getCloneInstanceId())
                 .startsWith("CLN1-13800000001-com.jd.mrd.jingming-N1-U3-R");
         assertThat(response.getData().getAuthorizationToken()).contains(".");
-        assertThat(response.getData().getAuthorizationToken()).doesNotContain("User[3]-未知");
+        assertThat(response.getData().getAuthorizationToken()).doesNotContain("新增店铺-[1]");
         assertThat(response.getData().getAuthorizationToken()).doesNotContain(response.getData().getShop().getShopId());
         assertThat(Shop.class.getMethod("getCloneValidationCode").isAnnotationPresent(JsonIgnore.class)).isTrue();
         assertThat(Shop.class.getMethod("getCloneValidationHash").isAnnotationPresent(JsonIgnore.class)).isTrue();
@@ -196,7 +198,7 @@ class ShopControllerTest {
         AuthContext.setUserId(1L);
         User normalUser = user(1L, "USER");
         normalUser.setComputeBalance(7);
-        Shop existingShop = shop(99L, 1L, "User[3]-未知");
+        Shop existingShop = shop(99L, 1L, "新增店铺-[1]");
         existingShop.setPackageName("com.jd.mrd.jingming");
         existingShop.setCloneInstanceId("CLN1-13800000001-com.jd.mrd.jingming-N1-U3-Rabcd1234");
         existingShop.setLocalVirtualUserId(3);
@@ -263,6 +265,39 @@ class ShopControllerTest {
                 "jd",
                 "expired"
         );
+    }
+
+    @Test
+    void authTokenBackfillsLegacyShopWithoutDeducting() {
+        AuthContext.setUserId(1L);
+        User normalUser = user(1L, "USER");
+        normalUser.setComputeBalance(7);
+        Shop legacyShop = shop(11L, 1L, "legacy");
+        legacyShop.setCloneInstanceId("clone-legacy");
+        legacyShop.setPackageName("com.jd.mrd.jingming");
+        legacyShop.setLocalVirtualUserId(null);
+        legacyShop.setAuthStartAt(null);
+        legacyShop.setAuthExpireAt(null);
+        legacyShop.setExpireAt(null);
+        ShopAuthTokenRequest request = new ShopAuthTokenRequest();
+        request.setLocalVirtualUserId(6);
+        request.setPackageName("com.jd.mrd.jingming");
+
+        when(userService.findById(1L)).thenReturn(Optional.of(normalUser));
+        when(shopService.findById(11L)).thenReturn(Optional.of(legacyShop));
+        when(shopService.update(11L, legacyShop)).thenReturn(legacyShop);
+        when(userService.refreshShopStats(1L)).thenReturn(normalUser);
+
+        ApiResponse<CloneShopCreateResponse> response = controller.issueAuthorizationToken(11L, request);
+
+        assertThat(response.getCode()).isEqualTo(200);
+        assertThat(response.getData().getDeducted()).isFalse();
+        assertThat(legacyShop.getLocalVirtualUserId()).isEqualTo(6);
+        assertThat(legacyShop.getAuthExpireAt()).isAfter(LocalDateTime.now());
+        assertThat(legacyShop.getExpireAt()).isEqualTo(legacyShop.getAuthExpireAt());
+        assertThat(response.getData().getAuthorizationToken()).contains(".");
+        verify(computeService, never()).deductComputeForCloneRenew(any(), any(), any(), any(), any());
+        verify(computeService, never()).deductComputeForCloneCreate(any(), any(), any(), any(), any());
     }
 
     private User user(Long id, String role) {

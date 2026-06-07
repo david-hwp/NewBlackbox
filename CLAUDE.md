@@ -95,7 +95,7 @@ Manual Pixel 8 Phase 9 smoke test:
 - Confirm the target device with `adb -s emulator-5554 emu avd name`; do not use Pixel 9 for this test.
 - Log in first. Phase 9 server operations must not run before a logged-in session exists.
 - Add a shop and confirm the UI asks for one compute point before creating the clone.
-- Confirm the backend creates `cloneInstanceId`, deducts exactly one point, and the new shop uses `User[{localVirtualUserId}]-未知` plus a `NEW-*` shop ID until store info is reported or manually edited.
+- Confirm the backend creates `cloneInstanceId`, deducts exactly one point, and the new shop uses `新增店铺-[编号]` plus a `NEW-*` shop ID until store info is reported or manually edited.
 - Open the clone with a valid token, then corrupt or remove `{BEnvironment.getSystemDir()}/clone-auth/{cloneInstanceId}/auth.token` and confirm launch is blocked.
 - Renew the shop and confirm the server returns a new authorization token, the engine replaces only `auth.token`, and the clone opens again.
 - Manually edit shop name/shopId and confirm the compute balance does not change.

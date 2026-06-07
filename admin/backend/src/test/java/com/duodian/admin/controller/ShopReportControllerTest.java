@@ -41,7 +41,7 @@ class ShopReportControllerTest {
         AuthContext.setUserId(1L);
         LocalDateTime deductedAt = LocalDateTime.now().minusMinutes(5);
         String cloneInstanceId = cloneIdForCode("server-random");
-        Shop pendingShop = shop(20L, "NEW-abc", "User[3]-未知", cloneInstanceId);
+        Shop pendingShop = shop(20L, "NEW-abc", "新增店铺-[1]", cloneInstanceId);
         pendingShop.setLastDeductedAt(deductedAt);
         pendingShop.setCloneValidationCode("server-random");
         pendingShop.setCloneValidationHash(sha256(pendingShop.getCloneInstanceId() + ":server-random"));
@@ -112,7 +112,7 @@ class ShopReportControllerTest {
     @Test
     void reportRejectsWhenServerValidationCodeDoesNotMatchCloneId() {
         AuthContext.setUserId(1L);
-        Shop pendingShop = shop(20L, "NEW-abc", "User[3]-未知", cloneIdForCode("server-random"));
+        Shop pendingShop = shop(20L, "NEW-abc", "新增店铺-[1]", cloneIdForCode("server-random"));
         pendingShop.setCloneValidationCode("server-random");
         pendingShop.setCloneValidationHash("wrong-hash");
 

@@ -101,7 +101,13 @@ object CloneInstanceStore {
                 if (target.exists()) {
                     target.delete()
                 }
-                tmp.renameTo(target)
+                val renamed = tmp.renameTo(target)
+                if (!renamed) {
+                    Slog.w(TAG, "writeAuthorization rename failed clone=$cloneId package=$pkg userId=$userId")
+                } else {
+                    Slog.d(TAG, "writeAuthorization ok clone=$cloneId package=$pkg userId=$userId")
+                }
+                renamed
             } catch (e: Exception) {
                 Slog.w(TAG, "writeAuthorization failed clone=$cloneId package=$pkg userId=$userId", e)
                 false
@@ -113,7 +119,11 @@ object CloneInstanceStore {
         val cloneId = normalize(cloneInstanceId) ?: return false
         val pkg = normalize(packageName) ?: return false
         return try {
-            CloneAuthTokenVerifier.verifyCloneAuth(readAuthMeta(cloneId), readAuthToken(cloneId), cloneId, pkg, serverUserId, userId).valid
+            val result = CloneAuthTokenVerifier.verifyCloneAuth(readAuthMeta(cloneId), readAuthToken(cloneId), cloneId, pkg, serverUserId, userId)
+            if (!result.valid) {
+                Slog.w(TAG, "isAuthorized denied clone=$cloneId package=$pkg serverUserId=$serverUserId userId=$userId reason=${result.reason}")
+            }
+            result.valid
         } catch (e: Exception) {
             Slog.w(TAG, "isAuthorized failed clone=$cloneId package=$pkg userId=$userId", e)
             false

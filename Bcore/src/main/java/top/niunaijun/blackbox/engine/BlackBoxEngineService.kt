@@ -165,7 +165,13 @@ class BlackBoxEngineService : Service() {
                 Slog.w(TAG, "authorized launch blocked clone=$cloneId package=$pkg userId=$userId")
                 return null
             }
-            return BlackBoxCore.get().getLaunchIntent(pkg, userId)
+            val intent = BlackBoxCore.get().getLaunchIntent(pkg, userId)
+            if (intent == null) {
+                Slog.w(TAG, "authorized launch has no intent clone=$cloneId package=$pkg userId=$userId")
+            } else {
+                Slog.d(TAG, "authorized launch intent ok clone=$cloneId package=$pkg userId=$userId")
+            }
+            return intent
         }
 
         override fun isCloneAuthorized(cloneInstanceId: String?, packageName: String?, serverUserId: Long, userId: Int): Boolean {

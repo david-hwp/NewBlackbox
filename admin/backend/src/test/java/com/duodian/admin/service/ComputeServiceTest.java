@@ -82,7 +82,7 @@ class ComputeServiceTest {
                 "CLN1-abc",
                 "op-1",
                 "jd",
-                "User[1]-未知"
+                "新增店铺-[1]"
         );
 
         assertThat(result.isSuccess()).isTrue();

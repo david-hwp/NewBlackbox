@@ -11,6 +11,7 @@ import com.zhirang.zhanghaoguanjia.bean.dto.AnnouncementDto
 import com.zhirang.zhanghaoguanjia.bean.dto.CloneShopCreateRequest
 import com.zhirang.zhanghaoguanjia.bean.dto.CloneShopCreateResult
 import com.zhirang.zhanghaoguanjia.bean.dto.PlatformItemDto
+import com.zhirang.zhanghaoguanjia.bean.dto.ShopAuthTokenRequest
 import com.zhirang.zhanghaoguanjia.bean.dto.ShopDto
 import com.zhirang.zhanghaoguanjia.bean.dto.ShopReportRequest
 import com.zhirang.zhanghaoguanjia.bean.dto.ShopRenewRequest
@@ -467,6 +468,8 @@ class HomeViewModel : ViewModel() {
 
     fun issueShopAuthToken(
         shop: Shop,
+        packageName: String,
+        localVirtualUserId: Int,
         onSuccess: (Shop, String, String?) -> Unit,
         onFailure: (String) -> Unit
     ) {
@@ -477,7 +480,13 @@ class HomeViewModel : ViewModel() {
             return
         }
         viewModelScope.launch {
-            val result = shopRepository.issueShopAuthToken(shop.id)
+            val result = shopRepository.issueShopAuthToken(
+                shop.id,
+                ShopAuthTokenRequest(
+                    localVirtualUserId = localVirtualUserId,
+                    packageName = packageName
+                )
+            )
             result.fold(
                 onSuccess = {
                     onSuccess(it.shop.toShop(), it.authorizationToken, it.publicKeyId)

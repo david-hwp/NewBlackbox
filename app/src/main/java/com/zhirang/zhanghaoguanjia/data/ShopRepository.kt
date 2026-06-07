@@ -23,8 +23,8 @@ class ShopRepository(api: ApiService) : BaseRepository(api) {
     suspend fun renewShop(id: Long, request: ShopRenewRequest): Result<ShopRenewResponse> =
         safeApiCall { api.renewShop(id, request) }
 
-    suspend fun issueShopAuthToken(id: Long): Result<CloneShopCreateResult> =
-        safeApiCall { api.issueShopAuthToken(id) }
+    suspend fun issueShopAuthToken(id: Long, request: ShopAuthTokenRequest): Result<CloneShopCreateResult> =
+        safeApiCall { api.issueShopAuthToken(id, request) }
 
     suspend fun deleteShop(id: Long): Result<Unit> =
         safeApiCall { api.deleteShop(id) }
