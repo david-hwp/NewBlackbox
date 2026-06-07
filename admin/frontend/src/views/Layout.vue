@@ -41,6 +41,10 @@
           <el-icon><Bell /></el-icon>
           <span>公告管理</span>
         </el-menu-item>
+        <el-menu-item index="/app-versions">
+          <el-icon><Upload /></el-icon>
+          <span>主 APK 版本</span>
+        </el-menu-item>
         <el-menu-item index="/engine-versions">
           <el-icon><Connection /></el-icon>
           <span>引擎版本</span>
@@ -86,7 +90,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Shop, Odometer, User, Document, ArrowDown, UserFilled, Bell, Connection, ChatDotRound, Grid } from '@element-plus/icons-vue'
+import { Shop, Odometer, User, Document, ArrowDown, UserFilled, Bell, Connection, ChatDotRound, Grid, Upload } from '@element-plus/icons-vue'
 import { getPreferredImageObjectUrl } from '../utils/files'
 
 const route = useRoute()

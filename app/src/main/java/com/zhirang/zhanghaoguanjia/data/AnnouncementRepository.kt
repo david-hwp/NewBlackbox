@@ -5,6 +5,6 @@ import com.zhirang.zhanghaoguanjia.network.ApiService
 
 class AnnouncementRepository(api: ApiService) : BaseRepository(api) {
 
-    suspend fun getPublishedAnnouncements(): Result<List<AnnouncementDto>> =
-        safeApiCall { api.getAnnouncements(true) }
+    suspend fun getPublishedAnnouncements(type: String? = null): Result<List<AnnouncementDto>> =
+        safeApiCall { api.getAnnouncements(true, type) }
 }

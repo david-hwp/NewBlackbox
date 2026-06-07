@@ -7,7 +7,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.launch
 import com.zhirang.zhanghaoguanjia.app.App
+import com.zhirang.zhanghaoguanjia.bean.dto.AppVersionDto
 import com.zhirang.zhanghaoguanjia.bean.dto.UserDto
+import com.zhirang.zhanghaoguanjia.update.AppUpdateManager
 import com.zhirang.zhanghaoguanjia.data.EngineVersionRepository
 import com.zhirang.zhanghaoguanjia.data.TokenManager
 import com.zhirang.zhanghaoguanjia.data.UserRepository
@@ -28,6 +30,8 @@ class ProfileViewModel : ViewModel() {
     val passwordResultLiveData = MutableLiveData<Result<Unit>>()
     val errorLiveData = MutableLiveData<String>()
     val hasEngineUpgradeLiveData = MutableLiveData<Boolean>()
+    val appUpdateLiveData = MutableLiveData<Result<AppVersionDto?>>()
+    val appInstallResultLiveData = MutableLiveData<Result<Unit>>()
 
     fun loadProfile() {
         _userProfileLiveData.value = tokenManager.getUser()
@@ -120,6 +124,20 @@ class ProfileViewModel : ViewModel() {
                     hasEngineUpgradeLiveData.value = EngineUpgradeState.hasPendingUpgrade(context, current)
                 }
             )
+        }
+    }
+
+    fun checkAppUpdate() {
+        viewModelScope.launch {
+            val result = AppUpdateManager.checkForUpdate(App.getContext())
+            appUpdateLiveData.value = result
+        }
+    }
+
+    fun downloadAndInstallApp(version: AppVersionDto) {
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            val result = AppUpdateManager.downloadAndInstall(App.getContext(), version)
+            appInstallResultLiveData.postValue(result)
         }
     }
 

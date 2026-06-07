@@ -12,4 +12,6 @@ public interface AnnouncementRepository extends JpaRepository<Announcement, Long
     List<Announcement> findByDeletedOrderByCreatedAtDesc(Byte deleted);
     Optional<Announcement> findByIdAndDeleted(Long id, Byte deleted);
     List<Announcement> findByPublishedAndDeletedOrderByCreatedAtDesc(Boolean published, Byte deleted);
+    List<Announcement> findByTypeAndDeletedOrderByCreatedAtDesc(String type, Byte deleted);
+    List<Announcement> findByPublishedAndTypeAndDeletedOrderByCreatedAtDesc(Boolean published, String type, Byte deleted);
 }

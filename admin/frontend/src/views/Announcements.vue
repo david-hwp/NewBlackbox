@@ -11,6 +11,13 @@
       <el-table :data="announcements" v-loading="loading" style="width: 100%">
         <el-table-column prop="id" label="ID" width="70" />
         <el-table-column prop="title" label="标题" min-width="180" />
+        <el-table-column prop="type" label="类型" width="120">
+          <template #default="{ row }">
+            <el-tag :type="row.type === 'APP_RELEASE' ? 'success' : 'info'">
+              {{ typeLabel(row.type) }}
+            </el-tag>
+          </template>
+        </el-table-column>
         <el-table-column prop="content" label="内容" min-width="280" show-overflow-tooltip />
         <el-table-column prop="published" label="状态" width="100">
           <template #default="{ row }">
@@ -33,6 +40,12 @@
       <el-form :model="form" :rules="rules" ref="formRef" label-width="80px">
         <el-form-item label="标题" prop="title">
           <el-input v-model="form.title" maxlength="128" show-word-limit />
+        </el-form-item>
+        <el-form-item label="类型" prop="type">
+          <el-select v-model="form.type" style="width: 100%">
+            <el-option label="普通公告" value="NORMAL" />
+            <el-option label="版本发布" value="APP_RELEASE" />
+          </el-select>
         </el-form-item>
         <el-form-item label="内容" prop="content">
           <el-input v-model="form.content" type="textarea" :rows="8" maxlength="4000" show-word-limit />
@@ -59,11 +72,17 @@ const loading = ref(false)
 const dialogVisible = ref(false)
 const isEdit = ref(false)
 const formRef = ref()
-const form = ref({ title: '', content: '', published: true })
+const form = ref({ title: '', content: '', type: 'NORMAL', published: true })
 
 const rules = {
   title: [{ required: true, message: '请输入标题', trigger: 'blur' }],
+  type: [{ required: true, message: '请选择公告类型', trigger: 'change' }],
   content: [{ required: true, message: '请输入内容', trigger: 'blur' }]
+}
+
+const typeLabel = (type) => {
+  if (type === 'APP_RELEASE') return '版本发布'
+  return '普通公告'
 }
 
 const fetchAnnouncements = async () => {
@@ -77,13 +96,13 @@ const fetchAnnouncements = async () => {
 
 const showAddDialog = () => {
   isEdit.value = false
-  form.value = { title: '', content: '', published: true }
+  form.value = { title: '', content: '', type: 'NORMAL', published: true }
   dialogVisible.value = true
 }
 
 const showEditDialog = (row) => {
   isEdit.value = true
-  form.value = { ...row }
+  form.value = { ...row, type: row.type || 'NORMAL' }
   dialogVisible.value = true
 }
 

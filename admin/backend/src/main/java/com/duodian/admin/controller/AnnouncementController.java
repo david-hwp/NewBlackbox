@@ -20,9 +20,19 @@ public class AnnouncementController {
     }
 
     @GetMapping
-    public ApiResponse<List<Announcement>> list(@RequestParam(required = false) Boolean published) {
+    public ApiResponse<List<Announcement>> list(
+            @RequestParam(required = false) Boolean published,
+            @RequestParam(required = false) String type
+    ) {
+        String normalizedType = normalizeType(type);
+        if (published != null && normalizedType != null) {
+            return ApiResponse.success(repository.findByPublishedAndTypeAndDeletedOrderByCreatedAtDesc(published, normalizedType, ACTIVE));
+        }
         if (published != null) {
             return ApiResponse.success(repository.findByPublishedAndDeletedOrderByCreatedAtDesc(published, ACTIVE));
+        }
+        if (normalizedType != null) {
+            return ApiResponse.success(repository.findByTypeAndDeletedOrderByCreatedAtDesc(normalizedType, ACTIVE));
         }
         return ApiResponse.success(repository.findByDeletedOrderByCreatedAtDesc(ACTIVE));
     }
@@ -39,6 +49,7 @@ public class AnnouncementController {
                 .orElseThrow(() -> new RuntimeException("公告不存在"));
         existing.setTitle(announcement.getTitle());
         existing.setContent(announcement.getContent());
+        existing.setType(announcement.getType());
         existing.setPublished(announcement.getPublished());
         return ApiResponse.success(repository.save(existing));
     }
@@ -50,5 +61,12 @@ public class AnnouncementController {
         existing.setDeleted(DELETED);
         repository.save(existing);
         return ApiResponse.success();
+    }
+
+    private String normalizeType(String type) {
+        if (type == null || type.isBlank()) {
+            return null;
+        }
+        return type.trim();
     }
 }

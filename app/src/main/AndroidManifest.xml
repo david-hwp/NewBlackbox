@@ -149,6 +149,10 @@
             </intent-filter>
         </receiver>
 
+        <receiver
+            android:name=".update.AppUpdateReceiver"
+            android:exported="false" />
+
         <!-- FileProvider for sharing APK files during installation -->
         <provider
             android:name="androidx.core.content.FileProvider"

@@ -19,6 +19,7 @@ public class SoftDeleteSchemaInitializer implements CommandLineRunner {
             "transaction_logs",
             "announcements",
             "engine_versions",
+            "app_versions",
             "platform_configs",
             "feedbacks"
     );
@@ -38,6 +39,15 @@ public class SoftDeleteSchemaInitializer implements CommandLineRunner {
                 jdbcTemplate.execute("ALTER TABLE " + table + " ADD COLUMN deleted TINYINT NOT NULL DEFAULT 0");
             }
         }
+        ensureAnnouncementTypeColumn();
+    }
+
+    private void ensureAnnouncementTypeColumn() throws Exception {
+        if (!hasColumn("announcements", "type")) {
+            jdbcTemplate.execute("ALTER TABLE announcements ADD COLUMN type VARCHAR(32) NOT NULL DEFAULT 'NORMAL'");
+            jdbcTemplate.execute("CREATE INDEX idx_type ON announcements (type)");
+        }
+        jdbcTemplate.execute("UPDATE announcements SET type = 'NORMAL' WHERE type IS NULL OR type = ''");
     }
 
     private boolean hasColumn(String table, String column) throws Exception {

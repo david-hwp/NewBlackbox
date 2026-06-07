@@ -15,6 +15,8 @@ import com.zhirang.zhanghaoguanjia.data.AnnouncementRepository
 import com.zhirang.zhanghaoguanjia.data.PlatformRepository
 import com.zhirang.zhanghaoguanjia.data.ShopRepository
 import com.zhirang.zhanghaoguanjia.data.TokenManager
+import com.zhirang.zhanghaoguanjia.app.App
+import com.zhirang.zhanghaoguanjia.update.AppUpdateManager
 import com.zhirang.zhanghaoguanjia.network.RetrofitClient
 import com.zhirang.zhanghaoguanjia.util.PlatformRegistry
 
@@ -50,6 +52,9 @@ class HomeViewModel : ViewModel() {
     private val _latestAnnouncementLiveData = MutableLiveData<AnnouncementDto?>()
     val latestAnnouncementLiveData: LiveData<AnnouncementDto?> = _latestAnnouncementLiveData
 
+    private val _appReleaseAnnouncementLiveData = MutableLiveData<AnnouncementDto?>()
+    val appReleaseAnnouncementLiveData: LiveData<AnnouncementDto?> = _appReleaseAnnouncementLiveData
+
     private val _platformShopCounts = MutableLiveData<Map<Platform, Int>>()
     val platformShopCounts: LiveData<Map<Platform, Int>> = _platformShopCounts
 
@@ -76,13 +81,39 @@ class HomeViewModel : ViewModel() {
 
     fun loadLatestAnnouncement() {
         viewModelScope.launch {
-            val result = announcementRepository.getPublishedAnnouncements()
+            val result = announcementRepository.getPublishedAnnouncements("NORMAL")
             result.fold(
                 onSuccess = { announcements ->
                     _latestAnnouncementLiveData.value = announcements.firstOrNull()
                 },
                 onFailure = {
                     _latestAnnouncementLiveData.value = null
+                }
+            )
+        }
+    }
+
+    fun loadAppReleaseAnnouncementIfNeeded() {
+        viewModelScope.launch {
+            val versionResult = AppUpdateManager.checkForUpdate(App.getContext())
+            versionResult.fold(
+                onSuccess = { version ->
+                    if (version == null) {
+                        _appReleaseAnnouncementLiveData.value = null
+                        return@fold
+                    }
+                    val announcementResult = announcementRepository.getPublishedAnnouncements("APP_RELEASE")
+                    announcementResult.fold(
+                        onSuccess = { announcements ->
+                            _appReleaseAnnouncementLiveData.value = announcements.firstOrNull()
+                        },
+                        onFailure = {
+                            _appReleaseAnnouncementLiveData.value = null
+                        }
+                    )
+                },
+                onFailure = {
+                    _appReleaseAnnouncementLiveData.value = null
                 }
             )
         }

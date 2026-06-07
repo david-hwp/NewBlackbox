@@ -22,8 +22,14 @@ interface ApiService {
     @GET("engine-versions")
     suspend fun getEngineVersions(@Query("available") available: Boolean? = null): ApiResponse<List<EngineVersionDto>>
 
+    @GET("app-versions")
+    suspend fun getAppVersions(@Query("published") published: Boolean? = null): ApiResponse<List<AppVersionDto>>
+
     @GET("announcements")
-    suspend fun getAnnouncements(@Query("published") published: Boolean? = null): ApiResponse<List<AnnouncementDto>>
+    suspend fun getAnnouncements(
+        @Query("published") published: Boolean? = null,
+        @Query("type") type: String? = null
+    ): ApiResponse<List<AnnouncementDto>>
 
     @GET("shops/my")
     suspend fun getMyShops(): ApiResponse<List<ShopDto>>

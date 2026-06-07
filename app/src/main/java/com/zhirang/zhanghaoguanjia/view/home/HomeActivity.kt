@@ -9,6 +9,7 @@ import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.text.method.LinkMovementMethod
 import android.text.Editable
 import android.text.TextWatcher
 import android.util.Log
@@ -41,6 +42,7 @@ import com.zhirang.zhanghaoguanjia.view.logs.LogsActivity
 import com.zhirang.zhanghaoguanjia.view.login.LoginActivity
 import com.zhirang.zhanghaoguanjia.view.profile.ProfileActivity
 import com.zhirang.zhanghaoguanjia.view.splash.EngineInstallActivity
+import com.zhirang.zhanghaoguanjia.update.AppUpdateManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -288,6 +290,10 @@ class HomeActivity : AppCompatActivity() {
             announcement?.let { showAnnouncementDialog(it) }
         }
 
+        viewModel.appReleaseAnnouncementLiveData.observe(this) { announcement ->
+            announcement?.let { showAnnouncementDialog(it) }
+        }
+
         // Initial load
         viewModel.loadShops()
         loadAnnouncementForOpen()
@@ -295,6 +301,7 @@ class HomeActivity : AppCompatActivity() {
 
     private fun loadAnnouncementForOpen() {
         viewModel.loadLatestAnnouncement()
+        viewModel.loadAppReleaseAnnouncementIfNeeded()
     }
 
     private fun showAnnouncementDialog(announcement: AnnouncementDto) {
@@ -305,8 +312,60 @@ class HomeActivity : AppCompatActivity() {
         MaterialAlertDialogBuilder(this)
             .setTitle(announcement.title)
             .setMessage(announcement.content)
+            .setNegativeButton("立即升级") { _, _ ->
+                checkMainAppUpdateFromAnnouncement()
+            }
             .setPositiveButton(R.string.announcement_dialog_button, null)
             .show()
+            .also { dialog ->
+                dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_NEGATIVE)
+                    ?.visibility = if (announcement.hasMainAppUpgradeAction()) View.VISIBLE else View.GONE
+                dialog.findViewById<android.widget.TextView>(android.R.id.message)?.movementMethod =
+                    LinkMovementMethod.getInstance()
+            }
+    }
+
+    private fun AnnouncementDto.hasMainAppUpgradeAction(): Boolean {
+        return type.equals("APP_RELEASE", ignoreCase = true)
+    }
+
+    private fun checkMainAppUpdateFromAnnouncement() {
+        lifecycleScope.launch {
+            val result = AppUpdateManager.checkForUpdate(this@HomeActivity)
+            result.fold(
+                onSuccess = { version ->
+                    if (version == null) {
+                        toast("当前已是最新版本")
+                        return@fold
+                    }
+                    val changelog = version.changelog?.takeIf { it.isNotBlank() } ?: "暂无更新说明"
+                    MaterialAlertDialogBuilder(this@HomeActivity)
+                        .setTitle("发现新版本")
+                        .setMessage(
+                            """
+                            当前版本：${AppUpdateManager.currentVersionLabel(this@HomeActivity)}
+                            最新版本：${version.versionName} (${version.versionCode})
+
+                            $changelog
+                            """.trimIndent()
+                        )
+                        .setNegativeButton("稍后", null)
+                        .setPositiveButton("立即升级") { _, _ ->
+                            lifecycleScope.launch(Dispatchers.IO) {
+                                val installResult = AppUpdateManager.downloadAndInstall(this@HomeActivity, version)
+                                withContext(Dispatchers.Main) {
+                                    installResult.fold(
+                                        onSuccess = { toast("已开始安装，请在系统弹窗中确认") },
+                                        onFailure = { toast(it.message ?: "安装启动失败") }
+                                    )
+                                }
+                            }
+                        }
+                        .show()
+                },
+                onFailure = { e -> toast(e.message ?: "检查更新失败") }
+            )
+        }
     }
 
     private fun updateShopList() {

@@ -74,10 +74,12 @@ CREATE TABLE IF NOT EXISTS announcements (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     title VARCHAR(128) NOT NULL COMMENT '公告标题',
     content VARCHAR(4000) NOT NULL COMMENT '公告内容',
+    type VARCHAR(32) NOT NULL DEFAULT 'NORMAL' COMMENT '公告类型: NORMAL/APP_RELEASE',
     published TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否发布',
     deleted TINYINT(1) NOT NULL DEFAULT 0 COMMENT '软删除: 0-正常 1-已删除',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_type (type),
     INDEX idx_published (published),
     INDEX idx_deleted (deleted),
     INDEX idx_created_at (created_at)
@@ -99,6 +101,24 @@ CREATE TABLE IF NOT EXISTS engine_versions (
     INDEX idx_deleted (deleted),
     INDEX idx_version_code (version_code)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='引擎版本表';
+
+-- 主APK版本表
+CREATE TABLE IF NOT EXISTS app_versions (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    version_code INT NOT NULL COMMENT '版本号',
+    version_name VARCHAR(64) NOT NULL COMMENT '版本名称',
+    apk_url VARCHAR(512) NOT NULL COMMENT '主APK下载地址',
+    checksum VARCHAR(64) COMMENT 'APK校验值',
+    file_size BIGINT COMMENT '文件大小，单位字节',
+    changelog TEXT COMMENT '更新日志',
+    published TINYINT(1) NOT NULL DEFAULT 1 COMMENT '是否发布',
+    deleted TINYINT(1) NOT NULL DEFAULT 0 COMMENT '软删除: 0-正常 1-已删除',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_published (published),
+    INDEX idx_deleted (deleted),
+    INDEX idx_version_code (version_code)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='主APK版本表';
 
 -- 支持平台配置表
 CREATE TABLE IF NOT EXISTS platform_configs (

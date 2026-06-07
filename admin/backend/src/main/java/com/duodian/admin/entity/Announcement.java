@@ -16,6 +16,9 @@ public class Announcement {
     @Column(nullable = false, length = 4000)
     private String content;
 
+    @Column(nullable = false, length = 32, columnDefinition = "VARCHAR(32) DEFAULT 'NORMAL'")
+    private String type = "NORMAL";
+
     @Column(nullable = false)
     private Boolean published = false;
 
@@ -32,6 +35,9 @@ public class Announcement {
     protected void onCreate() {
         if (deleted == null) {
             deleted = 0;
+        }
+        if (type == null || type.isBlank()) {
+            type = "NORMAL";
         }
         createdAt = LocalDateTime.now();
         updatedAt = LocalDateTime.now();
@@ -50,6 +56,9 @@ public class Announcement {
 
     public String getContent() { return content; }
     public void setContent(String content) { this.content = content; }
+
+    public String getType() { return type; }
+    public void setType(String type) { this.type = (type == null || type.isBlank()) ? "NORMAL" : type.trim(); }
 
     public Boolean getPublished() { return published; }
     public void setPublished(Boolean published) { this.published = published; }
