@@ -10,6 +10,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.text.method.LinkMovementMethod
+import android.text.util.Linkify
 import android.text.Editable
 import android.text.TextWatcher
 import android.util.Log
@@ -320,8 +321,10 @@ class HomeActivity : AppCompatActivity() {
             .also { dialog ->
                 dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_NEGATIVE)
                     ?.visibility = if (announcement.hasMainAppUpgradeAction()) View.VISIBLE else View.GONE
-                dialog.findViewById<android.widget.TextView>(android.R.id.message)?.movementMethod =
-                    LinkMovementMethod.getInstance()
+                dialog.findViewById<android.widget.TextView>(android.R.id.message)?.let { messageView ->
+                    Linkify.addLinks(messageView, Linkify.WEB_URLS)
+                    messageView.movementMethod = LinkMovementMethod.getInstance()
+                }
             }
     }
 
