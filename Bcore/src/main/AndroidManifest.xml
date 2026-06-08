@@ -552,6 +552,13 @@
             android:permission="${applicationId}.permission.BIND_ENGINE"
             android:theme="@android:style/Theme.NoDisplay" />
 
+        <activity
+            android:name=".engine.EnginePermissionActivity"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:permission="${applicationId}.permission.BIND_ENGINE"
+            android:theme="@style/BTheme" />
+
         <service
             android:name="top.niunaijun.blackbox.proxy.ProxyVpnService"
             android:enabled="true"

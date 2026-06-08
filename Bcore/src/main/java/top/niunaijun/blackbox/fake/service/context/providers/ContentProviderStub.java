@@ -1,21 +1,31 @@
 package top.niunaijun.blackbox.fake.service.context.providers;
 
+import android.database.MatrixCursor;
+import android.net.Uri;
+import android.os.Bundle;
 import android.os.IInterface;
 
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 
 import black.android.content.BRAttributionSource;
-import top.niunaijun.blackbox.app.BActivityThread;
 import top.niunaijun.blackbox.BlackBoxCore;
+import top.niunaijun.blackbox.app.BActivityThread;
 import top.niunaijun.blackbox.fake.hook.ClassInvocationStub;
-import top.niunaijun.blackbox.utils.compat.ContextCompat;
-import top.niunaijun.blackbox.utils.Slog;
-import android.os.Bundle;
 import top.niunaijun.blackbox.utils.AttributionSourceUtils;
+import top.niunaijun.blackbox.utils.ByteDanceProcessCompat;
+import top.niunaijun.blackbox.utils.Slog;
+import top.niunaijun.blackbox.utils.compat.ContextCompat;
 
 
 public class ContentProviderStub extends ClassInvocationStub implements BContentProvider {
     public static final String TAG = "ContentProviderStub";
+    private static final ThreadLocal<Integer> sByteDanceTokenProviderDepth = new ThreadLocal<Integer>() {
+        @Override
+        protected Integer initialValue() {
+            return 0;
+        }
+    };
     private IInterface mBase;
     private String mAppPkg;
 
@@ -82,10 +92,10 @@ public class ContentProviderStub extends ClassInvocationStub implements BContent
             
             
             try {
-                return method.invoke(mBase, args);
+                return invokeProviderMethod(method, args, methodName);
             } catch (Throwable e) {
                 
-                Throwable cause = e.getCause();
+                Throwable cause = e instanceof InvocationTargetException ? e.getCause() : e;
                 if (isUidMismatchError(cause)) {
                     Slog.w(TAG, "UID mismatch in ContentProvider call, returning safe default: " + cause.getMessage());
                     return getSafeDefaultValue(methodName, method.getReturnType());
@@ -119,6 +129,85 @@ public class ContentProviderStub extends ClassInvocationStub implements BContent
             }
             throw e.getCause();
         }
+    }
+
+    private Object invokeProviderMethod(Method method, Object[] args, String methodName) throws Throwable {
+        Uri byteDanceTokenProviderUri = findByteDanceTokenProviderQueryUri(methodName, args);
+        if (byteDanceTokenProviderUri == null) {
+            return method.invoke(mBase, args);
+        }
+
+        int depth = sByteDanceTokenProviderDepth.get();
+        if (depth > 0) {
+            Slog.w(TAG, "Blocked recursive ByteDance TokenObjectProvider query for " + mAppPkg);
+            return newByteDanceTokenCursor(byteDanceTokenProviderUri);
+        }
+        sByteDanceTokenProviderDepth.set(depth + 1);
+        try {
+            return method.invoke(mBase, args);
+        } finally {
+            if (depth == 0) {
+                sByteDanceTokenProviderDepth.remove();
+            } else {
+                sByteDanceTokenProviderDepth.set(depth);
+            }
+        }
+    }
+
+    private Uri findByteDanceTokenProviderQueryUri(String methodName, Object[] args) {
+        if (!"query".equals(methodName) || !isCurrentByteDanceTarget()) {
+            return null;
+        }
+        Uri uri = findUriArg(args);
+        if (uri == null) {
+            return null;
+        }
+        String authority = uri.getAuthority();
+        if (!"com.bytedance.ls.merchant.TokenObjectProvider".equals(authority)) {
+            return null;
+        }
+        String path = uri.getPath();
+        return "/get_token_object".equals(path) || "/get_last_same_user_token".equals(path) ? uri : null;
+    }
+
+    private boolean isCurrentByteDanceTarget() {
+        if (ByteDanceProcessCompat.isSupportedPackage(mAppPkg)) {
+            return true;
+        }
+        try {
+            return ByteDanceProcessCompat.isSupportedPackage(BActivityThread.getAppPackageName());
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    private Uri findUriArg(Object[] args) {
+        if (args == null) {
+            return null;
+        }
+        for (Object arg : args) {
+            if (arg instanceof Uri) {
+                return (Uri) arg;
+            }
+        }
+        return null;
+    }
+
+    private MatrixCursor newByteDanceTokenCursor(Uri uri) {
+        if ("/get_last_same_user_token".equals(uri.getPath())) {
+            MatrixCursor cursor = new MatrixCursor(new String[]{"last_token"});
+            cursor.newRow().add("");
+            return cursor;
+        }
+        MatrixCursor cursor = new MatrixCursor(new String[]{
+                "token",
+                "ts_sign",
+                "attest_ts_sign",
+                "token_encrypted",
+                "token_hash"
+        });
+        cursor.newRow().add("").add("").add("").add("").add("");
+        return cursor;
     }
     
     private Object getSafeDefaultValue(String methodName) {

@@ -18,6 +18,8 @@ import android.view.MotionEvent
 import android.view.View
 import android.widget.TextView
 import android.widget.ProgressBar
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.result.ActivityResultLauncher
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
@@ -34,6 +36,7 @@ import com.zhirang.zhanghaoguanjia.bean.dto.PlatformItemDto
 import com.zhirang.zhanghaoguanjia.data.BaseRepository
 import com.zhirang.zhanghaoguanjia.data.TokenManager
 import com.zhirang.zhanghaoguanjia.databinding.ActivityHomeBinding
+import com.zhirang.zhanghaoguanjia.engine.EnginePermissionCenter
 import com.zhirang.zhanghaoguanjia.engine.EngineInstaller
 import com.zhirang.zhanghaoguanjia.engine.EngineProxy
 import com.zhirang.zhanghaoguanjia.engine.EngineUpgradeManager
@@ -91,9 +94,15 @@ class HomeActivity : AppCompatActivity() {
     private var restoreEnvironmentCheckPackage: String? = null
     private var shouldPrepareDefaultPlatformEnvironment = true
     private var defaultPlatformEnvironmentPreparedPackage: String? = null
+    private val preparedPlatformEnvironmentPackages = mutableSetOf<String>()
     private var pendingScrollToCloneInstanceId: String? = null
     private val locallyRepairedShopKeys = mutableSetOf<String>()
     private var suppressNextShopClickAfterSwipeCollapse = false
+    private var pendingEnginePermissionShop: Shop? = null
+    private var pendingEnginePermissionFreshToken: String? = null
+    private var pendingEnginePermissionPackage: String? = null
+    private var pendingEnginePermissionBaseline = false
+    private lateinit var enginePermissionLauncher: ActivityResultLauncher<Intent>
     private lateinit var shopSwipeHelper: ShopSwipeHelper
     private lateinit var shopItemTouchHelper: ItemTouchHelper
     private val authExpiredReceiver = object : BroadcastReceiver() {
@@ -125,6 +134,7 @@ class HomeActivity : AppCompatActivity() {
         setTheme(R.style.Theme_Duodian)
         setContentView(viewBinding.root)
 
+        initEnginePermissionLauncher()
         initViewModel()
         initPlatformSidebar()
         initShopList()
@@ -132,6 +142,7 @@ class HomeActivity : AppCompatActivity() {
         initClickListeners()
         observeData()
         App.ensureEngineConnection()
+        maybeRequestBaselineEnginePermissions()
     }
 
     override fun onStart() {
@@ -194,6 +205,55 @@ class HomeActivity : AppCompatActivity() {
 
     private fun initViewModel() {
         viewModel = ViewModelProvider(this)[HomeViewModel::class.java]
+    }
+
+    private fun initEnginePermissionLauncher() {
+        enginePermissionLauncher = registerForActivityResult(
+            ActivityResultContracts.StartActivityForResult()
+        ) { result ->
+            val pendingShop = pendingEnginePermissionShop
+            val freshToken = pendingEnginePermissionFreshToken
+            val pendingPackage = pendingEnginePermissionPackage
+            val wasBaselineRequest = pendingEnginePermissionBaseline
+            pendingEnginePermissionShop = null
+            pendingEnginePermissionFreshToken = null
+            pendingEnginePermissionPackage = null
+            pendingEnginePermissionBaseline = false
+            if (wasBaselineRequest) {
+                EnginePermissionCenter.markBaselinePrompted(this)
+                return@registerForActivityResult
+            }
+            if (pendingShop == null) {
+                return@registerForActivityResult
+            }
+            val requiredPermissions = EnginePermissionCenter.platformRequiredPermissions(this, pendingPackage)
+            if (result.resultCode != RESULT_OK ||
+                !EnginePermissionCenter.hasEnginePermissions(this, requiredPermissions)
+            ) {
+                finishShopOperation()
+                toast("未授权引擎使用必要权限，无法打开店铺")
+                return@registerForActivityResult
+            }
+            openPlatformForShopAfterEnginePermission(pendingShop, freshToken)
+        }
+    }
+
+    private fun maybeRequestBaselineEnginePermissions() {
+        handler.post {
+            if (!TokenManager.getInstance().isLoggedIn()) {
+                return@post
+            }
+            if (!EnginePermissionCenter.shouldPromptBaseline(this)) {
+                return@post
+            }
+            pendingEnginePermissionBaseline = true
+            try {
+                enginePermissionLauncher.launch(EnginePermissionCenter.buildBaselineIntent(this))
+            } catch (e: Exception) {
+                pendingEnginePermissionBaseline = false
+                Log.w(TAG, "Failed to launch baseline engine permission activity", e)
+            }
+        }
     }
 
     private fun initPlatformSidebar() {
@@ -450,11 +510,24 @@ class HomeActivity : AppCompatActivity() {
             shouldPrepareDefaultPlatformEnvironment = false
             return
         }
+        if (preparedPlatformEnvironmentPackages.contains(packageName)) {
+            shouldPrepareDefaultPlatformEnvironment = false
+            defaultPlatformEnvironmentPreparedPackage = packageName
+            return
+        }
         prepareShopEnvironmentsForPlatform(packageName)
     }
 
     private fun prepareShopEnvironmentsForPlatform(packageName: String?) {
         val normalizedPackageName = packageName?.takeIf { it.isNotBlank() } ?: return
+        if (preparedPlatformEnvironmentPackages.contains(normalizedPackageName)) {
+            pendingPlatformEnvironmentPackage = null
+            if (viewModel.getSelectedPlatformItem()?.packageName == normalizedPackageName) {
+                shouldPrepareDefaultPlatformEnvironment = false
+                defaultPlatformEnvironmentPreparedPackage = normalizedPackageName
+            }
+            return
+        }
         if (restoringShopEnvironments || shopOperationInProgress) {
             pendingPlatformEnvironmentPackage = normalizedPackageName
             return
@@ -486,6 +559,7 @@ class HomeActivity : AppCompatActivity() {
                 }
                 if (pendingShops.isEmpty()) {
                     pendingPlatformEnvironmentPackage = null
+                    preparedPlatformEnvironmentPackages.add(normalizedPackageName)
                     if (viewModel.getSelectedPlatformItem()?.packageName == normalizedPackageName) {
                         shouldPrepareDefaultPlatformEnvironment = false
                         defaultPlatformEnvironmentPreparedPackage = normalizedPackageName
@@ -531,6 +605,15 @@ class HomeActivity : AppCompatActivity() {
         if (index >= shops.size) {
             restoringShopEnvironments = false
             pendingPlatformEnvironmentPackage = null
+            shops.firstOrNull()?.let { shop ->
+                resolveShopPackageName(shop)?.let { preparedPackageName ->
+                    preparedPlatformEnvironmentPackages.add(preparedPackageName)
+                    if (viewModel.getSelectedPlatformItem()?.packageName == preparedPackageName) {
+                        shouldPrepareDefaultPlatformEnvironment = false
+                        defaultPlatformEnvironmentPreparedPackage = preparedPackageName
+                    }
+                }
+            }
             finishShopOperation()
             return
         }
@@ -707,6 +790,16 @@ class HomeActivity : AppCompatActivity() {
         if (!beginShopOperation("打开店铺", "正在加载店铺数据，请稍后…")) {
             return
         }
+        val packageName = resolveShopPackageName(shop)
+        val requiredPermissions = EnginePermissionCenter.platformRequiredPermissions(this, packageName)
+        if (!EnginePermissionCenter.hasEnginePermissions(this, requiredPermissions)) {
+            requestEnginePlatformPermission(shop, freshAuthorizationToken, packageName)
+            return
+        }
+        openPlatformForShopAfterEnginePermission(shop, freshAuthorizationToken)
+    }
+
+    private fun openPlatformForShopAfterEnginePermission(shop: Shop, freshAuthorizationToken: String? = null) {
         ensureEngineReady(onUnavailable = { finishShopOperation() }) {
             if (freshAuthorizationToken != null) {
                 openPlatformForShopWithEngine(shop, freshAuthorizationToken)
@@ -717,6 +810,27 @@ class HomeActivity : AppCompatActivity() {
                 showProgress = true,
                 launchAfterReady = true
             )
+        }
+    }
+
+    private fun requestEnginePlatformPermission(
+        shop: Shop,
+        freshAuthorizationToken: String?,
+        packageName: String?
+    ) {
+        updateShopProgress("正在请求引擎权限…")
+        pendingEnginePermissionShop = shop
+        pendingEnginePermissionFreshToken = freshAuthorizationToken
+        pendingEnginePermissionPackage = packageName
+        try {
+            enginePermissionLauncher.launch(EnginePermissionCenter.buildPlatformIntent(this, packageName))
+        } catch (e: Exception) {
+            pendingEnginePermissionShop = null
+            pendingEnginePermissionFreshToken = null
+            pendingEnginePermissionPackage = null
+            Log.w(TAG, "Failed to launch engine permission activity", e)
+            finishShopOperation()
+            toast("无法打开引擎权限授权页，请检查引擎是否已安装")
         }
     }
 
@@ -866,7 +980,7 @@ class HomeActivity : AppCompatActivity() {
                         return@launch
                     }
                 }
-                if (EngineProxy.peekAuthorizedLaunchIntent(cloneInstanceId, packageName, userId) != null) {
+                if (hasPreparedLaunchAuthorization(cloneInstanceId, packageName, userId)) {
                     withContext(Dispatchers.Main) {
                         complete(PreparedShopEnvironment(shop, packageName, userId, platformName))
                     }
@@ -1172,7 +1286,7 @@ class HomeActivity : AppCompatActivity() {
             runOnUiThread { updateShopProgress("正在校验店铺授权…") }
         }
         val cloneInstanceId = shop.cloneInstanceId?.takeIf { it.isNotBlank() } ?: return null
-        if (EngineProxy.peekAuthorizedLaunchIntent(cloneInstanceId, packageName, userId) == null) {
+        if (!hasPreparedLaunchAuthorization(cloneInstanceId, packageName, userId)) {
             return null
         }
         return PreparedShopEnvironment(shop, packageName, userId, platformName)
@@ -1289,7 +1403,7 @@ class HomeActivity : AppCompatActivity() {
         updateShopProgress("正在校验店铺授权…")
         val cloneInstanceId = shop.cloneInstanceId?.takeIf { it.isNotBlank() }
         if (cloneInstanceId == null ||
-            EngineProxy.peekAuthorizedLaunchIntent(cloneInstanceId, packageName, userId) == null
+            !hasPreparedLaunchAuthorization(cloneInstanceId, packageName, userId)
         ) {
             Log.w(TAG, "Authorized launch intent missing for $packageName user=$userId shop=${shop.id}")
             finishShopOperation()
@@ -1359,12 +1473,28 @@ class HomeActivity : AppCompatActivity() {
         }
         val userId = findExistingUserIdForCloneInstance(shop, packageName) ?: return null
         val isReady = EngineProxy.isInstalled(packageName, userId) &&
-                EngineProxy.peekAuthorizedLaunchIntent(cloneInstanceId, packageName, userId) != null
+                hasPreparedLaunchAuthorization(cloneInstanceId, packageName, userId)
         if (!isReady) {
             return null
         }
         markShopEnvironmentPrepared(shop, packageName, userId)
         return userId
+    }
+
+    private fun hasPreparedLaunchAuthorization(
+        cloneInstanceId: String,
+        packageName: String,
+        userId: Int
+    ): Boolean {
+        return if (requiresLightweightLaunchCheck(packageName)) {
+            EngineProxy.isCloneAuthorized(cloneInstanceId, packageName, viewModel.getCurrentUserId(), userId)
+        } else {
+            EngineProxy.peekAuthorizedLaunchIntent(cloneInstanceId, packageName, userId) != null
+        }
+    }
+
+    private fun requiresLightweightLaunchCheck(packageName: String): Boolean {
+        return packageName == "com.bytedance.ls.merchant"
     }
 
     private fun addShopForSelectedPlatform() {
@@ -1452,6 +1582,9 @@ class HomeActivity : AppCompatActivity() {
                         }
                     }
 
+                    withContext(Dispatchers.Main) {
+                        invalidatePreparedPlatformEnvironment(packageName)
+                    }
                     withContext(Dispatchers.Main) {
                         updateShopProgress("正在上报服务器并扣减算力…")
                         viewModel.createPendingShopWithClone(
@@ -1991,6 +2124,7 @@ class HomeActivity : AppCompatActivity() {
         runOnUiThread {
             updateShopProgress("修复完成")
             clearPreparedShopEnvironment(shop, packageName)
+            invalidatePreparedPlatformEnvironment(packageName)
             buildShopPrepareKey(shop, packageName)?.let { locallyRepairedShopKeys.add(it) }
             if (pendingPlatformEnvironmentPackage == packageName) {
                 pendingPlatformEnvironmentPackage = null
@@ -2012,6 +2146,17 @@ class HomeActivity : AppCompatActivity() {
         }
     }
 
+    private fun invalidatePreparedPlatformEnvironment(packageName: String?) {
+        val normalizedPackageName = packageName?.takeIf { it.isNotBlank() } ?: return
+        preparedPlatformEnvironmentPackages.remove(normalizedPackageName)
+        if (defaultPlatformEnvironmentPreparedPackage == normalizedPackageName) {
+            defaultPlatformEnvironmentPreparedPackage = null
+        }
+        if (viewModel.getSelectedPlatformItem()?.packageName == normalizedPackageName) {
+            shouldPrepareDefaultPlatformEnvironment = true
+        }
+    }
+
     private fun deleteShopAndClone(shop: Shop) {
         val cloneInstanceId = shop.cloneInstanceId?.takeIf { it.isNotBlank() }
         val packageName = resolveShopPackageName(shop)
@@ -2029,6 +2174,7 @@ class HomeActivity : AppCompatActivity() {
                 if (userId != null) {
                     EngineProxy.deleteUser(userId)
                 }
+                invalidatePreparedPlatformEnvironment(packageName)
             } catch (e: Exception) {
                 Log.w(TAG, "Failed to clear clone before deleting shop ${shop.id}", e)
             } finally {

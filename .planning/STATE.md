@@ -1,18 +1,27 @@
 ---
 gsd_state_version: 1.0
 milestone: v1.2
-milestone_name: phase9-clone-auth-billing
-status: Phase 09 complete
-last_updated: "2026-06-08T03:46:30+08:00"
+milestone_name: phase10-engine-permission-center
+status: Phase 10 implemented
+last_updated: "2026-06-08T23:25:00+08:00"
 progress:
-  total_phases: 9
+  total_phases: 10
   completed_phases: 9
-  total_plans: 9
-  completed_plans: 9
+  total_plans: 10
+  completed_plans: 10
   percent: 100
 ---
 
 ## Recent Changes
+
+### 2026-06-08: Phase 10 engine permission center started
+
+- Created Phase 10 from latest `dev` on `feature-phase10`.
+- Migrated the existing Douyin Laike compatibility patch into the Phase 10 branch.
+- Scope: promote the Douyin camera/record-audio host-permission fix into a reusable engine permission center, with a one-time baseline permission request and per-platform missing-permission fallback.
+- Implemented `EnginePermissionCenter` in the main APK and generalized `EnginePermissionActivity` in the engine APK.
+- Verification: `git diff --check` passed; `JAVA_HOME=/Users/heweiping/Library/Java/JavaVirtualMachines/azul-21.0.10/Contents/Home ./gradlew :app:assembleDebug :Bcore:assembleDebug` passed; Xiaomi MIX 2S smoke test opened the engine permission center from the main APK, granted baseline permissions, and confirmed restart did not reopen the permission center.
+- Canonical plan document: `.planning/phases/10-engine-permission-center/10-PLAN.md`.
 
 ### 2026-06-08: Phase 09 clone auth billing completed
 

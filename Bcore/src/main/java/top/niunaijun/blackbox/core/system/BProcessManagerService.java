@@ -47,6 +47,9 @@ public class BProcessManagerService implements ISystemService {
     }
 
     public ProcessRecord startProcessLocked(String packageName, String processName, int userId, int bpid, int callingPid) {
+        if (!ProcessCrashGuard.canStart(packageName, processName, userId)) {
+            return null;
+        }
         ApplicationInfo info = BPackageManagerService.get().getApplicationInfo(packageName, 0, userId);
         if (info == null)
             return null;
@@ -94,6 +97,7 @@ public class BProcessManagerService implements ISystemService {
                 app = null;
             } else {
                 app.pid = getPid(BlackBoxCore.getContext(), ProxyManifest.getProcessName(app.bpid));
+                ProcessCrashGuard.recordStartSuccess(packageName, processName, userId);
             }
         }
         return app;
@@ -191,6 +195,7 @@ public class BProcessManagerService implements ISystemService {
 
     public void onProcessDie(ProcessRecord record) {
         synchronized (mProcessLock) {
+            ProcessCrashGuard.recordProcessDeath(record);
             record.kill();
             Map<String, ProcessRecord> process = mProcessMap.get(record.buid);
             if (process != null) {

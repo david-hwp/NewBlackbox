@@ -81,6 +81,7 @@ import top.niunaijun.blackbox.utils.Reflector;
 import top.niunaijun.blackbox.utils.SafeContextWrapper;
 import top.niunaijun.blackbox.utils.GlobalContextWrapper;
 import top.niunaijun.blackbox.utils.Slog;
+import top.niunaijun.blackbox.utils.ByteDanceProcessCompat;
 import top.niunaijun.blackbox.utils.compat.ActivityManagerCompat;
 import top.niunaijun.blackbox.utils.compat.BuildCompat;
 import top.niunaijun.blackbox.utils.compat.ContextCompat;
@@ -1163,18 +1164,21 @@ public class BActivityThread extends IBActivityThread.Stub {
     }
 
     private void onBeforeCreateApplication(String packageName, String processName, Context context) {
+        ByteDanceProcessCompat.beforeCreateApplication(packageName, processName, context, BActivityThread.getUserId());
         for (AppLifecycleCallback appLifecycleCallback : BlackBoxCore.get().getAppLifecycleCallbacks()) {
             appLifecycleCallback.beforeCreateApplication(packageName, processName, context, BActivityThread.getUserId());
         }
     }
 
     private void onBeforeApplicationOnCreate(String packageName, String processName, Application application) {
+        ByteDanceProcessCompat.beforeApplicationOnCreate(packageName, processName, application, BActivityThread.getUserId());
         for (AppLifecycleCallback appLifecycleCallback : BlackBoxCore.get().getAppLifecycleCallbacks()) {
             appLifecycleCallback.beforeApplicationOnCreate(packageName, processName, application, BActivityThread.getUserId());
         }
     }
 
     private void onAfterApplicationOnCreate(String packageName, String processName, Application application) {
+        ByteDanceProcessCompat.afterApplicationOnCreate(packageName, processName, application, BActivityThread.getUserId());
         for (AppLifecycleCallback appLifecycleCallback : BlackBoxCore.get().getAppLifecycleCallbacks()) {
             appLifecycleCallback.afterApplicationOnCreate(packageName, processName, application, BActivityThread.getUserId());
         }

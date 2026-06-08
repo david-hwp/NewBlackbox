@@ -21,6 +21,7 @@ import top.niunaijun.blackbox.fake.hook.IInjectHook;
 import top.niunaijun.blackbox.fake.service.HCallbackProxy;
 import top.niunaijun.blackbox.fake.service.IActivityClientProxy;
 import top.niunaijun.blackbox.utils.HackAppUtils;
+import top.niunaijun.blackbox.utils.ByteDanceProcessCompat;
 import top.niunaijun.blackbox.utils.compat.ActivityCompat;
 import top.niunaijun.blackbox.utils.compat.ActivityManagerCompat;
 import top.niunaijun.blackbox.utils.compat.ContextCompat;
@@ -132,6 +133,12 @@ public final class AppInstrumentation extends BaseInstrumentationDelegate implem
     public void callActivityOnCreate(Activity activity, Bundle icicle) {
         checkActivity(activity);
         super.callActivityOnCreate(activity, icicle);
+    }
+
+    @Override
+    public void callActivityOnStart(Activity activity) {
+        ByteDanceProcessCompat.beforeActivityOnStart(activity);
+        super.callActivityOnStart(activity);
     }
 
     @Override

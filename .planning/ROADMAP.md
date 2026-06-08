@@ -136,3 +136,20 @@
 
 **计划文档**: [.planning/phases/09-clone-auth-billing/09-PLAN.md](.planning/phases/09-clone-auth-billing/09-PLAN.md)
 **上下文文档**: [.planning/phases/09-clone-auth-billing/09-CONTEXT.md](.planning/phases/09-clone-auth-billing/09-CONTEXT.md)
+
+## Phase 10: 引擎权限中心 🚧 进行中
+
+**目标**: 将抖音来客相机/录音兼容逻辑升级为通用“引擎权限中心”，由主 APK 统一判断目标平台需要的宿主引擎权限，引擎 APK 一次性申请基础危险权限并复核 AppOps，减少后续分身打开时因宿主权限不足导致的相机、人脸识别、录音、定位等失败。
+
+**关键交付物**:
+
+- ⏳ 主 APK 增加 `EnginePermissionCenter`，统一计算基础权限、平台 Manifest 权限和抖音来客兼容兜底权限
+- ⏳ 引擎 APK 增加通用权限申请 Activity，支持一次传入一组权限并在授权后复核运行时权限和 AppOps
+- ⏳ 基础权限按引擎版本只主动提示一次，用户拒绝后不在首页反复弹窗；打开具体店铺时只补请求该平台仍缺失的必要权限
+- ⏳ 抖音来客不再走独立硬编码流程，合并为权限中心的首个特定平台兼容场景
+- ⏳ 保持其他平台启动行为不变，不引入新的服务端 API 或扣费逻辑变更
+- ⏳ 编译主 APK 和引擎 APK，并在真机/模拟器上验证权限中心、抖音来客打开和原有平台回归
+
+**计划文档**: [.planning/phases/10-engine-permission-center/10-PLAN.md](.planning/phases/10-engine-permission-center/10-PLAN.md)
+**上下文文档**: [.planning/phases/10-engine-permission-center/10-CONTEXT.md](.planning/phases/10-engine-permission-center/10-CONTEXT.md)
+**调研文档**: [.planning/phases/10-engine-permission-center/10-RESEARCH.md](.planning/phases/10-engine-permission-center/10-RESEARCH.md)

@@ -6,6 +6,8 @@ import android.util.Log;
 import android.app.Application;
 
 import top.niunaijun.blackbox.BlackBoxCore;
+import top.niunaijun.blackbox.app.BActivityThread;
+import top.niunaijun.blackbox.utils.ByteDanceProcessCompat;
 
 
 public class SimpleCrashFix {
@@ -44,6 +46,18 @@ public class SimpleCrashFix {
             Thread.setDefaultUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler() {
                 @Override
                 public void uncaughtException(Thread thread, Throwable throwable) {
+                    if (isTargetByteDanceCrash(throwable)) {
+                        Slog.w(TAG, "ByteDance compatibility crash detected, let process die for crash-loop guard: " + throwable.getMessage());
+                        BlackBoxCore.get().sendLogs("CRASH DETECTED (ByteDance): " + throwable.getMessage(), false);
+                        if (currentHandler != null) {
+                            currentHandler.uncaughtException(thread, throwable);
+                        } else {
+                            android.os.Process.killProcess(android.os.Process.myPid());
+                            System.exit(10);
+                        }
+                        return;
+                    }
+
                     
                     if (isNullContextCrash(throwable)) {
                         Slog.w(TAG, "Caught null context crash, preventing crash: " + throwable.getMessage());
@@ -97,6 +111,15 @@ public class SimpleCrashFix {
             Slog.d(TAG, "Global exception handler installed successfully");
         } catch (Exception e) {
             Slog.e(TAG, "Failed to install global exception handler: " + e.getMessage(), e);
+        }
+    }
+
+    private static boolean isTargetByteDanceCrash(Throwable throwable) {
+        try {
+            return ByteDanceProcessCompat.isSupportedPackage(BActivityThread.getAppPackageName())
+                    && ByteDanceProcessCompat.isByteDanceStack(throwable);
+        } catch (Throwable ignored) {
+            return false;
         }
     }
     
