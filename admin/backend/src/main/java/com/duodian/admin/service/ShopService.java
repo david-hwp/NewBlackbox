@@ -100,8 +100,10 @@ public class ShopService {
     public Shop update(Long id, Shop shop) {
         Shop existing = shopRepository.findByIdAndDeleted(id, ACTIVE)
                 .orElseThrow(() -> new RuntimeException("店铺不存在"));
+        String previousShopName = normalize(existing.getShopName());
+        String nextShopName = normalize(shop.getShopName());
         existing.setShopName(shop.getShopName());
-        existing.setShopId(shop.getShopId());
+        existing.setShopId(resolveEditableShopId(existing.getShopId(), shop.getShopId(), previousShopName, nextShopName));
         existing.setPlatform(shop.getPlatform());
         existing.setPlatformName(shop.getPlatformName());
         existing.setRemainingDays(shop.getRemainingDays());
@@ -170,5 +172,26 @@ public class ShopService {
             return null;
         }
         return value.trim();
+    }
+
+    private String resolveEditableShopId(
+            String currentShopId,
+            String requestedShopId,
+            String previousShopName,
+            String nextShopName
+    ) {
+        String normalizedCurrentShopId = normalize(currentShopId);
+        String normalizedRequestedShopId = normalize(requestedShopId);
+        if (normalizedRequestedShopId == null) {
+            return "-";
+        }
+        if (normalizedRequestedShopId.startsWith("NEW-")
+                && normalizedCurrentShopId != null
+                && normalizedCurrentShopId.startsWith("NEW-")
+                && (!java.util.Objects.equals(previousShopName, nextShopName)
+                || !java.util.Objects.equals(normalizedCurrentShopId, normalizedRequestedShopId))) {
+            return "-";
+        }
+        return normalizedRequestedShopId;
     }
 }

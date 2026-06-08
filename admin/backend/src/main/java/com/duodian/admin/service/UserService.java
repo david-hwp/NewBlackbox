@@ -2,6 +2,7 @@ package com.duodian.admin.service;
 
 import com.duodian.admin.entity.TransactionLog;
 import com.duodian.admin.entity.User;
+import com.duodian.admin.repository.PlatformConfigRepository;
 import com.duodian.admin.repository.ShopRepository;
 import com.duodian.admin.repository.TransactionLogRepository;
 import com.duodian.admin.repository.UserRepository;
@@ -18,23 +19,28 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final ShopRepository shopRepository;
+    private final PlatformConfigRepository platformConfigRepository;
     private final PasswordService passwordService;
     private final TransactionLogRepository transactionLogRepository;
 
     public UserService(
             UserRepository userRepository,
             ShopRepository shopRepository,
+            PlatformConfigRepository platformConfigRepository,
             PasswordService passwordService,
             TransactionLogRepository transactionLogRepository
     ) {
         this.userRepository = userRepository;
         this.shopRepository = shopRepository;
+        this.platformConfigRepository = platformConfigRepository;
         this.passwordService = passwordService;
         this.transactionLogRepository = transactionLogRepository;
     }
 
     public List<User> findAll() {
-        return userRepository.findByDeleted(ACTIVE);
+        return userRepository.findByDeleted(ACTIVE).stream()
+                .map(this::withCurrentStats)
+                .toList();
     }
 
     public Optional<User> findById(Long id) {
@@ -49,9 +55,17 @@ public class UserService {
     public User refreshShopStats(Long userId) {
         User user = userRepository.findByIdAndDeleted(userId, ACTIVE)
                 .orElseThrow(() -> new RuntimeException("用户不存在"));
-        user.setShopCount(Math.toIntExact(shopRepository.countRealShopsByUserId(userId, ACTIVE)));
-        user.setPlatformCount(Math.toIntExact(shopRepository.countRealPlatformsByUserId(userId, ACTIVE)));
+        withCurrentStats(user);
         return userRepository.save(user);
+    }
+
+    public User withCurrentStats(User user) {
+        if (user == null || user.getId() == null) {
+            return user;
+        }
+        user.setShopCount(Math.toIntExact(shopRepository.countByUserIdAndDeleted(user.getId(), ACTIVE)));
+        user.setPlatformCount(Math.toIntExact(platformConfigRepository.countByDeleted(ACTIVE)));
+        return user;
     }
 
     public User create(User user) {
@@ -75,8 +89,7 @@ public class UserService {
         existing.setAvatarUrl(user.getAvatarUrl());
         existing.setComputeBalance(newComputeBalance);
         existing.setNonTransferableComputeBalance(normalizeNonTransferableBalance(user));
-        existing.setShopCount(user.getShopCount());
-        existing.setPlatformCount(user.getPlatformCount());
+        withCurrentStats(existing);
         User saved = userRepository.save(existing);
         createAdminComputeAdjustmentLog(saved, newComputeBalance - oldComputeBalance);
         return saved;
@@ -99,7 +112,7 @@ public class UserService {
             user.setPassword(passwordService.encode(password));
         }
         user.setLastLoginAt(java.time.LocalDateTime.now());
-        return userRepository.save(user);
+        return withCurrentStats(userRepository.save(user));
     }
 
     public boolean matchesPassword(User user, String rawPassword) {

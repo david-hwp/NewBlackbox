@@ -27,28 +27,6 @@ public interface ShopRepository extends JpaRepository<Shop, Long> {
     long countByUserIdAndDeleted(Long userId, Byte deleted);
     long countByUserIdAndPackageNameAndDeleted(Long userId, String packageName, Byte deleted);
 
-    @Query("""
-            select count(s)
-            from Shop s
-            where s.userId = :userId
-              and s.deleted = :active
-              and s.shopId is not null
-              and s.shopId not like 'NEW-%'
-            """)
-    long countRealShopsByUserId(@Param("userId") Long userId, @Param("active") Byte active);
-
-    @Query("""
-            select count(distinct s.packageName)
-            from Shop s
-            where s.userId = :userId
-              and s.deleted = :active
-              and s.shopId is not null
-              and s.shopId not like 'NEW-%'
-              and s.packageName is not null
-              and s.packageName <> ''
-            """)
-    long countRealPlatformsByUserId(@Param("userId") Long userId, @Param("active") Byte active);
-
     java.util.Optional<Shop> findByUserIdAndShopIdAndDeleted(Long userId, String shopId, Byte deleted);
     java.util.Optional<Shop> findByUserIdAndShopIdAndPackageNameAndDeleted(Long userId, String shopId, String packageName, Byte deleted);
     java.util.Optional<Shop> findByCloneInstanceIdAndDeleted(String cloneInstanceId, Byte deleted);

@@ -2,6 +2,7 @@ package com.duodian.admin.service;
 
 import com.duodian.admin.entity.User;
 import com.duodian.admin.entity.TransactionLog;
+import com.duodian.admin.repository.PlatformConfigRepository;
 import com.duodian.admin.repository.ShopRepository;
 import com.duodian.admin.repository.TransactionLogRepository;
 import com.duodian.admin.repository.UserRepository;
@@ -20,17 +21,19 @@ class UserServiceTest {
 
     private final UserRepository userRepository = mock(UserRepository.class);
     private final ShopRepository shopRepository = mock(ShopRepository.class);
+    private final PlatformConfigRepository platformConfigRepository = mock(PlatformConfigRepository.class);
     private final PasswordService passwordService = mock(PasswordService.class);
     private final TransactionLogRepository transactionLogRepository = mock(TransactionLogRepository.class);
     private final UserService userService = new UserService(
             userRepository,
             shopRepository,
+            platformConfigRepository,
             passwordService,
             transactionLogRepository
     );
 
     @Test
-    void refreshShopStatsUsesRealShopAndDistinctPlatformCounts() {
+    void refreshShopStatsUsesCloneCountAndAvailablePlatformCount() {
         User user = new User();
         user.setId(7L);
         user.setUsername("user-7");
@@ -38,14 +41,14 @@ class UserServiceTest {
         user.setShopCount(0);
         user.setPlatformCount(0);
         when(userRepository.findByIdAndDeleted(7L, (byte) 0)).thenReturn(Optional.of(user));
-        when(shopRepository.countRealShopsByUserId(7L, (byte) 0)).thenReturn(3L);
-        when(shopRepository.countRealPlatformsByUserId(7L, (byte) 0)).thenReturn(2L);
+        when(shopRepository.countByUserIdAndDeleted(7L, (byte) 0)).thenReturn(3L);
+        when(platformConfigRepository.countByDeleted((byte) 0)).thenReturn(4L);
         when(userRepository.save(user)).thenReturn(user);
 
         User refreshed = userService.refreshShopStats(7L);
 
         assertThat(refreshed.getShopCount()).isEqualTo(3);
-        assertThat(refreshed.getPlatformCount()).isEqualTo(2);
+        assertThat(refreshed.getPlatformCount()).isEqualTo(4);
         verify(userRepository).save(user);
     }
 

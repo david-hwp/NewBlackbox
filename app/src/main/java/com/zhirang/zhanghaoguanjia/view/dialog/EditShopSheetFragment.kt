@@ -62,8 +62,11 @@ class EditShopSheetFragment : BaseBottomSheetFragment() {
                 return@setOnClickListener
             }
             val rawShopId = binding.etShopId.text.toString().trim()
+            val nameChanged = newName != currentShopName
             val newShopId = when {
+                rawShopId.startsWith("NEW-") -> "-"
                 rawShopId.isNotEmpty() -> rawShopId
+                currentShopId.startsWith("NEW-") && nameChanged -> "-"
                 currentShopId.startsWith("NEW-") -> currentShopId
                 else -> "-"
             }

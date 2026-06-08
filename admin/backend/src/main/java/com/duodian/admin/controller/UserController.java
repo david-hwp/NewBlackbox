@@ -44,7 +44,7 @@ public class UserController {
                     normalize(phone),
                     normalize(role),
                     PageRequest.of(pageNumber(page) - 1, pageSize(size), Sort.by(Sort.Direction.DESC, "createdAt"))
-            );
+            ).map(userService::withCurrentStats);
             return ApiResponse.success(PagedResponse.from(users));
         }
         return ApiResponse.success(userService.findAll());
@@ -53,6 +53,7 @@ public class UserController {
     @GetMapping("/{id}")
     public ApiResponse<User> get(@PathVariable Long id) {
         return userService.findById(id)
+                .map(userService::withCurrentStats)
                 .map(ApiResponse::success)
                 .orElse(ApiResponse.error("用户不存在"));
     }
