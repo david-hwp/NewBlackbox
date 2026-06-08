@@ -3,9 +3,11 @@ package com.duodian.admin.controller;
 import com.duodian.admin.config.AuthContext;
 import com.duodian.admin.controller.dto.ApiResponse;
 import com.duodian.admin.controller.dto.PagedResponse;
+import com.duodian.admin.controller.dto.TransactionLogResponse;
 import com.duodian.admin.entity.TransactionLog;
 import com.duodian.admin.repository.TransactionLogRepository;
 import com.duodian.admin.service.TransactionLogService;
+import com.duodian.admin.service.UserService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -25,10 +27,16 @@ public class TransactionLogController {
 
     private final TransactionLogService logService;
     private final TransactionLogRepository logRepository;
+    private final UserService userService;
 
-    public TransactionLogController(TransactionLogService logService, TransactionLogRepository logRepository) {
+    public TransactionLogController(
+            TransactionLogService logService,
+            TransactionLogRepository logRepository,
+            UserService userService
+    ) {
         this.logService = logService;
         this.logRepository = logRepository;
+        this.userService = userService;
     }
 
     @GetMapping
@@ -40,14 +48,14 @@ public class TransactionLogController {
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size) {
         if (page != null || size != null || hasText(phone) || hasText(shopName)) {
-            Page<TransactionLog> logs = logRepository.searchLogs(
+            Page<TransactionLogResponse> logs = logRepository.searchLogs(
                     ACTIVE,
                     userId,
                     normalize(type),
                     normalize(phone),
                     normalize(shopName),
                     PageRequest.of(pageNumber(page) - 1, pageSize(size), Sort.by(Sort.Direction.DESC, "createdAt"))
-            );
+            ).map(this::toResponse);
             return ApiResponse.success(PagedResponse.from(logs));
         }
         List<TransactionLog> logs;
@@ -58,7 +66,7 @@ public class TransactionLogController {
         } else {
             logs = logService.findAll();
         }
-        return ApiResponse.success(logs);
+        return ApiResponse.success(logs.stream().map(this::toResponse).toList());
     }
 
     @GetMapping("/{id}")
@@ -130,6 +138,13 @@ public class TransactionLogController {
     }
 
     private int pageSize(Integer size) {
-        return Math.max(1, Math.min(100, size == null ? 20 : size));
+        return Math.max(1, Math.min(100, size == null ? 10 : size));
+    }
+
+    private TransactionLogResponse toResponse(TransactionLog log) {
+        return TransactionLogResponse.from(
+                log,
+                log.getUserId() != null ? userService.findById(log.getUserId()).orElse(null) : null
+        );
     }
 }

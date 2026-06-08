@@ -65,16 +65,21 @@ public class UserService {
         return userRepository.save(user);
     }
 
+    @Transactional
     public User update(Long id, User user) {
         User existing = userRepository.findByIdAndDeleted(id, ACTIVE)
                 .orElseThrow(() -> new RuntimeException("用户不存在"));
+        int oldComputeBalance = existing.getComputeBalance() == null ? 0 : existing.getComputeBalance();
+        int newComputeBalance = user.getComputeBalance() == null ? 0 : user.getComputeBalance();
         existing.setUsername(user.getUsername());
         existing.setAvatarUrl(user.getAvatarUrl());
-        existing.setComputeBalance(user.getComputeBalance());
+        existing.setComputeBalance(newComputeBalance);
         existing.setNonTransferableComputeBalance(normalizeNonTransferableBalance(user));
         existing.setShopCount(user.getShopCount());
         existing.setPlatformCount(user.getPlatformCount());
-        return userRepository.save(existing);
+        User saved = userRepository.save(existing);
+        createAdminComputeAdjustmentLog(saved, newComputeBalance - oldComputeBalance);
+        return saved;
     }
 
     public void delete(Long id) {
@@ -118,6 +123,18 @@ public class UserService {
         log.setType("IN");
         log.setAmount(amount);
         log.setRemark("新用户注册赠送算力，不可转赠");
+        transactionLogRepository.save(log);
+    }
+
+    private void createAdminComputeAdjustmentLog(User user, int delta) {
+        if (user == null || user.getId() == null || delta == 0) {
+            return;
+        }
+        TransactionLog log = new TransactionLog();
+        log.setUserId(user.getId());
+        log.setType(delta > 0 ? "IN" : "CONSUME");
+        log.setAmount(Math.abs(delta));
+        log.setRemark(delta > 0 ? "管理员增加" : "管理员扣除");
         transactionLogRepository.save(log);
     }
 

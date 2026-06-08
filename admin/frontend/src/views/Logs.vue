@@ -44,6 +44,11 @@
         </el-table-column>
         <el-table-column prop="platform" label="关联平台" />
         <el-table-column prop="shopName" label="关联店铺" />
+        <el-table-column label="关联用户" min-width="150">
+          <template #default="{ row }">
+            {{ formatAssociatedUser(row) }}
+          </template>
+        </el-table-column>
         <el-table-column prop="fromPhone" label="转出方" />
         <el-table-column prop="toPhone" label="接收方" />
         <el-table-column prop="remark" label="备注" />
@@ -127,7 +132,7 @@ const filters = ref({
 })
 const pagination = ref({
   page: 1,
-  size: 20,
+  size: 10,
   total: 0
 })
 const form = ref({ type: '', amount: 0, userId: '', platform: '', shopName: '', fromPhone: '', toPhone: '', remark: '' })
@@ -200,6 +205,10 @@ const getLogTypeText = (type) => {
 const getAmountColor = (type) => {
   const map = { CONSUME: '#0284c7', OUT: '#d97706', IN: '#059669' }
   return map[type] || '#1e293b'
+}
+
+const formatAssociatedUser = (row) => {
+  return row.userName || row.userPhone || row.userId || '-'
 }
 
 const showAddDialog = () => {

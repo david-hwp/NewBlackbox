@@ -129,7 +129,7 @@ const filters = ref({
 })
 const pagination = ref({
   page: 1,
-  size: 20,
+  size: 10,
   total: 0
 })
 const form = ref({ versionCode: 1, versionName: '', apkUrl: '', checksum: '', changelog: '', available: true })

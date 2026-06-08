@@ -111,6 +111,6 @@ public class AppVersionController {
     }
 
     private int pageSize(Integer size) {
-        return Math.max(1, Math.min(100, size == null ? 20 : size));
+        return Math.max(1, Math.min(100, size == null ? 10 : size));
     }
 }

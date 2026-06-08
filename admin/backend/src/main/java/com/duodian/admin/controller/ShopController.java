@@ -74,7 +74,7 @@ public class ShopController {
                 || hasText(userKeyword) || hasText(shopName);
         if (pagedRequest) {
             int pageNumber = Math.max(1, page == null ? 1 : page);
-            int pageSize = Math.max(1, Math.min(100, size == null ? 20 : size));
+            int pageSize = Math.max(1, Math.min(100, size == null ? 10 : size));
             Long effectiveUserId = isAdmin(currentUser) ? userId : currentUser.getId();
             Page<ShopResponse> shops = shopService.search(
                             effectiveUserId,
