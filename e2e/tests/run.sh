@@ -15,6 +15,7 @@ SERIAL=""
 RUN_ID=""
 SKIP_BUILD=false
 INSTALL_APKS=true
+INSTALL_ENGINE_ONLY=false
 CLEAR_DATA=false
 CLICK_GET_CODE=true
 ROOT_DIAG=true
@@ -33,6 +34,7 @@ Options:
   --profile <name|path>  pixel8, pixel9, xiaomi, or an env file path. Default: pixel9.
   --skip-build           Reuse existing APKs.
   --no-install           Do not install Account Manager / engine APKs.
+  --install-engine-only  Build/install only the engine APK.
   --clear-data           Clear Account Manager, engine, and JD package data first.
   --no-click             Stop at JD phone-login page before clicking get-code.
   --no-root-diag         Do not run adb root or pull root-only diagnostics.
@@ -47,6 +49,7 @@ while [[ $# -gt 0 ]]; do
         --profile) PROFILE="$2"; shift 2 ;;
         --skip-build) SKIP_BUILD=true; shift ;;
         --no-install) INSTALL_APKS=false; shift ;;
+        --install-engine-only) INSTALL_ENGINE_ONLY=true; shift ;;
         --clear-data) CLEAR_DATA=true; shift ;;
         --no-click) CLICK_GET_CODE=false; shift ;;
         --no-root-diag) ROOT_DIAG=false; shift ;;
@@ -201,8 +204,13 @@ build_and_install() {
     cd "$ROOT_DIR"
     if [[ "$SKIP_BUILD" != true ]]; then
         ensure_java_home
-        log "Building debug APKs"
-        ./gradlew :app:assembleDebug --no-daemon
+        if [[ "$INSTALL_ENGINE_ONLY" == true ]]; then
+            log "Building engine debug APK"
+            ./gradlew :Bcore:assembleDebug --no-daemon
+        else
+            log "Building debug APKs"
+            ./gradlew :app:assembleDebug --no-daemon
+        fi
     fi
 
     local app_apk engine_apk jd_apk_path
@@ -211,15 +219,17 @@ build_and_install() {
     engine_apk="$(latest_apk "$ROOT_DIR/Bcore/build/outputs/apk/debug" 'FxEngine_*.apk')"
     jd_apk_path="$ROOT_DIR/$JD_APK"
 
-    [[ -f "$app_apk" ]] || fail "App debug APK not found"
     [[ -f "$engine_apk" ]] || fail "Engine debug APK not found"
 
-    log "Installing $(basename "$app_apk")"
-    adb install -r -d "$app_apk" >/dev/null
+    if [[ "$INSTALL_ENGINE_ONLY" != true ]]; then
+        [[ -f "$app_apk" ]] || fail "App debug APK not found"
+        log "Installing $(basename "$app_apk")"
+        adb install -r -d "$app_apk" >/dev/null
+    fi
     log "Installing $(basename "$engine_apk")"
     adb install -r -d "$engine_apk" >/dev/null
 
-    if ! adb_shell pm list packages "$JD_PACKAGE" | grep -q "$JD_PACKAGE"; then
+    if [[ "$INSTALL_ENGINE_ONLY" != true ]] && ! adb_shell pm list packages "$JD_PACKAGE" | grep -q "$JD_PACKAGE"; then
         [[ -f "$jd_apk_path" ]] || fail "JD package missing and APK not found: $jd_apk_path"
         log "Installing $(basename "$jd_apk_path")"
         adb install -r -d "$jd_apk_path" >/dev/null
@@ -245,6 +255,7 @@ prepare_device() {
     root_device
     adb_shell input keyevent 224 >/dev/null 2>&1 || true
     adb_shell wm dismiss-keyguard >/dev/null 2>&1 || true
+    adb_shell am force-stop "$JD_PACKAGE" >/dev/null 2>&1 || true
     adb_shell am force-stop "$ENGINE_PACKAGE" >/dev/null 2>&1 || true
     adb_shell am force-stop "$APP_PACKAGE" >/dev/null 2>&1 || true
     if [[ "$KEEP_LOGCAT" != true ]]; then
@@ -470,16 +481,8 @@ select_jd_category() {
 
 open_new_shop_card() {
     log "Opening new JD shop card"
-    if ! tap_selector "new_shop" contains "新增店铺" "$SHORT_TIMEOUT_MS"; then
-        log "No new-shop card visible, creating one"
-        tap_selector "add_shop" res "${APP_PACKAGE}:id/btnAddShop" "$MEDIUM_TIMEOUT_MS" ||
-            tap_selector "add_shop_text" contains "添加店铺" "$MEDIUM_TIMEOUT_MS" ||
-            fail "Add-shop button not found"
-        wait_selector "new_shop_after_add" contains "新增店铺" "$LONG_TIMEOUT_MS" ||
-            fail "New shop card did not appear"
-        tap_selector "new_shop_after_add" contains "新增店铺" "$MEDIUM_TIMEOUT_MS" ||
-            fail "New shop card could not be opened"
-    fi
+    tap_selector "new_shop" contains "新增店铺" "$MEDIUM_TIMEOUT_MS" ||
+        fail "Existing new-shop card not found"
     wait_selector "jd_login_surface" res "${JD_PACKAGE}:id/tv_jd_phone_type" "$LONG_TIMEOUT_MS" ||
         wait_selector "jd_login_surface_text" contains "验证码登录" "$LONG_TIMEOUT_MS" ||
         fail "JD clone login surface did not appear"
@@ -518,6 +521,7 @@ click_get_code_and_capture() {
 
     log "Clicking JD get-code and capturing immediate diagnostics"
     printf '%s\n' "$(now_ms)" > "$ROOT_CAPTURE_DIR/05_click_get_epoch_ms.txt"
+    adb_shell log -t E2E_JD_CAPTCHA "MARK_BEFORE_GET_CODE $(now_ms)" >/dev/null 2>&1 || true
     if [[ -s "$ROOT_CAPTURE_DIR/get_code_button_xy.txt" ]]; then
         local x y
         read -r x y < "$ROOT_CAPTURE_DIR/get_code_button_xy.txt"
@@ -528,6 +532,7 @@ click_get_code_and_capture() {
             tap_selector "get_code_click_text" contains "获取验证码" "$SHORT_TIMEOUT_MS" ||
             fail "Get-code button disappeared before click"
     fi
+    adb_shell log -t E2E_JD_CAPTCHA "MARK_AFTER_GET_CODE $(now_ms)" >/dev/null 2>&1 || true
 
     local delay label
     for delay in 0.4 1.0 2.0 3.0; do
