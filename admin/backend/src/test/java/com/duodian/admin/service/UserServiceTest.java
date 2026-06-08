@@ -42,7 +42,7 @@ class UserServiceTest {
         user.setPlatformCount(0);
         when(userRepository.findByIdAndDeleted(7L, (byte) 0)).thenReturn(Optional.of(user));
         when(shopRepository.countByUserIdAndDeleted(7L, (byte) 0)).thenReturn(3L);
-        when(platformConfigRepository.countByDeleted((byte) 0)).thenReturn(4L);
+        when(platformConfigRepository.countByDeletedAndAvailable((byte) 0, true)).thenReturn(4L);
         when(userRepository.save(user)).thenReturn(user);
 
         User refreshed = userService.refreshShopStats(7L);

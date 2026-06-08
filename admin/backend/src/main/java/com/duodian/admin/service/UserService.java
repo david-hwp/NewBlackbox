@@ -64,7 +64,7 @@ public class UserService {
             return user;
         }
         user.setShopCount(Math.toIntExact(shopRepository.countByUserIdAndDeleted(user.getId(), ACTIVE)));
-        user.setPlatformCount(Math.toIntExact(platformConfigRepository.countByDeleted(ACTIVE)));
+        user.setPlatformCount(Math.toIntExact(platformConfigRepository.countByDeletedAndAvailable(ACTIVE, true)));
         return user;
     }
 

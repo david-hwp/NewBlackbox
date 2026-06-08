@@ -73,7 +73,7 @@ class ProfileViewModel : ViewModel() {
             shopCount = shops.size
         }
         platformRepository.getPlatforms().onSuccess { platforms ->
-            platformCount = platforms.size
+            platformCount = platforms.count { it.available }
         }
         return user.copy(
             shopCount = shopCount,

@@ -19,6 +19,7 @@ public interface PlatformConfigRepository extends JpaRepository<PlatformConfig, 
     boolean existsByPlatformIdAndDeleted(String platformId, Byte deleted);
     boolean existsByPlatformIdAndIdNotAndDeleted(String platformId, Long id, Byte deleted);
     long countByDeleted(Byte deleted);
+    long countByDeletedAndAvailable(Byte deleted, Boolean available);
 
     @Query("""
             select p
