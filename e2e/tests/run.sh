@@ -20,6 +20,7 @@ CLEAR_DATA=false
 CLICK_GET_CODE=true
 ROOT_DIAG=true
 KEEP_LOGCAT=false
+DIRECT_JD=false
 STATUS=1
 
 usage() {
@@ -38,6 +39,7 @@ Options:
   --clear-data           Clear Account Manager, engine, and JD package data first.
   --no-click             Stop at JD phone-login page before clicking get-code.
   --no-root-diag         Do not run adb root or pull root-only diagnostics.
+  --direct-jd            Start the fixed JD clone through the engine e2e launcher.
   --keep-logcat          Do not clear logcat at start.
   -h, --help             Show this help.
 USAGE
@@ -53,6 +55,7 @@ while [[ $# -gt 0 ]]; do
         --clear-data) CLEAR_DATA=true; shift ;;
         --no-click) CLICK_GET_CODE=false; shift ;;
         --no-root-diag) ROOT_DIAG=false; shift ;;
+        --direct-jd) DIRECT_JD=true; shift ;;
         --keep-logcat) KEEP_LOGCAT=true; shift ;;
         -h|--help) usage; exit 0 ;;
         *) echo "Unknown option: $1" >&2; usage; exit 2 ;;
@@ -81,6 +84,7 @@ APP_LAUNCH_ACTIVITY="${APP_LAUNCH_ACTIVITY:-com.zhirang.zhanghaoguanjia.view.hom
 ENGINE_PACKAGE="${ENGINE_PACKAGE:-com.zhirang.zhanghaoguanjia.engine}"
 JD_PACKAGE="${JD_PACKAGE:-com.jd.mrd.jingming}"
 JD_APK="${JD_APK:-e2e_honor/jd_apk/jd_base.apk}"
+JD_USER_ID="${E2E_JD_USER_ID:-${JD_USER_ID:-0}}"
 LOGIN_PHONE="${E2E_LOGIN_PHONE:-${LOGIN_PHONE:-13265710803}}"
 JD_LOGIN_PHONE="${E2E_JD_LOGIN_PHONE:-${JD_LOGIN_PHONE:-$LOGIN_PHONE}}"
 POLL_INTERVAL_MS="${POLL_INTERVAL_MS:-300}"
@@ -448,6 +452,22 @@ launch_account_manager() {
     checkpoint "01_account_home"
 }
 
+launch_direct_jd_clone() {
+    log "Launching JD clone through engine e2e launcher"
+    adb_shell am force-stop "$JD_PACKAGE" >/dev/null 2>&1 || true
+    adb_shell am force-stop "$ENGINE_PACKAGE" >/dev/null 2>&1 || true
+    adb_shell am start -W \
+        -n "$ENGINE_PACKAGE/top.niunaijun.blackbox.engine.EngineE2eLaunchActivity" \
+        --es pkg "$JD_PACKAGE" \
+        --ei userId "$JD_USER_ID" \
+        > "$ARTIFACT_DIR/start_direct_jd.txt" 2>&1 || true
+    wait_selector "jd_login_surface" res "${JD_PACKAGE}:id/tv_jd_phone_type" "$LONG_TIMEOUT_MS" ||
+        wait_selector "jd_login_surface_text" contains "验证码登录" "$LONG_TIMEOUT_MS" ||
+        fail "JD clone login surface did not appear"
+    checkpoint "03_jd_login_surface"
+    capture_root_diag "03_jd_login_surface"
+}
+
 wait_account_home_with_dialogs() {
     local timeout_ms="$1"
     local start now
@@ -555,9 +575,13 @@ main() {
     if [[ "$INSTALL_APKS" == true ]]; then
         build_and_install
     fi
-    launch_account_manager
-    select_jd_category
-    open_new_shop_card
+    if [[ "$DIRECT_JD" == true ]]; then
+        launch_direct_jd_clone
+    else
+        launch_account_manager
+        select_jd_category
+        open_new_shop_card
+    fi
     prepare_jd_phone_login
     click_get_code_and_capture
     STATUS=0
