@@ -110,7 +110,7 @@ class LogsViewModel : ViewModel() {
         val logType = runCatching { LogType.valueOf(type.uppercase()) }.getOrDefault(LogType.CONSUME)
         val cleanRemark = remark?.trim()?.takeIf { it.isNotBlank() }
         val description = when (logType) {
-            LogType.CONSUME -> cleanRemark
+            LogType.CONSUME -> adminAdjustmentRemark(cleanRemark)
                 ?: listOfNotNull(platformDisplayName(platform), shopName).joinToString(" - ").ifBlank { "算力消耗" }
             LogType.OUT -> cleanRemark ?: "转给 ${fromPhone ?: toPhone ?: "-"}"
             LogType.IN -> cleanRemark ?: "来自 ${fromPhone ?: toPhone ?: "-"}"
@@ -122,6 +122,10 @@ class LogsViewModel : ViewModel() {
             description = description,
             timestamp = parseCreatedAt(createdAt)
         )
+    }
+
+    private fun adminAdjustmentRemark(value: String?): String? {
+        return value?.takeIf { it == "管理员增加" || it == "管理员扣除" }
     }
 
     private fun platformDisplayName(platform: String?): String? {
