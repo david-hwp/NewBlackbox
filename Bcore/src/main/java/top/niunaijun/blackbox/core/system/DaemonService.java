@@ -20,8 +20,8 @@ public class DaemonService extends Service {
     public static final String TAG = "DaemonService";
     private static final int NOTIFY_ID = BlackBoxCore.getHostPkg().hashCode();
     private static final String CHANNEL_ID = "blackbox_daemon_channel";
-    private static final String CHANNEL_NAME = "BlackBox Daemon Service";
-    private static final String CHANNEL_DESCRIPTION = "Keeps BlackBox core services running";
+    private static final String CHANNEL_NAME = "店铺管家引擎";
+    private static final String CHANNEL_DESCRIPTION = "引擎核心正在运行";
 
     @Override
     public IBinder onBind(Intent intent) {
@@ -119,8 +119,8 @@ public class DaemonService extends Service {
     private Notification createNotification() {
         try {
             NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
-                .setContentTitle("BlackBox Core")
-                .setContentText("Core services are running")
+                .setContentTitle("店铺管家引擎")
+                .setContentText("引擎核心正在运行")
                 .setSmallIcon(android.R.drawable.ic_dialog_info)
                 .setPriority(NotificationCompat.PRIORITY_LOW)
                 .setOngoing(true)
