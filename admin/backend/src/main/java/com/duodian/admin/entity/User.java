@@ -39,6 +39,9 @@ public class User {
     @Column(name = "platform_count")
     private Integer platformCount = 0;
 
+    @Column(name = "apk_channel", length = 64)
+    private String apkChannel = "main";
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
@@ -97,6 +100,9 @@ public class User {
 
     public Integer getPlatformCount() { return platformCount; }
     public void setPlatformCount(Integer platformCount) { this.platformCount = platformCount; }
+
+    public String getApkChannel() { return apkChannel; }
+    public void setApkChannel(String apkChannel) { this.apkChannel = apkChannel; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }

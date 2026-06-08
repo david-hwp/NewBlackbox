@@ -418,6 +418,7 @@
 
             <!-- 软件设置菜单 -->
             <LinearLayout
+                android:id="@+id/softwareSettingsSection"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="16dp"
@@ -447,7 +448,8 @@
                     android:background="@drawable/bg_menu_item"
                     android:gravity="center_vertical"
                     android:orientation="horizontal"
-                    android:paddingHorizontal="16dp">
+                    android:paddingHorizontal="16dp"
+                    android:visibility="gone">
 
                     <ImageView
                         android:layout_width="24dp"
@@ -472,10 +474,12 @@
                 </LinearLayout>
 
                 <View
+                    android:id="@+id/softwareSettingsDivider"
                     android:layout_width="match_parent"
                     android:layout_height="1dp"
                     android:layout_marginStart="52dp"
-                    android:background="@color/duodian_divider" />
+                    android:background="@color/duodian_divider"
+                    android:visibility="gone" />
 
                 <LinearLayout
                     android:id="@+id/menuEngineSwitch"
@@ -602,7 +606,9 @@
         android:layout_height="64dp"
         android:layout_gravity="bottom"
         android:background="@color/duodian_surface"
+        android:clickable="true"
         android:elevation="8dp"
+        android:focusable="true"
         android:orientation="horizontal">
 
         <LinearLayout
@@ -633,6 +639,9 @@
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_weight="1"
+            android:background="@android:color/transparent"
+            android:clickable="true"
+            android:focusable="true"
             android:gravity="center"
             android:orientation="vertical">
 

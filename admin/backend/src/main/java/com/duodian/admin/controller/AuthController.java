@@ -48,6 +48,7 @@ public class AuthController {
             user.setPhone(request.getPhone());
             user.setPassword(request.getPassword());
             user.setUsername(request.getUsername());
+            user.setApkChannel(request.getApkChannel());
             user.setComputeBalance(3);
             user.setNonTransferableComputeBalance(3);
             user.setShopCount(0);

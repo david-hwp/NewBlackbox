@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS users (
     non_transferable_compute_balance INT NOT NULL DEFAULT 0 COMMENT '不可转赠算力余额',
     shop_count INT NOT NULL DEFAULT 0 COMMENT '店铺数量',
     platform_count INT NOT NULL DEFAULT 0 COMMENT '覆盖平台数',
+    apk_channel VARCHAR(64) NOT NULL DEFAULT 'main' COMMENT '主APK渠道标识',
     deleted TINYINT(1) NOT NULL DEFAULT 0 COMMENT '软删除: 0-正常 1-已删除',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

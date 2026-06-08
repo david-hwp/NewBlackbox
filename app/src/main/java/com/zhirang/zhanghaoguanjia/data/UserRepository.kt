@@ -2,6 +2,7 @@ package com.zhirang.zhanghaoguanjia.data
 
 import android.content.Context
 import android.net.Uri
+import com.zhirang.zhanghaoguanjia.BuildConfig
 import com.zhirang.zhanghaoguanjia.bean.dto.*
 import com.zhirang.zhanghaoguanjia.network.ApiService
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
@@ -16,7 +17,9 @@ class UserRepository(api: ApiService) : BaseRepository(api) {
         }
 
     suspend fun register(phone: String, password: String, username: String): Result<Unit> =
-        safeApiCall(redirectOnUnauthorized = false) { api.register(RegisterRequest(phone, password, username)) }
+        safeApiCall(redirectOnUnauthorized = false) {
+            api.register(RegisterRequest(phone, password, username, BuildConfig.APK_CHANNEL))
+        }
 
     suspend fun getMe(): Result<UserDto> =
         safeApiCall { api.getMe() }

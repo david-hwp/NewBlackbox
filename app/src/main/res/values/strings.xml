@@ -157,6 +157,5 @@
     <string name="add_shop">+ 添加店铺</string>
     <string name="my_account">我的账号</string>
     <string name="search_hint">搜索店名/ID</string>
-    <string name="technical_support">智壤科技提供技术支持</string>
     <string name="announcement_dialog_button">知道了</string>
 </resources>

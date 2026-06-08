@@ -33,6 +33,9 @@ class ProfileActivity : AppCompatActivity() {
     private lateinit var binding: ActivityProfileBinding
     private lateinit var viewModel: ProfileViewModel
     private var currentProfile: UserDto? = null
+    private var profileUnlockTapCount = 0
+    private var profileUnlockFirstTapAt = 0L
+    private var softwareSettingsUnlocked = false
     private var authReceiverRegistered = false
     private val authExpiredReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -86,6 +89,8 @@ class ProfileActivity : AppCompatActivity() {
     }
 
     private fun initMenuListeners() {
+        updateSoftwareSettingsVisibility()
+
         binding.menuGift?.setOnClickListener {
             GiftActivity.start(this)
         }
@@ -122,8 +127,7 @@ class ProfileActivity : AppCompatActivity() {
         }
 
         binding.btnLogout.setOnClickListener {
-            viewModel.logout()
-            LoginActivity.startClearingTask(this)
+            confirmLogout()
         }
     }
 
@@ -131,6 +135,9 @@ class ProfileActivity : AppCompatActivity() {
         binding.navHome?.setOnClickListener {
             HomeActivity.start(this)
             finish()
+        }
+        binding.navProfile?.setOnClickListener {
+            handleProfileNavTap()
         }
     }
 
@@ -233,6 +240,7 @@ class ProfileActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        updateSoftwareSettingsVisibility()
         if (!TokenManager.getInstance().isLoggedIn()) {
             redirectToLogin()
             return
@@ -305,7 +313,6 @@ class ProfileActivity : AppCompatActivity() {
         val content = """
             版本号：$mainVersion
             引擎版本：$engineVersion
-            服务商信息：长沙智壤软件技术有限公司
         """.trimIndent()
         MaterialAlertDialogBuilder(this)
             .setTitle("关于")
@@ -314,6 +321,39 @@ class ProfileActivity : AppCompatActivity() {
                 viewModel.checkUpdates()
             }
             .setPositiveButton("确定", null)
+            .show()
+    }
+
+    private fun handleProfileNavTap() {
+        val now = System.currentTimeMillis()
+        if (profileUnlockFirstTapAt == 0L || now - profileUnlockFirstTapAt > 5000L) {
+            profileUnlockFirstTapAt = now
+            profileUnlockTapCount = 0
+        }
+        profileUnlockTapCount += 1
+        if (profileUnlockTapCount >= 10) {
+            softwareSettingsUnlocked = true
+            updateSoftwareSettingsVisibility()
+            profileUnlockTapCount = 0
+            profileUnlockFirstTapAt = 0L
+        }
+    }
+
+    private fun updateSoftwareSettingsVisibility() {
+        val visibility = if (softwareSettingsUnlocked) View.VISIBLE else View.GONE
+        binding.menuSoftwareSettings.visibility = visibility
+        binding.softwareSettingsDivider.visibility = visibility
+    }
+
+    private fun confirmLogout() {
+        MaterialAlertDialogBuilder(this)
+            .setTitle("退出登录")
+            .setMessage("确定要退出当前账号吗？")
+            .setNegativeButton("取消", null)
+            .setPositiveButton("退出") { _, _ ->
+                viewModel.logout()
+                LoginActivity.startClearingTask(this)
+            }
             .show()
     }
 

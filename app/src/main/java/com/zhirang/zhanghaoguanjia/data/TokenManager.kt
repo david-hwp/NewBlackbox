@@ -41,14 +41,14 @@ class TokenManager private constructor() {
     }
 
     fun saveUser(user: UserDto) {
-        val json = gson.toJson(user)
+        val json = gson.toJson(user.normalizedForStorage())
         prefs.edit().putString(KEY_USER, json).apply()
     }
 
     fun getUser(): UserDto? {
         val json = prefs.getString(KEY_USER, null) ?: return null
         return try {
-            gson.fromJson(json, UserDto::class.java)
+            gson.fromJson(json, UserDto::class.java)?.normalizedForStorage()
         } catch (e: Exception) {
             null
         }
