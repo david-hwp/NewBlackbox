@@ -161,6 +161,7 @@ class HomeActivity : AppCompatActivity() {
         viewModel.refreshUserInfoFromServer()
         viewModel.loadShops()
         checkForEngineUpgrade()
+        maybeRequestBaselineEnginePermissions()
     }
 
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
@@ -241,6 +242,9 @@ class HomeActivity : AppCompatActivity() {
     private fun maybeRequestBaselineEnginePermissions() {
         handler.post {
             if (!TokenManager.getInstance().isLoggedIn()) {
+                return@post
+            }
+            if (pendingEnginePermissionBaseline || pendingEnginePermissionShop != null) {
                 return@post
             }
             if (!EnginePermissionCenter.shouldPromptBaseline(this)) {

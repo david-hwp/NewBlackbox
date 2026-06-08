@@ -34,7 +34,6 @@ object EnginePermissionCenter {
         Manifest.permission.WRITE_EXTERNAL_STORAGE,
         Manifest.permission.BLUETOOTH_SCAN,
         Manifest.permission.BLUETOOTH_CONNECT,
-        Manifest.permission.POST_NOTIFICATIONS,
         Manifest.permission.READ_MEDIA_IMAGES,
         Manifest.permission.READ_MEDIA_VIDEO,
         Manifest.permission.READ_MEDIA_AUDIO
@@ -52,7 +51,6 @@ object EnginePermissionCenter {
             permissions += Manifest.permission.BLUETOOTH_CONNECT
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            permissions += Manifest.permission.POST_NOTIFICATIONS
             permissions += Manifest.permission.READ_MEDIA_IMAGES
             permissions += Manifest.permission.READ_MEDIA_VIDEO
             permissions += Manifest.permission.READ_MEDIA_AUDIO
