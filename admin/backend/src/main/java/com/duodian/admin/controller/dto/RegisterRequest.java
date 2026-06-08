@@ -17,6 +17,9 @@ public class RegisterRequest {
     @Size(max = 32, message = "用户名不能超过32字符")
     private String username;
 
+    @Size(max = 64, message = "渠道标识不能超过64字符")
+    private String apkChannel;
+
     public String getPhone() {
         return phone;
     }
@@ -39,5 +42,13 @@ public class RegisterRequest {
 
     public void setUsername(String username) {
         this.username = username;
+    }
+
+    public String getApkChannel() {
+        return apkChannel;
+    }
+
+    public void setApkChannel(String apkChannel) {
+        this.apkChannel = apkChannel;
     }
 }

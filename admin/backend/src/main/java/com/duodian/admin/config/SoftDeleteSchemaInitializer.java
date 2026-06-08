@@ -42,7 +42,16 @@ public class SoftDeleteSchemaInitializer implements CommandLineRunner {
             }
         }
         ensureAnnouncementTypeColumn();
+        ensureUserApkChannelColumn();
         ensureCloneColumns();
+    }
+
+    private void ensureUserApkChannelColumn() throws Exception {
+        if (!hasColumn("users", "apk_channel")) {
+            jdbcTemplate.execute("ALTER TABLE users ADD COLUMN apk_channel VARCHAR(64) NOT NULL DEFAULT 'main'");
+        }
+        jdbcTemplate.execute("UPDATE users SET apk_channel = 'main' WHERE apk_channel IS NULL OR apk_channel = ''");
+        jdbcTemplate.execute("ALTER TABLE users MODIFY COLUMN apk_channel VARCHAR(64) NOT NULL DEFAULT 'main'");
     }
 
     private void ensureAnnouncementTypeColumn() throws Exception {

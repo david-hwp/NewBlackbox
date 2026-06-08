@@ -36,6 +36,11 @@
             <el-tag :type="row.role === 'ADMIN' ? 'danger' : 'info'">{{ row.role }}</el-tag>
           </template>
         </el-table-column>
+        <el-table-column prop="apkChannel" label="渠道标识" width="110">
+          <template #default="{ row }">
+            <el-tag size="small">{{ row.apkChannel || 'main' }}</el-tag>
+          </template>
+        </el-table-column>
         <el-table-column prop="computeBalance" label="算力余额" />
         <el-table-column prop="nonTransferableComputeBalance" label="不可转赠" />
         <el-table-column prop="shopCount" label="店铺数" />

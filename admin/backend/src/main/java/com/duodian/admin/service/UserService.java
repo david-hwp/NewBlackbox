@@ -73,6 +73,7 @@ public class UserService {
             throw new RuntimeException("手机号已存在");
         }
         user.setDeleted(ACTIVE);
+        user.setApkChannel(normalizeApkChannel(user.getApkChannel()));
         user.setComputeBalance(user.getComputeBalance() == null ? 0 : user.getComputeBalance());
         user.setNonTransferableComputeBalance(normalizeNonTransferableBalance(user));
         user.setPassword(passwordService.encode(user.getPassword()));
@@ -87,6 +88,7 @@ public class UserService {
         int newComputeBalance = user.getComputeBalance() == null ? 0 : user.getComputeBalance();
         existing.setUsername(user.getUsername());
         existing.setAvatarUrl(user.getAvatarUrl());
+        existing.setApkChannel(normalizeApkChannel(existing.getApkChannel()));
         existing.setComputeBalance(newComputeBalance);
         existing.setNonTransferableComputeBalance(normalizeNonTransferableBalance(user));
         withCurrentStats(existing);
@@ -157,5 +159,12 @@ public class UserService {
                 ? 0
                 : user.getNonTransferableComputeBalance();
         return Math.max(0, Math.min(nonTransferable, balance));
+    }
+
+    private String normalizeApkChannel(String channel) {
+        if (channel == null || channel.isBlank()) {
+            return "main";
+        }
+        return channel.trim();
     }
 }
