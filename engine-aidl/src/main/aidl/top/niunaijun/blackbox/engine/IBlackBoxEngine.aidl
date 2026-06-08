@@ -10,6 +10,7 @@ import top.niunaijun.blackbox.core.system.user.BUserInfo;
 import top.niunaijun.blackbox.entity.AppConfig;
 import top.niunaijun.blackbox.entity.location.BLocation;
 import top.niunaijun.blackbox.entity.location.BLocationConfig;
+import top.niunaijun.blackbox.engine.LaunchPreparationResult;
 import android.content.pm.ApplicationInfo;
 import android.content.Intent;
 
@@ -19,6 +20,8 @@ interface IBlackBoxEngine {
 
     Intent getLaunchIntent(String packageName, int userId);
     boolean launchApk(String packageName, int userId);
+    LaunchPreparationResult prepareLaunch(String packageName, int userId);
+    Intent peekLaunchIntent(String packageName, int userId);
     InstallResult installPackageAsUser(String path, int userId);
     void uninstallPackageAsUser(String packageName, int userId);
     List<ApplicationInfo> getInstalledApplications(int flags, int userId);
@@ -53,4 +56,12 @@ interface IBlackBoxEngine {
     void addServiceAvailableCallback(IBinder callback);
 
     void configureLogUpload(String endpointUrl, String authToken);
+
+    int ensureCloneUser(String cloneInstanceId, String packageName, long serverUserId);
+    void bindCloneUser(String cloneInstanceId, String packageName, long serverUserId, int userId);
+    void clearCloneUser(String cloneInstanceId, String packageName, long serverUserId);
+    boolean writeCloneAuthorization(String cloneInstanceId, String packageName, long serverUserId, String phone, int userId, String publicKeyId, String authorizationToken);
+    Intent getAuthorizedLaunchIntent(String cloneInstanceId, String packageName, int userId);
+    Intent peekAuthorizedLaunchIntent(String cloneInstanceId, String packageName, int userId);
+    boolean isCloneAuthorized(String cloneInstanceId, String packageName, long serverUserId, int userId);
 }

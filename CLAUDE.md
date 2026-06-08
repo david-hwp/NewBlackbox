@@ -76,11 +76,85 @@ Release verification must include:
 - Scan logcat for `FATAL EXCEPTION`, `AndroidRuntime`, `ClassCastException`, and `Missing type parameter`.
 - If the installed engine is older, confirm the app creates a `PackageInstaller` session, opens the system engine update dialog, and the engine package upgrades to the new `versionCode` after confirmation.
 
+Phase 9 clone-auth release verification must also include:
+
+```bash
+export JAVA_HOME=$(/usr/libexec/java_home -v 21)
+
+# Backend clone billing, token signing, soft-delete schema, and admin shop paging tests.
+cd admin/backend && mvn test
+
+# Engine local token verification tests.
+cd ../.. && ./gradlew :Bcore:testReleaseUnitTest --no-daemon
+
+# Release build with embedded engine.
+./gradlew :app:assembleRelease --no-daemon
+```
+
+Manual Pixel 8 Phase 9 smoke test:
+- Confirm the target device with `adb -s emulator-5554 emu avd name`; do not use Pixel 9 for this test.
+- Log in first. Phase 9 server operations must not run before a logged-in session exists.
+- Add a shop and confirm the UI asks for one compute point before creating the clone.
+- Confirm the backend creates `cloneInstanceId`, deducts exactly one point, and the new shop uses `新增店铺-[编号]` plus a `NEW-*` shop ID until store info is reported or manually edited.
+- Open the clone with a valid token, then corrupt or remove `{BEnvironment.getSystemDir()}/clone-auth/{cloneInstanceId}/auth.token` and confirm launch is blocked.
+- Renew the shop and confirm the server returns a new authorization token, the engine replaces only `auth.token`, and the clone opens again.
+- Manually edit shop name/shopId and confirm the compute balance does not change.
+- Inspect the cloned app visible data directory and confirm it contains no `.clone_meta.json`, `.clone_auth.token`, `meta.json`, `auth.token`, or other clone/token semantic files.
+- Delete the shop and confirm the virtual user/data directory and `clone-auth/{cloneInstanceId}` authorization directory are removed.
+
+Phase 9 server deployment prerequisites:
+- `APP_CLONE_AUTH_PRIVATE_KEY` must be set in `admin/.env.product`; it is a Base64-encoded PKCS#8 RSA private key whose public key matches the engine verifier public key.
+- `APP_CLONE_AUTH_PUBLIC_KEY_ID` defaults to `rsa_2026_01`.
+- `shops.clone_instance_id` must be a normal non-unique index (`idx_clone_instance_id`), not `uk_clone_instance_id`, so soft-deleted historical clone IDs do not block re-creation.
+- `compute_deductions` must contain the idempotency unique keys for create and renew operations.
+
 When uploading/registering an engine release:
 - Upload the engine APK through the admin `/api/files/engine-packages` file service so local/OBS storage behavior stays unified.
-- Store a checksum matching the uploaded APK. The app supports MD5 (32 hex chars) and SHA-256 (64 hex chars).
+- Store a checksum matching the uploaded APK. The app supports MD5 (32 hex chars) and SHA-256 (64 hex chars), and checksum mismatches must block installation.
 - Verify the public download URL returns the same checksum and `apksigner verify` passes on the downloaded APK.
 - Verify `/api/engine-versions?available=true` returns the new version first.
+- Engine upgrade eligibility is based on the engine APK's real `versionCode`: the candidate engine `versionCode` must be greater than the installed engine `versionCode`. Do not compare engine versions against the main APK version; a main APK can install a newer engine release.
+- Engine upgrades require a logged-in user token. Before starting the Android install flow, the app must send the candidate package `versionCode`, MD5, and SHA-256 to `/api/engine-versions/verify`; only `valid=true` may proceed. `valid=false` must show `您使用的安装包未通过检验，不可升级`.
+
+When uploading/registering a main APK release:
+- Upload the main APK through the admin `/api/files/app-packages` file service. Do not copy APKs directly into local or OBS storage; the file service owns the local/OBS mapping.
+- Add or update the matching row in `/api/app-versions` with `versionCode`, `versionName`, `apkUrl`, SHA-256 `checksum`, `fileSize`, and `published=true`.
+- Add a system announcement with `type=APP_RELEASE` for the same release. Ordinary announcements must use `type=NORMAL`.
+- Version release announcements are independent from ordinary announcements: app startup first checks `/api/app-versions?published=true`; it fetches `APP_RELEASE` announcements only when the latest published `versionCode` is greater than the installed app `versionCode`.
+- If the installed app version equals the latest published version, `APP_RELEASE` must not be shown; normal announcements still follow the existing `NORMAL` announcement flow.
+- The release announcement content should include the public download URL, and the app also exposes the one-click upgrade action from the release announcement and `我的 -> 关于 -> 检查更新`.
+- Main APK upgrades also require a logged-in user token. Before starting the Android install flow, the app must send the candidate package `versionCode`, MD5, and SHA-256 to `/api/app-versions/verify`; only `valid=true` may proceed. `valid=false` must show `您使用的安装包未通过检验，不可升级`.
+
+Example `1.1.0-release` server verification:
+
+```bash
+# Public APK download must not require auth.
+curl -I http://dpgj.zrnh.cn/api/files/app-packages/<apk-file>.apk
+
+# Authenticated checks should show exactly one active published app version and release announcement.
+curl -H "Authorization: Bearer $TOKEN" \
+  "http://dpgj.zrnh.cn/api/app-versions?published=true"
+curl -H "Authorization: Bearer $TOKEN" \
+  "http://dpgj.zrnh.cn/api/announcements?published=true&type=APP_RELEASE"
+```
+
+Pixel 8 release smoke test:
+
+```bash
+ADB=/opt/homebrew/share/android-commandlinetools/platform-tools/adb
+
+# Confirm the emulator. Do not use Pixel 9 for release smoke tests.
+$ADB -s emulator-5554 emu avd name
+
+$ADB -s emulator-5554 install -r -d app/build/outputs/apk/release/zhanghaoguanjia_${VERSION_NAME}_universal-release.apk
+$ADB -s emulator-5554 shell dumpsys package com.zhirang.zhanghaoguanjia | rg "versionCode|versionName"
+
+$ADB -s emulator-5554 logcat -c
+$ADB -s emulator-5554 shell monkey -p com.zhirang.zhanghaoguanjia -c android.intent.category.LAUNCHER 1
+$ADB -s emulator-5554 logcat -d -t 1200 | rg "GET http://dpgj.zrnh.cn/api/(announcements|app-versions)|FATAL EXCEPTION|AndroidRuntime"
+```
+
+For a same-version smoke test, logs should show `type=NORMAL` announcements and `app-versions`, but no `type=APP_RELEASE` request and no update dialog text such as `发现新版本` or `立即升级`.
 
 For any manual MySQL writes that include text, always force UTF-8 on the client/session:
 

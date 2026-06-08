@@ -13,21 +13,24 @@ class EditShopSheetFragment : BaseBottomSheetFragment() {
     private val binding get() = _binding!!
 
     private var currentShopName: String = ""
+    private var currentShopId: String = ""
     private var currentAutoRenew: Boolean = false
-    private var onSaveListener: ((String, Boolean) -> Unit)? = null
+    private var onSaveListener: ((String, String, Boolean) -> Unit)? = null
 
-    fun setOnSaveListener(listener: (String, Boolean) -> Unit) {
+    fun setOnSaveListener(listener: (String, String, Boolean) -> Unit) {
         onSaveListener = listener
     }
 
     companion object {
         private const val ARG_SHOP_NAME = "shop_name"
+        private const val ARG_SHOP_ID = "shop_id"
         private const val ARG_AUTO_RENEW = "auto_renew"
 
-        fun newInstance(shopName: String, autoRenew: Boolean): EditShopSheetFragment {
+        fun newInstance(shopName: String, shopId: String, autoRenew: Boolean): EditShopSheetFragment {
             return EditShopSheetFragment().apply {
                 arguments = Bundle().apply {
                     putString(ARG_SHOP_NAME, shopName)
+                    putString(ARG_SHOP_ID, shopId)
                     putBoolean(ARG_AUTO_RENEW, autoRenew)
                 }
             }
@@ -41,9 +44,11 @@ class EditShopSheetFragment : BaseBottomSheetFragment() {
         _binding = BottomSheetEditShopBinding.bind(view)
 
         currentShopName = arguments?.getString(ARG_SHOP_NAME) ?: ""
+        currentShopId = arguments?.getString(ARG_SHOP_ID) ?: ""
         currentAutoRenew = arguments?.getBoolean(ARG_AUTO_RENEW) ?: false
 
         binding.etShopName.setText(currentShopName)
+        binding.etShopId.setText(currentShopId.takeUnless { it.startsWith("NEW-") }.orEmpty())
         binding.switchAutoRenew.isChecked = currentAutoRenew
 
         binding.btnCancel.setOnClickListener {
@@ -56,7 +61,16 @@ class EditShopSheetFragment : BaseBottomSheetFragment() {
                 Toast.makeText(requireContext(), "店铺名称不能为空", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
-            onSaveListener?.invoke(newName, binding.switchAutoRenew.isChecked)
+            val rawShopId = binding.etShopId.text.toString().trim()
+            val nameChanged = newName != currentShopName
+            val newShopId = when {
+                rawShopId.startsWith("NEW-") -> "-"
+                rawShopId.isNotEmpty() -> rawShopId
+                currentShopId.startsWith("NEW-") && nameChanged -> "-"
+                currentShopId.startsWith("NEW-") -> currentShopId
+                else -> "-"
+            }
+            onSaveListener?.invoke(newName, newShopId, binding.switchAutoRenew.isChecked)
             dismissWithAnimation()
         }
     }

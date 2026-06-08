@@ -11,8 +11,8 @@ class ShopRepository(api: ApiService) : BaseRepository(api) {
     suspend fun reportShop(shop: ShopReportRequest): Result<ShopReportResult> =
         safeApiCall { api.reportShop(shop) }
 
-    suspend fun createPendingShop(shop: ShopDto): Result<ShopDto> =
-        safeApiCall { api.createPendingShop(shop) }
+    suspend fun createCloneShop(request: CloneShopCreateRequest): Result<CloneShopCreateResult> =
+        safeApiCall { api.createCloneShop(request) }
 
     suspend fun createPendingShopWithDeduction(shop: ShopReportRequest): Result<PendingShopDeductResult> =
         safeApiCall { api.createPendingShopWithDeduction(shop) }
@@ -20,8 +20,11 @@ class ShopRepository(api: ApiService) : BaseRepository(api) {
     suspend fun updateShop(id: Long, shop: ShopDto): Result<ShopDto> =
         safeApiCall { api.updateShop(id, shop) }
 
-    suspend fun renewShop(id: Long): Result<ShopRenewResponse> =
-        safeApiCall { api.renewShop(id) }
+    suspend fun renewShop(id: Long, request: ShopRenewRequest): Result<ShopRenewResponse> =
+        safeApiCall { api.renewShop(id, request) }
+
+    suspend fun issueShopAuthToken(id: Long, request: ShopAuthTokenRequest): Result<CloneShopCreateResult> =
+        safeApiCall { api.issueShopAuthToken(id, request) }
 
     suspend fun deleteShop(id: Long): Result<Unit> =
         safeApiCall { api.deleteShop(id) }

@@ -6,12 +6,12 @@ import android.content.Intent
 import android.content.pm.PackageInfo
 import android.content.pm.PackageInstaller
 import android.content.pm.PackageManager
-import android.content.pm.Signature
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import android.util.Log
 import androidx.core.content.FileProvider
+import com.zhirang.zhanghaoguanjia.update.PackageSignatureUtils
 import java.io.File
 import java.io.IOException
 import java.security.MessageDigest
@@ -31,7 +31,8 @@ object EngineInstaller {
     data class EnginePackageInfo(
         val packageName: String,
         val versionName: String?,
-        val versionCode: Int
+        val versionCode: Int,
+        val sha256: String? = null
     )
 
     /**
@@ -80,41 +81,57 @@ object EngineInstaller {
         }
     }
 
+    fun getInstalledEnginePackageInfo(context: Context): EnginePackageInfo? {
+        return try {
+            val packageInfo = context.packageManager.getPackageInfo(ENGINE_PACKAGE, 0)
+            val sourcePath = packageInfo.applicationInfo?.sourceDir
+            EnginePackageInfo(
+                packageName = packageInfo.packageName,
+                versionName = packageInfo.versionName,
+                versionCode = getVersionCode(packageInfo),
+                sha256 = sourcePath?.takeIf { it.isNotBlank() }?.let { computeSha256(File(it)) }
+            )
+        } catch (e: PackageManager.NameNotFoundException) {
+            null
+        } catch (e: Exception) {
+            Log.w(TAG, "Error getting installed engine package info: ${e.message}")
+            null
+        }
+    }
+
     fun getApkPackageInfo(context: Context, apkFile: File): EnginePackageInfo? {
         val packageInfo = context.packageManager.getPackageArchiveInfo(
             apkFile.absolutePath,
-            signatureFlags()
+            PackageSignatureUtils.signatureFlags()
         ) ?: return null
         return EnginePackageInfo(
             packageName = packageInfo.packageName,
             versionName = packageInfo.versionName,
-            versionCode = getVersionCode(packageInfo)
+            versionCode = getVersionCode(packageInfo),
+            sha256 = computeSha256(apkFile)
         )
+    }
+
+    fun getBuiltinEnginePackageInfo(context: Context): EnginePackageInfo? {
+        val assetPath = copyAssetToTemp(context) ?: return null
+        return try {
+            getApkPackageInfo(context, File(assetPath))
+        } catch (e: Exception) {
+            Log.w(TAG, "Error getting builtin engine package info: ${e.message}")
+            null
+        } finally {
+            try {
+                File(assetPath).delete()
+            } catch (_: Exception) {
+            }
+        }
     }
 
     /**
      * Get the versionCode of the bundled Engine APK in assets, or 0 if not found.
      */
     fun getBuiltinEngineVersion(context: Context): Int {
-        return try {
-            val assetPath = copyAssetToTemp(context) ?: return 0
-            val packageInfo = context.packageManager.getPackageArchiveInfo(assetPath, 0)
-            val version = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                packageInfo?.longVersionCode?.toInt() ?: 0
-            } else {
-                @Suppress("DEPRECATION")
-                packageInfo?.versionCode ?: 0
-            }
-            // Clean up temp file
-            try {
-                File(assetPath).delete()
-            } catch (_: Exception) {
-            }
-            version
-        } catch (e: Exception) {
-            Log.w(TAG, "Error getting builtin engine version: ${e.message}")
-            0
-        }
+        return getBuiltinEnginePackageInfo(context)?.versionCode ?: 0
     }
 
     /**
@@ -165,7 +182,11 @@ object EngineInstaller {
 
             Log.d(TAG, "Engine APK copied to: ${destFile.absolutePath}")
 
-            val validation = validateInstallCandidate(context, destFile)
+            val validation = validateInstallCandidate(
+                context = context,
+                apkFile = destFile,
+                allowSameVersionReplacement = true
+            )
             if (validation.isFailure) {
                 return Result.failure(validation.exceptionOrNull() ?: IllegalStateException("Engine APK cannot be installed"))
             }
@@ -209,7 +230,11 @@ object EngineInstaller {
         }
     }
 
-    fun validateInstallCandidate(context: Context, apkFile: File): Result<EnginePackageInfo> {
+    fun validateInstallCandidate(
+        context: Context,
+        apkFile: File,
+        allowSameVersionReplacement: Boolean = false
+    ): Result<EnginePackageInfo> {
         return try {
             val candidate = getApkPackageInfo(context, apkFile)
                 ?: return Result.failure(IOException("下载的引擎包不是有效 APK"))
@@ -220,13 +245,20 @@ object EngineInstaller {
             }
 
             val installedVersion = getInstalledEngineVersion(context)
-            if (installedVersion > 0 && candidate.versionCode <= installedVersion) {
+            if (installedVersion > 0 && candidate.versionCode < installedVersion) {
                 val currentName = getInstalledEngineVersionName(context)?.let { "$it ($installedVersion)" }
                     ?: installedVersion.toString()
                 val candidateName = candidate.versionName?.let { "$it (${candidate.versionCode})" }
                     ?: candidate.versionCode.toString()
                 return Result.failure(
-                    IllegalStateException("当前引擎版本为 $currentName，不能直接切换到 $candidateName")
+                    IllegalStateException("当前引擎版本为 $currentName，不能切换到更低版本 $candidateName")
+                )
+            }
+            if (installedVersion > 0 && candidate.versionCode == installedVersion && !allowSameVersionReplacement) {
+                val currentName = getInstalledEngineVersionName(context)?.let { "$it ($installedVersion)" }
+                    ?: installedVersion.toString()
+                return Result.failure(
+                    IllegalStateException("当前引擎版本为 $currentName，不能重复安装相同版本")
                 )
             }
 
@@ -427,84 +459,25 @@ object EngineInstaller {
         }
     }
 
-    /**
-     * Compute MD5 hash of a file for verification.
-     */
-    fun computeFileMd5(file: File): String? {
-        return computeFileDigest(file, "MD5")
-    }
-
-    fun computeFileSha256(file: File): String? {
-        return computeFileDigest(file, "SHA-256")
-    }
-
-    fun verifyFileChecksum(file: File, expectedChecksum: String?): Boolean {
-        val expected = expectedChecksum?.trim()?.takeIf { it.isNotBlank() } ?: return true
-        val algorithm = when (expected.length) {
-            32 -> "MD5"
-            64 -> "SHA-256"
-            else -> return false
-        }
-        val actual = computeFileDigest(file, algorithm) ?: return false
-        val matched = actual.equals(expected, ignoreCase = true)
-        if (!matched) {
-            Log.e(TAG, "Engine checksum mismatch: algorithm=$algorithm expected=$expected actual=$actual")
-        }
-        return matched
-    }
-
-    private fun computeFileDigest(file: File, algorithm: String): String? {
-        return try {
-            val md = MessageDigest.getInstance(algorithm)
-            file.inputStream().use { input ->
-                val buffer = ByteArray(8192)
-                var read: Int
-                while (input.read(buffer).also { read = it } > 0) {
-                    md.update(buffer, 0, read)
-                }
-            }
-            md.digest().joinToString("") { "%02x".format(it) }
-        } catch (e: Exception) {
-            Log.w(TAG, "Error computing $algorithm: ${e.message}")
-            null
-        }
-    }
-
     private fun hasCompatibleSignature(context: Context, apkFile: File): Boolean {
         return try {
             val packageManager = context.packageManager
-            val installed = packageManager.getPackageInfo(ENGINE_PACKAGE, signatureFlags())
-            val candidate = packageManager.getPackageArchiveInfo(apkFile.absolutePath, signatureFlags())
+            val installed = packageManager.getPackageInfo(ENGINE_PACKAGE, PackageSignatureUtils.signatureFlags())
+            val candidate = packageManager.getPackageArchiveInfo(apkFile.absolutePath, PackageSignatureUtils.signatureFlags())
                 ?: return false
-            signatureFingerprints(installed) == signatureFingerprints(candidate)
+            val compatible = PackageSignatureUtils.signaturesCompatible(installed, candidate)
+            if (!compatible) {
+                Log.w(
+                    TAG,
+                    "Engine signature mismatch: installed=${PackageSignatureUtils.signatureFingerprints(installed).size} " +
+                        "candidate=${PackageSignatureUtils.signatureFingerprints(candidate).size}"
+                )
+            }
+            compatible
         } catch (e: Exception) {
             Log.w(TAG, "Error checking engine signature compatibility: ${e.message}")
             false
         }
-    }
-
-    private fun signatureFlags(): Int {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            PackageManager.GET_SIGNING_CERTIFICATES
-        } else {
-            @Suppress("DEPRECATION")
-            PackageManager.GET_SIGNATURES
-        }
-    }
-
-    private fun signatureFingerprints(packageInfo: PackageInfo): Set<String> {
-        val signatures = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            packageInfo.signingInfo?.apkContentsSigners ?: emptyArray()
-        } else {
-            @Suppress("DEPRECATION")
-            packageInfo.signatures ?: emptyArray()
-        }
-        return signatures.map { signatureFingerprint(it) }.toSet()
-    }
-
-    private fun signatureFingerprint(signature: Signature): String {
-        val md = MessageDigest.getInstance("SHA-256")
-        return md.digest(signature.toByteArray()).joinToString("") { "%02x".format(it) }
     }
 
     private fun getVersionCode(packageInfo: PackageInfo): Int {
@@ -513,6 +486,23 @@ object EngineInstaller {
         } else {
             @Suppress("DEPRECATION")
             packageInfo.versionCode
+        }
+    }
+
+    private fun computeSha256(file: File): String? {
+        return try {
+            val digest = MessageDigest.getInstance("SHA-256")
+            file.inputStream().use { input ->
+                val buffer = ByteArray(8192)
+                var read: Int
+                while (input.read(buffer).also { read = it } > 0) {
+                    digest.update(buffer, 0, read)
+                }
+            }
+            digest.digest().joinToString("") { "%02x".format(it) }
+        } catch (e: Exception) {
+            Log.w(TAG, "Error computing sha256 for ${file.absolutePath}: ${e.message}")
+            null
         }
     }
 }

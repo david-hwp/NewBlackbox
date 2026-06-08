@@ -74,7 +74,9 @@ public class AuthInterceptor implements HandlerInterceptor {
             return false;
         }
         String rest = path.substring("/files/".length());
-        return rest.startsWith("engine-packages/") || rest.startsWith("platform-icons/");
+        return rest.startsWith("engine-packages/")
+                || rest.startsWith("app-packages/")
+                || rest.startsWith("platform-icons/");
     }
 
     private boolean isPublicFileRequest(String method) {

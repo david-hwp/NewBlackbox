@@ -44,6 +44,27 @@
         android:textColorHint="@color/duodian_text_hint"
         android:textSize="15sp" />
 
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:text="@string/duodian_shop_id"
+        android:textColor="@color/duodian_text_primary"
+        android:textSize="14sp"
+        android:textStyle="bold" />
+
+    <EditText
+        android:id="@+id/etShopId"
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:layout_marginTop="8dp"
+        android:background="@drawable/bg_input_field"
+        android:hint="@string/duodian_shop_id"
+        android:paddingHorizontal="16dp"
+        android:textColor="@color/duodian_text_primary"
+        android:textColorHint="@color/duodian_text_hint"
+        android:textSize="15sp" />
+
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"

@@ -2,10 +2,15 @@ package com.duodian.admin.entity;
 
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
+import java.util.Locale;
 
 @Entity
 @Table(name = "announcements")
 public class Announcement {
+    private static final String DEFAULT_TYPE = "NORMAL";
+    private static final String APP_RELEASE_TYPE = "APP_RELEASE";
+    private static final String APP_RELEASE_TITLE = "新版本发布";
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -15,6 +20,9 @@ public class Announcement {
 
     @Column(nullable = false, length = 4000)
     private String content;
+
+    @Column(nullable = false, length = 32, columnDefinition = "VARCHAR(32) DEFAULT 'NORMAL'")
+    private String type = "NORMAL";
 
     @Column(nullable = false)
     private Boolean published = false;
@@ -33,13 +41,26 @@ public class Announcement {
         if (deleted == null) {
             deleted = 0;
         }
+        normalizeReleaseAnnouncement();
         createdAt = LocalDateTime.now();
         updatedAt = LocalDateTime.now();
     }
 
     @PreUpdate
     protected void onUpdate() {
+        normalizeReleaseAnnouncement();
         updatedAt = LocalDateTime.now();
+    }
+
+    private void normalizeReleaseAnnouncement() {
+        if (type == null || type.isBlank()) {
+            type = DEFAULT_TYPE;
+        } else {
+            type = type.trim().toUpperCase(Locale.ROOT);
+        }
+        if (APP_RELEASE_TYPE.equals(type)) {
+            title = APP_RELEASE_TITLE;
+        }
     }
 
     public Long getId() { return id; }
@@ -50,6 +71,11 @@ public class Announcement {
 
     public String getContent() { return content; }
     public void setContent(String content) { this.content = content; }
+
+    public String getType() { return type; }
+    public void setType(String type) {
+        this.type = (type == null || type.isBlank()) ? DEFAULT_TYPE : type.trim().toUpperCase(Locale.ROOT);
+    }
 
     public Boolean getPublished() { return published; }
     public void setPublished(Boolean published) { this.published = published; }

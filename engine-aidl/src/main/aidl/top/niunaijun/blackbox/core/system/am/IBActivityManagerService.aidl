@@ -60,6 +60,6 @@ interface IBActivityManagerService {
     String getPackageForIntentSender(in IBinder target, int userId);
     int getUidForIntentSender(in IBinder target, int userId);
 
-    void killAllOtherProcesses(String keepPackageName, int userId);
-    void killAllOtherProcessesGlobal(String keepPackageName, int userId);
+    int killAllOtherProcesses(String keepPackageName, int userId);
+    int killAllOtherProcessesGlobal(String keepPackageName, int userId);
 }

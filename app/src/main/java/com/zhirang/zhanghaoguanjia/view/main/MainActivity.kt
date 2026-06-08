@@ -21,6 +21,7 @@ import com.afollestad.materialdialogs.input.input
 import com.zhirang.zhanghaoguanjia.R
 import com.zhirang.zhanghaoguanjia.app.App
 import com.zhirang.zhanghaoguanjia.app.AppManager
+import com.zhirang.zhanghaoguanjia.data.TokenManager
 import com.zhirang.zhanghaoguanjia.databinding.ActivityMainBinding
 import com.zhirang.zhanghaoguanjia.engine.EngineInstaller
 import com.zhirang.zhanghaoguanjia.engine.EngineConnection
@@ -128,6 +129,9 @@ class MainActivity : LoadingActivity() {
      * Check for Engine upgrades and show dialog if available.
      */
     private fun checkForEngineUpgrade() {
+        if (!TokenManager.getInstance().isLoggedIn()) {
+            return
+        }
         try {
             lifecycleScope.launch {
                 val upgradeInfo = withContext(Dispatchers.IO) {
@@ -139,8 +143,11 @@ class MainActivity : LoadingActivity() {
                     // to prevent data loss from manual uninstall/reinstall
                     if (info.downloadUrl.isNullOrEmpty()) {
                         Log.i(TAG, "Auto-upgrading engine from built-in APK to version ${info.versionCode}")
-                        withContext(Dispatchers.IO) {
+                        val result = withContext(Dispatchers.IO) {
                             EngineInstaller.installFromAssets(this@MainActivity)
+                        }
+                        result.onFailure {
+                            Log.e(TAG, "Built-in engine install failed: ${it.message}", it)
                         }
                         return@launch
                     }
@@ -247,8 +254,8 @@ class MainActivity : LoadingActivity() {
     }
 
     /**
-     * 统一申请分身应用需要的所有运行时权限。
-     * 避免用户在使用分身时逐个遇到权限弹窗。
+     * 统一申请店铺应用需要的所有运行时权限。
+     * 避免用户在使用店铺时逐个遇到权限弹窗。
      */
     private fun checkAllPermissions() {
         try {

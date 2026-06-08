@@ -16,17 +16,44 @@ class ShopListAdapter(
     private val onItemClick: (Int, Shop) -> Unit,
     private val onEditClick: (Int, Shop) -> Unit,
     private val onAutoRenewClick: (Int, Shop) -> Unit,
-    private val onDeleteClick: (Int, Shop) -> Unit
+    private val onDeleteClick: (Int, Shop) -> Unit,
+    private val onRepairClick: (Int, Shop) -> Unit
 ) : RecyclerView.Adapter<ShopListAdapter.VH>() {
 
     private var shops: List<Shop> = emptyList()
+    private var expandedShopId: Long? = null
 
     fun submitList(newList: List<Shop>) {
         shops = newList
+        if (expandedShopId != null && shops.none { it.id == expandedShopId }) {
+            expandedShopId = null
+        }
         notifyDataSetChanged()
     }
 
     fun getShops(): List<Shop> = shops
+
+    fun getExpandedShopId(): Long? = expandedShopId
+
+    fun getShopIdAt(position: Int): Long? = shops.getOrNull(position)?.id
+
+    fun getExpandedShop(): Shop? = expandedShopId?.let { id ->
+        shops.firstOrNull { it.id == id }
+    }
+
+    fun setExpandedShopId(shopId: Long?) {
+        if (expandedShopId == shopId) {
+            return
+        }
+        val previousId = expandedShopId
+        expandedShopId = shopId?.takeIf { id -> shops.any { it.id == id } }
+        previousId?.let { notifyShopChanged(it) }
+        expandedShopId?.let { notifyShopChanged(it) }
+    }
+
+    fun clearExpandedShop() {
+        setExpandedShopId(null)
+    }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
         val view = LayoutInflater.from(parent.context)
@@ -42,6 +69,7 @@ class ShopListAdapter(
 
     inner class VH(itemView: View) : RecyclerView.ViewHolder(itemView) {
         private val cardView: View = itemView.findViewById(R.id.cardView)
+        private val cardContainer: View = itemView.findViewById(R.id.cardContainer)
         private val shopLogo: ImageView = itemView.findViewById(R.id.shopLogo)
         private val shopName: TextView = itemView.findViewById(R.id.shopName)
         private val newTag: TextView = itemView.findViewById(R.id.newTag)
@@ -52,13 +80,18 @@ class ShopListAdapter(
         private val btnEdit: View? = itemView.findViewById(R.id.btnEdit)
         private val btnAutoRenew: View? = itemView.findViewById(R.id.btnAutoRenew)
         private val btnDelete: View? = itemView.findViewById(R.id.btnDelete)
+        private val swipeRepairAction: View? = itemView.findViewById(R.id.swipeRepairAction)
+        private val btnRepair: View? = itemView.findViewById(R.id.btnRepair)
 
         fun bind(shop: Shop) {
-            cardView.translationX = 0f
+            cardContainer.bringToFront()
+            val expanded = shop.id == expandedShopId
+            swipeRepairAction?.visibility = if (expanded) View.VISIBLE else View.INVISIBLE
+            cardContainer.translationX = if (expanded) -repairActionWidthPx(itemView) else 0f
 
             shopName.text = shop.shopName
             newTag.visibility = if (shop.isNew) View.VISIBLE else View.GONE
-            shopId.text = "ID: ${if (shop.isNew) "-" else shop.shopId}"
+            shopId.text = "店铺ID: ${if (shop.isNew) "-" else shop.shopId}"
 
             // 剩余天数显示（带颜色逻辑）
             remainingDaysBadge.text = "${shop.remainingDays}天"
@@ -113,6 +146,23 @@ class ShopListAdapter(
                     onDeleteClick(pos, shops[pos])
                 }
             }
+            btnRepair?.setOnClickListener {
+                val pos = bindingAdapterPosition
+                if (pos != RecyclerView.NO_POSITION) {
+                    onRepairClick(pos, shops[pos])
+                }
+            }
         }
+    }
+
+    private fun notifyShopChanged(shopId: Long) {
+        val position = shops.indexOfFirst { it.id == shopId }
+        if (position >= 0) {
+            notifyItemChanged(position)
+        }
+    }
+
+    private fun repairActionWidthPx(view: View): Float {
+        return 96f * view.resources.displayMetrics.density
     }
 }

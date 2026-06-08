@@ -8,6 +8,32 @@
         </div>
       </template>
 
+      <el-form class="filter-bar" :model="filters" inline @submit.prevent>
+        <el-form-item label="平台">
+          <el-select v-model="filters.platform" clearable placeholder="全部平台" style="width: 160px">
+            <el-option
+              v-for="platform in platforms"
+              :key="platform.id"
+              :label="platform.name"
+              :value="platform.id"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="手机号">
+          <el-input v-model="filters.phone" clearable placeholder="输入手机号" style="width: 180px" @keyup.enter="handleSearch" />
+        </el-form-item>
+        <el-form-item label="关联用户">
+          <el-input v-model="filters.userKeyword" clearable placeholder="用户名/手机号/ID" style="width: 190px" @keyup.enter="handleSearch" />
+        </el-form-item>
+        <el-form-item label="店铺名称">
+          <el-input v-model="filters.shopName" clearable placeholder="输入店铺名称" style="width: 200px" @keyup.enter="handleSearch" />
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" @click="handleSearch">查询</el-button>
+          <el-button @click="resetFilters">重置</el-button>
+        </el-form-item>
+      </el-form>
+
       <el-table :data="shops" v-loading="loading" style="width: 100%">
         <el-table-column prop="id" label="ID" width="60" />
         <el-table-column prop="shopName" label="店铺名称" />
@@ -44,6 +70,19 @@
           </template>
         </el-table-column>
       </el-table>
+
+      <div class="pagination-row">
+        <el-pagination
+          background
+          layout="total, sizes, prev, pager, next, jumper"
+          :total="pagination.total"
+          :current-page="pagination.page"
+          :page-size="pagination.size"
+          :page-sizes="[10, 20, 50, 100]"
+          @current-change="handlePageChange"
+          @size-change="handleSizeChange"
+        />
+      </div>
     </el-card>
 
     <el-dialog v-model="dialogVisible" :title="isEdit ? '编辑店铺' : '新增店铺'" width="500px">
@@ -99,9 +138,21 @@ const shops = ref([])
 const users = ref([])
 const platforms = ref([])
 const loading = ref(false)
+const metadataLoading = ref(false)
 const dialogVisible = ref(false)
 const isEdit = ref(false)
 const formRef = ref()
+const filters = ref({
+  platform: '',
+  phone: '',
+  userKeyword: '',
+  shopName: ''
+})
+const pagination = ref({
+  page: 1,
+  size: 10,
+  total: 0
+})
 const form = ref({
   shopName: '',
   shopId: '',
@@ -124,17 +175,62 @@ const rules = {
 const fetchShops = async () => {
   loading.value = true
   try {
-    const [shopList, userList, platformList] = await Promise.all([
-      request.get('/shops'),
-      request.get('/users'),
-      request.get('/platforms')
-    ])
-    shops.value = shopList
-    users.value = userList
-    platforms.value = platformList
+    const result = await request.get('/shops', {
+      params: {
+        page: pagination.value.page,
+        size: pagination.value.size,
+        platform: filters.value.platform || undefined,
+        phone: filters.value.phone || undefined,
+        userKeyword: filters.value.userKeyword || undefined,
+        shopName: filters.value.shopName || undefined
+      }
+    })
+    shops.value = result.list || result.content || []
+    pagination.value.total = Number(result.total ?? result.totalElements ?? 0)
   } finally {
     loading.value = false
   }
+}
+
+const fetchMetadata = async () => {
+  metadataLoading.value = true
+  try {
+    const [userList, platformList] = await Promise.all([
+      request.get('/users'),
+      request.get('/platforms')
+    ])
+    users.value = userList
+    platforms.value = platformList
+  } finally {
+    metadataLoading.value = false
+  }
+}
+
+const handleSearch = () => {
+  pagination.value.page = 1
+  fetchShops()
+}
+
+const resetFilters = () => {
+  filters.value = {
+    platform: '',
+    phone: '',
+    userKeyword: '',
+    shopName: ''
+  }
+  pagination.value.page = 1
+  fetchShops()
+}
+
+const handlePageChange = (page) => {
+  pagination.value.page = page
+  fetchShops()
+}
+
+const handleSizeChange = (size) => {
+  pagination.value.size = size
+  pagination.value.page = 1
+  fetchShops()
 }
 
 const onPlatformChange = (val) => {
@@ -191,7 +287,10 @@ const handleDelete = async (row) => {
   }
 }
 
-onMounted(fetchShops)
+onMounted(() => {
+  fetchMetadata()
+  fetchShops()
+})
 </script>
 
 <style scoped>
@@ -199,6 +298,23 @@ onMounted(fetchShops)
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0;
+  margin-bottom: 16px;
+  padding: 12px 12px 0;
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+}
+
+.pagination-row {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 16px;
 }
 
 .mono {

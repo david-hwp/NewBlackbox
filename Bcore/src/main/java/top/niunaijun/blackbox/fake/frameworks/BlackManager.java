@@ -41,7 +41,7 @@ public abstract class BlackManager<Service extends IInterface> {
             mServiceCreationFailed.set(false);
         }
 
-        if (mService != null && mService.asBinder().pingBinder() && mService.asBinder().isBinderAlive()) {
+        if (mService != null && mService.asBinder().isBinderAlive()) {
             return mService;
         }
 
@@ -143,7 +143,7 @@ public abstract class BlackManager<Service extends IInterface> {
             return false;
         }
         try {
-            return mService.asBinder().pingBinder() && mService.asBinder().isBinderAlive();
+            return mService.asBinder().isBinderAlive();
         } catch (Exception e) {
             Log.w(TAG, "Service health check failed for " + getServiceName(), e);
             return false;

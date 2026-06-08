@@ -1,15 +1,11 @@
 package com.duodian.admin.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(
-        name = "shops",
-        uniqueConstraints = {
-                @UniqueConstraint(name = "uk_clone_instance_id", columnNames = "clone_instance_id")
-        }
-)
+@Table(name = "shops")
 public class Shop {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -39,8 +35,34 @@ public class Shop {
     @Column(name = "package_name")
     private String packageName;
 
-    @Column(name = "clone_instance_id", length = 96)
+    @Column(name = "clone_instance_id", length = 255)
     private String cloneInstanceId;
+
+    @Column(name = "clone_sequence")
+    private Integer cloneSequence;
+
+    @Column(name = "local_virtual_user_id")
+    private Integer localVirtualUserId;
+
+    @JsonIgnore
+    @Column(name = "clone_validation_code", length = 64)
+    private String cloneValidationCode;
+
+    @JsonIgnore
+    @Column(name = "clone_validation_hash", length = 128)
+    private String cloneValidationHash;
+
+    @Column(name = "credential_version")
+    private Integer credentialVersion = 1;
+
+    @Column(name = "auth_start_at")
+    private LocalDateTime authStartAt;
+
+    @Column(name = "auth_expire_at")
+    private LocalDateTime authExpireAt;
+
+    @Column(name = "authorization_jti", length = 64)
+    private String authorizationJti;
 
     @Column(name = "last_deducted_at")
     private LocalDateTime lastDeductedAt;
@@ -106,6 +128,34 @@ public class Shop {
                 ? null
                 : cloneInstanceId.trim();
     }
+
+    public Integer getCloneSequence() { return cloneSequence; }
+    public void setCloneSequence(Integer cloneSequence) { this.cloneSequence = cloneSequence; }
+
+    public Integer getLocalVirtualUserId() { return localVirtualUserId; }
+    public void setLocalVirtualUserId(Integer localVirtualUserId) { this.localVirtualUserId = localVirtualUserId; }
+
+    @JsonIgnore
+    public String getCloneValidationCode() { return cloneValidationCode; }
+    public void setCloneValidationCode(String cloneValidationCode) { this.cloneValidationCode = cloneValidationCode; }
+
+    @JsonIgnore
+    public String getCloneValidationHash() { return cloneValidationHash; }
+    public void setCloneValidationHash(String cloneValidationHash) { this.cloneValidationHash = cloneValidationHash; }
+
+    public Integer getCredentialVersion() { return credentialVersion; }
+    public void setCredentialVersion(Integer credentialVersion) {
+        this.credentialVersion = credentialVersion == null || credentialVersion < 1 ? 1 : credentialVersion;
+    }
+
+    public LocalDateTime getAuthStartAt() { return authStartAt; }
+    public void setAuthStartAt(LocalDateTime authStartAt) { this.authStartAt = authStartAt; }
+
+    public LocalDateTime getAuthExpireAt() { return authExpireAt; }
+    public void setAuthExpireAt(LocalDateTime authExpireAt) { this.authExpireAt = authExpireAt; }
+
+    public String getAuthorizationJti() { return authorizationJti; }
+    public void setAuthorizationJti(String authorizationJti) { this.authorizationJti = authorizationJti; }
 
     public LocalDateTime getLastDeductedAt() { return lastDeductedAt; }
     public void setLastDeductedAt(LocalDateTime lastDeductedAt) { this.lastDeductedAt = lastDeductedAt; }

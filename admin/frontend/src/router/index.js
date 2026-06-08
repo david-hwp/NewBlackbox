@@ -7,6 +7,7 @@ import Shops from '../views/Shops.vue'
 import Logs from '../views/Logs.vue'
 import Announcements from '../views/Announcements.vue'
 import EngineVersions from '../views/EngineVersions.vue'
+import AppVersions from '../views/AppVersions.vue'
 import Feedbacks from '../views/Feedbacks.vue'
 import Platforms from '../views/Platforms.vue'
 
@@ -28,6 +29,7 @@ const routes = [
       { path: 'logs', name: 'Logs', component: Logs, meta: { title: '交易日志' } },
       { path: 'feedbacks', name: 'Feedbacks', component: Feedbacks, meta: { title: '问题反馈' } },
       { path: 'announcements', name: 'Announcements', component: Announcements, meta: { title: '公告管理' } },
+      { path: 'app-versions', name: 'AppVersions', component: AppVersions, meta: { title: '主 APK 版本' } },
       { path: 'engine-versions', name: 'EngineVersions', component: EngineVersions, meta: { title: '引擎版本' } }
     ]
   }

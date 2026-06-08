@@ -11,6 +11,22 @@
         </div>
       </template>
 
+      <el-form class="filter-bar" :model="filters" inline @submit.prevent>
+        <el-form-item label="平台名称">
+          <el-input v-model="filters.name" clearable placeholder="输入平台名称" style="width: 180px" @keyup.enter="handleSearch" />
+        </el-form-item>
+        <el-form-item label="平台标识">
+          <el-input v-model="filters.platformId" clearable placeholder="输入平台标识" style="width: 160px" @keyup.enter="handleSearch" />
+        </el-form-item>
+        <el-form-item label="应用包名">
+          <el-input v-model="filters.packageName" clearable placeholder="输入包名" style="width: 220px" @keyup.enter="handleSearch" />
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" @click="handleSearch">查询</el-button>
+          <el-button @click="resetFilters">重置</el-button>
+        </el-form-item>
+      </el-form>
+
       <el-table :data="platforms" v-loading="loading" style="width: 100%">
         <el-table-column label="图标" width="90">
           <template #default="{ row }">
@@ -40,6 +56,19 @@
           </template>
         </el-table-column>
       </el-table>
+
+      <div class="pagination-row">
+        <el-pagination
+          background
+          layout="total, sizes, prev, pager, next, jumper"
+          :total="pagination.total"
+          :current-page="pagination.page"
+          :page-size="pagination.size"
+          :page-sizes="[10, 20, 50, 100]"
+          @current-change="handlePageChange"
+          @size-change="handleSizeChange"
+        />
+      </div>
     </el-card>
 
     <el-dialog v-model="dialogVisible" :title="isEdit ? '编辑平台' : '新增平台'" width="620px">
@@ -92,6 +121,16 @@ const uploading = ref(false)
 const dialogVisible = ref(false)
 const isEdit = ref(false)
 const formRef = ref()
+const filters = ref({
+  name: '',
+  platformId: '',
+  packageName: ''
+})
+const pagination = ref({
+  page: 1,
+  size: 10,
+  total: 0
+})
 const form = ref({
   id: '',
   name: '',
@@ -109,10 +148,46 @@ const rules = {
 const fetchPlatforms = async () => {
   loading.value = true
   try {
-    platforms.value = await request.get('/platforms')
+    const result = await request.get('/platforms', {
+      params: {
+        page: pagination.value.page,
+        size: pagination.value.size,
+        name: filters.value.name || undefined,
+        platformId: filters.value.platformId || undefined,
+        packageName: filters.value.packageName || undefined
+      }
+    })
+    platforms.value = result.list || result.content || []
+    pagination.value.total = Number(result.total ?? result.totalElements ?? 0)
   } finally {
     loading.value = false
   }
+}
+
+const handleSearch = () => {
+  pagination.value.page = 1
+  fetchPlatforms()
+}
+
+const resetFilters = () => {
+  filters.value = {
+    name: '',
+    platformId: '',
+    packageName: ''
+  }
+  pagination.value.page = 1
+  fetchPlatforms()
+}
+
+const handlePageChange = (page) => {
+  pagination.value.page = page
+  fetchPlatforms()
+}
+
+const handleSizeChange = (size) => {
+  pagination.value.size = size
+  pagination.value.page = 1
+  fetchPlatforms()
 }
 
 const resetForm = () => {
@@ -186,6 +261,23 @@ onMounted(fetchPlatforms)
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0;
+  margin-bottom: 16px;
+  padding: 12px 12px 0;
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+}
+
+.pagination-row {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 16px;
 }
 
 .platform-icon {

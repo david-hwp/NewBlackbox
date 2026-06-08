@@ -13,9 +13,11 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.URI;
+import java.net.URLDecoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
@@ -88,6 +90,26 @@ public class FileStorageService {
         }
     }
 
+    public DownloadedFile downloadByDownloadUrl(String downloadUrl) {
+        FileReference reference = parseDownloadUrl(downloadUrl);
+        if (!isLocalStorage()) {
+            return downloadObject(reference.type(), reference.fileName());
+        }
+        try {
+            Path path = resolveFile(reference.type(), reference.fileName());
+            if (!Files.exists(path) || !Files.isReadable(path)) {
+                return null;
+            }
+            String contentType = Files.probeContentType(path);
+            return new DownloadedFile(
+                    Files.readAllBytes(path),
+                    contentType != null ? contentType : "application/octet-stream"
+            );
+        } catch (IOException e) {
+            throw new RuntimeException("文件读取失败: " + e.getMessage());
+        }
+    }
+
     public Path resolveFile(String type, String fileName) {
         Path dir = resolveRoot().resolve(safeType(type)).normalize();
         Path file = dir.resolve(fileName).normalize();
@@ -132,6 +154,26 @@ public class FileStorageService {
             return "other";
         }
         return type.replaceAll("[^a-zA-Z0-9_-]", "");
+    }
+
+    private FileReference parseDownloadUrl(String downloadUrl) {
+        if (downloadUrl == null || downloadUrl.isBlank()) {
+            throw new IllegalArgumentException("文件地址不能为空");
+        }
+        URI uri = URI.create(downloadUrl);
+        String path = uri.getPath();
+        int marker = path.indexOf("/files/");
+        if (marker < 0) {
+            throw new IllegalArgumentException("不支持的文件地址");
+        }
+        String rest = path.substring(marker + "/files/".length());
+        int slash = rest.indexOf('/');
+        if (slash <= 0 || slash >= rest.length() - 1) {
+            throw new IllegalArgumentException("文件地址格式错误");
+        }
+        String type = URLDecoder.decode(rest.substring(0, slash), StandardCharsets.UTF_8);
+        String fileName = URLDecoder.decode(rest.substring(slash + 1), StandardCharsets.UTF_8);
+        return new FileReference(type, fileName);
     }
 
     private void uploadObject(String key, byte[] body, String contentType) throws IOException {
@@ -375,6 +417,8 @@ public class FileStorageService {
     private boolean isBlank(String value) {
         return value == null || value.isBlank();
     }
+
+    private record FileReference(String type, String fileName) {}
 
     public static class DownloadedFile {
         private final byte[] bytes;

@@ -12,7 +12,8 @@ data class ShopDto(
     val remainingDays: Int,
     val autoRenew: Boolean,
     val packageName: String?,
-    val cloneInstanceId: String? = null
+    val cloneInstanceId: String? = null,
+    val localVirtualUserId: Int? = null
 ) {
 
     fun toShop(): Shop = Shop(
@@ -24,6 +25,7 @@ data class ShopDto(
         autoRenew = autoRenew,
         packageName = packageName,
         cloneInstanceId = cloneInstanceId,
+        localVirtualUserId = localVirtualUserId,
         isNew = shopId.startsWith(TEMP_SHOP_ID_PREFIX)
     )
 

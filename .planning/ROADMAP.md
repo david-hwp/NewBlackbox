@@ -115,3 +115,24 @@
 
 **计划文档**: [.planning/phases/08-main-app-rewrite/08-03-PLAN.md](.planning/phases/08-main-app-rewrite/08-03-PLAN.md)
 
+## Phase 9: Clone 授权计费与长期令牌 ✅ 已完成 (2026-06-08)
+
+**目标**: 将新增店铺、续期、打开授权从店铺名称/店铺ID迁移到服务端签发的 `cloneInstanceId`，并由服务端签发长期授权令牌、引擎本地验签放行。
+
+**关键交付物**:
+
+- ✅ 服务端生成可解析 `cloneInstanceId`，包含手机号、平台包名、店铺序号、本机虚拟 User 目录号和随机摘要
+- ✅ 服务端保存不返回 APP 的 clone 校验随机码，扣费幂等键绑定 `cloneInstanceId`
+- ✅ 新增店铺和续期按 `cloneInstanceId` 扣费，店铺信息上报和手工编辑不触发扣费
+- ✅ 服务端签发 `authorizationToken`，token 不包含 `shopName`、`shopId` 等展示字段
+- ✅ APP 在新增、续期、恢复店铺时通过 AIDL 将 clone meta 和 token 写入引擎
+- ✅ 引擎将 `meta.json` 和 `auth.token` 保存到系统目录 `clone-auth/{cloneInstanceId}/`，不写入分身 App 可见数据目录
+- ✅ 引擎打开店铺前本地验签、校验 claim 和有效期，缺失/过期/篡改/不匹配时拒绝打开
+- ✅ 平台级店铺恢复、创建进度弹窗、左滑本地修复、交易日志平台名称展示等 Phase 9 验收项完成
+
+**发布闭环**: `1.2.0-release` 完成主体 clone 授权计费；`1.2.1-release` 修复恢复缓存；`1.2.2-release` 完善进入/修复交互；`1.2.3-release` 修复本地修复不影响服务器数据并完成最终收口。
+
+**验证**: `./gradlew :app:assembleRelease --no-daemon` BUILD SUCCESSFUL；服务器已发布主 APK 版本记录和版本公告；小米真机完成 1.2.3 左滑修复弹窗与引擎无响应回归验证。
+
+**计划文档**: [.planning/phases/09-clone-auth-billing/09-PLAN.md](.planning/phases/09-clone-auth-billing/09-PLAN.md)
+**上下文文档**: [.planning/phases/09-clone-auth-billing/09-CONTEXT.md](.planning/phases/09-clone-auth-billing/09-CONTEXT.md)

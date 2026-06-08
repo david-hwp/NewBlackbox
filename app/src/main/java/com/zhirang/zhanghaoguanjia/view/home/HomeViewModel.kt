@@ -8,15 +8,23 @@ import kotlinx.coroutines.launch
 import com.zhirang.zhanghaoguanjia.bean.Platform
 import com.zhirang.zhanghaoguanjia.bean.Shop
 import com.zhirang.zhanghaoguanjia.bean.dto.AnnouncementDto
+import com.zhirang.zhanghaoguanjia.bean.dto.CloneShopCreateRequest
+import com.zhirang.zhanghaoguanjia.bean.dto.CloneShopCreateResult
 import com.zhirang.zhanghaoguanjia.bean.dto.PlatformItemDto
+import com.zhirang.zhanghaoguanjia.bean.dto.ShopAuthTokenRequest
 import com.zhirang.zhanghaoguanjia.bean.dto.ShopDto
 import com.zhirang.zhanghaoguanjia.bean.dto.ShopReportRequest
+import com.zhirang.zhanghaoguanjia.bean.dto.ShopRenewRequest
 import com.zhirang.zhanghaoguanjia.data.AnnouncementRepository
 import com.zhirang.zhanghaoguanjia.data.PlatformRepository
 import com.zhirang.zhanghaoguanjia.data.ShopRepository
 import com.zhirang.zhanghaoguanjia.data.TokenManager
+import com.zhirang.zhanghaoguanjia.data.UserRepository
+import com.zhirang.zhanghaoguanjia.app.App
+import com.zhirang.zhanghaoguanjia.update.AppUpdateManager
 import com.zhirang.zhanghaoguanjia.network.RetrofitClient
 import com.zhirang.zhanghaoguanjia.util.PlatformRegistry
+import java.util.UUID
 
 class HomeViewModel : ViewModel() {
 
@@ -50,6 +58,9 @@ class HomeViewModel : ViewModel() {
     private val _latestAnnouncementLiveData = MutableLiveData<AnnouncementDto?>()
     val latestAnnouncementLiveData: LiveData<AnnouncementDto?> = _latestAnnouncementLiveData
 
+    private val _appReleaseAnnouncementLiveData = MutableLiveData<AnnouncementDto?>()
+    val appReleaseAnnouncementLiveData: LiveData<AnnouncementDto?> = _appReleaseAnnouncementLiveData
+
     private val _platformShopCounts = MutableLiveData<Map<Platform, Int>>()
     val platformShopCounts: LiveData<Map<Platform, Int>> = _platformShopCounts
 
@@ -60,29 +71,72 @@ class HomeViewModel : ViewModel() {
     val operationMessageLiveData: LiveData<String?> = _operationMessageLiveData
 
     private val shopRepository = ShopRepository(RetrofitClient.apiService)
+    private val userRepository = UserRepository(RetrofitClient.apiService)
     private val platformRepository = PlatformRepository(RetrofitClient.apiService)
     private val announcementRepository = AnnouncementRepository(RetrofitClient.apiService)
     private val tokenManager = TokenManager.getInstance()
 
     private var allShops: List<Shop> = emptyList()
-    private var pendingShopNameCounter = 0
-    private val pendingShopNamePattern = Regex("""^新增店铺-\[(\d+)\]$""")
 
     init {
         refreshUserInfo()
-        loadPlatforms()
-        loadShops()
+        if (isLoggedIn()) {
+            loadPlatforms()
+            loadShops()
+        }
     }
 
     fun loadLatestAnnouncement() {
+        if (!isLoggedIn()) {
+            _latestAnnouncementLiveData.value = null
+            return
+        }
         viewModelScope.launch {
-            val result = announcementRepository.getPublishedAnnouncements()
+            val result = announcementRepository.getPublishedAnnouncements("NORMAL")
             result.fold(
                 onSuccess = { announcements ->
                     _latestAnnouncementLiveData.value = announcements.firstOrNull()
                 },
                 onFailure = {
                     _latestAnnouncementLiveData.value = null
+                }
+            )
+        }
+    }
+
+    fun clearOperationMessage() {
+        _operationMessageLiveData.value = null
+    }
+
+    fun clearLoadError() {
+        _loadErrorLiveData.value = null
+    }
+
+    fun loadAppReleaseAnnouncementIfNeeded() {
+        if (!isLoggedIn()) {
+            _appReleaseAnnouncementLiveData.value = null
+            return
+        }
+        viewModelScope.launch {
+            val versionResult = AppUpdateManager.checkForUpdate(App.getContext())
+            versionResult.fold(
+                onSuccess = { version ->
+                    if (version == null) {
+                        _appReleaseAnnouncementLiveData.value = null
+                        return@fold
+                    }
+                    val announcementResult = announcementRepository.getPublishedAnnouncements("APP_RELEASE")
+                    announcementResult.fold(
+                        onSuccess = { announcements ->
+                            _appReleaseAnnouncementLiveData.value = announcements.firstOrNull()
+                        },
+                        onFailure = {
+                            _appReleaseAnnouncementLiveData.value = null
+                        }
+                    )
+                },
+                onFailure = {
+                    _appReleaseAnnouncementLiveData.value = null
                 }
             )
         }
@@ -97,7 +151,32 @@ class HomeViewModel : ViewModel() {
         _adminLiveData.value = user?.role.equals("ADMIN", ignoreCase = true)
     }
 
+    fun refreshUserInfoFromServer() {
+        if (!isLoggedIn()) {
+            refreshUserInfo()
+            return
+        }
+        viewModelScope.launch {
+            val result = userRepository.getMe()
+            result.fold(
+                onSuccess = { user ->
+                    tokenManager.saveUser(user)
+                    refreshUserInfo()
+                },
+                onFailure = {
+                    refreshUserInfo()
+                }
+            )
+        }
+    }
+
     fun loadShops() {
+        if (!isLoggedIn()) {
+            allShops = emptyList()
+            _shopsLiveData.value = allShops
+            _platformShopCounts.value = emptyMap()
+            return
+        }
         viewModelScope.launch {
             val result = shopRepository.getMyShopsFromApi()
             result.fold(
@@ -118,6 +197,11 @@ class HomeViewModel : ViewModel() {
     }
 
     fun loadPlatforms() {
+        if (!isLoggedIn()) {
+            _platformsLiveData.value = emptyList()
+            _platformShopCounts.value = emptyMap()
+            return
+        }
         viewModelScope.launch {
             val result = platformRepository.getPlatforms()
             result.fold(
@@ -190,6 +274,10 @@ class HomeViewModel : ViewModel() {
 
     fun getAllShops(): List<Shop> = allShops
 
+    fun getCurrentComputeBalance(): Int {
+        return _computeBalanceLiveData.value ?: tokenManager.getUser()?.computeBalance ?: 0
+    }
+
     private fun updatePlatformShopCounts() {
         val platforms = _platformsLiveData.value.orEmpty()
         if (platforms.isEmpty()) {
@@ -211,18 +299,19 @@ class HomeViewModel : ViewModel() {
         return tokenManager.getUser()?.id ?: 0L
     }
 
-    private fun nextPendingShopName(): String {
-        val maxExisting = allShops.maxOfOrNull { shop ->
-            pendingShopNamePattern.matchEntire(shop.shopName)
-                ?.groupValues
-                ?.getOrNull(1)
-                ?.toIntOrNull() ?: 0
-        } ?: 0
-        pendingShopNameCounter = maxOf(pendingShopNameCounter, maxExisting) + 1
-        return "新增店铺-[$pendingShopNameCounter]"
+    fun getCurrentUserPhone(): String {
+        return tokenManager.getUser()?.phone.orEmpty()
+    }
+
+    private fun isLoggedIn(): Boolean {
+        return tokenManager.isLoggedIn()
     }
 
     fun reportShop(shop: Shop, showMessage: Boolean = true, onComplete: (() -> Unit)? = null) {
+        if (!isLoggedIn()) {
+            _loadErrorLiveData.value = "请先登录后再更新店铺"
+            return
+        }
         viewModelScope.launch {
             val request = ShopReportRequest(
                 shopName = shop.shopName,
@@ -231,6 +320,7 @@ class HomeViewModel : ViewModel() {
                 platformName = PlatformRegistry.displayName(shop.platform),
                 packageName = shop.packageName ?: "",
                 cloneInstanceId = shop.cloneInstanceId,
+                localVirtualUserId = shop.localVirtualUserId,
                 remainingDays = shop.remainingDays,
                 autoRenew = shop.autoRenew
             )
@@ -247,9 +337,7 @@ class HomeViewModel : ViewModel() {
                             )
                         )
                     }
-                    if (it.switchedShop) {
-                        _operationMessageLiveData.value = it.message ?: "检测到店铺切换，已创建新店铺并扣划算力"
-                    } else if (showMessage) {
+                    if (showMessage) {
                         _operationMessageLiveData.value = if (it.isNew) "店铺已添加" else "店铺已更新"
                     }
                     loadShops()
@@ -257,24 +345,41 @@ class HomeViewModel : ViewModel() {
                 },
                 onFailure = { e ->
                     _loadErrorLiveData.value = e.message
+                    onComplete?.invoke()
                 }
             )
         }
     }
 
-    fun createPendingShopFromDetectedSwitch(detectedShop: Shop, onSuccess: (Shop) -> Unit) {
+    fun createPendingShopWithClone(
+        platformItem: PlatformItemDto,
+        localUserId: Int,
+        onSuccess: (Shop, CloneShopCreateResult) -> Unit,
+        onFailure: (String) -> Unit
+    ) {
+        if (!isLoggedIn()) {
+            val message = "请先登录后再添加店铺"
+            _loadErrorLiveData.value = message
+            onFailure(message)
+            return
+        }
         viewModelScope.launch {
-            val request = ShopReportRequest(
-                shopName = detectedShop.shopName,
-                shopId = detectedShop.shopId,
-                platform = detectedShop.platform.id,
-                platformName = PlatformRegistry.displayName(detectedShop.platform),
-                packageName = detectedShop.packageName ?: "",
-                cloneInstanceId = null,
-                remainingDays = detectedShop.remainingDays,
-                autoRenew = detectedShop.autoRenew
+            val packageName = platformItem.packageName?.takeIf { it.isNotBlank() }
+            if (packageName == null) {
+                val message = "该平台暂无关联应用"
+                _operationMessageLiveData.value = message
+                onFailure(message)
+                return@launch
+            }
+            val request = CloneShopCreateRequest(
+                platform = platformItem.platform.id,
+                platformName = platformItem.displayName,
+                packageName = packageName,
+                localVirtualUserId = localUserId,
+                operationKey = "create-${System.currentTimeMillis()}-${UUID.randomUUID()}",
+                autoRenew = false
             )
-            val result = shopRepository.createPendingShopWithDeduction(request)
+            val result = shopRepository.createCloneShop(request)
             result.fold(
                 onSuccess = {
                     _computeBalanceLiveData.value = it.balance
@@ -287,52 +392,14 @@ class HomeViewModel : ViewModel() {
                             )
                         )
                     }
-                    _operationMessageLiveData.value = if (it.deducted) {
-                        "已扣划 1 点算力，新店铺卡片已添加"
-                    } else {
-                        "新店铺卡片已存在，正在准备干净分身"
-                    }
                     val pendingShop = it.shop.toShop()
                     loadShops()
-                    onSuccess(pendingShop)
+                    onSuccess(pendingShop, it)
                 },
                 onFailure = { e ->
-                    _loadErrorLiveData.value = e.message
-                }
-            )
-        }
-    }
-
-    fun createPendingShop(platformItem: PlatformItemDto) {
-        viewModelScope.launch {
-            val packageName = platformItem.packageName?.takeIf { it.isNotBlank() }
-            if (packageName == null) {
-                _operationMessageLiveData.value = "该平台暂无关联应用"
-                return@launch
-            }
-            if (allShops.any { it.isNew && isSamePackage(it.packageName, packageName) }) {
-                _operationMessageLiveData.value = "您已添加新店铺但未成功登录，请先完成登录后再添加"
-                return@launch
-            }
-            val request = ShopDto(
-                id = 0,
-                shopName = nextPendingShopName(),
-                shopId = "${ShopDto.TEMP_SHOP_ID_PREFIX}${System.currentTimeMillis()}",
-                platform = platformItem.platform.id,
-                platformName = platformItem.displayName,
-                remainingDays = 30,
-                autoRenew = false,
-                packageName = packageName,
-                cloneInstanceId = null
-            )
-            val result = shopRepository.createPendingShop(request)
-            result.fold(
-                onSuccess = {
-                    _operationMessageLiveData.value = "店铺卡片已添加"
-                    loadShops()
-                },
-                onFailure = { e ->
-                    _loadErrorLiveData.value = e.message
+                    val message = e.message ?: "创建新店铺失败"
+                    _loadErrorLiveData.value = message
+                    onFailure(message)
                 }
             )
         }
@@ -340,23 +407,36 @@ class HomeViewModel : ViewModel() {
 
     fun completePendingShop(pendingShop: Shop, detectedShop: Shop, showMessage: Boolean = pendingShop.isNew) {
         reportShop(
-            detectedShop.copy(cloneInstanceId = detectedShop.cloneInstanceId ?: pendingShop.cloneInstanceId),
+            detectedShop.copy(
+                cloneInstanceId = detectedShop.cloneInstanceId ?: pendingShop.cloneInstanceId,
+                localVirtualUserId = detectedShop.localVirtualUserId ?: pendingShop.localVirtualUserId
+            ),
             showMessage = showMessage
         )
     }
 
-    fun updateShop(shop: Shop, newName: String = shop.shopName, autoRenew: Boolean = shop.autoRenew) {
+    fun updateShop(
+        shop: Shop,
+        newName: String = shop.shopName,
+        newShopId: String = shop.shopId,
+        autoRenew: Boolean = shop.autoRenew
+    ) {
+        if (!isLoggedIn()) {
+            _loadErrorLiveData.value = "请先登录后再更新店铺"
+            return
+        }
         viewModelScope.launch {
             val request = ShopDto(
                 id = shop.id,
                 shopName = newName,
-                shopId = shop.shopId,
+                shopId = newShopId,
                 platform = shop.platform.id,
                 platformName = PlatformRegistry.displayName(shop.platform),
                 remainingDays = shop.remainingDays,
                 autoRenew = autoRenew,
                 packageName = shop.packageName,
-                cloneInstanceId = shop.cloneInstanceId
+                cloneInstanceId = shop.cloneInstanceId,
+                localVirtualUserId = shop.localVirtualUserId
             )
             val result = shopRepository.updateShop(shop.id, request)
             result.fold(
@@ -372,8 +452,21 @@ class HomeViewModel : ViewModel() {
     }
 
     fun renewShop(shop: Shop, onSuccess: (Shop) -> Unit) {
+        renewShopWithToken(shop) { renewedShop, _ ->
+            onSuccess(renewedShop)
+        }
+    }
+
+    fun renewShopWithToken(shop: Shop, onSuccess: (Shop, String?) -> Unit) {
+        if (!isLoggedIn()) {
+            _loadErrorLiveData.value = "请先登录后再续期"
+            return
+        }
         viewModelScope.launch {
-            val result = shopRepository.renewShop(shop.id)
+            val result = shopRepository.renewShop(
+                shop.id,
+                ShopRenewRequest("renew-${shop.id}-${System.currentTimeMillis()}-${UUID.randomUUID()}")
+            )
             result.fold(
                 onSuccess = {
                     _computeBalanceLiveData.value = it.balance
@@ -387,7 +480,7 @@ class HomeViewModel : ViewModel() {
                         )
                     }
                     _operationMessageLiveData.value = "续期成功"
-                    onSuccess(it.shop.toShop())
+                    onSuccess(it.shop.toShop(), it.authorizationToken)
                     loadShops()
                 },
                 onFailure = { e ->
@@ -397,7 +490,50 @@ class HomeViewModel : ViewModel() {
         }
     }
 
+    fun issueShopAuthToken(
+        shop: Shop,
+        packageName: String,
+        localVirtualUserId: Int,
+        onSuccess: (Shop, String, String?) -> Unit,
+        onFailure: (String) -> Unit,
+        showError: Boolean = true
+    ) {
+        if (!isLoggedIn()) {
+            val message = "请先登录后再打开店铺"
+            if (showError) {
+                _loadErrorLiveData.value = message
+            }
+            onFailure(message)
+            return
+        }
+        viewModelScope.launch {
+            val result = shopRepository.issueShopAuthToken(
+                shop.id,
+                ShopAuthTokenRequest(
+                    localVirtualUserId = localVirtualUserId,
+                    packageName = packageName
+                )
+            )
+            result.fold(
+                onSuccess = {
+                    onSuccess(it.shop.toShop(), it.authorizationToken, it.publicKeyId)
+                },
+                onFailure = { e ->
+                    val message = e.message ?: "获取店铺授权失败"
+                    if (showError) {
+                        _loadErrorLiveData.value = message
+                    }
+                    onFailure(message)
+                }
+            )
+        }
+    }
+
     fun deleteShop(shop: Shop, showMessage: Boolean = true) {
+        if (!isLoggedIn()) {
+            _loadErrorLiveData.value = "请先登录后再删除店铺"
+            return
+        }
         viewModelScope.launch {
             val result = shopRepository.deleteShop(shop.id)
             result.fold(

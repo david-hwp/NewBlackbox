@@ -501,7 +501,7 @@ public class IActivityManagerProxy extends ClassInvocationStub {
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             int type = (int) args[0];
             Intent[] intents = (Intent[]) args[getIntentsIndex(args)];
-            MethodParameterUtils.replaceFirstAppPkg(args);
+            MethodParameterUtils.replaceFirstAppPkgNonBlocking(args);
 
             for (int i = 0; i < intents.length; i++) {
                 Intent intent = intents[i];
@@ -658,7 +658,7 @@ public class IActivityManagerProxy extends ClassInvocationStub {
     public static class RegisterReceiverWithFeature extends MethodHook{
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
-            MethodParameterUtils.replaceFirstAppPkg(args);
+            MethodParameterUtils.replaceFirstAppPkgNonBlocking(args);
             int receiverIndex = getReceiverIndex();
             if (args[receiverIndex] != null) {
                 IIntentReceiver intentReceiver = (IIntentReceiver) args[receiverIndex];
@@ -709,7 +709,7 @@ public class IActivityManagerProxy extends ClassInvocationStub {
 
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
-            MethodParameterUtils.replaceFirstAppPkg(args);
+            MethodParameterUtils.replaceFirstAppPkgNonBlocking(args);
             int receiverIndex = 2;
             if (args[receiverIndex] != null) {
                 IIntentReceiver intentReceiver = (IIntentReceiver) args[receiverIndex];

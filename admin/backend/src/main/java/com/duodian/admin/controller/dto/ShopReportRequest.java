@@ -27,6 +27,8 @@ public class ShopReportRequest {
 
     private String cloneInstanceId;
 
+    private Integer localVirtualUserId;
+
     // Getters and Setters
     public Long getUserId() { return userId; }
     public void setUserId(Long userId) { this.userId = userId; }
@@ -54,4 +56,7 @@ public class ShopReportRequest {
 
     public String getCloneInstanceId() { return cloneInstanceId; }
     public void setCloneInstanceId(String cloneInstanceId) { this.cloneInstanceId = cloneInstanceId; }
+
+    public Integer getLocalVirtualUserId() { return localVirtualUserId; }
+    public void setLocalVirtualUserId(Integer localVirtualUserId) { this.localVirtualUserId = localVirtualUserId; }
 }

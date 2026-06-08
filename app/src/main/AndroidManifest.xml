@@ -89,6 +89,8 @@
         <activity
             android:name=".view.home.HomeActivity"
             android:exported="false"
+            android:launchMode="singleTop"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
             android:theme="@style/Theme.Duodian" />
         <activity
             android:name=".view.profile.ProfileActivity"
@@ -148,6 +150,10 @@
                 <data android:scheme="package" />
             </intent-filter>
         </receiver>
+
+        <receiver
+            android:name=".update.AppUpdateReceiver"
+            android:exported="false" />
 
         <!-- FileProvider for sharing APK files during installation -->
         <provider

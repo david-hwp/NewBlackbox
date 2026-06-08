@@ -2,6 +2,9 @@ package com.duodian.admin.service;
 
 import com.duodian.admin.entity.Shop;
 import com.duodian.admin.repository.ShopRepository;
+import com.duodian.admin.util.ShopExpiration;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -38,8 +41,30 @@ public class ShopService {
         return shopRepository.findByPackageNameAndDeleted(packageName, ACTIVE);
     }
 
+    public Page<Shop> search(
+            Long userId,
+            String packageName,
+            String platform,
+            String phone,
+            String userKeyword,
+            String shopName,
+            Pageable pageable
+    ) {
+        return shopRepository.searchShops(
+                ACTIVE,
+                userId,
+                normalize(packageName),
+                normalize(platform),
+                normalize(phone),
+                normalize(userKeyword),
+                normalize(shopName),
+                pageable
+        );
+    }
+
     public Shop create(Shop shop) {
         shop.setDeleted(ACTIVE);
+        ShopExpiration.applyRemainingDays(shop);
         return shopRepository.save(shop);
     }
 
@@ -55,6 +80,14 @@ public class ShopService {
         return shopRepository.findByUserIdAndCloneInstanceIdAndDeleted(userId, cloneInstanceId, ACTIVE);
     }
 
+    public Optional<Shop> findByCloneInstanceId(String cloneInstanceId) {
+        return shopRepository.findByCloneInstanceIdAndDeleted(cloneInstanceId, ACTIVE);
+    }
+
+    public long countByUserIdAndPackageName(Long userId, String packageName) {
+        return shopRepository.countByUserIdAndPackageNameAndDeleted(userId, packageName, ACTIVE);
+    }
+
     public Optional<Shop> findPendingByUserPackage(Long userId, String packageName) {
         return shopRepository.findFirstByUserIdAndPackageNameAndShopIdStartingWithAndDeleted(
                 userId,
@@ -64,24 +97,66 @@ public class ShopService {
         );
     }
 
-    public boolean hasPendingShopByPackage(Long userId, String packageName, String shopIdPrefix) {
-        return shopRepository.existsByUserIdAndPackageNameAndShopIdStartingWithAndDeleted(userId, packageName, shopIdPrefix, ACTIVE);
-    }
-
     public Shop update(Long id, Shop shop) {
         Shop existing = shopRepository.findByIdAndDeleted(id, ACTIVE)
                 .orElseThrow(() -> new RuntimeException("店铺不存在"));
+        String previousShopName = normalize(existing.getShopName());
+        String nextShopName = normalize(shop.getShopName());
         existing.setShopName(shop.getShopName());
-        existing.setShopId(shop.getShopId());
+        existing.setShopId(resolveEditableShopId(existing.getShopId(), shop.getShopId(), previousShopName, nextShopName));
         existing.setPlatform(shop.getPlatform());
         existing.setPlatformName(shop.getPlatformName());
         existing.setRemainingDays(shop.getRemainingDays());
         existing.setAutoRenew(shop.getAutoRenew());
         existing.setPackageName(shop.getPackageName());
-        existing.setCloneInstanceId(shop.getCloneInstanceId());
-        existing.setLastDeductedAt(shop.getLastDeductedAt());
-        existing.setExpireAt(shop.getExpireAt());
+        if (shop.getCloneInstanceId() != null &&
+                (existing.getCloneInstanceId() == null || existing.getCloneInstanceId().equals(shop.getCloneInstanceId()))) {
+            existing.setCloneInstanceId(shop.getCloneInstanceId());
+        }
+        if (shop.getCloneSequence() != null) {
+            existing.setCloneSequence(shop.getCloneSequence());
+        }
+        if (shop.getLocalVirtualUserId() != null) {
+            existing.setLocalVirtualUserId(shop.getLocalVirtualUserId());
+        }
+        if (shop.getCloneValidationCode() != null) {
+            existing.setCloneValidationCode(shop.getCloneValidationCode());
+        }
+        if (shop.getCloneValidationHash() != null) {
+            existing.setCloneValidationHash(shop.getCloneValidationHash());
+        }
+        if (shop.getCredentialVersion() != null) {
+            existing.setCredentialVersion(shop.getCredentialVersion());
+        }
+        if (shop.getAuthStartAt() != null) {
+            existing.setAuthStartAt(shop.getAuthStartAt());
+        }
+        if (shop.getAuthExpireAt() != null) {
+            existing.setAuthExpireAt(shop.getAuthExpireAt());
+        }
+        if (shop.getAuthorizationJti() != null) {
+            existing.setAuthorizationJti(shop.getAuthorizationJti());
+        }
+        if (shop.getLastDeductedAt() != null) {
+            existing.setLastDeductedAt(shop.getLastDeductedAt());
+        }
+        if (shop.getExpireAt() != null) {
+            existing.setExpireAt(shop.getExpireAt());
+        }
+        ShopExpiration.applyRemainingDays(existing);
         return shopRepository.save(existing);
+    }
+
+    public int refreshRemainingDays() {
+        List<Shop> shops = shopRepository.findActiveShopsWithExpiration(ACTIVE);
+        int updated = 0;
+        for (Shop shop : shops) {
+            if (ShopExpiration.applyRemainingDays(shop)) {
+                shopRepository.save(shop);
+                updated++;
+            }
+        }
+        return updated;
     }
 
     public void delete(Long id) {
@@ -90,5 +165,33 @@ public class ShopService {
         shop.setCloneInstanceId(null);
         shop.setDeleted(DELETED);
         shopRepository.save(shop);
+    }
+
+    private String normalize(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        return value.trim();
+    }
+
+    private String resolveEditableShopId(
+            String currentShopId,
+            String requestedShopId,
+            String previousShopName,
+            String nextShopName
+    ) {
+        String normalizedCurrentShopId = normalize(currentShopId);
+        String normalizedRequestedShopId = normalize(requestedShopId);
+        if (normalizedRequestedShopId == null) {
+            return "-";
+        }
+        if (normalizedRequestedShopId.startsWith("NEW-")
+                && normalizedCurrentShopId != null
+                && normalizedCurrentShopId.startsWith("NEW-")
+                && (!java.util.Objects.equals(previousShopName, nextShopName)
+                || !java.util.Objects.equals(normalizedCurrentShopId, normalizedRequestedShopId))) {
+            return "-";
+        }
+        return normalizedRequestedShopId;
     }
 }

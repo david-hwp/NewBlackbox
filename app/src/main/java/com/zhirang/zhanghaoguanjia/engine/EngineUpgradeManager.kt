@@ -3,7 +3,9 @@ package com.zhirang.zhanghaoguanjia.engine
 import android.content.Context
 import android.os.Build
 import android.util.Log
+import com.zhirang.zhanghaoguanjia.data.TokenManager
 import com.zhirang.zhanghaoguanjia.network.RetrofitClient
+import com.zhirang.zhanghaoguanjia.update.PackageIntegrityVerifier
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -39,14 +41,14 @@ object EngineUpgradeManager {
 
             Log.i(TAG, "Starting upgrade to ${upgradeInfo.versionName} (${upgradeInfo.versionCode})")
 
+            if (!TokenManager.getInstance().isLoggedIn()) {
+                return@withContext Result.failure(IllegalStateException("请先登录后再升级"))
+            }
             if (!EngineInstaller.canInstallUnknownApps(context)) {
                 return@withContext Result.failure(IllegalStateException("请先允许账号管家安装未知应用"))
             }
 
             val downloadedFile = downloadEngineApk(context, upgradeInfo)
-            if (!verifyDownloadedFile(downloadedFile, upgradeInfo)) {
-                return@withContext Result.failure(IllegalStateException("引擎包校验失败"))
-            }
             if (!verifyMinSdk(context, downloadedFile)) {
                 return@withContext Result.failure(IllegalStateException("当前系统版本不支持该引擎包"))
             }
@@ -55,6 +57,20 @@ object EngineUpgradeManager {
                 return@withContext Result.failure(
                     validation.exceptionOrNull() ?: IllegalStateException("引擎包不可安装")
                 )
+            }
+            if (validation.getOrThrow().versionCode != upgradeInfo.versionCode) {
+                return@withContext Result.failure(
+                    IllegalStateException("引擎包版本号与发布记录不一致")
+                )
+            }
+            if (!PackageIntegrityVerifier.verifyBeforeUpgrade(
+                    PackageIntegrityVerifier.PackageType.ENGINE,
+                    downloadedFile,
+                    upgradeInfo.versionCode,
+                    upgradeInfo.checksum
+                )
+            ) {
+                return@withContext Result.failure(SecurityException(PackageIntegrityVerifier.VERIFY_FAILED_MESSAGE))
             }
             installNewEngine(context, downloadedFile)
         } catch (e: Exception) {
@@ -98,16 +114,6 @@ object EngineUpgradeManager {
             }
         }
         destFile
-    }
-
-    /**
-     * Verify downloaded file integrity using MD5/SHA256.
-     */
-    private fun verifyDownloadedFile(
-        file: File,
-        upgradeInfo: EngineVersionChecker.UpgradeInfo
-    ): Boolean {
-        return EngineInstaller.verifyFileChecksum(file, upgradeInfo.checksum)
     }
 
     /**

@@ -79,6 +79,32 @@ object EngineProxy {
         }
     }
 
+    fun peekLaunchIntent(packageName: String, userId: Int): android.content.Intent? {
+        if (!isConnected()) {
+            Log.w(TAG, "peekLaunchIntent: Engine not connected")
+            return null
+        }
+        return try {
+            mEngine!!.peekLaunchIntent(packageName, userId)
+        } catch (e: RemoteException) {
+            markRemoteFailure("peekLaunchIntent($packageName, user=$userId)", e)
+            null
+        }
+    }
+
+    fun prepareLaunch(packageName: String, userId: Int): top.niunaijun.blackbox.engine.LaunchPreparationResult? {
+        if (!isConnected()) {
+            Log.w(TAG, "prepareLaunch: Engine not connected")
+            return null
+        }
+        return try {
+            mEngine!!.prepareLaunch(packageName, userId)
+        } catch (e: RemoteException) {
+            markRemoteFailure("prepareLaunch($packageName, user=$userId)", e)
+            null
+        }
+    }
+
     fun launchApk(packageName: String, userId: Int): Boolean {
         if (!isConnected()) {
             Log.w(TAG, "launchApk: Engine not connected")
@@ -177,6 +203,112 @@ object EngineProxy {
             mEngine!!.isInstalled(packageName, userId)
         } catch (e: RemoteException) {
             markRemoteFailure("isInstalled($packageName, user=$userId)", e)
+            false
+        }
+    }
+
+    fun ensureCloneUser(cloneInstanceId: String, packageName: String, serverUserId: Long): Int? {
+        if (!isConnected()) {
+            Log.w(TAG, "ensureCloneUser: Engine not connected")
+            return null
+        }
+        return try {
+            mEngine!!.ensureCloneUser(cloneInstanceId, packageName, serverUserId)
+                .takeIf { it >= 0 }
+        } catch (e: RemoteException) {
+            markRemoteFailure("ensureCloneUser($cloneInstanceId, $packageName)", e)
+            null
+        }
+    }
+
+    fun bindCloneUser(cloneInstanceId: String, packageName: String, serverUserId: Long, userId: Int) {
+        if (!isConnected()) {
+            Log.w(TAG, "bindCloneUser: Engine not connected")
+            return
+        }
+        try {
+            mEngine!!.bindCloneUser(cloneInstanceId, packageName, serverUserId, userId)
+        } catch (e: RemoteException) {
+            markRemoteFailure("bindCloneUser($cloneInstanceId, $packageName, user=$userId)", e)
+        }
+    }
+
+    fun clearCloneUser(cloneInstanceId: String, packageName: String, serverUserId: Long) {
+        if (!isConnected()) {
+            Log.w(TAG, "clearCloneUser: Engine not connected")
+            return
+        }
+        try {
+            mEngine!!.clearCloneUser(cloneInstanceId, packageName, serverUserId)
+        } catch (e: RemoteException) {
+            markRemoteFailure("clearCloneUser($cloneInstanceId, $packageName)", e)
+        }
+    }
+
+    fun writeCloneAuthorization(
+        cloneInstanceId: String,
+        packageName: String,
+        serverUserId: Long,
+        phone: String,
+        userId: Int,
+        publicKeyId: String,
+        authorizationToken: String
+    ): Boolean {
+        if (!isConnected()) {
+            Log.w(TAG, "writeCloneAuthorization: Engine not connected")
+            return false
+        }
+        return try {
+            mEngine!!.writeCloneAuthorization(
+                cloneInstanceId,
+                packageName,
+                serverUserId,
+                phone,
+                userId,
+                publicKeyId,
+                authorizationToken
+            )
+        } catch (e: RemoteException) {
+            markRemoteFailure("writeCloneAuthorization($cloneInstanceId, $packageName, user=$userId)", e)
+            false
+        }
+    }
+
+    fun getAuthorizedLaunchIntent(cloneInstanceId: String, packageName: String, userId: Int): android.content.Intent? {
+        if (!isConnected()) {
+            Log.w(TAG, "getAuthorizedLaunchIntent: Engine not connected")
+            return null
+        }
+        return try {
+            mEngine!!.getAuthorizedLaunchIntent(cloneInstanceId, packageName, userId)
+        } catch (e: RemoteException) {
+            markRemoteFailure("getAuthorizedLaunchIntent($cloneInstanceId, $packageName, user=$userId)", e)
+            null
+        }
+    }
+
+    fun peekAuthorizedLaunchIntent(cloneInstanceId: String, packageName: String, userId: Int): android.content.Intent? {
+        if (!isConnected()) {
+            Log.w(TAG, "peekAuthorizedLaunchIntent: Engine not connected")
+            return null
+        }
+        return try {
+            mEngine!!.peekAuthorizedLaunchIntent(cloneInstanceId, packageName, userId)
+        } catch (e: RemoteException) {
+            markRemoteFailure("peekAuthorizedLaunchIntent($cloneInstanceId, $packageName, user=$userId)", e)
+            null
+        }
+    }
+
+    fun isCloneAuthorized(cloneInstanceId: String, packageName: String, serverUserId: Long, userId: Int): Boolean {
+        if (!isConnected()) {
+            Log.w(TAG, "isCloneAuthorized: Engine not connected")
+            return false
+        }
+        return try {
+            mEngine!!.isCloneAuthorized(cloneInstanceId, packageName, serverUserId, userId)
+        } catch (e: RemoteException) {
+            markRemoteFailure("isCloneAuthorized($cloneInstanceId, $packageName, user=$userId)", e)
             false
         }
     }

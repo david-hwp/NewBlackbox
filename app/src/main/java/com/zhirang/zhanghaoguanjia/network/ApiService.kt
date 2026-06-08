@@ -22,8 +22,20 @@ interface ApiService {
     @GET("engine-versions")
     suspend fun getEngineVersions(@Query("available") available: Boolean? = null): ApiResponse<List<EngineVersionDto>>
 
+    @POST("engine-versions/verify")
+    suspend fun verifyEnginePackage(@Body request: PackageVerifyRequest): ApiResponse<PackageVerifyResponse>
+
+    @GET("app-versions")
+    suspend fun getAppVersions(@Query("published") published: Boolean? = null): ApiResponse<List<AppVersionDto>>
+
+    @POST("app-versions/verify")
+    suspend fun verifyAppPackage(@Body request: PackageVerifyRequest): ApiResponse<PackageVerifyResponse>
+
     @GET("announcements")
-    suspend fun getAnnouncements(@Query("published") published: Boolean? = null): ApiResponse<List<AnnouncementDto>>
+    suspend fun getAnnouncements(
+        @Query("published") published: Boolean? = null,
+        @Query("type") type: String? = null
+    ): ApiResponse<List<AnnouncementDto>>
 
     @GET("shops/my")
     suspend fun getMyShops(): ApiResponse<List<ShopDto>>
@@ -31,8 +43,8 @@ interface ApiService {
     @POST("shops/report")
     suspend fun reportShop(@Body request: ShopReportRequest): ApiResponse<ShopReportResult>
 
-    @POST("shops/pending")
-    suspend fun createPendingShop(@Body request: ShopDto): ApiResponse<ShopDto>
+    @POST("shops/clone/create")
+    suspend fun createCloneShop(@Body request: CloneShopCreateRequest): ApiResponse<CloneShopCreateResult>
 
     @POST("shops/pending-deduct")
     suspend fun createPendingShopWithDeduction(@Body request: ShopReportRequest): ApiResponse<PendingShopDeductResult>
@@ -41,7 +53,13 @@ interface ApiService {
     suspend fun updateShop(@Path("id") id: Long, @Body request: ShopDto): ApiResponse<ShopDto>
 
     @POST("shops/{id}/renew")
-    suspend fun renewShop(@Path("id") id: Long): ApiResponse<ShopRenewResponse>
+    suspend fun renewShop(@Path("id") id: Long, @Body request: ShopRenewRequest): ApiResponse<ShopRenewResponse>
+
+    @POST("shops/{id}/auth-token")
+    suspend fun issueShopAuthToken(
+        @Path("id") id: Long,
+        @Body request: ShopAuthTokenRequest
+    ): ApiResponse<CloneShopCreateResult>
 
     @DELETE("shops/{id}")
     suspend fun deleteShop(@Path("id") id: Long): ApiResponse<Unit>

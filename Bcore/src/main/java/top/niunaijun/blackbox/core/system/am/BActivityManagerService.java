@@ -358,7 +358,7 @@ public class BActivityManagerService extends IBActivityManagerService.Stub imple
     }
 
     @Override
-    public void killAllOtherProcesses(String keepPackageName, int userId) throws RemoteException {
+    public int killAllOtherProcesses(String keepPackageName, int userId) throws RemoteException {
         Slog.d(TAG, "killAllOtherProcesses called from Binder, keep=" + keepPackageName + " userId=" + userId);
         // Step 1: Finish all non-target activities FIRST (while process is alive and bActivityThread is valid)
         UserSpace userSpace = getOrCreateSpaceLocked(userId);
@@ -373,12 +373,13 @@ public class BActivityManagerService extends IBActivityManagerService.Stub imple
             Thread.currentThread().interrupt();
         }
         // Step 2: Kill the processes after activities are finished
-        BProcessManagerService.get().killAllOtherProcesses(keepPackageName, userId);
+        int killed = BProcessManagerService.get().killAllOtherProcesses(keepPackageName, userId);
         Slog.d(TAG, "killAllOtherProcesses completed");
+        return killed;
     }
 
     @Override
-    public void killAllOtherProcessesGlobal(String keepPackageName, int userId) throws RemoteException {
+    public int killAllOtherProcessesGlobal(String keepPackageName, int userId) throws RemoteException {
         Slog.d(TAG, "killAllOtherProcessesGlobal called from Binder, keep=" + keepPackageName + " userId=" + userId);
         getOrCreateSpaceLocked(userId);
         for (UserSpace userSpace : new ArrayList<>(mUserSpace.values())) {
@@ -391,8 +392,9 @@ public class BActivityManagerService extends IBActivityManagerService.Stub imple
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
-        BProcessManagerService.get().killAllOtherProcessesGlobal(keepPackageName, userId);
+        int killed = BProcessManagerService.get().killAllOtherProcessesGlobal(keepPackageName, userId);
         Slog.d(TAG, "killAllOtherProcessesGlobal completed");
+        return killed;
     }
 
     @Override

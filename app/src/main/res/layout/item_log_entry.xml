@@ -11,6 +11,7 @@
 
     <!-- Badge -->
     <FrameLayout
+        android:id="@+id/badgeContainer"
         android:layout_width="40dp"
         android:layout_height="40dp"
         android:background="@drawable/bg_log_badge_consume"

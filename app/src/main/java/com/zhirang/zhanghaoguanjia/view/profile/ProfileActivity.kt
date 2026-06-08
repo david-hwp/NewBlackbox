@@ -11,11 +11,14 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.ViewModelProvider
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.zhirang.zhanghaoguanjia.bean.dto.AppVersionDto
+import com.zhirang.zhanghaoguanjia.bean.dto.EngineVersionDto
 import com.zhirang.zhanghaoguanjia.bean.dto.UserDto
 import com.zhirang.zhanghaoguanjia.data.BaseRepository
 import com.zhirang.zhanghaoguanjia.data.TokenManager
 import com.zhirang.zhanghaoguanjia.databinding.ActivityProfileBinding
 import com.zhirang.zhanghaoguanjia.engine.EngineInstaller
+import com.zhirang.zhanghaoguanjia.update.AppUpdateManager
 import com.zhirang.zhanghaoguanjia.util.AvatarImageLoader
 import com.zhirang.zhanghaoguanjia.view.gift.GiftActivity
 import com.zhirang.zhanghaoguanjia.view.home.HomeActivity
@@ -60,6 +63,7 @@ class ProfileActivity : AppCompatActivity() {
 
         viewModel.loadProfile()
         viewModel.refreshEngineUpgradeState()
+        viewModel.refreshAppUpdateState()
     }
 
     override fun onStart() {
@@ -184,6 +188,47 @@ class ProfileActivity : AppCompatActivity() {
         viewModel.hasEngineUpgradeLiveData.observe(this) { hasUpgrade ->
             binding.tvEngineUpgradeNew?.visibility = if (hasUpgrade) View.VISIBLE else View.GONE
         }
+
+        viewModel.hasAppUpdateLiveData.observe(this) { hasUpdate ->
+            binding.tvAboutNew?.visibility = if (hasUpdate) View.VISIBLE else View.GONE
+        }
+
+        viewModel.appUpdateLiveData.observe(this) { result ->
+            result?.fold(
+                onSuccess = { version ->
+                    if (version == null) {
+                        Toast.makeText(this, "当前已是最新版本", Toast.LENGTH_SHORT).show()
+                    } else {
+                        showAppUpdateDialog(version)
+                    }
+                },
+                onFailure = { e ->
+                    Toast.makeText(this, e.message ?: "检查更新失败", Toast.LENGTH_SHORT).show()
+                }
+            )
+        }
+
+        viewModel.updateCheckLiveData.observe(this) { result ->
+            result?.fold(
+                onSuccess = { update ->
+                    showCombinedUpdateResult(update.appVersion, update.engineVersion)
+                },
+                onFailure = { e ->
+                    Toast.makeText(this, e.message ?: "检查更新失败", Toast.LENGTH_SHORT).show()
+                }
+            )
+        }
+
+        viewModel.appInstallResultLiveData.observe(this) { result ->
+            result?.fold(
+                onSuccess = {
+                    Toast.makeText(this, "已开始安装，请在系统弹窗中确认", Toast.LENGTH_SHORT).show()
+                },
+                onFailure = { e ->
+                    Toast.makeText(this, e.message ?: "安装启动失败", Toast.LENGTH_SHORT).show()
+                }
+            )
+        }
     }
 
     override fun onResume() {
@@ -194,6 +239,7 @@ class ProfileActivity : AppCompatActivity() {
         }
         if (::viewModel.isInitialized) {
             viewModel.refreshEngineUpgradeState()
+            viewModel.refreshAppUpdateState()
         }
     }
 
@@ -264,7 +310,64 @@ class ProfileActivity : AppCompatActivity() {
         MaterialAlertDialogBuilder(this)
             .setTitle("关于")
             .setMessage(content)
+            .setNegativeButton("检查更新") { _, _ ->
+                viewModel.checkUpdates()
+            }
             .setPositiveButton("确定", null)
+            .show()
+    }
+
+    private fun showCombinedUpdateResult(appVersion: AppVersionDto?, engineVersion: EngineVersionDto?) {
+        when {
+            appVersion != null -> showAppUpdateDialog(appVersion)
+            engineVersion != null -> showEngineUpdateDialog(engineVersion)
+            else -> Toast.makeText(this, "当前已是最新版本", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun showEngineUpdateDialog(version: EngineVersionDto) {
+        val changelog = version.changelog?.takeIf { it.isNotBlank() } ?: "暂无更新说明"
+        val content = """
+            当前引擎版本：${currentEngineVersionLabel()}
+            最新引擎版本：${version.versionName} (${version.versionCode})
+
+            $changelog
+        """.trimIndent()
+        MaterialAlertDialogBuilder(this)
+            .setTitle("发现引擎更新")
+            .setMessage(content)
+            .setNegativeButton("稍后", null)
+            .setPositiveButton("去升级") { _, _ ->
+                EngineSwitchActivity.start(this)
+            }
+            .show()
+    }
+
+    private fun currentEngineVersionLabel(): String {
+        val engineVersionCode = EngineInstaller.getInstalledEngineVersion(this)
+        val engineVersionName = EngineInstaller.getInstalledEngineVersionName(this)
+        return if (engineVersionCode > 0) {
+            engineVersionName?.let { "$it ($engineVersionCode)" } ?: engineVersionCode.toString()
+        } else {
+            "未安装"
+        }
+    }
+
+    private fun showAppUpdateDialog(version: AppVersionDto) {
+        val changelog = version.changelog?.takeIf { it.isNotBlank() } ?: "暂无更新说明"
+        val content = """
+            当前版本：${AppUpdateManager.currentVersionLabel(this)}
+            最新版本：${version.versionName} (${version.versionCode})
+
+            $changelog
+        """.trimIndent()
+        MaterialAlertDialogBuilder(this)
+            .setTitle("发现新版本")
+            .setMessage(content)
+            .setNegativeButton("稍后", null)
+            .setPositiveButton("立即升级") { _, _ ->
+                viewModel.downloadAndInstallApp(version)
+            }
             .show()
     }
 

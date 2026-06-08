@@ -8,14 +8,27 @@
         </div>
       </template>
 
-      <el-radio-group v-model="filterType" @change="handleFilter" style="margin-bottom: 16px;">
-        <el-radio-button label="">全部</el-radio-button>
-        <el-radio-button label="CONSUME">消耗</el-radio-button>
-        <el-radio-button label="OUT">转出</el-radio-button>
-        <el-radio-button label="IN">转入</el-radio-button>
-      </el-radio-group>
+      <el-form class="filter-bar" :model="filters" inline @submit.prevent>
+        <el-form-item label="类型">
+          <el-select v-model="filters.type" clearable placeholder="全部类型" style="width: 140px">
+            <el-option label="消耗" value="CONSUME" />
+            <el-option label="转出" value="OUT" />
+            <el-option label="转入" value="IN" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="手机号">
+          <el-input v-model="filters.phone" clearable placeholder="用户/转入/转出手机号" style="width: 200px" @keyup.enter="handleSearch" />
+        </el-form-item>
+        <el-form-item label="店铺">
+          <el-input v-model="filters.shopName" clearable placeholder="输入店铺名称" style="width: 180px" @keyup.enter="handleSearch" />
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" @click="handleSearch">查询</el-button>
+          <el-button @click="resetFilters">重置</el-button>
+        </el-form-item>
+      </el-form>
 
-      <el-table :data="filteredLogs" v-loading="loading" style="width: 100%">
+      <el-table :data="logs" v-loading="loading" style="width: 100%">
         <el-table-column prop="id" label="ID" width="60" />
         <el-table-column prop="type" label="类型" width="80">
           <template #default="{ row }">
@@ -31,6 +44,11 @@
         </el-table-column>
         <el-table-column prop="platform" label="关联平台" />
         <el-table-column prop="shopName" label="关联店铺" />
+        <el-table-column label="关联用户" min-width="150">
+          <template #default="{ row }">
+            {{ formatAssociatedUser(row) }}
+          </template>
+        </el-table-column>
         <el-table-column prop="fromPhone" label="转出方" />
         <el-table-column prop="toPhone" label="接收方" />
         <el-table-column prop="remark" label="备注" />
@@ -41,6 +59,19 @@
           </template>
         </el-table-column>
       </el-table>
+
+      <div class="pagination-row">
+        <el-pagination
+          background
+          layout="total, sizes, prev, pager, next, jumper"
+          :total="pagination.total"
+          :current-page="pagination.page"
+          :page-size="pagination.size"
+          :page-sizes="[10, 20, 50, 100]"
+          @current-change="handlePageChange"
+          @size-change="handleSizeChange"
+        />
+      </div>
     </el-card>
 
     <el-dialog v-model="dialogVisible" title="新增交易记录" width="500px">
@@ -85,16 +116,25 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import request from '../utils/request'
 
 const logs = ref([])
 const users = ref([])
 const loading = ref(false)
-const filterType = ref('')
 const dialogVisible = ref(false)
 const formRef = ref()
+const filters = ref({
+  type: '',
+  phone: '',
+  shopName: ''
+})
+const pagination = ref({
+  page: 1,
+  size: 10,
+  total: 0
+})
 const form = ref({ type: '', amount: 0, userId: '', platform: '', shopName: '', fromPhone: '', toPhone: '', remark: '' })
 
 const rules = {
@@ -103,23 +143,53 @@ const rules = {
   userId: [{ required: true, message: '请选择用户', trigger: 'change' }]
 }
 
-const filteredLogs = computed(() => {
-  if (!filterType.value) return logs.value
-  return logs.value.filter(l => l.type === filterType.value)
-})
-
 const fetchLogs = async () => {
   loading.value = true
   try {
-    logs.value = await request.get('/logs')
-    users.value = await request.get('/users')
+    const result = await request.get('/logs', {
+      params: {
+        page: pagination.value.page,
+        size: pagination.value.size,
+        type: filters.value.type || undefined,
+        phone: filters.value.phone || undefined,
+        shopName: filters.value.shopName || undefined
+      }
+    })
+    logs.value = result.list || result.content || []
+    pagination.value.total = Number(result.total ?? result.totalElements ?? 0)
   } finally {
     loading.value = false
   }
 }
 
-const handleFilter = () => {
-  // 前端过滤，无需额外请求
+const fetchUsers = async () => {
+  users.value = await request.get('/users')
+}
+
+const handleSearch = () => {
+  pagination.value.page = 1
+  fetchLogs()
+}
+
+const resetFilters = () => {
+  filters.value = {
+    type: '',
+    phone: '',
+    shopName: ''
+  }
+  pagination.value.page = 1
+  fetchLogs()
+}
+
+const handlePageChange = (page) => {
+  pagination.value.page = page
+  fetchLogs()
+}
+
+const handleSizeChange = (size) => {
+  pagination.value.size = size
+  pagination.value.page = 1
+  fetchLogs()
 }
 
 const getLogTypeTag = (type) => {
@@ -135,6 +205,10 @@ const getLogTypeText = (type) => {
 const getAmountColor = (type) => {
   const map = { CONSUME: '#0284c7', OUT: '#d97706', IN: '#059669' }
   return map[type] || '#1e293b'
+}
+
+const formatAssociatedUser = (row) => {
+  return row.userName || row.userPhone || row.userId || '-'
 }
 
 const showAddDialog = () => {
@@ -167,7 +241,10 @@ const handleDelete = async (row) => {
   }
 }
 
-onMounted(fetchLogs)
+onMounted(() => {
+  fetchLogs()
+  fetchUsers()
+})
 </script>
 
 <style scoped>
@@ -175,5 +252,22 @@ onMounted(fetchLogs)
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0;
+  margin-bottom: 16px;
+  padding: 12px 12px 0;
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+}
+
+.pagination-row {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 16px;
 }
 </style>

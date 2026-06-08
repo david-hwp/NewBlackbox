@@ -2,6 +2,7 @@ package com.duodian.admin.service;
 
 import com.duodian.admin.entity.TransactionLog;
 import com.duodian.admin.entity.User;
+import com.duodian.admin.repository.PlatformConfigRepository;
 import com.duodian.admin.repository.ShopRepository;
 import com.duodian.admin.repository.TransactionLogRepository;
 import com.duodian.admin.repository.UserRepository;
@@ -18,23 +19,28 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final ShopRepository shopRepository;
+    private final PlatformConfigRepository platformConfigRepository;
     private final PasswordService passwordService;
     private final TransactionLogRepository transactionLogRepository;
 
     public UserService(
             UserRepository userRepository,
             ShopRepository shopRepository,
+            PlatformConfigRepository platformConfigRepository,
             PasswordService passwordService,
             TransactionLogRepository transactionLogRepository
     ) {
         this.userRepository = userRepository;
         this.shopRepository = shopRepository;
+        this.platformConfigRepository = platformConfigRepository;
         this.passwordService = passwordService;
         this.transactionLogRepository = transactionLogRepository;
     }
 
     public List<User> findAll() {
-        return userRepository.findByDeleted(ACTIVE);
+        return userRepository.findByDeleted(ACTIVE).stream()
+                .map(this::withCurrentStats)
+                .toList();
     }
 
     public Optional<User> findById(Long id) {
@@ -49,9 +55,17 @@ public class UserService {
     public User refreshShopStats(Long userId) {
         User user = userRepository.findByIdAndDeleted(userId, ACTIVE)
                 .orElseThrow(() -> new RuntimeException("用户不存在"));
-        user.setShopCount(Math.toIntExact(shopRepository.countRealShopsByUserId(userId, ACTIVE)));
-        user.setPlatformCount(Math.toIntExact(shopRepository.countRealPlatformsByUserId(userId, ACTIVE)));
+        withCurrentStats(user);
         return userRepository.save(user);
+    }
+
+    public User withCurrentStats(User user) {
+        if (user == null || user.getId() == null) {
+            return user;
+        }
+        user.setShopCount(Math.toIntExact(shopRepository.countByUserIdAndDeleted(user.getId(), ACTIVE)));
+        user.setPlatformCount(Math.toIntExact(platformConfigRepository.countByDeletedAndAvailable(ACTIVE, true)));
+        return user;
     }
 
     public User create(User user) {
@@ -65,16 +79,20 @@ public class UserService {
         return userRepository.save(user);
     }
 
+    @Transactional
     public User update(Long id, User user) {
         User existing = userRepository.findByIdAndDeleted(id, ACTIVE)
                 .orElseThrow(() -> new RuntimeException("用户不存在"));
+        int oldComputeBalance = existing.getComputeBalance() == null ? 0 : existing.getComputeBalance();
+        int newComputeBalance = user.getComputeBalance() == null ? 0 : user.getComputeBalance();
         existing.setUsername(user.getUsername());
         existing.setAvatarUrl(user.getAvatarUrl());
-        existing.setComputeBalance(user.getComputeBalance());
+        existing.setComputeBalance(newComputeBalance);
         existing.setNonTransferableComputeBalance(normalizeNonTransferableBalance(user));
-        existing.setShopCount(user.getShopCount());
-        existing.setPlatformCount(user.getPlatformCount());
-        return userRepository.save(existing);
+        withCurrentStats(existing);
+        User saved = userRepository.save(existing);
+        createAdminComputeAdjustmentLog(saved, newComputeBalance - oldComputeBalance);
+        return saved;
     }
 
     public void delete(Long id) {
@@ -94,7 +112,7 @@ public class UserService {
             user.setPassword(passwordService.encode(password));
         }
         user.setLastLoginAt(java.time.LocalDateTime.now());
-        return userRepository.save(user);
+        return withCurrentStats(userRepository.save(user));
     }
 
     public boolean matchesPassword(User user, String rawPassword) {
@@ -118,6 +136,18 @@ public class UserService {
         log.setType("IN");
         log.setAmount(amount);
         log.setRemark("新用户注册赠送算力，不可转赠");
+        transactionLogRepository.save(log);
+    }
+
+    private void createAdminComputeAdjustmentLog(User user, int delta) {
+        if (user == null || user.getId() == null || delta == 0) {
+            return;
+        }
+        TransactionLog log = new TransactionLog();
+        log.setUserId(user.getId());
+        log.setType(delta > 0 ? "IN" : "CONSUME");
+        log.setAmount(Math.abs(delta));
+        log.setRemark(delta > 0 ? "管理员增加" : "管理员扣除");
         transactionLogRepository.save(log);
     }
 

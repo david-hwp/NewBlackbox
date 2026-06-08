@@ -250,7 +250,7 @@ public class BProcessManagerService implements ISystemService {
         }
     }
 
-    public void killAllOtherProcesses(String keepPackageName, int userId) {
+    public int killAllOtherProcesses(String keepPackageName, int userId) {
         synchronized (mProcessLock) {
             List<ProcessRecord> toKill = performKillAllOtherProcessesLocked(keepPackageName);
             for (ProcessRecord record : toKill) {
@@ -263,10 +263,11 @@ public class BProcessManagerService implements ISystemService {
             // Note: finishAllActivitiesExcept is called BEFORE killAllOtherProcesses
             // in BActivityManagerService.killAllOtherProcesses() to ensure bActivityThread
             // is still alive when finishing activities.
+            return toKill.size();
         }
     }
 
-    public void killAllOtherProcessesGlobal(String keepPackageName, int keepUserId) {
+    public int killAllOtherProcessesGlobal(String keepPackageName, int keepUserId) {
         synchronized (mProcessLock) {
             List<ProcessRecord> toKill = performKillAllOtherProcessesGlobalLocked(keepPackageName, keepUserId);
             for (ProcessRecord record : toKill) {
@@ -276,6 +277,7 @@ public class BProcessManagerService implements ISystemService {
                     Slog.w(TAG, "Failed to delete notification for " + record.getPackageName(), e);
                 }
             }
+            return toKill.size();
         }
     }
 

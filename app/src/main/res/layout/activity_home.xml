@@ -246,14 +246,6 @@
                     android:scrollbars="vertical" />
             </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
 
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="28dp"
-                android:gravity="center"
-                android:text="@string/technical_support"
-                android:textColor="@color/meta"
-                android:textSize="10sp" />
-
             <View
                 android:layout_width="match_parent"
                 android:layout_height="1px"
