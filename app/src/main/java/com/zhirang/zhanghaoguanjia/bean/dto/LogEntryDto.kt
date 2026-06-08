@@ -9,5 +9,6 @@ data class LogEntryDto(
     val shopName: String?,
     val fromPhone: String?,
     val toPhone: String?,
+    val remark: String?,
     val createdAt: String
 )

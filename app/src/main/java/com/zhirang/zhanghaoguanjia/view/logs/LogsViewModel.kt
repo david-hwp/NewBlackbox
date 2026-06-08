@@ -108,10 +108,12 @@ class LogsViewModel : ViewModel() {
 
     private fun LogEntryDto.toLogEntry(): LogEntry {
         val logType = runCatching { LogType.valueOf(type.uppercase()) }.getOrDefault(LogType.CONSUME)
+        val cleanRemark = remark?.trim()?.takeIf { it.isNotBlank() }
         val description = when (logType) {
-            LogType.CONSUME -> listOfNotNull(platformDisplayName(platform), shopName).joinToString(" - ").ifBlank { "算力消耗" }
-            LogType.OUT -> "转给 ${fromPhone ?: toPhone ?: "-"}"
-            LogType.IN -> "来自 ${fromPhone ?: toPhone ?: "-"}"
+            LogType.CONSUME -> cleanRemark
+                ?: listOfNotNull(platformDisplayName(platform), shopName).joinToString(" - ").ifBlank { "算力消耗" }
+            LogType.OUT -> cleanRemark ?: "转给 ${fromPhone ?: toPhone ?: "-"}"
+            LogType.IN -> cleanRemark ?: "来自 ${fromPhone ?: toPhone ?: "-"}"
         }
         return LogEntry(
             id = id,
