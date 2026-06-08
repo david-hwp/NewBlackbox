@@ -422,6 +422,12 @@ find_virtual_jd_pid() {
 capture_root_diag() {
     local name="$1"
     capture_foreground "$name"
+    adb logcat -d -b all > "$ROOT_CAPTURE_DIR/${name}_logcat_all.txt" 2>&1 || true
+
+    if [[ "$ROOT_DIAG" != true ]]; then
+        return 0
+    fi
+
     local pid
     pid="$(find_virtual_jd_pid "$ROOT_CAPTURE_DIR/${name}_ps.txt")"
     printf '%s\n' "$pid" > "$ROOT_CAPTURE_DIR/${name}_virtual_jd_pid.txt"
@@ -431,7 +437,6 @@ capture_root_diag() {
         adb_shell ls -la "/proc/$pid/fd" > "$ROOT_CAPTURE_DIR/${name}_proc_fd_${pid}.txt" 2>&1 || true
         adb_shell cat "/proc/$pid/maps" > "$ROOT_CAPTURE_DIR/${name}_proc_maps_${pid}.txt" 2>&1 || true
     fi
-    adb logcat -d -b all > "$ROOT_CAPTURE_DIR/${name}_logcat_all.txt" 2>&1 || true
     adb_shell dumpsys webviewupdate > "$ROOT_CAPTURE_DIR/${name}_webviewupdate.txt" 2>&1 || true
     adb_shell dumpsys package "$JD_PACKAGE" > "$ROOT_CAPTURE_DIR/${name}_jd_package.txt" 2>&1 || true
     adb_shell ls -l /data/anr > "$ROOT_CAPTURE_DIR/${name}_anr_listing.txt" 2>&1 || true
