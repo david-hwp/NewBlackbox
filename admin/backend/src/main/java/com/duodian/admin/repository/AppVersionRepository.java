@@ -20,6 +20,7 @@ public interface AppVersionRepository extends JpaRepository<AppVersion, Long> {
     List<AppVersion> findByChannelIdAndDeletedOrderByVersionCodeDesc(Long channelId, Byte deleted);
     Optional<AppVersion> findByVersionCodeAndPublishedAndDeleted(Integer versionCode, Boolean published, Byte deleted);
     Optional<AppVersion> findByChannelIdAndVersionCodeAndPublishedAndDeleted(Long channelId, Integer versionCode, Boolean published, Byte deleted);
+    Optional<AppVersion> findByChannelIdAndVersionCodeAndDeleted(Long channelId, Integer versionCode, Byte deleted);
 
     @Query("""
             select v

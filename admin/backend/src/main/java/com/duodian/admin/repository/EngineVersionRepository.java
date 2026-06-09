@@ -20,6 +20,7 @@ public interface EngineVersionRepository extends JpaRepository<EngineVersion, Lo
     List<EngineVersion> findByChannelIdAndDeletedOrderByVersionCodeDesc(Long channelId, Byte deleted);
     Optional<EngineVersion> findByVersionCodeAndAvailableAndDeleted(Integer versionCode, Boolean available, Byte deleted);
     Optional<EngineVersion> findByChannelIdAndVersionCodeAndAvailableAndDeleted(Long channelId, Integer versionCode, Boolean available, Byte deleted);
+    Optional<EngineVersion> findByChannelIdAndVersionCodeAndDeleted(Long channelId, Integer versionCode, Byte deleted);
 
     @Query("""
             select v

@@ -44,6 +44,10 @@ public class AuthInterceptor implements HandlerInterceptor {
             return true;
         }
 
+        if (isReleaseJobCallback(request.getMethod(), path)) {
+            return true;
+        }
+
         // Check whitelist
         for (String white : WHITE_LIST) {
             if (path.equals(white) || path.startsWith(white + "/")) {
@@ -96,6 +100,13 @@ public class AuthInterceptor implements HandlerInterceptor {
 
     private boolean isPublicFileRequest(String method) {
         return "GET".equalsIgnoreCase(method) || "HEAD".equalsIgnoreCase(method);
+    }
+
+    private boolean isReleaseJobCallback(String method, String path) {
+        if (!"POST".equalsIgnoreCase(method) || !path.startsWith("/release-jobs/")) {
+            return false;
+        }
+        return path.endsWith("/callback/progress") || path.endsWith("/callback/complete");
     }
 
     private CurrentPrincipal resolvePrincipal(String token) {
