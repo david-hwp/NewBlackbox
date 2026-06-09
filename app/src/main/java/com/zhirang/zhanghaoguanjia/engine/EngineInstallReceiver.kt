@@ -6,6 +6,7 @@ import android.content.Intent
 import android.content.pm.PackageInstaller
 import android.os.Build
 import android.util.Log
+import com.zhirang.zhanghaoguanjia.BuildConfig
 
 /**
  * EngineInstallReceiver listens for Engine package installation/replacement events.
@@ -16,8 +17,10 @@ class EngineInstallReceiver : BroadcastReceiver() {
     companion object {
         private const val TAG = "EngineInstallReceiver"
 
-        const val ACTION_ENGINE_INSTALL_COMPLETE = "com.zhirang.zhanghaoguanjia.ACTION_ENGINE_INSTALL_COMPLETE"
-        const val ACTION_ENGINE_UPGRADE_COMPLETE = "com.zhirang.zhanghaoguanjia.ACTION_ENGINE_UPGRADE_COMPLETE"
+        val ACTION_ENGINE_INSTALL_COMPLETE: String
+            get() = "${BuildConfig.APPLICATION_ID}.ACTION_ENGINE_INSTALL_COMPLETE"
+        val ACTION_ENGINE_UPGRADE_COMPLETE: String
+            get() = "${BuildConfig.APPLICATION_ID}.ACTION_ENGINE_UPGRADE_COMPLETE"
         const val EXTRA_PACKAGE_NAME = "package_name"
         const val EXTRA_SUCCESS = "success"
     }

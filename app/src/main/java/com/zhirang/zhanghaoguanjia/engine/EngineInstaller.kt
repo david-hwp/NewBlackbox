@@ -22,7 +22,8 @@ import java.security.MessageDigest
  */
 object EngineInstaller {
     private const val TAG = "EngineInstaller"
-    const val ENGINE_PACKAGE = "com.zhirang.zhanghaoguanjia.engine"
+    val ENGINE_PACKAGE: String
+        get() = EngineIdentity.packageName
     private const val ENGINE_ASSET_NAME = "engine/engine-base.apk"
     private const val ENGINE_FILE_NAME = "engine-base.apk"
     private const val ENGINE_DIR = "engine"
