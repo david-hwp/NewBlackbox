@@ -2,6 +2,7 @@
 phase: 11-channel-promotion-system
 status: complete
 created_at: "2026-06-09T15:35:00+08:00"
+updated_at: "2026-06-10T00:00:00+08:00"
 ---
 
 # Phase 11: 渠道推广完整体系 - Research
@@ -17,7 +18,7 @@ The existing `apkChannel` is only a registration attribute:
 - Backend: `RegisterRequest.apkChannel` is saved to `User.apkChannel`.
 - Backend/Admin: user list displays `apkChannel`.
 
-This is insufficient for channel operations because there is no channel table, no channel admin, no channel balance, no channel scope on announcements or versions, and no access control based on channel.
+This is insufficient because there is no `channels` table, no channel administrator binding, no channel scope on announcements/versions, and no access control based on channel.
 
 ### Role Model Is Too Coarse
 
@@ -28,7 +29,7 @@ The backend treats role as a string:
 - `AuthContext` stores only `userId`.
 - Controllers repeatedly call `getCurrentUser()` and `isAdmin()` where needed, but many management controllers do not enforce admin at all.
 
-Phase 11 needs a centralized `CurrentUser`/`PermissionService` layer so every management controller can apply `SUPER_ADMIN` vs `CHANNEL_ADMIN` vs `USER`.
+Phase 11 needs a centralized `CurrentUser`/`PermissionService` layer so every management controller can apply `SUPER_ADMIN` vs `CHANNEL` vs `USER`.
 
 ### Admin API Has Broad Surface Area
 
@@ -40,17 +41,18 @@ The following controllers need channel scope:
 - `FeedbackController`
 - `AnnouncementController`
 - `AppVersionController`
+- `EngineVersionController`
+- `FileController` for app/engine package uploads
 - `PlatformController` for read visibility if platform availability becomes channel-specific later
 
 The following should remain super-admin only:
 
-- `EngineVersionController`
-- global file upload for app/engine packages
 - channel create/update/delete
-- channel APK publishing/uploading
+- channel administrator binding
+- unified release job creation/start/retry
 - platform package metadata unless explicitly delegated later
 
-### Billing Needs A Channel Ledger
+### Billing Uses User Balances
 
 Current balances:
 
@@ -59,19 +61,14 @@ Current balances:
 - Deduction idempotency: `compute_deductions`.
 - User-visible logs: `transaction_logs`.
 
-Needed additions:
+Phase 11 business decision:
 
-- Channel pool: `channels.compute_balance`.
-- Channel immutable ledger: `channel_compute_logs` or a generalized ledger with `owner_type`.
-- Channel admin allocation to users must be transactional:
-  - lock channel row;
-  - ensure channel balance >= amount;
-  - decrement channel pool;
-  - lock target user in same channel;
-  - increment user balance;
-  - write channel ledger and user transaction log.
-
-User clone creation/renewal should continue deducting from the user balance, not channel pool. Channel pool is only upstream inventory for allocation.
+- A channel administrator is a registered user with role `CHANNEL`; that user's `compute_balance` is the channel's distributable balance.
+- Super admin grants compute by adjusting the selected `CHANNEL` user's balance through the existing user compute adjustment flow.
+- Channel admin allocates compute to same-channel users by deducting from the channel admin user's balance and increasing the target user's balance in one transaction.
+- Both sides should be represented in existing `transaction_logs`.
+- Registration bonus compute is a promotion/experience grant and is not deducted from the channel admin balance.
+- Clone creation/renewal continues deducting from the user's own balance, not from channel admin balance.
 
 ### Version And Announcement Filtering
 
@@ -79,39 +76,58 @@ Current APP calls:
 
 - `GET /announcements?published=true&type=...`
 - `GET /app-versions?published=true`
+- `GET /engine-versions?available=true`
 - `POST /app-versions/verify`
+- `POST /engine-versions/verify`
 
-Those endpoints currently return global rows. In Phase 11:
+Phase 11 behavior:
 
-- APP should send channel explicitly or backend should infer from token.
-- Startup/version checks require login according to the previous requirement, so token-based inference is acceptable for logged-in flows.
-- Registration and login happen before token exists, so they must send `apkChannel`.
-- To avoid token/channel mismatch after an app is rebranded or data is restored, APP should include `X-Apk-Channel` header or query parameter in channel-sensitive public/pre-login requests, and backend should validate token user channel matches request channel for logged-in requests.
+- New APK sends `X-Apk-Channel: BuildConfig.APK_CHANNEL` on every API request through the unified OkHttp interceptor.
+- Login/register may also retain body `apkChannel` temporarily for compatibility, but the header is the unified channel signal.
+- Old APKs without the header fall back to `main`.
+- Announcements, app versions, engine versions, and package verification are all channel-scoped.
+- No APP-visible global announcement scope remains; old APK sees `main`.
+- Do not add special token/header mismatch rejection in Phase 11.
 
-### APK Branding And Branch Constraint
+### APK Branding, Package Identity, And Data Directories
 
-Android launcher label and icon are packaged resources. The backend cannot change an installed APK's icon/name dynamically. Practical design:
+Android launcher label, icon, `applicationId`, provider authorities, custom permissions, and service binding targets are packaged resources or manifest values. The backend cannot change them after build.
 
-- Store channel brand config in `channels`: `apk_display_name`, `apk_icon_url`, `brand_color`, etc.
+Practical design:
+
+- Store channel build config in `channels`:
+  - APK channel code
+  - main APK display name
+  - main APK `applicationId`
+  - main APK launcher icon asset/checksum
+  - engine APK display name
+  - engine APK `applicationId`
+  - engine notification title/text
+  - engine icon asset/checksum
 - Android build accepts Gradle properties:
   - `DUODIAN_APK_CHANNEL`
   - `DUODIAN_APP_NAME`
+  - `DUODIAN_APP_APPLICATION_ID`
+  - `DUODIAN_ENGINE_NAME`
+  - `DUODIAN_ENGINE_APPLICATION_ID`
   - optional icon resource replacement inputs
-- Each channel APK is managed on a dedicated release branch, for example `release/channel/{channelCode}`.
-- Super admin initiates a release in the admin UI; a controlled release worker merges the main release branch into the channel release branch, validates channel resources, builds the APK, uploads it through the file service, and calls a backend callback to mark release complete.
+- Main APK should expose `BuildConfig.ENGINE_PACKAGE` and manifest placeholders for engine bind permission.
+- Engine APK manifest custom permission/provider authorities should derive from `${applicationId}`.
+- Different channels with different main APK and engine APK `applicationId` get separate Android app data directories automatically.
+- Wave 2 must verify Bcore data roots are based on current engine context/package name rather than hardcoded old package or public fixed directories.
 
-This matches the user's requirement that APK publishing is still super-admin-managed.
-
-### Release Automation Security
+### Unified Release Automation Security
 
 Backend-triggered builds are effectively remote code execution if implemented carelessly. The safe model is:
 
 - Do not execute arbitrary commands from request payloads.
-- Use a fixed script path, fixed workspace root, fixed branch naming rules, and strictly validated parameters.
-- Run the release worker as a restricted OS user with a clean git workspace.
-- Require a one-time release job token or HMAC callback token so only the worker can mark a task complete.
-- Store job logs and final git commit/tag/branch names for audit.
-- Fail closed on dirty working tree, merge conflict, resource mismatch, build failure, upload failure, or checksum mismatch.
+- Use one fixed release script path with strictly validated parameters.
+- Every run creates a temporary clean working directory and deletes it after completion/failure.
+- Retry is initiated by a management-backend button and starts a fresh run.
+- Backend supplies a short-lived release token tied to the current operator; the token must not be printed, persisted, or included in logs.
+- The script must send `X-Apk-Channel` when uploading app/engine packages and when calling release callbacks.
+- Store job logs and final git commit/tag/branch names for audit, with secrets redacted.
+- Fail closed on dirty temp workspace, merge conflict, resource mismatch, build failure, upload failure, checksum mismatch, or callback failure.
 
 ## Proposed Domain Model
 
@@ -122,50 +138,66 @@ Fields:
 - `id`
 - `code` unique, immutable once used
 - `name`
-- `apk_display_name`
-- `apk_icon_url`
+- `admin_user_id` references `users.id` where role is `CHANNEL`
+- `app_display_name`
+- `app_application_id`
+- `app_icon_url`
+- `app_icon_checksum`
+- `engine_display_name`
+- `engine_application_id`
+- `engine_icon_url`
+- `engine_icon_checksum`
+- `engine_notification_title`
+- `engine_notification_text`
 - `brand_color`
-- `compute_balance`
 - `register_bonus_compute`
-- `register_bonus_policy`: `GRANT_IF_AVAILABLE` default, future `REJECT_IF_INSUFFICIENT`
 - `status`: `ACTIVE/DISABLED`
 - `remark`
 - `deleted`
 - timestamps
 
+No `compute_balance` field in Phase 11.
+
 ### users additions
 
-- `channel_id` nullable during migration, then not null.
+- `channel_id` nullable during migration, then not null for normal APP users and channel admins.
 - `apk_channel` remains denormalized for compatibility and display.
-- unique index changes from `phone` to `(channel_id, phone, deleted)` or equivalent active uniqueness strategy.
 - roles:
   - `SUPER_ADMIN`
-  - `CHANNEL_ADMIN`
+  - `CHANNEL`
   - `USER`
+- Active normal user uniqueness changes from global `phone` to active uniqueness on `(channel_id, phone)`.
+- Admin/channel login requires phone uniqueness among `SUPER_ADMIN` and `CHANNEL` users. Enforce in service layer, with an optional generated-column/index strategy if practical.
 
-### app_versions additions
+### app_versions / engine_versions additions
 
 - `channel_id` not null after migration.
 - optional `channel_code` denormalized for display.
-- unique `(channel_id, version_code, deleted)` or active-only equivalent.
+- `application_id` stores the expected package name for the artifact.
+- unique `(channel_id, version_code, deleted)` or active-only equivalent per version table.
 - `published` applies within channel.
+- package verification uses `(channel_id, version_code, checksum, application_id/package_name)`.
 
-### channel_app_releases
+### release_jobs
 
-Release automation should use a separate job table instead of overloading `app_versions`:
+Release automation should use a job table instead of overloading `app_versions`:
 
 - `id`
 - `channel_id`
-- `main_release_branch`
-- `channel_release_branch`
+- `source_release_ref`
+- `output_branch`
 - `version_code`
 - `version_name`
 - `announcement_content`
 - `status`: `PENDING/MERGING/VALIDATING/BUILDING/UPLOADING/COMPLETED/FAILED`
 - `app_version_id`
-- `apk_url`
-- `checksum`
-- `file_size`
+- `engine_version_id`
+- `app_apk_url`
+- `app_checksum`
+- `app_file_size`
+- `engine_apk_url`
+- `engine_checksum`
+- `engine_file_size`
 - `log_url` or `log_text`
 - `requested_by`
 - `started_at`
@@ -175,68 +207,61 @@ Release automation should use a separate job table instead of overloading `app_v
 - `deleted`
 - timestamps
 
-`app_versions` is created or marked published only after the release job reaches `COMPLETED`.
+`app_versions`, `engine_versions`, and the channel `APP_RELEASE` announcement are created or marked published only after the release job reaches `COMPLETED`.
 
 ### announcements additions
 
-- `scope`: `GLOBAL/CHANNEL`
-- `channel_id` nullable for `GLOBAL`, required for `CHANNEL`
-- APP list returns global published announcements plus current channel published announcements.
+- `channel_id` required.
+- `type`: existing `NORMAL` / `APP_RELEASE` etc.
 - `APP_RELEASE` announcements are channel-aware; title remains fixed `新版本发布`.
+- APP list returns only published announcements for the current channel.
 
 ### shops / transaction_logs / feedbacks / compute_deductions additions
 
 - add `channel_id`.
-- Existing rows are backfilled from owning user where possible, fallback `main`.
+- Existing rows are backfilled to `main`.
 - New writes set `channel_id` at creation time.
 - Admin searches filter by channel according to current user role.
 
-### channel_compute_logs
-
-Immutable ledger for channel pool operations:
-
-- `id`
-- `channel_id`
-- `type`: `SUPER_ADMIN_GRANT`, `ADMIN_ALLOCATE_TO_USER`, `REGISTER_BONUS`, `ADJUSTMENT`, future `REVERSAL`
-- `amount`
-- `balance_before`
-- `balance_after`
-- `target_user_id`
-- `operator_user_id`
-- `remark`
-- `deleted`
-- `created_at`
-
 ## Access Control Matrix
 
-| Capability | SUPER_ADMIN | CHANNEL_ADMIN | USER |
+| Capability | SUPER_ADMIN | CHANNEL | USER |
 |---|---:|---:|---:|
 | Manage channels | Yes | No | No |
-| Grant channel pool compute | Yes | No | No |
-| Create channel admins | Yes | No | No |
-| Upload/publish channel APK | Yes | Read own channel only | No |
-| Manage engine versions | Yes | No | No |
+| Bind channel administrator | Yes | No | No |
+| Increase CHANNEL user compute | Yes | No | No |
+| Allocate compute to channel users | Any channel if needed | Own channel only, from own balance | No |
+| Create/retry release jobs | Yes | No | No |
+| Read release jobs | All channels | Own channel only | No |
 | Manage platform config | Yes | Read only if needed | No |
 | List users | All channels | Own channel | Self via APP only |
-| Adjust user compute | Any channel | Own channel, from channel pool | No |
 | List shops/logs/feedback | All channels | Own channel | Own data via APP endpoints |
-| Publish announcements | Global or any channel | Own channel only | No |
+| Publish announcements | Any channel | Own channel only if channel active | No |
+| Publish app/engine versions | Via release jobs | No | No |
+
+When a channel is disabled:
+
+- APP/API requests for that channel return `该产品暂不可用，请联系：xxx（渠道管理员的手机号）`.
+- The channel administrator may still log in to the management backend.
+- The channel administrator receives read-only access and cannot allocate compute, publish announcements, or publish versions.
 
 ## API Design
 
-### Auth
+### Auth And Channel Resolution
 
+- APP networking adds `X-Apk-Channel` on all API requests.
 - `POST /auth/login`
-  - request adds `apkChannel`.
-  - APP login requires `apkChannel`; admin login may omit only for `SUPER_ADMIN` legacy account during migration, but preferred admin login should also resolve channel admins by phone plus channel context or use unique admin phone.
+  - APP login resolves by `X-Apk-Channel + phone`, falling back to body `apkChannel`, then `main`.
+  - Admin login resolves globally for `SUPER_ADMIN` and `CHANNEL` roles without requiring channel selection.
 - `POST /auth/register`
-  - must resolve active channel by `apkChannel`.
+  - resolves active channel by `X-Apk-Channel`, falling back to body `apkChannel`, then `main`.
   - creates user with `channel_id` and `apk_channel`.
-  - grants registration bonus from channel pool according to channel policy.
-- JWT claims:
+  - grants registration bonus according to channel config, without deducting channel admin balance.
+- JWT claims should include:
   - `role`
   - `channelId`
   - `apkChannel`
+- Existing tokens without these claims remain compatible by loading role/channel from DB.
 
 ### Channels
 
@@ -244,103 +269,133 @@ Immutable ledger for channel pool operations:
 - `POST /channels`
 - `PUT /channels/{id}`
 - `DELETE /channels/{id}` soft delete / disable safe checks
-- `POST /channels/{id}/compute/grant` super admin increases/decreases channel pool with ledger
-- `GET /channels/{id}/compute-logs`
-- `POST /channels/{id}/admins`
+- `GET /channels/admin-candidates?keyword=...`
+  - returns existing registered users eligible for role `CHANNEL`, showing username and phone.
+- `POST /channels/{id}/admin`
+  - binds an existing user as channel administrator.
 
-### Channel APK Release Jobs
+### User Compute Allocation
 
-- `POST /channel-app-releases`
+- Super admin uses the existing user compute adjustment endpoint/UI on users filtered to role `CHANNEL`.
+- `POST /users/{id}/compute/allocate`
+  - channel admin only for own channel and active channel.
+  - deducts from current `CHANNEL` admin user's `compute_balance`.
+  - increments target same-channel user's `compute_balance`.
+  - writes existing `transaction_logs` for audit.
+- User gift compute remains same-channel only.
+
+### Unified Release Jobs
+
+- `POST /release-jobs`
   - super admin only.
-  - request: `channelId`, `mainReleaseBranch`, `versionCode`, `versionName`, `announcementContent`.
+  - request: `channelId`, `sourceReleaseRef`, `versionCode`, `versionName`, `announcementContent`.
   - creates a `PENDING` job and returns job id.
-- `POST /channel-app-releases/{id}/start`
+- `POST /release-jobs/{id}/start`
   - super admin only or internal scheduler.
   - invokes the fixed release worker/script asynchronously.
-- `POST /channel-app-releases/{id}/callback`
-  - worker only, authenticated with callback token/HMAC.
-  - updates status, apk URL, checksum, file size, log URL/text, and creates/updates `app_versions` plus release announcement on success.
-- `GET /channel-app-releases`
+- `POST /release-jobs/{id}/retry`
+  - super admin only.
+  - creates or restarts a fresh temp-dir run from a failed job.
+- `POST /release-jobs/{id}/callback`
+  - worker only, authenticated with release token/HMAC.
+  - updates status, app/engine URLs, checksums, file sizes, logs, and creates/updates `app_versions`, `engine_versions`, and release announcement on success.
+- `GET /release-jobs`
   - super admin sees all; channel admin can read own channel jobs.
 
 Worker script phases:
 
-1. Verify clean workspace and fetch latest branches.
-2. Checkout `release/channel/{channelCode}`.
-3. Merge `mainReleaseBranch` into channel branch.
-4. Validate:
-   - Gradle channel config equals `channels.code`.
-   - app name equals `channels.apk_display_name`.
-   - launcher icon exists and matches configured checksum or asset id.
-   - engine display/notification name matches channel config.
-5. Build release APK.
-6. Compute MD5/SHA-256 and file size.
-7. Upload through existing file service as `app-packages`.
-8. Callback backend with artifact metadata and final status.
-9. Push updated channel release branch and optional channel tag if configured.
-
-### User Compute Allocation
-
-- `POST /users/{id}/compute/allocate`
-  - channel admin only for own channel.
-  - super admin can optionally allocate directly or should prefer channel grant first.
-  - writes user `transaction_logs` and `channel_compute_logs`.
+1. Create a temporary working directory.
+2. Fetch the configured repository/source ref.
+3. For `main`, build from `release/{versionName}` or selected `sourceReleaseRef`.
+4. For non-main channels, checkout/create `release/channel/{channelCode}/{versionName}` and merge the selected source ref.
+5. Validate channel config:
+   - `BuildConfig.APK_CHANNEL == channels.code`
+   - main APK `applicationId == channels.app_application_id`
+   - engine APK `applicationId == channels.engine_application_id`
+   - app name equals `channels.app_display_name`
+   - launcher icon exists and matches configured checksum or asset id
+   - engine display/notification name matches channel config
+6. Build release main APK.
+7. Build release engine APK.
+8. Compute MD5/SHA-256 and file sizes for both APKs.
+9. Upload both artifacts through existing file service with `X-Apk-Channel`.
+10. Callback backend with artifact metadata and final status.
+11. Push output branch and optional channel tag if configured.
+12. Delete the temporary directory.
 
 ### Channel-Sensitive Reads
 
 - Existing list endpoints add optional `channelId/channelCode` filters for super admin.
 - For channel admin, backend ignores arbitrary channel filters and forces own channel.
-- For APP endpoints, backend uses authenticated user channel.
+- For APP endpoints, backend uses authenticated user/channel resolution and `X-Apk-Channel` fallback rules.
 
 ### Versions
 
 - `GET /app-versions?published=true`
-  - for APP: returns current channel only. Super admin list can filter by channel.
+  - APP: returns current channel only.
+  - Admin: super admin can filter by channel; channel admin sees own channel read-only.
+- `GET /engine-versions?available=true`
+  - same channel behavior as app versions.
 - `POST /app-versions/verify`
-  - request adds `channelCode` or uses token channel.
   - verifies against a published version in the same channel.
-- Admin create/update requires channel for app versions.
+- `POST /engine-versions/verify`
+  - verifies against a published engine version in the same channel.
 
 ### Announcements
 
 - `GET /announcements?published=true&type=...`
-  - APP sees `GLOBAL` plus own channel.
+  - APP sees only current channel announcements.
   - Admin sees role-scoped data.
-- Admin create/update requires:
-  - super admin can choose `GLOBAL` or any channel;
-  - channel admin can only create `CHANNEL` announcement for own channel.
+- Admin create/update requires channel.
+- Super admin can choose any channel.
+- Channel admin can only create own-channel announcements while channel is active.
 
 ## Migration Strategy
 
-1. Create `channels` and insert `main`.
-2. Add nullable `channel_id` to all channel-scoped tables.
-3. Backfill:
-   - users: `channel_id = channels.id where channels.code = users.apk_channel`, unknown codes create disabled channels or map to `main` after audit. Recommendation: create active/inactive channel rows for distinct existing `apk_channel` values to preserve attribution.
-   - shops/logs/feedbacks/compute_deductions: from owning user channel.
-   - announcements/app_versions: `main`, unless manually reclassified.
-4. Convert old role `ADMIN` to `SUPER_ADMIN`.
-5. Add unique constraints/indexes after data cleanup.
-6. Deploy backend with backward-compatible request handling.
-7. Deploy admin frontend role-scoped UI.
-8. Release APP update that sends channel on login and uses channel-scoped version/announcement behavior.
-9. Roll out release worker on the build host with SSH/Git credentials and file-service credentials scoped to app-package upload only.
+1. Confirm latest database backup exists and copy it off-host before migration.
+2. Create `channels` and insert `main`.
+3. Add nullable `channel_id` to all channel-scoped tables.
+4. Backfill:
+   - users: all existing rows to `main`.
+   - shops/logs/feedbacks/compute_deductions: from owning user when possible, otherwise `main`.
+   - announcements/app_versions/engine_versions: `main`.
+5. Convert old role `ADMIN` to `SUPER_ADMIN`.
+6. Add role `CHANNEL`; no existing users become `CHANNEL` automatically unless explicitly configured.
+7. Run duplicate/preflight checks.
+8. Replace old global phone unique behavior with active `(channel_id, phone)` uniqueness for normal users plus service-level global uniqueness for admin/channel login accounts.
+9. Make channel columns non-null where safe.
+10. Deploy backend with backward-compatible request handling.
+11. Deploy admin frontend role-scoped UI.
+12. Release APP update that sends `X-Apk-Channel` and handles unified server errors.
+13. Roll out release worker on the build host with restricted credentials.
+14. Enable unified release jobs for `main` first, then non-main channels.
 
 ## Verification Strategy
 
 - Unit tests for `ChannelScopeService` and `PermissionService`.
 - Integration tests:
+  - old APK without `X-Apk-Channel` sees `main`;
   - same phone can register in two channels;
+  - channel admin phone is globally unique for admin login;
   - channel A admin cannot see channel B users/logs/shops;
-  - channel admin allocation decrements channel pool and increments user balance atomically;
+  - channel admin allocation deducts own balance and increments target user balance atomically;
+  - registration bonus does not reduce channel admin balance;
   - cross-channel gift is rejected;
-  - APP channel A sees only A/global announcements;
-  - APP channel A update check sees only A versions;
+  - disabled channel APP request returns the required user-facing message;
+  - APP channel A sees only A announcements;
+  - APP channel A update check sees only A app/engine versions;
   - package verify fails when version exists in another channel only.
-- Integration tests for channel APK release job status transitions and callback authentication.
-- Script dry run against a test channel release branch:
-  - merge success path;
+- Integration tests for release job status transitions and callback authentication.
+- Script dry run for `main` and one non-main test channel:
+  - merge/build success path;
   - resource mismatch fail path;
-  - upload/callback success path.
+  - upload/callback success path;
+  - retry path creates a fresh temp directory.
 - Migration test using existing `main` seed data.
 - Admin UI smoke test for super admin and channel admin accounts.
-- Android smoke test by building two debug channel APKs with different `DUODIAN_APK_CHANNEL` values and confirming registration/update/announcement isolation.
+- Android smoke test by building two debug channel APKs with different `DUODIAN_APK_CHANNEL`, main APK `applicationId`, and engine APK `applicationId`.
+- Wave 2 data isolation verification:
+  - both channels can be installed on one device;
+  - each channel binds to its own engine package;
+  - each channel has separate Android app data directories;
+  - Bcore data roots do not use hardcoded old package names or shared public fixed directories.
