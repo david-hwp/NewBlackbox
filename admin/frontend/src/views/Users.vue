@@ -4,11 +4,21 @@
       <template #header>
         <div class="card-header">
           <span>用户列表</span>
-          <el-button type="primary" @click="showAddDialog">新增用户</el-button>
+          <el-button v-if="canMutate" type="primary" @click="showAddDialog">新增用户</el-button>
         </div>
       </template>
 
       <el-form class="filter-bar" :model="filters" inline @submit.prevent>
+        <el-form-item v-if="isSuperAdmin" label="渠道">
+          <el-select v-model="filters.channelId" clearable filterable placeholder="全部渠道" style="width: 190px">
+            <el-option
+              v-for="channel in channels"
+              :key="channel.id"
+              :label="formatChannelLabel(channel)"
+              :value="channel.id"
+            />
+          </el-select>
+        </el-form-item>
         <el-form-item label="用户名">
           <el-input v-model="filters.username" clearable placeholder="输入用户名" style="width: 180px" @keyup.enter="handleSearch" />
         </el-form-item>
@@ -16,7 +26,14 @@
           <el-input v-model="filters.phone" clearable placeholder="输入手机号" style="width: 180px" @keyup.enter="handleSearch" />
         </el-form-item>
         <el-form-item label="角色">
-          <el-select v-model="filters.role" clearable placeholder="全部角色" style="width: 140px">
+          <el-select v-model="filters.role" clearable placeholder="全部角色" style="width: 150px">
+            <el-option label="超管" value="SUPER_ADMIN" />
+            <el-option label="渠道管理员" value="CHANNEL" />
+            <el-option label="普通用户" value="USER" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="类型">
+          <el-select v-model="filters.userType" clearable placeholder="全部类型" style="width: 140px">
             <el-option label="管理员" value="ADMIN" />
             <el-option label="用户" value="USER" />
           </el-select>
@@ -33,7 +50,12 @@
         <el-table-column prop="phone" label="手机号" />
         <el-table-column prop="role" label="角色">
           <template #default="{ row }">
-            <el-tag :type="row.role === 'ADMIN' ? 'danger' : 'info'">{{ row.role }}</el-tag>
+            <el-tag :type="roleTag(row.role)">{{ roleLabel(row.role) }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="渠道" min-width="130">
+          <template #default="{ row }">
+            <el-tag size="small">{{ channelText(row) }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="apkChannel" label="渠道标识" width="110">
@@ -45,7 +67,7 @@
         <el-table-column prop="nonTransferableComputeBalance" label="不可转赠" />
         <el-table-column prop="shopCount" label="店铺数" />
         <el-table-column prop="createdAt" label="创建时间" />
-        <el-table-column label="操作" width="180">
+        <el-table-column v-if="canMutate" label="操作" width="180">
           <template #default="{ row }">
             <el-button type="primary" link @click="showEditDialog(row)">编辑</el-button>
             <el-button type="danger" link @click="handleDelete(row)">删除</el-button>
@@ -67,7 +89,6 @@
       </div>
     </el-card>
 
-    <!-- 新增/编辑弹窗 -->
     <el-dialog v-model="dialogVisible" :title="isEdit ? '编辑用户' : '新增用户'" width="500px">
       <el-form :model="form" :rules="rules" ref="formRef" label-width="80px">
         <el-form-item label="用户名" prop="username">
@@ -81,8 +102,9 @@
         </el-form-item>
         <el-form-item label="角色" prop="role">
           <el-select v-model="form.role" style="width: 100%">
-            <el-option label="用户" value="USER" />
-            <el-option label="管理员" value="ADMIN" />
+            <el-option label="普通用户" value="USER" />
+            <el-option label="渠道管理员" value="CHANNEL" />
+            <el-option label="超管" value="SUPER_ADMIN" />
           </el-select>
         </el-form-item>
         <el-form-item label="算力余额">
@@ -104,6 +126,7 @@
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import request from '../utils/request'
+import { channelFilterParam, formatChannelLabel, normalizeRole, useAdminSession } from '../utils/adminSession'
 
 const users = ref([])
 const loading = ref(false)
@@ -113,7 +136,9 @@ const formRef = ref()
 const filters = ref({
   username: '',
   phone: '',
-  role: ''
+  role: '',
+  userType: '',
+  channelId: ''
 })
 const pagination = ref({
   page: 1,
@@ -122,26 +147,75 @@ const pagination = ref({
 })
 const form = ref({ username: '', phone: '', password: '', role: 'USER', computeBalance: 0, nonTransferableComputeBalance: 0 })
 
+const { channels, isSuperAdmin, fetchChannels, channelText } = useAdminSession()
+const canMutate = isSuperAdmin
+
 const rules = {
   username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
   phone: [{ required: true, message: '请输入手机号', trigger: 'blur' }],
   password: [{ required: true, message: '请输入密码', trigger: 'blur' }]
 }
 
+const adminRoles = ['SUPER_ADMIN', 'CHANNEL']
+
+const selectedTypeRoles = () => {
+  if (filters.value.userType === 'ADMIN') return adminRoles
+  if (filters.value.userType === 'USER') return ['USER']
+  return null
+}
+
+const hasConflictingRoleAndType = () => {
+  const typeRoles = selectedTypeRoles()
+  return Boolean(filters.value.role && typeRoles && !typeRoles.includes(filters.value.role))
+}
+
+const commonQueryParams = (overrides = {}) => ({
+  page: pagination.value.page,
+  size: pagination.value.size,
+  username: filters.value.username || undefined,
+  phone: filters.value.phone || undefined,
+  channelId: channelFilterParam(isSuperAdmin.value, filters.value.channelId),
+  ...overrides
+})
+
+const applyPagedResult = (result) => {
+  users.value = result.list || result.content || []
+  pagination.value.total = Number(result.total ?? result.totalElements ?? 0)
+}
+
+const applyAdminTypeResult = async () => {
+  const adminResults = await Promise.all(adminRoles.map(role =>
+    request.get('/users', {
+      params: commonQueryParams({ page: 1, size: 100, role })
+    })
+  ))
+  const merged = adminResults
+    .flatMap(result => result.list || result.content || [])
+    .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')))
+  const start = (pagination.value.page - 1) * pagination.value.size
+  users.value = merged.slice(start, start + pagination.value.size)
+  pagination.value.total = merged.length
+}
+
 const fetchUsers = async () => {
   loading.value = true
   try {
+    if (hasConflictingRoleAndType()) {
+      users.value = []
+      pagination.value.total = 0
+      return
+    }
+    if (!filters.value.role && filters.value.userType === 'ADMIN') {
+      await applyAdminTypeResult()
+      return
+    }
     const result = await request.get('/users', {
-      params: {
-        page: pagination.value.page,
-        size: pagination.value.size,
-        username: filters.value.username || undefined,
-        phone: filters.value.phone || undefined,
-        role: filters.value.role || undefined
-      }
+      params: commonQueryParams({
+        role: filters.value.role || (filters.value.userType === 'USER' ? 'USER' : undefined),
+        type: filters.value.userType && filters.value.userType !== 'ADMIN' ? filters.value.userType : undefined
+      })
     })
-    users.value = result.list || result.content || []
-    pagination.value.total = Number(result.total ?? result.totalElements ?? 0)
+    applyPagedResult(result)
   } finally {
     loading.value = false
   }
@@ -156,7 +230,9 @@ const resetFilters = () => {
   filters.value = {
     username: '',
     phone: '',
-    role: ''
+    role: '',
+    userType: '',
+    channelId: ''
   }
   pagination.value.page = 1
   fetchUsers()
@@ -174,12 +250,14 @@ const handleSizeChange = (size) => {
 }
 
 const showAddDialog = () => {
+  if (!canMutate.value) return
   isEdit.value = false
   form.value = { username: '', phone: '', password: '', role: 'USER', computeBalance: 0, nonTransferableComputeBalance: 0 }
   dialogVisible.value = true
 }
 
 const showEditDialog = (row) => {
+  if (!canMutate.value) return
   isEdit.value = true
   form.value = { ...row }
   dialogVisible.value = true
@@ -215,7 +293,22 @@ const handleDelete = async (row) => {
   }
 }
 
-onMounted(fetchUsers)
+const roleLabel = (role) => {
+  const normalized = normalizeRole(role)
+  const map = { SUPER_ADMIN: '超管', CHANNEL: '渠道管理员', USER: '普通用户' }
+  return map[normalized] || role || '-'
+}
+
+const roleTag = (role) => {
+  const normalized = normalizeRole(role)
+  const map = { SUPER_ADMIN: 'danger', CHANNEL: 'warning', USER: 'info' }
+  return map[normalized] || 'info'
+}
+
+onMounted(() => {
+  fetchChannels()
+  fetchUsers()
+})
 </script>
 
 <style scoped>
