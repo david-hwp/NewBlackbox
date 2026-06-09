@@ -22,6 +22,7 @@ public interface AnnouncementRepository extends JpaRepository<Announcement, Long
     List<Announcement> findByChannelIdAndTypeAndDeletedOrderByCreatedAtDesc(Long channelId, String type, Byte deleted);
     List<Announcement> findByPublishedAndTypeAndDeletedOrderByCreatedAtDesc(Boolean published, String type, Byte deleted);
     List<Announcement> findByChannelIdAndPublishedAndTypeAndDeletedOrderByCreatedAtDesc(Long channelId, Boolean published, String type, Byte deleted);
+    Optional<Announcement> findFirstByChannelIdAndTypeAndDeletedOrderByCreatedAtDesc(Long channelId, String type, Byte deleted);
 
     @Query("""
             select a

@@ -194,6 +194,43 @@ CREATE TABLE IF NOT EXISTS app_versions (
     INDEX idx_version_code (version_code)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='主APK版本表';
 
+-- 统一发布任务表
+CREATE TABLE IF NOT EXISTS release_jobs (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    channel_id BIGINT NOT NULL COMMENT '渠道ID',
+    source_release_branch VARCHAR(128) NOT NULL COMMENT '源发布分支',
+    channel_release_branch VARCHAR(128) NOT NULL COMMENT '渠道发布分支',
+    app_version_name VARCHAR(64) NOT NULL COMMENT '主APK版本名称',
+    app_version_code INT NOT NULL COMMENT '主APK版本号',
+    engine_version_name VARCHAR(64) NOT NULL COMMENT '引擎版本名称',
+    engine_version_code INT NOT NULL COMMENT '引擎版本号',
+    announcement_content VARCHAR(4000) NOT NULL COMMENT '发布公告内容',
+    status VARCHAR(20) NOT NULL DEFAULT 'PENDING' COMMENT '状态: PENDING/RUNNING/SUCCESS/FAILED/CANCELLED',
+    progress INT NOT NULL DEFAULT 0 COMMENT '进度百分比',
+    log_excerpt TEXT COMMENT '日志摘要',
+    app_artifact_url VARCHAR(512) COMMENT '主APK产物URL',
+    app_artifact_md5 VARCHAR(32) COMMENT '主APK MD5',
+    app_artifact_sha256 VARCHAR(64) COMMENT '主APK SHA-256',
+    app_artifact_size BIGINT COMMENT '主APK大小',
+    engine_artifact_url VARCHAR(512) COMMENT '引擎APK产物URL',
+    engine_artifact_md5 VARCHAR(32) COMMENT '引擎APK MD5',
+    engine_artifact_sha256 VARCHAR(64) COMMENT '引擎APK SHA-256',
+    engine_artifact_size BIGINT COMMENT '引擎APK大小',
+    requested_by BIGINT COMMENT '发起用户ID',
+    retry_of_job_id BIGINT COMMENT '重试来源任务ID',
+    callback_token_hash VARCHAR(128) COMMENT '回调令牌哈希',
+    started_at DATETIME COMMENT '开始时间',
+    finished_at DATETIME COMMENT '完成时间',
+    deleted TINYINT(1) NOT NULL DEFAULT 0 COMMENT '软删除: 0-正常 1-已删除',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_release_jobs_channel_id (channel_id),
+    INDEX idx_release_jobs_status (status),
+    INDEX idx_release_jobs_deleted (deleted),
+    INDEX idx_release_jobs_created_at (created_at),
+    INDEX idx_release_jobs_retry_of (retry_of_job_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='统一发布任务表';
+
 -- 支持平台配置表
 CREATE TABLE IF NOT EXISTS platform_configs (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
