@@ -10,6 +10,10 @@ public class TransactionLogResponse {
     private Long userId;
     private String userName;
     private String userPhone;
+    private Long channelId;
+    private String channelCode;
+    private String channelName;
+    private Long relatedLogId;
     private String type;
     private Integer amount;
     private String platform;
@@ -27,6 +31,8 @@ public class TransactionLogResponse {
         response.setUserId(log.getUserId());
         response.setUserName(user != null ? user.getUsername() : null);
         response.setUserPhone(user != null ? user.getPhone() : null);
+        response.setChannelId(log.getChannelId());
+        response.setRelatedLogId(log.getRelatedLogId());
         response.setType(log.getType());
         response.setAmount(log.getAmount());
         response.setPlatform(log.getPlatform());
@@ -51,6 +57,18 @@ public class TransactionLogResponse {
 
     public String getUserPhone() { return userPhone; }
     public void setUserPhone(String userPhone) { this.userPhone = userPhone; }
+
+    public Long getChannelId() { return channelId; }
+    public void setChannelId(Long channelId) { this.channelId = channelId; }
+
+    public String getChannelCode() { return channelCode; }
+    public void setChannelCode(String channelCode) { this.channelCode = channelCode; }
+
+    public String getChannelName() { return channelName; }
+    public void setChannelName(String channelName) { this.channelName = channelName; }
+
+    public Long getRelatedLogId() { return relatedLogId; }
+    public void setRelatedLogId(Long relatedLogId) { this.relatedLogId = relatedLogId; }
 
     public String getType() { return type; }
     public void setType(String type) { this.type = type; }

@@ -14,6 +14,7 @@ import java.util.List;
 public interface ShopRepository extends JpaRepository<Shop, Long> {
     List<Shop> findByDeleted(Byte deleted);
     java.util.Optional<Shop> findByIdAndDeleted(Long id, Byte deleted);
+    List<Shop> findByChannelIdAndDeleted(Long channelId, Byte deleted);
     List<Shop> findByUserIdAndDeleted(Long userId, Byte deleted);
     List<Shop> findByUserIdAndPackageNameAndDeleted(Long userId, String packageName, Byte deleted);
     List<Shop> findByPackageNameAndDeleted(String packageName, Byte deleted);
@@ -43,6 +44,7 @@ public interface ShopRepository extends JpaRepository<Shop, Long> {
             left join User u on u.id = s.userId and u.deleted = :active
             where s.deleted = :active
               and (:userId is null or s.userId = :userId)
+              and (:channelId is null or s.channelId = :channelId)
               and (:packageName is null or s.packageName = :packageName)
               and (:platform is null or s.platform = :platform)
               and (:phone is null or u.phone like concat('%', :phone, '%'))
@@ -55,6 +57,7 @@ public interface ShopRepository extends JpaRepository<Shop, Long> {
     Page<Shop> searchShops(
             @Param("active") Byte active,
             @Param("userId") Long userId,
+            @Param("channelId") Long channelId,
             @Param("packageName") String packageName,
             @Param("platform") String platform,
             @Param("phone") String phone,

@@ -15,6 +15,7 @@ import com.duodian.admin.entity.Shop;
 import com.duodian.admin.entity.User;
 import com.duodian.admin.service.CloneAuthorizationTokenService;
 import com.duodian.admin.service.ComputeService;
+import com.duodian.admin.service.PermissionService;
 import com.duodian.admin.service.ShopService;
 import com.duodian.admin.service.UserService;
 import com.fasterxml.jackson.annotation.JsonIgnore;
@@ -38,15 +39,17 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.doThrow;
 
 class ShopControllerTest {
 
     private final ShopService shopService = mock(ShopService.class);
     private final UserService userService = mock(UserService.class);
     private final ComputeService computeService = mock(ComputeService.class);
+    private final PermissionService permissionService = mock(PermissionService.class);
     private final CloneAuthorizationTokenService tokenService =
             new CloneAuthorizationTokenService(testCloneAuthProperties());
-    private final ShopController controller = new ShopController(shopService, userService, computeService, tokenService);
+    private final ShopController controller = new ShopController(shopService, userService, computeService, tokenService, permissionService);
 
     @AfterEach
     void tearDown() {
@@ -54,20 +57,13 @@ class ShopControllerTest {
     }
 
     @Test
-    void listRestrictsNormalUserToOwnShopsEvenWhenUserIdParamIsProvided() {
+    void listRequiresAdminRole() {
         AuthContext.setUserId(1L);
-        User normalUser = user(1L, "USER");
-        Shop ownShop = shop(10L, 1L, "own");
-        when(userService.findById(1L)).thenReturn(Optional.of(normalUser));
-        when(shopService.findByUserId(1L)).thenReturn(List.of(ownShop));
+        doThrow(new RuntimeException("无权限")).when(permissionService).requireAdminRole();
 
-        ApiResponse<?> response = controller.list(2L, null, null, null, null, null, null, null);
-
-        assertThat(response.getCode()).isEqualTo(200);
-        @SuppressWarnings("unchecked")
-        List<ShopResponse> data = (List<ShopResponse>) response.getData();
-        assertThat(data).extracting(ShopResponse::getUserId).containsExactly(1L);
-        verify(shopService).findByUserId(1L);
+        org.assertj.core.api.Assertions.assertThatThrownBy(() ->
+                controller.list(2L, null, null, null, null, null, null, null, null)
+        ).hasMessage("无权限");
         verify(shopService, never()).findByUserId(2L);
         verify(shopService, never()).findAll();
     }
@@ -97,7 +93,10 @@ class ShopControllerTest {
         first.setPackageName("com.jd.mrd.jingming");
         when(userService.findById(1L)).thenReturn(Optional.of(admin));
         when(userService.findById(2L)).thenReturn(Optional.of(user(2L, "USER")));
+        when(permissionService.currentUser()).thenReturn(admin);
+        when(permissionService.filterChannelForQuery(null)).thenReturn(null);
         when(shopService.search(
+                eq(null),
                 eq(null),
                 eq(null),
                 eq("jd"),
@@ -107,7 +106,7 @@ class ShopControllerTest {
                 any(Pageable.class)
         )).thenReturn(new PageImpl<>(List.of(first), PageRequest.of(0, 20), 1));
 
-        ApiResponse<?> response = controller.list(null, null, "jd", "138", "user", "京东", 1, 20);
+        ApiResponse<?> response = controller.list(null, null, "jd", "138", "user", "京东", null, 1, 20);
 
         assertThat(response.getCode()).isEqualTo(200);
         @SuppressWarnings("unchecked")

@@ -48,7 +48,7 @@ public class ComputeService {
     public ComputeReclaimResponse getLatestReclaimable(Long fromUserId, String toPhone) {
         User fromUser = userRepository.findByIdAndDeleted(fromUserId, ACTIVE)
                 .orElseThrow(() -> new RuntimeException("用户不存在"));
-        User receiver = userRepository.findByPhoneAndDeleted(normalizePhone(toPhone), ACTIVE)
+        User receiver = userRepository.findFirstByPhoneAndChannelIdAndDeleted(normalizePhone(toPhone), fromUser.getChannelId(), ACTIVE)
                 .orElseThrow(() -> new RuntimeException(RECLAIM_NOT_FOUND_MESSAGE));
         return toReclaimResponse(calculateReclaimable(fromUser, receiver), null);
     }
@@ -61,7 +61,7 @@ public class ComputeService {
 
         User fromUser = userRepository.findWithLockByIdAndDeleted(fromUserId, ACTIVE)
                 .orElseThrow(() -> new RuntimeException("用户不存在"));
-        User receiver = userRepository.findWithLockByPhoneAndDeleted(normalizePhone(toPhone), ACTIVE)
+        User receiver = userRepository.findWithLockByPhoneAndChannelIdAndDeleted(normalizePhone(toPhone), fromUser.getChannelId(), ACTIVE)
                 .orElseThrow(() -> new RuntimeException(RECLAIM_NOT_FOUND_MESSAGE));
 
         ReclaimComputation computation = calculateReclaimable(fromUser, receiver);
@@ -88,6 +88,7 @@ public class ComputeService {
 
         TransactionLog inLog = new TransactionLog();
         inLog.setUserId(fromUser.getId());
+        inLog.setChannelId(fromUser.getChannelId());
         inLog.setType("IN");
         inLog.setAmount(amount);
         inLog.setFromPhone(receiver.getPhone());
@@ -98,6 +99,7 @@ public class ComputeService {
 
         TransactionLog outLog = new TransactionLog();
         outLog.setUserId(receiver.getId());
+        outLog.setChannelId(receiver.getChannelId());
         outLog.setType("OUT");
         outLog.setAmount(amount);
         outLog.setToPhone(fromUser.getPhone());
@@ -217,6 +219,7 @@ public class ComputeService {
 
         TransactionLog log = new TransactionLog();
         log.setUserId(userId);
+        log.setChannelId(user.getChannelId());
         log.setType("CONSUME");
         log.setAmount(1);
         log.setPlatform(displayPlatformName(platform));
@@ -226,6 +229,7 @@ public class ComputeService {
 
         ComputeDeduction deduction = new ComputeDeduction();
         deduction.setUserId(userId);
+        deduction.setChannelId(user.getChannelId());
         deduction.setCloneInstanceId(normalizedCloneId);
         deduction.setDeductionType(deductionType);
         deduction.setOperationKey(normalizedOperationKey);
@@ -258,6 +262,7 @@ public class ComputeService {
 
         TransactionLog log = new TransactionLog();
         log.setUserId(userId);
+        log.setChannelId(user.getChannelId());
         log.setType("CONSUME");
         log.setAmount(1);
         log.setPlatform(displayPlatformName(platform));
@@ -309,11 +314,14 @@ public class ComputeService {
             throw new RuntimeException("可转赠算力余额不足");
         }
 
-        User toUser = userRepository.findByPhoneAndDeleted(toPhone, ACTIVE)
+        User toUser = userRepository.findFirstByPhoneAndChannelIdAndDeleted(toPhone, fromUser.getChannelId(), ACTIVE)
                 .orElseThrow(() -> new RuntimeException("接收用户不存在"));
 
         if (fromUserId.equals(toUser.getId())) {
             throw new RuntimeException("不能赠送给自己");
+        }
+        if (fromUser.getChannelId() == null || !fromUser.getChannelId().equals(toUser.getChannelId())) {
+            throw new RuntimeException("只能给同渠道用户赠送算力");
         }
 
         fromUser.setComputeBalance(balance - amount);
@@ -329,21 +337,89 @@ public class ComputeService {
 
         TransactionLog outLog = new TransactionLog();
         outLog.setUserId(fromUserId);
+        outLog.setChannelId(fromUser.getChannelId());
         outLog.setType("OUT");
         outLog.setAmount(amount);
         outLog.setToPhone(toPhone);
         outLog.setToName(toUser.getUsername());
         outLog.setRemark(GIFT_REMARK_PREFIX + toPhone);
-        transactionLogRepository.save(outLog);
+        TransactionLog savedOutLog = transactionLogRepository.save(outLog);
 
         TransactionLog inLog = new TransactionLog();
         inLog.setUserId(toUser.getId());
+        inLog.setChannelId(toUser.getChannelId());
+        inLog.setRelatedLogId(savedOutLog.getId());
         inLog.setType("IN");
         inLog.setAmount(amount);
         inLog.setFromPhone(fromUser.getPhone());
         inLog.setFromName(fromUser.getUsername());
         inLog.setRemark("收到 " + fromUser.getPhone() + " 赠送的算力");
-        transactionLogRepository.save(inLog);
+        TransactionLog savedInLog = transactionLogRepository.save(inLog);
+        if (savedOutLog.getRelatedLogId() == null && savedInLog.getId() != null) {
+            savedOutLog.setRelatedLogId(savedInLog.getId());
+            transactionLogRepository.save(savedOutLog);
+        }
+    }
+
+    @Transactional
+    public AllocationResult allocateFromChannelAdmin(Long channelAdminUserId, Long targetUserId, Integer amount) {
+        if (amount == null || amount <= 0) {
+            throw new RuntimeException("分配数量必须大于0");
+        }
+        User admin = userRepository.findWithLockByIdAndDeleted(channelAdminUserId, ACTIVE)
+                .orElseThrow(() -> new RuntimeException("渠道管理员不存在"));
+        if (!"CHANNEL".equalsIgnoreCase(admin.getRole())) {
+            throw new RuntimeException("仅渠道管理员可以分配算力");
+        }
+        User target = userRepository.findWithLockByIdAndDeleted(targetUserId, ACTIVE)
+                .orElseThrow(() -> new RuntimeException("目标用户不存在"));
+        if (!"USER".equalsIgnoreCase(target.getRole())) {
+            throw new RuntimeException("只能给普通用户分配算力");
+        }
+        if (admin.getChannelId() == null || !admin.getChannelId().equals(target.getChannelId())) {
+            throw new RuntimeException("只能给同渠道用户分配算力");
+        }
+        int adminBalance = admin.getComputeBalance() == null ? 0 : admin.getComputeBalance();
+        if (adminBalance < amount) {
+            throw new RuntimeException("渠道管理员算力余额不足");
+        }
+        admin.setComputeBalance(adminBalance - amount);
+        admin.setNonTransferableComputeBalance(Math.min(
+                admin.getNonTransferableComputeBalance() == null ? 0 : admin.getNonTransferableComputeBalance(),
+                admin.getComputeBalance()
+        ));
+        target.setComputeBalance((target.getComputeBalance() == null ? 0 : target.getComputeBalance()) + amount);
+        if (target.getNonTransferableComputeBalance() == null) {
+            target.setNonTransferableComputeBalance(0);
+        }
+        userRepository.save(admin);
+        userRepository.save(target);
+
+        TransactionLog outLog = new TransactionLog();
+        outLog.setUserId(admin.getId());
+        outLog.setChannelId(admin.getChannelId());
+        outLog.setType("OUT");
+        outLog.setAmount(amount);
+        outLog.setToPhone(target.getPhone());
+        outLog.setToName(target.getUsername());
+        outLog.setRemark("渠道管理员分配算力给 " + target.getPhone());
+        TransactionLog savedOutLog = transactionLogRepository.save(outLog);
+
+        TransactionLog inLog = new TransactionLog();
+        inLog.setUserId(target.getId());
+        inLog.setChannelId(target.getChannelId());
+        inLog.setRelatedLogId(savedOutLog.getId());
+        inLog.setType("IN");
+        inLog.setAmount(amount);
+        inLog.setFromPhone(admin.getPhone());
+        inLog.setFromName(admin.getUsername());
+        inLog.setRemark("收到渠道管理员分配算力");
+        TransactionLog savedInLog = transactionLogRepository.save(inLog);
+        if (savedInLog.getId() != null) {
+            savedOutLog.setRelatedLogId(savedInLog.getId());
+            transactionLogRepository.save(savedOutLog);
+        }
+        return new AllocationResult(admin.getComputeBalance(), target.getComputeBalance(), savedOutLog.getId(), savedInLog.getId());
     }
 
     private ReclaimComputation calculateReclaimable(User fromUser, User receiver) {
@@ -351,8 +427,9 @@ public class ComputeService {
             throw new RuntimeException(RECLAIM_NOT_FOUND_MESSAGE);
         }
         TransactionLog sourceGift = transactionLogRepository
-                .findFirstByUserIdAndTypeAndToPhoneAndRelatedLogIdIsNullAndRemarkStartingWithAndDeletedOrderByCreatedAtDescIdDesc(
+                .findFirstByUserIdAndChannelIdAndTypeAndToPhoneAndRemarkStartingWithAndDeletedOrderByCreatedAtDescIdDesc(
                         fromUser.getId(),
+                        fromUser.getChannelId(),
                         "OUT",
                         receiver.getPhone(),
                         GIFT_REMARK_PREFIX,
@@ -437,5 +514,24 @@ public class ComputeService {
         public boolean isDeducted() { return deducted; }
         public boolean isSuccess() { return success; }
         public Long getTransactionLogId() { return transactionLogId; }
+    }
+
+    public static class AllocationResult {
+        private final Integer channelAdminBalance;
+        private final Integer targetBalance;
+        private final Long outLogId;
+        private final Long inLogId;
+
+        public AllocationResult(Integer channelAdminBalance, Integer targetBalance, Long outLogId, Long inLogId) {
+            this.channelAdminBalance = channelAdminBalance;
+            this.targetBalance = targetBalance;
+            this.outLogId = outLogId;
+            this.inLogId = inLogId;
+        }
+
+        public Integer getChannelAdminBalance() { return channelAdminBalance; }
+        public Integer getTargetBalance() { return targetBalance; }
+        public Long getOutLogId() { return outLogId; }
+        public Long getInLogId() { return inLogId; }
     }
 }

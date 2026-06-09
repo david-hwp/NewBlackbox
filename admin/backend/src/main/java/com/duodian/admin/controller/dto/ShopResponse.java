@@ -11,6 +11,9 @@ public class ShopResponse {
     private Long userId;
     private String userName;
     private String userPhone;
+    private Long channelId;
+    private String channelCode;
+    private String channelName;
     private String shopName;
     private String shopId;
     private String platform;
@@ -36,6 +39,7 @@ public class ShopResponse {
         response.setUserId(shop.getUserId());
         response.setUserName(user != null ? user.getUsername() : null);
         response.setUserPhone(user != null ? user.getPhone() : null);
+        response.setChannelId(shop.getChannelId());
         response.setShopName(shop.getShopName());
         response.setShopId(shop.getShopId());
         response.setPlatform(shop.getPlatform());
@@ -68,6 +72,15 @@ public class ShopResponse {
 
     public String getUserPhone() { return userPhone; }
     public void setUserPhone(String userPhone) { this.userPhone = userPhone; }
+
+    public Long getChannelId() { return channelId; }
+    public void setChannelId(Long channelId) { this.channelId = channelId; }
+
+    public String getChannelCode() { return channelCode; }
+    public void setChannelCode(String channelCode) { this.channelCode = channelCode; }
+
+    public String getChannelName() { return channelName; }
+    public void setChannelName(String channelName) { this.channelName = channelName; }
 
     public String getShopName() { return shopName; }
     public void setShopName(String shopName) { this.shopName = shopName; }

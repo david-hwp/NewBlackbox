@@ -10,7 +10,11 @@ import com.duodian.admin.config.JwtUtil;
 import com.duodian.admin.repository.FeedbackRepository;
 import com.duodian.admin.service.FeedbackService;
 import com.duodian.admin.service.FileStorageService;
+import com.duodian.admin.service.ChannelScopeService;
+import com.duodian.admin.service.PermissionService;
 import com.duodian.admin.service.UserService;
+import com.duodian.admin.entity.Channel;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -31,6 +35,8 @@ public class FeedbackController {
     private final FileStorageService fileStorageService;
     private final JwtUtil jwtUtil;
     private final FeedbackRepository feedbackRepository;
+    private final PermissionService permissionService;
+    private final ChannelScopeService channelScopeService;
 
     private static final long MAX_ATTACHMENT_SIZE = 10 * 1024 * 1024; // 10MB
     private static final long MAX_LOG_SIZE = 10 * 1024 * 1024; // 10MB
@@ -42,13 +48,17 @@ public class FeedbackController {
             UserService userService,
             FileStorageService fileStorageService,
             JwtUtil jwtUtil,
-            FeedbackRepository feedbackRepository
+            FeedbackRepository feedbackRepository,
+            PermissionService permissionService,
+            ChannelScopeService channelScopeService
     ) {
         this.feedbackService = feedbackService;
         this.userService = userService;
         this.fileStorageService = fileStorageService;
         this.jwtUtil = jwtUtil;
         this.feedbackRepository = feedbackRepository;
+        this.permissionService = permissionService;
+        this.channelScopeService = channelScopeService;
     }
 
     @GetMapping
@@ -56,17 +66,24 @@ public class FeedbackController {
             @RequestParam(required = false) String userPhone,
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String content,
+            @RequestParam(required = false) Long channelId,
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size) {
-        if (page != null || size != null || hasText(userPhone) || hasText(content)) {
+        permissionService.requireAdminRole();
+        Long effectiveChannelId = permissionService.filterChannelForQuery(channelId);
+        if (page != null || size != null || hasText(userPhone) || hasText(content) || effectiveChannelId != null) {
             Page<Feedback> feedbacks = feedbackRepository.searchFeedbacks(
                     ACTIVE,
+                    effectiveChannelId,
                     normalize(userPhone),
                     normalize(status),
                     normalize(content),
                     PageRequest.of(pageNumber(page) - 1, pageSize(size), Sort.by(Sort.Direction.DESC, "createdAt"))
             );
             return ApiResponse.success(PagedResponse.from(feedbacks));
+        }
+        if (effectiveChannelId != null) {
+            return ApiResponse.success(feedbackService.findByChannelId(effectiveChannelId));
         }
         if (status != null && !status.isBlank()) {
             return ApiResponse.success(feedbackService.findByStatus(status));
@@ -79,7 +96,8 @@ public class FeedbackController {
             @RequestHeader(value = "Authorization", required = false) String authorization,
             @RequestParam(value = "caption", required = false) String caption,
             @RequestParam(value = "deviceInfo", required = false) String deviceInfo,
-            @RequestParam("file") MultipartFile file) {
+            @RequestParam("file") MultipartFile file,
+            HttpServletRequest httpRequest) {
 
         if (file == null || file.isEmpty()) {
             return ApiResponse.error("日志文件不能为空");
@@ -93,6 +111,11 @@ public class FeedbackController {
             userId = 0L;
         }
         Feedback feedback = buildFeedback(userId, buildEngineLogContent(caption));
+        if (feedback.getChannelId() == null) {
+            Channel channel = channelScopeService.resolveAppChannel(httpRequest, null);
+            channelScopeService.requireActiveForApp(channel);
+            feedback.setChannelId(channel.getId());
+        }
         feedback.setSource("ENGINE_LOG");
         feedback.setLogCaption(trimToLength(caption, 1000));
         feedback.setDeviceInfo(trimToLength(deviceInfo, 20000));
@@ -102,13 +125,21 @@ public class FeedbackController {
 
     @GetMapping("/{id}")
     public ApiResponse<Feedback> get(@PathVariable Long id) {
+        permissionService.requireAdminRole();
         return feedbackService.findById(id)
+                .filter(feedback -> {
+                    permissionService.requireChannelAccess(feedback.getChannelId());
+                    return true;
+                })
                 .map(ApiResponse::success)
                 .orElse(ApiResponse.error("反馈不存在"));
     }
 
     @PutMapping("/{id}/status")
     public ApiResponse<Feedback> updateStatus(@PathVariable Long id, @RequestBody java.util.Map<String, String> request) {
+        permissionService.requireAdminRole();
+        Feedback existing = feedbackService.findById(id).orElseThrow(() -> new RuntimeException("反馈不存在"));
+        permissionService.requireActiveChannelForMutation(existing.getChannelId());
         String status = request.get("status");
         if (status == null || status.isBlank()) {
             return ApiResponse.error("状态不能为空");
@@ -118,6 +149,7 @@ public class FeedbackController {
 
     @DeleteMapping("/{id}")
     public ApiResponse<Void> delete(@PathVariable Long id) {
+        permissionService.requireSuperAdmin();
         feedbackService.delete(id);
         return ApiResponse.success();
     }
@@ -222,6 +254,7 @@ public class FeedbackController {
         Feedback feedback = new Feedback();
         feedback.setUserId(userId);
         feedback.setUserPhone(user != null ? user.getPhone() : null);
+        feedback.setChannelId(user != null ? user.getChannelId() : null);
         feedback.setContent(content.trim());
         return feedback;
     }

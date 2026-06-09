@@ -22,8 +22,13 @@ public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findWithLockByIdAndDeleted(Long id, Byte deleted);
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     Optional<User> findWithLockByPhoneAndDeleted(String phone, Byte deleted);
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    Optional<User> findWithLockByPhoneAndChannelIdAndDeleted(String phone, Long channelId, Byte deleted);
     Optional<User> findByPhoneAndDeleted(String phone, Byte deleted);
+    List<User> findAllByPhoneAndDeleted(String phone, Byte deleted);
+    Optional<User> findFirstByPhoneAndChannelIdAndDeleted(String phone, Long channelId, Byte deleted);
     boolean existsByPhoneAndDeleted(String phone, Byte deleted);
+    boolean existsByPhoneAndChannelIdAndDeleted(String phone, Long channelId, Byte deleted);
 
     @Query("""
             select u
@@ -32,12 +37,30 @@ public interface UserRepository extends JpaRepository<User, Long> {
               and (:username is null or u.username like concat('%', :username, '%'))
               and (:phone is null or u.phone like concat('%', :phone, '%'))
               and (:role is null or u.role = :role)
+              and (:channelId is null or u.channelId = :channelId)
             """)
     Page<User> searchUsers(
             @Param("active") Byte active,
             @Param("username") String username,
             @Param("phone") String phone,
             @Param("role") String role,
+            @Param("channelId") Long channelId,
             Pageable pageable
+    );
+
+    @Query("""
+            select u
+            from User u
+            where u.deleted = :active
+              and upper(u.role) <> 'SUPER_ADMIN'
+              and upper(u.role) <> 'ADMIN'
+              and (:keyword is null
+                   or u.username like concat('%', :keyword, '%')
+                   or u.phone like concat('%', :keyword, '%'))
+            order by u.createdAt desc
+            """)
+    List<User> searchChannelAdminCandidates(
+            @Param("active") Byte active,
+            @Param("keyword") String keyword
     );
 }

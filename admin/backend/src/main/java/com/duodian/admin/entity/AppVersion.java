@@ -13,6 +13,9 @@ public class AppVersion {
     @Column(name = "version_code", nullable = false)
     private Integer versionCode;
 
+    @Column(name = "channel_id")
+    private Long channelId;
+
     @Column(name = "version_name", nullable = false, length = 64)
     private String versionName;
 
@@ -59,6 +62,9 @@ public class AppVersion {
 
     public Integer getVersionCode() { return versionCode; }
     public void setVersionCode(Integer versionCode) { this.versionCode = versionCode; }
+
+    public Long getChannelId() { return channelId; }
+    public void setChannelId(Long channelId) { this.channelId = channelId; }
 
     public String getVersionName() { return versionName; }
     public void setVersionName(String versionName) { this.versionName = normalize(versionName); }

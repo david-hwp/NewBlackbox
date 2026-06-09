@@ -15,20 +15,26 @@ import java.util.Optional;
 public interface AnnouncementRepository extends JpaRepository<Announcement, Long> {
     List<Announcement> findByDeletedOrderByCreatedAtDesc(Byte deleted);
     Optional<Announcement> findByIdAndDeleted(Long id, Byte deleted);
+    List<Announcement> findByChannelIdAndDeletedOrderByCreatedAtDesc(Long channelId, Byte deleted);
     List<Announcement> findByPublishedAndDeletedOrderByCreatedAtDesc(Boolean published, Byte deleted);
+    List<Announcement> findByChannelIdAndPublishedAndDeletedOrderByCreatedAtDesc(Long channelId, Boolean published, Byte deleted);
     List<Announcement> findByTypeAndDeletedOrderByCreatedAtDesc(String type, Byte deleted);
+    List<Announcement> findByChannelIdAndTypeAndDeletedOrderByCreatedAtDesc(Long channelId, String type, Byte deleted);
     List<Announcement> findByPublishedAndTypeAndDeletedOrderByCreatedAtDesc(Boolean published, String type, Byte deleted);
+    List<Announcement> findByChannelIdAndPublishedAndTypeAndDeletedOrderByCreatedAtDesc(Long channelId, Boolean published, String type, Byte deleted);
 
     @Query("""
             select a
             from Announcement a
             where a.deleted = :active
+              and (:channelId is null or a.channelId = :channelId)
               and (:title is null or a.title like concat('%', :title, '%'))
               and (:type is null or a.type = :type)
               and (:published is null or a.published = :published)
             """)
     Page<Announcement> searchAnnouncements(
             @Param("active") Byte active,
+            @Param("channelId") Long channelId,
             @Param("title") String title,
             @Param("type") String type,
             @Param("published") Boolean published,

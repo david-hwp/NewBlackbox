@@ -22,8 +22,10 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.atLeastOnce;
 
 class ComputeServiceTest {
+    private long nextLogId = 100L;
 
     private final UserRepository userRepository = mock(UserRepository.class);
     private final TransactionLogRepository transactionLogRepository = mock(TransactionLogRepository.class);
@@ -39,7 +41,7 @@ class ComputeServiceTest {
         User fromUser = user(1L, "13800000001", 2, 2);
         User toUser = user(2L, "13800000002", 0, 0);
         when(userRepository.findByIdAndDeleted(1L, (byte) 0)).thenReturn(Optional.of(fromUser));
-        when(userRepository.findByPhoneAndDeleted("13800000002", (byte) 0)).thenReturn(Optional.of(toUser));
+        when(userRepository.findFirstByPhoneAndChannelIdAndDeleted("13800000002", 1L, (byte) 0)).thenReturn(Optional.of(toUser));
 
         assertThatThrownBy(() -> computeService.giftCompute(1L, "13800000002", 1))
                 .hasMessage("可转赠算力余额不足");
@@ -133,8 +135,17 @@ class ComputeServiceTest {
     void giftComputeTransfersOnlyTransferablePortion() {
         User fromUser = user(1L, "13800000001", 5, 2);
         User toUser = user(2L, "13800000002", 0, 0);
+        fromUser.setChannelId(1L);
+        toUser.setChannelId(1L);
         when(userRepository.findByIdAndDeleted(1L, (byte) 0)).thenReturn(Optional.of(fromUser));
-        when(userRepository.findByPhoneAndDeleted("13800000002", (byte) 0)).thenReturn(Optional.of(toUser));
+        when(userRepository.findFirstByPhoneAndChannelIdAndDeleted("13800000002", 1L, (byte) 0)).thenReturn(Optional.of(toUser));
+        when(transactionLogRepository.save(argThat(log -> true))).thenAnswer(invocation -> {
+            TransactionLog log = invocation.getArgument(0);
+            if (log.getId() == null) {
+                log.setId(nextLogId++);
+            }
+            return log;
+        });
 
         computeService.giftCompute(1L, "13800000002", 3);
 
@@ -142,7 +153,7 @@ class ComputeServiceTest {
         assertThat(fromUser.getNonTransferableComputeBalance()).isEqualTo(2);
         assertThat(toUser.getComputeBalance()).isEqualTo(3);
         assertThat(toUser.getNonTransferableComputeBalance()).isZero();
-        verify(transactionLogRepository).save(argThat(log -> "OUT".equals(log.getType())));
+        verify(transactionLogRepository, atLeastOnce()).save(argThat(log -> "OUT".equals(log.getType())));
         verify(transactionLogRepository).save(argThat(log -> "IN".equals(log.getType())));
     }
 
@@ -152,7 +163,7 @@ class ComputeServiceTest {
         User receiver = user(2L, "13800000002", 7, 0);
         TransactionLog giftLog = giftLog(100L, 1L, "13800000002", 10);
         when(userRepository.findByIdAndDeleted(1L, (byte) 0)).thenReturn(Optional.of(fromUser));
-        when(userRepository.findByPhoneAndDeleted("13800000002", (byte) 0)).thenReturn(Optional.of(receiver));
+        when(userRepository.findFirstByPhoneAndChannelIdAndDeleted("13800000002", 1L, (byte) 0)).thenReturn(Optional.of(receiver));
         stubLatestGift(giftLog);
         when(transactionLogRepository.sumConsumedAfter(2L, (byte) 0, giftLog.getCreatedAt(), 100L)).thenReturn(3);
         when(transactionLogRepository.sumReclaimedForSourceLog(1L, (byte) 0, 100L)).thenReturn(2);
@@ -172,9 +183,10 @@ class ComputeServiceTest {
         User fromUser = user(1L, "13800000001", 2, 0);
         User receiver = user(2L, "13800000002", 7, 0);
         when(userRepository.findByIdAndDeleted(1L, (byte) 0)).thenReturn(Optional.of(fromUser));
-        when(userRepository.findByPhoneAndDeleted("13800000002", (byte) 0)).thenReturn(Optional.of(receiver));
+        when(userRepository.findFirstByPhoneAndChannelIdAndDeleted("13800000002", 1L, (byte) 0)).thenReturn(Optional.of(receiver));
         when(transactionLogRepository
-                .findFirstByUserIdAndTypeAndToPhoneAndRelatedLogIdIsNullAndRemarkStartingWithAndDeletedOrderByCreatedAtDescIdDesc(
+                .findFirstByUserIdAndChannelIdAndTypeAndToPhoneAndRemarkStartingWithAndDeletedOrderByCreatedAtDescIdDesc(
+                        1L,
                         1L,
                         "OUT",
                         "13800000002",
@@ -192,7 +204,7 @@ class ComputeServiceTest {
         User receiver = user(2L, "13800000002", 8, 7);
         TransactionLog giftLog = giftLog(100L, 1L, "13800000002", 10);
         when(userRepository.findWithLockByIdAndDeleted(1L, (byte) 0)).thenReturn(Optional.of(fromUser));
-        when(userRepository.findWithLockByPhoneAndDeleted("13800000002", (byte) 0)).thenReturn(Optional.of(receiver));
+        when(userRepository.findWithLockByPhoneAndChannelIdAndDeleted("13800000002", 1L, (byte) 0)).thenReturn(Optional.of(receiver));
         stubLatestGift(giftLog);
         when(transactionLogRepository.sumConsumedAfter(2L, (byte) 0, giftLog.getCreatedAt(), 100L)).thenReturn(3);
         when(transactionLogRepository.sumReclaimedForSourceLog(1L, (byte) 0, 100L)).thenReturn(2, 6);
@@ -236,7 +248,7 @@ class ComputeServiceTest {
         User receiver = user(2L, "13800000002", 8, 0);
         TransactionLog giftLog = giftLog(101L, 1L, "13800000002", 10);
         when(userRepository.findWithLockByIdAndDeleted(1L, (byte) 0)).thenReturn(Optional.of(fromUser));
-        when(userRepository.findWithLockByPhoneAndDeleted("13800000002", (byte) 0)).thenReturn(Optional.of(receiver));
+        when(userRepository.findWithLockByPhoneAndChannelIdAndDeleted("13800000002", 1L, (byte) 0)).thenReturn(Optional.of(receiver));
         stubLatestGift(giftLog);
         when(transactionLogRepository.sumConsumedAfter(2L, (byte) 0, giftLog.getCreatedAt(), 101L)).thenReturn(0);
         when(transactionLogRepository.sumReclaimedForSourceLog(1L, (byte) 0, 101L)).thenReturn(0);
@@ -254,7 +266,7 @@ class ComputeServiceTest {
         User receiver = user(2L, "13800000002", 8, 0);
         TransactionLog giftLog = giftLog(100L, 1L, "13800000002", 10);
         when(userRepository.findWithLockByIdAndDeleted(1L, (byte) 0)).thenReturn(Optional.of(fromUser));
-        when(userRepository.findWithLockByPhoneAndDeleted("13800000002", (byte) 0)).thenReturn(Optional.of(receiver));
+        when(userRepository.findWithLockByPhoneAndChannelIdAndDeleted("13800000002", 1L, (byte) 0)).thenReturn(Optional.of(receiver));
         stubLatestGift(giftLog);
         when(transactionLogRepository.sumConsumedAfter(2L, (byte) 0, giftLog.getCreatedAt(), 100L)).thenReturn(8);
         when(transactionLogRepository.sumReclaimedForSourceLog(1L, (byte) 0, 100L)).thenReturn(1);
@@ -272,7 +284,7 @@ class ComputeServiceTest {
         User receiver = user(2L, "13800000002", 1, 0);
         TransactionLog giftLog = giftLog(100L, 1L, "13800000002", 10);
         when(userRepository.findWithLockByIdAndDeleted(1L, (byte) 0)).thenReturn(Optional.of(fromUser));
-        when(userRepository.findWithLockByPhoneAndDeleted("13800000002", (byte) 0)).thenReturn(Optional.of(receiver));
+        when(userRepository.findWithLockByPhoneAndChannelIdAndDeleted("13800000002", 1L, (byte) 0)).thenReturn(Optional.of(receiver));
         stubLatestGift(giftLog);
         when(transactionLogRepository.sumConsumedAfter(2L, (byte) 0, giftLog.getCreatedAt(), 100L)).thenReturn(0);
         when(transactionLogRepository.sumReclaimedForSourceLog(1L, (byte) 0, 100L)).thenReturn(0);
@@ -291,6 +303,7 @@ class ComputeServiceTest {
         user.setPhone(phone);
         user.setComputeBalance(balance);
         user.setNonTransferableComputeBalance(nonTransferableBalance);
+        user.setChannelId(1L);
         return user;
     }
 
@@ -302,6 +315,7 @@ class ComputeServiceTest {
         log.setAmount(amount);
         log.setToPhone(toPhone);
         log.setToName("receiver");
+        log.setChannelId(1L);
         log.setRemark("赠送算力给 " + toPhone);
         log.setCreatedAt(LocalDateTime.of(2026, 6, 10, 1, 0).plusMinutes(id));
         return log;
@@ -309,8 +323,9 @@ class ComputeServiceTest {
 
     private void stubLatestGift(TransactionLog giftLog) {
         when(transactionLogRepository
-                .findFirstByUserIdAndTypeAndToPhoneAndRelatedLogIdIsNullAndRemarkStartingWithAndDeletedOrderByCreatedAtDescIdDesc(
+                .findFirstByUserIdAndChannelIdAndTypeAndToPhoneAndRemarkStartingWithAndDeletedOrderByCreatedAtDescIdDesc(
                         giftLog.getUserId(),
+                        giftLog.getChannelId(),
                         "OUT",
                         giftLog.getToPhone(),
                         "赠送算力给 ",

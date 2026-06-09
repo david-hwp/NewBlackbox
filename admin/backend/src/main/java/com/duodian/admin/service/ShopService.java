@@ -2,6 +2,7 @@ package com.duodian.admin.service;
 
 import com.duodian.admin.entity.Shop;
 import com.duodian.admin.repository.ShopRepository;
+import com.duodian.admin.repository.UserRepository;
 import com.duodian.admin.util.ShopExpiration;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -16,13 +17,19 @@ public class ShopService {
     private static final byte DELETED = 1;
 
     private final ShopRepository shopRepository;
+    private final UserRepository userRepository;
 
-    public ShopService(ShopRepository shopRepository) {
+    public ShopService(ShopRepository shopRepository, UserRepository userRepository) {
         this.shopRepository = shopRepository;
+        this.userRepository = userRepository;
     }
 
     public List<Shop> findAll() {
         return shopRepository.findByDeleted(ACTIVE);
+    }
+
+    public List<Shop> findByChannelId(Long channelId) {
+        return shopRepository.findByChannelIdAndDeleted(channelId, ACTIVE);
     }
 
     public Optional<Shop> findById(Long id) {
@@ -43,6 +50,7 @@ public class ShopService {
 
     public Page<Shop> search(
             Long userId,
+            Long channelId,
             String packageName,
             String platform,
             String phone,
@@ -53,6 +61,7 @@ public class ShopService {
         return shopRepository.searchShops(
                 ACTIVE,
                 userId,
+                channelId,
                 normalize(packageName),
                 normalize(platform),
                 normalize(phone),
@@ -64,6 +73,7 @@ public class ShopService {
 
     public Shop create(Shop shop) {
         shop.setDeleted(ACTIVE);
+        stampChannel(shop);
         ShopExpiration.applyRemainingDays(shop);
         return shopRepository.save(shop);
     }
@@ -103,6 +113,11 @@ public class ShopService {
         String previousShopName = normalize(existing.getShopName());
         String nextShopName = normalize(shop.getShopName());
         existing.setShopName(shop.getShopName());
+        if (shop.getChannelId() != null) {
+            existing.setChannelId(shop.getChannelId());
+        } else if (existing.getChannelId() == null) {
+            stampChannel(existing);
+        }
         existing.setShopId(resolveEditableShopId(existing.getShopId(), shop.getShopId(), previousShopName, nextShopName));
         existing.setPlatform(shop.getPlatform());
         existing.setPlatformName(shop.getPlatformName());
@@ -172,6 +187,14 @@ public class ShopService {
             return null;
         }
         return value.trim();
+    }
+
+    private void stampChannel(Shop shop) {
+        if (shop.getChannelId() != null || shop.getUserId() == null) {
+            return;
+        }
+        userRepository.findByIdAndDeleted(shop.getUserId(), ACTIVE)
+                .ifPresent(user -> shop.setChannelId(user.getChannelId()));
     }
 
     private String resolveEditableShopId(

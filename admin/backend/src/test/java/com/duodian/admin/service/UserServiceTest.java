@@ -6,6 +6,7 @@ import com.duodian.admin.repository.PlatformConfigRepository;
 import com.duodian.admin.repository.ShopRepository;
 import com.duodian.admin.repository.TransactionLogRepository;
 import com.duodian.admin.repository.UserRepository;
+import com.duodian.admin.repository.ChannelRepository;
 import org.junit.jupiter.api.Test;
 
 import java.util.Optional;
@@ -24,12 +25,14 @@ class UserServiceTest {
     private final PlatformConfigRepository platformConfigRepository = mock(PlatformConfigRepository.class);
     private final PasswordService passwordService = mock(PasswordService.class);
     private final TransactionLogRepository transactionLogRepository = mock(TransactionLogRepository.class);
+    private final ChannelRepository channelRepository = mock(ChannelRepository.class);
     private final UserService userService = new UserService(
             userRepository,
             shopRepository,
             platformConfigRepository,
             passwordService,
-            transactionLogRepository
+            transactionLogRepository,
+            channelRepository
     );
 
     @Test
