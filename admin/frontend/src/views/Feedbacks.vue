@@ -9,6 +9,16 @@
       </template>
 
       <el-form class="filter-bar" :model="filters" inline @submit.prevent>
+        <el-form-item v-if="isSuperAdmin" label="渠道">
+          <el-select v-model="filters.channelId" clearable filterable placeholder="全部渠道" style="width: 190px">
+            <el-option
+              v-for="channel in channels"
+              :key="channel.id"
+              :label="formatChannelLabel(channel)"
+              :value="channel.id"
+            />
+          </el-select>
+        </el-form-item>
         <el-form-item label="手机号">
           <el-input v-model="filters.userPhone" clearable placeholder="输入用户手机号" style="width: 180px" @keyup.enter="handleSearch" />
         </el-form-item>
@@ -31,6 +41,11 @@
       <el-table :data="feedbacks" v-loading="loading" style="width: 100%">
         <el-table-column prop="id" label="ID" width="70" />
         <el-table-column prop="userPhone" label="用户手机号" width="140" />
+        <el-table-column label="渠道" min-width="130">
+          <template #default="{ row }">
+            <el-tag size="small">{{ channelText(row) }}</el-tag>
+          </template>
+        </el-table-column>
         <el-table-column label="来源" width="110">
           <template #default="{ row }">
             <el-tag :type="row.source === 'ENGINE_LOG' ? 'warning' : 'success'" size="small">
@@ -80,7 +95,13 @@
         </el-table-column>
         <el-table-column prop="status" label="状态" width="120">
           <template #default="{ row }">
-            <el-select v-model="row.status" size="small" @change="updateStatus(row)" style="width: 110px">
+            <el-select
+              v-model="row.status"
+              size="small"
+              :disabled="isReadonlyChannel"
+              @change="updateStatus(row)"
+              style="width: 110px"
+            >
               <el-option label="待处理" value="PENDING" />
               <el-option label="处理中" value="PROCESSING" />
               <el-option label="已解决" value="RESOLVED" />
@@ -88,7 +109,7 @@
           </template>
         </el-table-column>
         <el-table-column prop="createdAt" label="提交时间" width="180" />
-        <el-table-column label="操作" width="90" fixed="right">
+        <el-table-column v-if="isSuperAdmin" label="操作" width="90" fixed="right">
           <template #default="{ row }">
             <el-button type="danger" link @click="handleDelete(row)">删除</el-button>
           </template>
@@ -150,6 +171,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowLeft, ArrowRight, Download, Refresh, ZoomIn, ZoomOut } from '@element-plus/icons-vue'
 import request from '../utils/request'
 import { fetchFileBlob, getObjectUrl, getPreferredImageObjectUrl } from '../utils/files'
+import { channelFilterParam, formatChannelLabel, useAdminSession } from '../utils/adminSession'
 
 const feedbacks = ref([])
 const loading = ref(false)
@@ -159,7 +181,8 @@ const previewStageRef = ref(null)
 const filters = ref({
   userPhone: '',
   status: '',
-  content: ''
+  content: '',
+  channelId: ''
 })
 const pagination = ref({
   page: 1,
@@ -176,6 +199,7 @@ const preview = reactive({
   naturalWidth: 0,
   naturalHeight: 0
 })
+const { channels, isSuperAdmin, isReadonlyChannel, fetchChannels, channelText } = useAdminSession()
 
 const previewImageStyle = computed(() => {
   if (!preview.naturalWidth || !preview.naturalHeight) {
@@ -196,7 +220,8 @@ const fetchFeedbacks = async () => {
         size: pagination.value.size,
         userPhone: filters.value.userPhone || undefined,
         status: filters.value.status || undefined,
-        content: filters.value.content || undefined
+        content: filters.value.content || undefined,
+        channelId: channelFilterParam(isSuperAdmin.value, filters.value.channelId)
       }
     })
     feedbacks.value = result.list || result.content || []
@@ -216,7 +241,8 @@ const resetFilters = () => {
   filters.value = {
     userPhone: '',
     status: '',
-    content: ''
+    content: '',
+    channelId: ''
   }
   pagination.value.page = 1
   fetchFeedbacks()
@@ -240,6 +266,7 @@ const imageList = (value) => {
 }
 
 const updateStatus = async (row) => {
+  if (isReadonlyChannel.value) return
   await request.put(`/feedbacks/${row.id}/status`, { status: row.status })
   ElMessage.success('状态已更新')
 }
@@ -390,7 +417,9 @@ onBeforeUnmount(() => {
   objectUrlCache.clear()
 })
 
-onMounted(fetchFeedbacks)
+onMounted(() => {
+  fetchChannels().finally(fetchFeedbacks)
+})
 </script>
 
 <style scoped>

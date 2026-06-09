@@ -4,11 +4,21 @@
       <template #header>
         <div class="card-header">
           <span>交易日志</span>
-          <el-button type="primary" @click="showAddDialog">新增记录</el-button>
+          <el-button v-if="isSuperAdmin" type="primary" @click="showAddDialog">新增记录</el-button>
         </div>
       </template>
 
       <el-form class="filter-bar" :model="filters" inline @submit.prevent>
+        <el-form-item v-if="isSuperAdmin" label="渠道">
+          <el-select v-model="filters.channelId" clearable filterable placeholder="全部渠道" style="width: 190px">
+            <el-option
+              v-for="channel in channels"
+              :key="channel.id"
+              :label="formatChannelLabel(channel)"
+              :value="channel.id"
+            />
+          </el-select>
+        </el-form-item>
         <el-form-item label="类型">
           <el-select v-model="filters.type" clearable placeholder="全部类型" style="width: 140px">
             <el-option label="消耗" value="CONSUME" />
@@ -49,11 +59,16 @@
             {{ formatAssociatedUser(row) }}
           </template>
         </el-table-column>
+        <el-table-column label="渠道" min-width="130">
+          <template #default="{ row }">
+            <el-tag size="small">{{ channelText(row) }}</el-tag>
+          </template>
+        </el-table-column>
         <el-table-column prop="fromPhone" label="转出方" />
         <el-table-column prop="toPhone" label="接收方" />
         <el-table-column prop="remark" label="备注" />
         <el-table-column prop="createdAt" label="时间" />
-        <el-table-column label="操作" width="100">
+        <el-table-column v-if="isSuperAdmin" label="操作" width="100">
           <template #default="{ row }">
             <el-button type="danger" link @click="handleDelete(row)">删除</el-button>
           </template>
@@ -119,6 +134,7 @@
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import request from '../utils/request'
+import { channelFilterParam, formatChannelLabel, useAdminSession } from '../utils/adminSession'
 
 const logs = ref([])
 const users = ref([])
@@ -128,7 +144,8 @@ const formRef = ref()
 const filters = ref({
   type: '',
   phone: '',
-  shopName: ''
+  shopName: '',
+  channelId: ''
 })
 const pagination = ref({
   page: 1,
@@ -136,6 +153,7 @@ const pagination = ref({
   total: 0
 })
 const form = ref({ type: '', amount: 0, userId: '', platform: '', shopName: '', fromPhone: '', toPhone: '', remark: '' })
+const { channels, isSuperAdmin, fetchChannels, channelText } = useAdminSession()
 
 const rules = {
   type: [{ required: true, message: '请选择类型', trigger: 'change' }],
@@ -152,7 +170,8 @@ const fetchLogs = async () => {
         size: pagination.value.size,
         type: filters.value.type || undefined,
         phone: filters.value.phone || undefined,
-        shopName: filters.value.shopName || undefined
+        shopName: filters.value.shopName || undefined,
+        channelId: channelFilterParam(isSuperAdmin.value, filters.value.channelId)
       }
     })
     logs.value = result.list || result.content || []
@@ -175,7 +194,8 @@ const resetFilters = () => {
   filters.value = {
     type: '',
     phone: '',
-    shopName: ''
+    shopName: '',
+    channelId: ''
   }
   pagination.value.page = 1
   fetchLogs()
@@ -212,6 +232,7 @@ const formatAssociatedUser = (row) => {
 }
 
 const showAddDialog = () => {
+  if (!isSuperAdmin.value) return
   form.value = { type: '', amount: 0, userId: '', platform: '', shopName: '', fromPhone: '', toPhone: '', remark: '' }
   dialogVisible.value = true
 }
@@ -242,8 +263,10 @@ const handleDelete = async (row) => {
 }
 
 onMounted(() => {
-  fetchLogs()
-  fetchUsers()
+  fetchChannels().finally(() => {
+    fetchLogs()
+    fetchUsers()
+  })
 })
 </script>
 
