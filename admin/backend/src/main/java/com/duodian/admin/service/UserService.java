@@ -56,6 +56,10 @@ public class UserService {
         return userRepository.findByPhoneAndDeleted(phone, ACTIVE);
     }
 
+    public Optional<User> findByPhoneInChannel(String phone, Long channelId) {
+        return userRepository.findFirstByPhoneAndChannelIdAndDeleted(phone, channelId, ACTIVE);
+    }
+
     @Transactional
     public User refreshShopStats(Long userId) {
         User user = userRepository.findByIdAndDeleted(userId, ACTIVE)
@@ -103,6 +107,16 @@ public class UserService {
         User saved = userRepository.save(existing);
         createAdminComputeAdjustmentLog(saved, newComputeBalance - oldComputeBalance);
         return saved;
+    }
+
+    @Transactional
+    public User updateProfile(Long id, User user) {
+        User existing = userRepository.findByIdAndDeleted(id, ACTIVE)
+                .orElseThrow(() -> new RuntimeException("用户不存在"));
+        existing.setUsername(user.getUsername());
+        existing.setAvatarUrl(user.getAvatarUrl());
+        withCurrentStats(existing);
+        return userRepository.save(existing);
     }
 
     public void delete(Long id) {

@@ -2,6 +2,7 @@ package com.duodian.admin.service;
 
 import com.duodian.admin.entity.TransactionLog;
 import com.duodian.admin.repository.TransactionLogRepository;
+import com.duodian.admin.repository.UserRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -18,13 +19,19 @@ public class TransactionLogService {
     private static final byte DELETED = 1;
 
     private final TransactionLogRepository logRepository;
+    private final UserRepository userRepository;
 
-    public TransactionLogService(TransactionLogRepository logRepository) {
+    public TransactionLogService(TransactionLogRepository logRepository, UserRepository userRepository) {
         this.logRepository = logRepository;
+        this.userRepository = userRepository;
     }
 
     public List<TransactionLog> findAll() {
         return logRepository.findByDeletedOrderByCreatedAtDesc(ACTIVE);
+    }
+
+    public List<TransactionLog> findByChannelId(Long channelId) {
+        return logRepository.findByChannelIdAndDeletedOrderByCreatedAtDesc(channelId, ACTIVE);
     }
 
     public Optional<TransactionLog> findById(Long id) {
@@ -48,6 +55,10 @@ public class TransactionLogService {
 
     public TransactionLog create(TransactionLog log) {
         log.setDeleted(ACTIVE);
+        if (log.getChannelId() == null && log.getUserId() != null) {
+            userRepository.findByIdAndDeleted(log.getUserId(), ACTIVE)
+                    .ifPresent(user -> log.setChannelId(user.getChannelId()));
+        }
         return logRepository.save(log);
     }
 

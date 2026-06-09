@@ -18,8 +18,10 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.atLeastOnce;
 
 class ComputeServiceTest {
+    private long nextLogId = 100L;
 
     private final UserRepository userRepository = mock(UserRepository.class);
     private final TransactionLogRepository transactionLogRepository = mock(TransactionLogRepository.class);
@@ -129,8 +131,17 @@ class ComputeServiceTest {
     void giftComputeTransfersOnlyTransferablePortion() {
         User fromUser = user(1L, "13800000001", 5, 2);
         User toUser = user(2L, "13800000002", 0, 0);
+        fromUser.setChannelId(1L);
+        toUser.setChannelId(1L);
         when(userRepository.findByIdAndDeleted(1L, (byte) 0)).thenReturn(Optional.of(fromUser));
-        when(userRepository.findByPhoneAndDeleted("13800000002", (byte) 0)).thenReturn(Optional.of(toUser));
+        when(userRepository.findFirstByPhoneAndChannelIdAndDeleted("13800000002", 1L, (byte) 0)).thenReturn(Optional.of(toUser));
+        when(transactionLogRepository.save(argThat(log -> true))).thenAnswer(invocation -> {
+            TransactionLog log = invocation.getArgument(0);
+            if (log.getId() == null) {
+                log.setId(nextLogId++);
+            }
+            return log;
+        });
 
         computeService.giftCompute(1L, "13800000002", 3);
 
@@ -138,7 +149,7 @@ class ComputeServiceTest {
         assertThat(fromUser.getNonTransferableComputeBalance()).isEqualTo(2);
         assertThat(toUser.getComputeBalance()).isEqualTo(3);
         assertThat(toUser.getNonTransferableComputeBalance()).isZero();
-        verify(transactionLogRepository).save(argThat(log -> "OUT".equals(log.getType())));
+        verify(transactionLogRepository, atLeastOnce()).save(argThat(log -> "OUT".equals(log.getType())));
         verify(transactionLogRepository).save(argThat(log -> "IN".equals(log.getType())));
     }
 

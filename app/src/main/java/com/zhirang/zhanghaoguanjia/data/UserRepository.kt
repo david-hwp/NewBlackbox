@@ -12,7 +12,7 @@ import okhttp3.RequestBody.Companion.toRequestBody
 class UserRepository(api: ApiService) : BaseRepository(api) {
 
     suspend fun login(phone: String, password: String): Result<Pair<UserDto, String>> =
-        safeApiCall(redirectOnUnauthorized = false) { api.login(LoginRequest(phone, password)) }.map { loginResponse ->
+        safeApiCall(redirectOnUnauthorized = false) { api.login(LoginRequest(phone, password, BuildConfig.APK_CHANNEL)) }.map { loginResponse ->
             loginResponse.user to loginResponse.token
         }
 

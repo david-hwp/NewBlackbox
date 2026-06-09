@@ -7,6 +7,7 @@ import com.duodian.admin.controller.dto.LoginRequest;
 import com.duodian.admin.controller.dto.PagedResponse;
 import com.duodian.admin.entity.User;
 import com.duodian.admin.repository.UserRepository;
+import com.duodian.admin.service.PermissionService;
 import com.duodian.admin.service.UserService;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
@@ -24,10 +25,12 @@ public class UserController {
 
     private final UserService userService;
     private final UserRepository userRepository;
+    private final PermissionService permissionService;
 
-    public UserController(UserService userService, UserRepository userRepository) {
+    public UserController(UserService userService, UserRepository userRepository, PermissionService permissionService) {
         this.userService = userService;
         this.userRepository = userRepository;
+        this.permissionService = permissionService;
     }
 
     @GetMapping
@@ -35,15 +38,18 @@ public class UserController {
             @RequestParam(required = false) String username,
             @RequestParam(required = false) String phone,
             @RequestParam(required = false) String role,
+            @RequestParam(required = false) Long channelId,
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size) {
-        if (page != null || size != null || hasText(username) || hasText(phone) || hasText(role)) {
+        permissionService.requireAdminRole();
+        Long effectiveChannelId = permissionService.filterChannelForQuery(channelId);
+        if (page != null || size != null || hasText(username) || hasText(phone) || hasText(role) || effectiveChannelId != null) {
             Page<User> users = userRepository.searchUsers(
                     ACTIVE,
                     normalize(username),
                     normalize(phone),
                     normalize(role),
-                    null,
+                    effectiveChannelId,
                     PageRequest.of(pageNumber(page) - 1, pageSize(size), Sort.by(Sort.Direction.DESC, "createdAt"))
             ).map(userService::withCurrentStats);
             return ApiResponse.success(PagedResponse.from(users));
@@ -53,7 +59,12 @@ public class UserController {
 
     @GetMapping("/{id}")
     public ApiResponse<User> get(@PathVariable Long id) {
+        permissionService.requireAdminRole();
         return userService.findById(id)
+                .filter(user -> {
+                    permissionService.requireChannelAccess(user.getChannelId());
+                    return true;
+                })
                 .map(userService::withCurrentStats)
                 .map(ApiResponse::success)
                 .orElse(ApiResponse.error("用户不存在"));
@@ -61,16 +72,20 @@ public class UserController {
 
     @PostMapping
     public ApiResponse<User> create(@RequestBody User user) {
+        permissionService.requireSuperAdmin();
         return ApiResponse.success(userService.create(user));
     }
 
     @PutMapping("/{id}")
     public ApiResponse<User> update(@PathVariable Long id, @RequestBody User user) {
+        permissionService.requireSuperAdmin();
+        User existing = userService.findById(id).orElseThrow(() -> new RuntimeException("用户不存在"));
         return ApiResponse.success(userService.update(id, user));
     }
 
     @DeleteMapping("/{id}")
     public ApiResponse<Void> delete(@PathVariable Long id) {
+        permissionService.requireSuperAdmin();
         userService.delete(id);
         return ApiResponse.success();
     }
@@ -109,7 +124,7 @@ public class UserController {
         if (request.containsKey("avatarUrl")) {
             user.setAvatarUrl(avatarUrl == null || avatarUrl.isBlank() ? null : avatarUrl.trim());
         }
-        return ApiResponse.success(userService.update(userId, user));
+        return ApiResponse.success(userService.updateProfile(userId, user));
     }
 
     @PutMapping("/me/password")

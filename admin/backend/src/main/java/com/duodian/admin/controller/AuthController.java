@@ -38,7 +38,13 @@ public class AuthController {
             if ("USER".equalsIgnoreCase(user.getRole())) {
                 channelScopeService.requireActiveForApp(channel);
             }
-            String token = jwtUtil.generateToken(user.getId(), user.getPhone());
+            String token = jwtUtil.generateToken(
+                    user.getId(),
+                    user.getPhone(),
+                    user.getRole(),
+                    user.getChannelId(),
+                    user.getApkChannel()
+            );
 
             Map<String, Object> result = new HashMap<>();
             result.put("user", user);

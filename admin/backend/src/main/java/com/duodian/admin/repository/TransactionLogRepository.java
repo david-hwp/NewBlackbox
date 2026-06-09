@@ -15,6 +15,7 @@ import java.util.List;
 public interface TransactionLogRepository extends JpaRepository<TransactionLog, Long> {
     List<TransactionLog> findByDeletedOrderByCreatedAtDesc(Byte deleted);
     java.util.Optional<TransactionLog> findByIdAndDeleted(Long id, Byte deleted);
+    List<TransactionLog> findByChannelIdAndDeletedOrderByCreatedAtDesc(Long channelId, Byte deleted);
     List<TransactionLog> findByUserIdAndDeletedOrderByCreatedAtDesc(Long userId, Byte deleted);
     List<TransactionLog> findByTypeAndDeletedOrderByCreatedAtDesc(String type, Byte deleted);
 
@@ -24,6 +25,7 @@ public interface TransactionLogRepository extends JpaRepository<TransactionLog, 
             left join User u on u.id = t.userId and u.deleted = :active
             where t.deleted = :active
               and (:userId is null or t.userId = :userId)
+              and (:channelId is null or t.channelId = :channelId)
               and (:type is null or t.type = :type)
               and (:phone is null or t.fromPhone like concat('%', :phone, '%')
                    or t.toPhone like concat('%', :phone, '%')
@@ -33,6 +35,7 @@ public interface TransactionLogRepository extends JpaRepository<TransactionLog, 
     Page<TransactionLog> searchLogs(
             @Param("active") Byte active,
             @Param("userId") Long userId,
+            @Param("channelId") Long channelId,
             @Param("type") String type,
             @Param("phone") String phone,
             @Param("shopName") String shopName,

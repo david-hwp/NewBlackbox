@@ -2,6 +2,7 @@ package com.zhirang.zhanghaoguanjia.network
 
 import okhttp3.Interceptor
 import okhttp3.Response
+import com.zhirang.zhanghaoguanjia.BuildConfig
 import com.zhirang.zhanghaoguanjia.data.TokenManager
 
 class AuthInterceptor : Interceptor {
@@ -10,14 +11,12 @@ class AuthInterceptor : Interceptor {
         val request = chain.request()
         val token = TokenManager.getInstance().getToken()
 
-        val newRequest = if (!token.isNullOrEmpty()) {
-            request.newBuilder()
-                .header("Authorization", "Bearer $token")
-                .build()
-        } else {
-            request
+        val builder = request.newBuilder()
+            .header("X-Apk-Channel", BuildConfig.APK_CHANNEL)
+        if (!token.isNullOrEmpty()) {
+            builder.header("Authorization", "Bearer $token")
         }
 
-        return chain.proceed(newRequest)
+        return chain.proceed(builder.build())
     }
 }
