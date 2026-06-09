@@ -73,6 +73,14 @@ interface ApiService {
     @POST("compute/gift")
     suspend fun giftCompute(@Body request: GiftRequest): ApiResponse<GiftResult>
 
+    @GET("compute/reclaim/latest")
+    suspend fun getLatestReclaimableCompute(
+        @Query("toPhone") toPhone: String
+    ): ApiResponse<ComputeReclaimResult>
+
+    @POST("compute/reclaim")
+    suspend fun reclaimCompute(@Body request: ComputeReclaimRequest): ApiResponse<ComputeReclaimResult>
+
     @GET("logs/my")
     suspend fun getMyLogs(
         @Query("type") type: String? = null,

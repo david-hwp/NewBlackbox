@@ -24,6 +24,7 @@ import com.zhirang.zhanghaoguanjia.view.gift.GiftActivity
 import com.zhirang.zhanghaoguanjia.view.home.HomeActivity
 import com.zhirang.zhanghaoguanjia.view.logs.LogsActivity
 import com.zhirang.zhanghaoguanjia.view.login.LoginActivity
+import com.zhirang.zhanghaoguanjia.view.reclaim.ComputeReclaimActivity
 import com.zhirang.zhanghaoguanjia.view.setting.SettingActivity
 import com.zhirang.zhanghaoguanjia.view.dialog.EditUsernameSheetFragment
 import com.zhirang.zhanghaoguanjia.view.dialog.ChangePasswordSheetFragment
@@ -93,6 +94,10 @@ class ProfileActivity : AppCompatActivity() {
 
         binding.menuGift?.setOnClickListener {
             GiftActivity.start(this)
+        }
+
+        binding.menuReclaim?.setOnClickListener {
+            ComputeReclaimActivity.start(this)
         }
 
         binding.menuLogs?.setOnClickListener {

@@ -154,6 +154,23 @@
 **上下文文档**: [.planning/phases/10-engine-permission-center/10-CONTEXT.md](.planning/phases/10-engine-permission-center/10-CONTEXT.md)
 **调研文档**: [.planning/phases/10-engine-permission-center/10-RESEARCH.md](.planning/phases/10-engine-permission-center/10-RESEARCH.md)
 
+## Phase 10.1: 算力取回 📋 已规划
+
+**目标**: 在 APP 侧新增“算力取回”能力，让用户可以查询自己最近一次赠送给指定手机号的算力记录，并在对方尚未消耗的范围内取回部分或全部算力。
+
+**关键交付物**:
+
+- 后端新增算力取回查询接口：按当前登录用户和接收方手机号查询最新赠送日志，返回赠送数量、交易时间、对方消耗算力和可取回算力。
+- 后端新增算力取回执行接口：事务内重新计算可取回数量，校验通过后扣减接收方余额、增加当前用户余额，并写入双方交易日志。
+- APP “我的 -> 算力管理”中在“算力赠送”下方新增“算力取回”入口。
+- APP 新增算力取回页面：手机号输入 + 查询按钮 + 小票式结果卡片 + 底部取回按钮。
+- 取回弹窗默认填入可取回数量，APP 侧校验不得超过可取回算力个数；后端校验失败提示“对方新增了消耗，请重新查询可取回算力”。
+- 无赠送记录时提示“未查询到您给对方的赠送记录”。
+
+**计划文档**: [.planning/phases/10.1-compute-reclaim/10.1-PLAN.md](.planning/phases/10.1-compute-reclaim/10.1-PLAN.md)
+**上下文文档**: [.planning/phases/10.1-compute-reclaim/10.1-CONTEXT.md](.planning/phases/10.1-compute-reclaim/10.1-CONTEXT.md)
+**调研文档**: [.planning/phases/10.1-compute-reclaim/10.1-RESEARCH.md](.planning/phases/10.1-compute-reclaim/10.1-RESEARCH.md)
+
 ## Phase 11: 渠道推广完整体系 📋 已规划
 
 **目标**: 将现有 `apkChannel` 注册标识升级为完整渠道推广体系，支持不同渠道拥有独立 APK 发布、用户注册、公告、主 APK 升级和用户算力隔离，同时由超级管理员统一管理渠道、渠道管理员和渠道总算力池。

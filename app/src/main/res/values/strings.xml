@@ -105,8 +105,10 @@
     <!-- Phase 8 Wave 1 -->
     <string name="profile_title">我的</string>
     <string name="gift_title">算力赠送</string>
+    <string name="reclaim_title">算力取回</string>
     <string name="logs_title">交易日志</string>
     <string name="menu_gift_compute">算力赠送</string>
+    <string name="menu_reclaim_compute">算力取回</string>
     <string name="menu_transaction_logs">交易日志</string>
     <string name="menu_change_username">修改用户名</string>
     <string name="menu_change_password">修改密码</string>
@@ -149,6 +151,25 @@
     <string name="gift_confirm_target">对方手机号</string>
     <string name="gift_confirm_amount">赠送数量</string>
     <string name="gift_confirm_unit">算力</string>
+    <string name="query">查询</string>
+    <string name="querying">查询中</string>
+    <string name="reclaim_action">取回</string>
+    <string name="reclaim_receipt_title">取回小票</string>
+    <string name="reclaim_receipt_phone">对方手机号</string>
+    <string name="reclaim_receipt_time">交易发生时间</string>
+    <string name="reclaim_receipt_gift_amount">转赠总数</string>
+    <string name="reclaim_receipt_consumed">用户消耗算力</string>
+    <string name="reclaim_receipt_already_reclaimed">已取回算力</string>
+    <string name="reclaim_receipt_reclaimable">可取回算力</string>
+    <string name="reclaim_compute_unit">%1$d 算力</string>
+    <string name="reclaim_dialog_title">取回算力</string>
+    <string name="reclaim_dialog_amount">取回数量</string>
+    <string name="reclaim_dialog_max_amount">最多可取回 %1$d 算力</string>
+    <string name="reclaim_confirm">确认取回</string>
+    <string name="reclaim_success_with_amount">已取回 %1$d 算力</string>
+    <string name="reclaim_none_available">当前没有可取回算力</string>
+    <string name="error_reclaim_amount_invalid">请输入有效的取回数量</string>
+    <string name="error_reclaim_amount_exceeds">不得超过可取回算力个数</string>
 
     <!-- 首页 UI 字符串 -->
     <string name="duodian_subtitle">多平台店铺一站式管理</string>

@@ -10,13 +10,51 @@ import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface TransactionLogRepository extends JpaRepository<TransactionLog, Long> {
     List<TransactionLog> findByDeletedOrderByCreatedAtDesc(Byte deleted);
-    java.util.Optional<TransactionLog> findByIdAndDeleted(Long id, Byte deleted);
+    Optional<TransactionLog> findByIdAndDeleted(Long id, Byte deleted);
     List<TransactionLog> findByUserIdAndDeletedOrderByCreatedAtDesc(Long userId, Byte deleted);
     List<TransactionLog> findByTypeAndDeletedOrderByCreatedAtDesc(String type, Byte deleted);
+
+    Optional<TransactionLog> findFirstByUserIdAndTypeAndToPhoneAndRelatedLogIdIsNullAndRemarkStartingWithAndDeletedOrderByCreatedAtDescIdDesc(
+            Long userId,
+            String type,
+            String toPhone,
+            String remarkPrefix,
+            Byte deleted
+    );
+
+    @Query("""
+            select coalesce(sum(t.amount), 0)
+            from TransactionLog t
+            where t.userId = :userId
+              and t.deleted = :active
+              and t.type = 'CONSUME'
+              and (t.createdAt > :createdAt or (t.createdAt = :createdAt and t.id > :logId))
+            """)
+    Integer sumConsumedAfter(
+            @Param("userId") Long userId,
+            @Param("active") Byte active,
+            @Param("createdAt") LocalDateTime createdAt,
+            @Param("logId") Long logId
+    );
+
+    @Query("""
+            select coalesce(sum(t.amount), 0)
+            from TransactionLog t
+            where t.userId = :userId
+              and t.deleted = :active
+              and t.type = 'IN'
+              and t.relatedLogId = :relatedLogId
+            """)
+    Integer sumReclaimedForSourceLog(
+            @Param("userId") Long userId,
+            @Param("active") Byte active,
+            @Param("relatedLogId") Long relatedLogId
+    );
 
     @Query("""
             select t

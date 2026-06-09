@@ -87,11 +87,13 @@ CREATE TABLE IF NOT EXISTS transaction_logs (
     from_name VARCHAR(64) COMMENT '转出方姓名',
     to_phone VARCHAR(20) COMMENT '接收方手机号',
     to_name VARCHAR(64) COMMENT '接收方姓名',
+    related_log_id BIGINT COMMENT '关联交易日志ID',
     remark VARCHAR(256) COMMENT '备注',
     deleted TINYINT(1) NOT NULL DEFAULT 0 COMMENT '软删除: 0-正常 1-已删除',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_user_id (user_id),
     INDEX idx_type (type),
+    INDEX idx_related_log_id (related_log_id),
     INDEX idx_deleted (deleted),
     INDEX idx_created_at (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='交易日志表';

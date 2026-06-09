@@ -43,7 +43,17 @@ public class SoftDeleteSchemaInitializer implements CommandLineRunner {
         }
         ensureAnnouncementTypeColumn();
         ensureUserApkChannelColumn();
+        ensureTransactionLogReclaimColumns();
         ensureCloneColumns();
+    }
+
+    private void ensureTransactionLogReclaimColumns() throws Exception {
+        if (!hasColumn("transaction_logs", "related_log_id")) {
+            jdbcTemplate.execute("ALTER TABLE transaction_logs ADD COLUMN related_log_id BIGINT");
+        }
+        if (!hasIndex("transaction_logs", "idx_related_log_id")) {
+            jdbcTemplate.execute("CREATE INDEX idx_related_log_id ON transaction_logs (related_log_id)");
+        }
     }
 
     private void ensureUserApkChannelColumn() throws Exception {

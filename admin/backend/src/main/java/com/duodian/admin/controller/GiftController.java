@@ -2,6 +2,8 @@ package com.duodian.admin.controller;
 
 import com.duodian.admin.config.AuthContext;
 import com.duodian.admin.controller.dto.ApiResponse;
+import com.duodian.admin.controller.dto.ComputeReclaimRequest;
+import com.duodian.admin.controller.dto.ComputeReclaimResponse;
 import com.duodian.admin.controller.dto.GiftRequest;
 import com.duodian.admin.entity.User;
 import com.duodian.admin.service.ComputeService;
@@ -45,6 +47,39 @@ public class GiftController {
             result.put("toBalance", toUser != null ? toUser.getComputeBalance() : 0);
 
             return ApiResponse.success(result);
+        } catch (RuntimeException e) {
+            return ApiResponse.error(e.getMessage());
+        }
+    }
+
+    @GetMapping("/reclaim/latest")
+    public ApiResponse<ComputeReclaimResponse> latestReclaimable(@RequestParam String toPhone) {
+        Long fromUserId = AuthContext.getUserId();
+        if (fromUserId == null) {
+            return ApiResponse.error(401, "未登录");
+        }
+
+        try {
+            return ApiResponse.success(computeService.getLatestReclaimable(fromUserId, toPhone));
+        } catch (RuntimeException e) {
+            return ApiResponse.error(e.getMessage());
+        }
+    }
+
+    @PostMapping("/reclaim")
+    public ApiResponse<ComputeReclaimResponse> reclaim(@Valid @RequestBody ComputeReclaimRequest request) {
+        Long fromUserId = AuthContext.getUserId();
+        if (fromUserId == null) {
+            return ApiResponse.error(401, "未登录");
+        }
+
+        try {
+            return ApiResponse.success(computeService.reclaimCompute(
+                    fromUserId,
+                    request.getToPhone(),
+                    request.getGiftLogId(),
+                    request.getAmount()
+            ));
         } catch (RuntimeException e) {
             return ApiResponse.error(e.getMessage());
         }

@@ -36,6 +36,9 @@ public class TransactionLog {
     @Column(name = "to_name")
     private String toName;
 
+    @Column(name = "related_log_id")
+    private Long relatedLogId;
+
     private String remark;
 
     @Column(nullable = false, columnDefinition = "TINYINT DEFAULT 0")
@@ -83,6 +86,9 @@ public class TransactionLog {
 
     public String getToName() { return toName; }
     public void setToName(String toName) { this.toName = toName; }
+
+    public Long getRelatedLogId() { return relatedLogId; }
+    public void setRelatedLogId(Long relatedLogId) { this.relatedLogId = relatedLogId; }
 
     public String getRemark() { return remark; }
     public void setRemark(String remark) { this.remark = remark; }
