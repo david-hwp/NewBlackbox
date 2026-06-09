@@ -34,9 +34,6 @@ app/src/main/assets/engine/
 # Engine AIDL build outputs
 engine-aidl/build/
 
-# Planning docs (local only)
-.planning/
-
 # Admin generated files
 /admin/backend/target/
 /admin/backend/logs/

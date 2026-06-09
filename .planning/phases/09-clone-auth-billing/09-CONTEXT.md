@@ -161,7 +161,7 @@
   "cloneInstanceId": "CLN1-...",
   "packageName": "com.jd.mrd.jingming",
   "serverUserId": 123,
-  "phone": "13265710803",
+  "phone": "<user_phone>",
   "localVirtualUserId": 7,
   "publicKeyId": "rsa_2026_01"
 }

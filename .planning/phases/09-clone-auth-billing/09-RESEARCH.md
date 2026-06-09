@@ -67,7 +67,7 @@ CLN1-{phone}-{packageName}-N{cloneSequence}-U{localVirtualUserId}-R{randomDigest
 {
   "typ": "clone_auth",
   "serverUserId": 123,
-  "phone": "13265710803",
+  "phone": "<user_phone>",
   "cloneInstanceId": "CLN1-...",
   "packageName": "com.jd.mrd.jingming",
   "localVirtualUserId": 7,

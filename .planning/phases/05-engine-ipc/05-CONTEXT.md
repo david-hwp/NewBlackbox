@@ -127,7 +127,7 @@
 interface IBlackBoxEngine {
     int getVersionCode();
     String getVersionName();
-    
+
     // Core
     boolean launchApk(String packageName, int userId);
     InstallResult installPackageAsUser(String path, int userId);
@@ -136,31 +136,31 @@ interface IBlackBoxEngine {
     List<BUserInfo> getUsers();
     BUserInfo createUser(int userId);
     void deleteUser(int userId);
-    
+
     // Facades
     IBPackageManagerService getPackageManager();
     IBActivityManagerService getActivityManager();
     IBLocationManagerService getLocationManager();
     IBUserManagerService getUserManager();
-    
+
     // GMS
     boolean isSupportGms();
     boolean isInstallGms(int userId);
     InstallResult installGms(int userId);
     boolean uninstallGms(int userId);
-    
+
     // Logging
     void sendLogs(String caption, boolean async);
-    
+
     // ShopId (Phase 4)
     void registerShopCallback(IEngineShopCallback callback);
     void triggerShopIdExtract(String packageName, int userId);
-    
+
     // Auth (for Phase 6)
     void registerSession(String sessionId, long expireAt);
     void unregisterSession();
     boolean isSessionActive();
-    
+
     // Lifecycle
     void addServiceAvailableCallback(IServiceAvailableCallback callback);
 }
