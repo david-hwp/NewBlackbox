@@ -20,6 +20,8 @@ public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findByIdAndDeleted(Long id, Byte deleted);
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     Optional<User> findWithLockByIdAndDeleted(Long id, Byte deleted);
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    Optional<User> findWithLockByPhoneAndDeleted(String phone, Byte deleted);
     Optional<User> findByPhoneAndDeleted(String phone, Byte deleted);
     boolean existsByPhoneAndDeleted(String phone, Byte deleted);
 

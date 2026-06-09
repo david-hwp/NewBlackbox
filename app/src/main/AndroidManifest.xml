@@ -101,6 +101,10 @@
             android:exported="false"
             android:theme="@style/Theme.Duodian" />
         <activity
+            android:name=".view.reclaim.ComputeReclaimActivity"
+            android:exported="false"
+            android:theme="@style/Theme.Duodian" />
+        <activity
             android:name=".view.logs.LogsActivity"
             android:exported="false"
             android:theme="@style/Theme.Duodian" />

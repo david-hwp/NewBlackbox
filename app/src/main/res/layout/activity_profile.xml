@@ -291,6 +291,43 @@
                     android:background="@color/duodian_divider" />
 
                 <LinearLayout
+                    android:id="@+id/menuReclaim"
+                    android:layout_width="match_parent"
+                    android:layout_height="52dp"
+                    android:background="@drawable/bg_menu_item"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:paddingHorizontal="16dp">
+
+                    <ImageView
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:src="@drawable/ic_compute_reclaim"
+                        app:tint="@color/duodian_primary" />
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="12dp"
+                        android:layout_weight="1"
+                        android:text="@string/menu_reclaim_compute"
+                        android:textColor="@color/duodian_text_primary"
+                        android:textSize="15sp" />
+
+                    <ImageView
+                        android:layout_width="20dp"
+                        android:layout_height="20dp"
+                        android:src="@drawable/ic_arrow_right"
+                        app:tint="@color/duodian_text_hint" />
+                </LinearLayout>
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:layout_marginStart="52dp"
+                    android:background="@color/duodian_divider" />
+
+                <LinearLayout
                     android:id="@+id/menuLogs"
                     android:layout_width="match_parent"
                     android:layout_height="52dp"
