@@ -18,6 +18,8 @@ def duodianBuildConfigString = { value ->
 }
 def apkChannel = duodianStringProperty("DUODIAN_APK_CHANNEL", "main")
 def engineApplicationId = duodianStringProperty("DUODIAN_ENGINE_APPLICATION_ID", "com.zhirang.zhanghaoguanjia.engine")
+def engineDataRootName = duodianStringProperty("DUODIAN_ENGINE_DATA_ROOT_NAME", "blackbox")
+def engineDisplayName = duodianStringProperty("DUODIAN_ENGINE_NAME", "@string/engine_app_name")
 
 android {
     namespace 'top.niunaijun.blackbox'
@@ -38,7 +40,9 @@ android {
         versionCode engineVersionCodeOverride.toString().toInteger()
         versionName engineVersionNameOverride.toString()
         buildConfigField "String", "APK_CHANNEL", duodianBuildConfigString(apkChannel)
+        buildConfigField "String", "ENGINE_DATA_ROOT_NAME", duodianBuildConfigString(engineDataRootName)
         manifestPlaceholders = [
+                engineLabel         : engineDisplayName,
                 engineBindPermission: "${engineApplicationId}.permission.BIND_ENGINE",
                 engineTaskAffinity  : "${engineApplicationId}.task_affinity"
         ]

@@ -17,9 +17,6 @@ class EngineConnection : ServiceConnection {
 
     companion object {
         private const val TAG = "EngineConnection"
-        private const val ENGINE_PACKAGE = "com.zhirang.zhanghaoguanjia.engine"
-        private const val ENGINE_SERVICE = "top.niunaijun.blackbox.engine.BlackBoxEngineService"
-        private const val ENGINE_WAKE_ACTIVITY = "top.niunaijun.blackbox.engine.EngineWakeActivity"
         private const val WAKE_RETRY_DELAY_MS = 800L
         private val handler = Handler(Looper.getMainLooper())
 
@@ -41,20 +38,21 @@ class EngineConnection : ServiceConnection {
 
     private fun bindInternal(context: Context, allowWakeRetry: Boolean): Boolean {
         return try {
+            val enginePackage = EngineIdentity.packageName
             if (isConnected()) {
-                Log.d(TAG, "Already connected to Engine")
+                Log.d(TAG, "Already connected to Engine: $enginePackage")
                 return true
             }
 
             val intent = Intent().apply {
-                component = ComponentName(ENGINE_PACKAGE, ENGINE_SERVICE)
+                component = EngineIdentity.component(EngineIdentity.ENGINE_SERVICE_CLASS)
             }
 
             val bound = context.bindService(intent, this, Context.BIND_AUTO_CREATE)
             if (bound) {
-                Log.d(TAG, "Binding to Engine Service requested")
+                Log.d(TAG, "Binding to Engine Service requested: $enginePackage")
             } else {
-                Log.w(TAG, "Failed to bind to Engine Service")
+                Log.w(TAG, "Failed to bind to Engine Service: $enginePackage")
                 if (allowWakeRetry) {
                     wakeEngine(context)
                     val appContext = context.applicationContext ?: context
@@ -75,15 +73,15 @@ class EngineConnection : ServiceConnection {
     private fun wakeEngine(context: Context) {
         try {
             val intent = Intent().apply {
-                component = ComponentName(ENGINE_PACKAGE, ENGINE_WAKE_ACTIVITY)
+                component = EngineIdentity.component(EngineIdentity.ENGINE_WAKE_ACTIVITY_CLASS)
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
                 addFlags(Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS)
             }
             context.startActivity(intent)
-            Log.d(TAG, "Engine wake activity requested")
+            Log.d(TAG, "Engine wake activity requested: ${EngineIdentity.packageName}")
         } catch (e: Exception) {
-            Log.w(TAG, "Failed to request Engine wake activity: ${e.message}")
+            Log.w(TAG, "Failed to request Engine wake activity for ${EngineIdentity.packageName}: ${e.message}")
         }
     }
 

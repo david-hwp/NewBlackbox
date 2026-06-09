@@ -14,8 +14,6 @@ import java.util.zip.ZipFile
  */
 object EngineLoader {
     private const val TAG = "EngineLoader"
-    private const val ENGINE_PACKAGE = "com.zhirang.zhanghaoguanjia.engine"
-    private const val ENGINE_SERVICE = "top.niunaijun.blackbox.engine.BlackBoxEngineService"
 
     /**
      * Initialize the engine loading process:
@@ -28,8 +26,9 @@ object EngineLoader {
      */
     fun init(context: Context): Boolean {
         return try {
+            val enginePackage = EngineIdentity.packageName
             if (!isEngineInstalled(context)) {
-                Log.w(TAG, "Engine APK not installed: $ENGINE_PACKAGE")
+                Log.w(TAG, "Engine APK not installed: $enginePackage")
                 return false
             }
 
@@ -40,7 +39,7 @@ object EngineLoader {
             }
 
             Log.d(TAG, "Engine APK found at: $apkPath")
-            Log.d(TAG, "EngineLoader init completed successfully")
+            Log.d(TAG, "EngineLoader init completed successfully for $enginePackage")
             true
         } catch (e: Exception) {
             Log.e(TAG, "Error initializing EngineLoader: ${e.message}", e)
@@ -123,7 +122,7 @@ object EngineLoader {
      */
     fun isEngineInstalled(context: Context): Boolean {
         return try {
-            context.packageManager.getPackageInfo(ENGINE_PACKAGE, 0)
+            context.packageManager.getPackageInfo(EngineIdentity.packageName, 0)
             true
         } catch (e: PackageManager.NameNotFoundException) {
             false
@@ -138,7 +137,7 @@ object EngineLoader {
      */
     fun getEngineApkPath(context: Context): String? {
         return try {
-            val appInfo = context.packageManager.getApplicationInfo(ENGINE_PACKAGE, 0)
+            val appInfo = context.packageManager.getApplicationInfo(EngineIdentity.packageName, 0)
             appInfo.sourceDir
         } catch (e: Exception) {
             Log.w(TAG, "Error getting engine APK path: ${e.message}")

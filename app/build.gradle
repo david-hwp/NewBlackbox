@@ -15,6 +15,7 @@ def duodianBuildConfigString = { value ->
 def apkChannel = duodianStringProperty("DUODIAN_APK_CHANNEL", "main")
 def appApplicationId = duodianStringProperty("DUODIAN_APP_APPLICATION_ID", "com.zhirang.zhanghaoguanjia")
 def engineApplicationId = duodianStringProperty("DUODIAN_ENGINE_APPLICATION_ID", "com.zhirang.zhanghaoguanjia.engine")
+def appDisplayName = duodianStringProperty("DUODIAN_APP_NAME", "@string/app_name")
 
 android {
 
@@ -31,6 +32,7 @@ android {
         buildConfigField "String", "APK_CHANNEL", duodianBuildConfigString(apkChannel)
         buildConfigField "String", "ENGINE_PACKAGE", duodianBuildConfigString(engineApplicationId)
         manifestPlaceholders = [
+                appLabel                : appDisplayName,
                 appFileProviderAuthority: "${appApplicationId}.fileprovider",
                 engineBindPermission    : "${engineApplicationId}.permission.BIND_ENGINE"
         ]

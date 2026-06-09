@@ -492,7 +492,7 @@
     <application
         android:name=".engine.EngineApp"
         android:icon="@mipmap/ic_launcher"
-        android:label="@string/engine_app_name"
+        android:label="${engineLabel}"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:usesCleartextTraffic="true">
 
