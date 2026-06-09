@@ -14,6 +14,9 @@ public class Shop {
     @Column(name = "user_id", nullable = false)
     private Long userId;
 
+    @Column(name = "channel_id")
+    private Long channelId;
+
     @Column(name = "shop_name", nullable = false)
     private String shopName;
 
@@ -100,6 +103,9 @@ public class Shop {
 
     public Long getUserId() { return userId; }
     public void setUserId(Long userId) { this.userId = userId; }
+
+    public Long getChannelId() { return channelId; }
+    public void setChannelId(Long channelId) { this.channelId = channelId; }
 
     public String getShopName() { return shopName; }
     public void setShopName(String shopName) { this.shopName = shopName; }

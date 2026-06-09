@@ -432,7 +432,9 @@ public class ShopController {
     }
 
     private boolean isAdmin(User user) {
-        return user != null && "ADMIN".equalsIgnoreCase(user.getRole());
+        return user != null && ("ADMIN".equalsIgnoreCase(user.getRole())
+                || "SUPER_ADMIN".equalsIgnoreCase(user.getRole())
+                || "CHANNEL".equalsIgnoreCase(user.getRole()));
     }
 
     private boolean canAccessShop(Long id) {

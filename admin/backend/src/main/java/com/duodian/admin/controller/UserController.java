@@ -43,6 +43,7 @@ public class UserController {
                     normalize(username),
                     normalize(phone),
                     normalize(role),
+                    null,
                     PageRequest.of(pageNumber(page) - 1, pageSize(size), Sort.by(Sort.Direction.DESC, "createdAt"))
             ).map(userService::withCurrentStats);
             return ApiResponse.success(PagedResponse.from(users));

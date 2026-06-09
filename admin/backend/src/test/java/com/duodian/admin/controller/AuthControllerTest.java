@@ -3,7 +3,9 @@ package com.duodian.admin.controller;
 import com.duodian.admin.config.JwtUtil;
 import com.duodian.admin.controller.dto.ApiResponse;
 import com.duodian.admin.controller.dto.RegisterRequest;
+import com.duodian.admin.entity.Channel;
 import com.duodian.admin.entity.User;
+import com.duodian.admin.service.ChannelScopeService;
 import com.duodian.admin.service.UserService;
 import org.junit.jupiter.api.Test;
 
@@ -19,7 +21,8 @@ class AuthControllerTest {
 
     private final UserService userService = mock(UserService.class);
     private final JwtUtil jwtUtil = mock(JwtUtil.class);
-    private final AuthController controller = new AuthController(userService, jwtUtil);
+    private final ChannelScopeService channelScopeService = mock(ChannelScopeService.class);
+    private final AuthController controller = new AuthController(userService, jwtUtil, channelScopeService);
 
     @Test
     void registerGiftsNonTransferableComputeAndDoesNotLogin() {
@@ -34,13 +37,21 @@ class AuthControllerTest {
         saved.setUsername(request.getUsername());
         saved.setComputeBalance(3);
         saved.setNonTransferableComputeBalance(3);
+        Channel main = new Channel();
+        main.setId(1L);
+        main.setCode("main");
+        main.setName("默认渠道");
+        main.setStatus("ACTIVE");
+        main.setRegisterBonusCompute(3);
+        when(channelScopeService.resolveAppChannel(any(), any())).thenReturn(main);
         when(userService.create(argThat(user ->
                 user.getComputeBalance() == 3
                         && user.getNonTransferableComputeBalance() == 3
                         && user.getPhone().equals("13800138000")
+                        && user.getChannelId().equals(1L)
         ))).thenReturn(saved);
 
-        ApiResponse<Void> response = controller.register(request);
+        ApiResponse<Void> response = controller.register(request, null);
 
         assertThat(response.getCode()).isEqualTo(200);
         assertThat(response.getMessage()).isEqualTo("注册成功");

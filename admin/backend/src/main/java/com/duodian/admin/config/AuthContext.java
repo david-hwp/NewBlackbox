@@ -2,17 +2,26 @@ package com.duodian.admin.config;
 
 public class AuthContext {
 
-    private static final ThreadLocal<Long> CURRENT_USER = new ThreadLocal<>();
+    private static final ThreadLocal<CurrentPrincipal> CURRENT_PRINCIPAL = new ThreadLocal<>();
 
     public static void setUserId(Long userId) {
-        CURRENT_USER.set(userId);
+        CURRENT_PRINCIPAL.set(CurrentPrincipal.userIdOnly(userId));
+    }
+
+    public static void setPrincipal(CurrentPrincipal principal) {
+        CURRENT_PRINCIPAL.set(principal);
     }
 
     public static Long getUserId() {
-        return CURRENT_USER.get();
+        CurrentPrincipal principal = CURRENT_PRINCIPAL.get();
+        return principal == null ? null : principal.getUserId();
+    }
+
+    public static CurrentPrincipal getPrincipal() {
+        return CURRENT_PRINCIPAL.get();
     }
 
     public static void clear() {
-        CURRENT_USER.remove();
+        CURRENT_PRINCIPAL.remove();
     }
 }

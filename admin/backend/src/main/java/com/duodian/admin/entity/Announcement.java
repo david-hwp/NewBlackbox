@@ -18,6 +18,9 @@ public class Announcement {
     @Column(nullable = false, length = 128)
     private String title;
 
+    @Column(name = "channel_id")
+    private Long channelId;
+
     @Column(nullable = false, length = 4000)
     private String content;
 
@@ -68,6 +71,9 @@ public class Announcement {
 
     public String getTitle() { return title; }
     public void setTitle(String title) { this.title = title; }
+
+    public Long getChannelId() { return channelId; }
+    public void setChannelId(Long channelId) { this.channelId = channelId; }
 
     public String getContent() { return content; }
     public void setContent(String content) { this.content = content; }
