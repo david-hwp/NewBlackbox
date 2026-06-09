@@ -4,6 +4,7 @@ import android.app.ActivityManager;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.ActivityInfo;
 import android.content.pm.ProviderInfo;
 import android.content.pm.ResolveInfo;
 import android.os.Binder;
@@ -81,7 +82,12 @@ public class BActivityManagerService extends IBActivityManagerService.Stub imple
         List<ResolveInfo> resolves = BPackageManagerService.get().queryBroadcastReceivers(intent, GET_META_DATA, resolvedType, userId);
 
         for (ResolveInfo resolve : resolves) {
-            ProcessRecord processRecord = BProcessManagerService.get().findProcessRecord(resolve.activityInfo.packageName, resolve.activityInfo.processName, userId);
+            ActivityInfo receiverInfo = resolve == null ? null : resolve.activityInfo;
+            if (receiverInfo == null || receiverInfo.packageName == null || receiverInfo.processName == null) {
+                Slog.w(TAG, "Skipping invalid broadcast receiver for " + intent + ": " + resolve);
+                continue;
+            }
+            ProcessRecord processRecord = BProcessManagerService.get().findProcessRecord(receiverInfo.packageName, receiverInfo.processName, userId);
             if (processRecord == null) {
                 continue;
             }

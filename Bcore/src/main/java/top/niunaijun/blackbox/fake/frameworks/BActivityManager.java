@@ -326,7 +326,9 @@ public class BActivityManager extends BlackManager<IBActivityManagerService> {
                 return service.sendBroadcast(intent, resolvedType, userId);
             }
         } catch (RemoteException e) {
-            e.printStackTrace();
+            Slog.w(TAG, "RemoteException in sendBroadcast, falling back to host broadcast", e);
+        } catch (Exception e) {
+            Slog.w(TAG, "Unexpected error in sendBroadcast, falling back to host broadcast", e);
         }
         return null;
     }
