@@ -1,18 +1,27 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.2
-milestone_name: phase10-engine-permission-center
-status: Phase 10 implemented
-last_updated: "2026-06-08T23:25:00+08:00"
+milestone: v1.3
+milestone_name: phase11-channel-promotion-system
+status: Phase 11 planned
+last_updated: "2026-06-09T15:55:00+08:00"
 progress:
-  total_phases: 10
+  total_phases: 11
   completed_phases: 9
-  total_plans: 10
-  completed_plans: 10
+  total_plans: 11
+  completed_plans: 11
   percent: 100
 ---
 
 ## Recent Changes
+
+### 2026-06-09: Phase 11 channel promotion system planned
+
+- Planned a complete channel promotion system based on the existing `apkChannel` registration marker.
+- Locked the design around a first-class `channels` table, `users.channel_id`, `SUPER_ADMIN / CHANNEL_ADMIN / USER` roles, and a channel compute pool with immutable ledger.
+- Defined channel isolation for users, shops, transaction logs, feedbacks, announcements, app versions, package verification, and Android login/register/update flows.
+- Clarified Android branding constraints: channel icon/name are build-time APK resources, while the backend stores channel brand config and super admins upload built channel APKs.
+- Added channel APK release automation design: per-channel release branches, fixed release worker script, brand/resource validation, file-service upload, and authenticated backend callback to complete app version and announcement publication.
+- Canonical plan document: `.planning/phases/11-channel-promotion-system/11-PLAN.md`.
 
 ### 2026-06-08: Phase 10 engine permission center started
 

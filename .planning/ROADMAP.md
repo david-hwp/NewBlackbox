@@ -153,3 +153,24 @@
 **计划文档**: [.planning/phases/10-engine-permission-center/10-PLAN.md](.planning/phases/10-engine-permission-center/10-PLAN.md)
 **上下文文档**: [.planning/phases/10-engine-permission-center/10-CONTEXT.md](.planning/phases/10-engine-permission-center/10-CONTEXT.md)
 **调研文档**: [.planning/phases/10-engine-permission-center/10-RESEARCH.md](.planning/phases/10-engine-permission-center/10-RESEARCH.md)
+
+## Phase 11: 渠道推广完整体系 📋 已规划
+
+**目标**: 将现有 `apkChannel` 注册标识升级为完整渠道推广体系，支持不同渠道拥有独立 APK 发布、用户注册、公告、主 APK 升级和用户算力隔离，同时由超级管理员统一管理渠道、渠道管理员和渠道总算力池。
+
+**关键交付物**:
+
+- `channels` 渠道实体与 `channel_compute_logs` 渠道算力流水
+- `SUPER_ADMIN / CHANNEL_ADMIN / USER` 角色体系与统一权限服务
+- 渠道管理员仅可查看和管理本渠道用户、店铺、交易、反馈和公告
+- 超级管理员可创建渠道、绑定渠道管理员、配置渠道 APK 名称/图标/标识、给渠道总池分配算力
+- 渠道管理员从渠道算力池给本渠道用户分配算力，跨渠道算力互通被禁止
+- 公告按 `GLOBAL/CHANNEL` 作用域隔离，APP 只展示本渠道和全局公告
+- 主 APK 版本发布和 checksum 校验按渠道隔离，APP 只检测本渠道发布版本
+- 渠道 APK 使用独立 `release/channel/{channelCode}` 分支管理，后台发起发布任务后由固定脚本合并主 release、校验渠道图标/名称/引擎名称、打包、上传并回调完成
+- APP 登录、注册、公告、版本检查和包校验携带渠道上下文
+- 历史数据迁移到 `main` 或保留已有 `apk_channel` 对应渠道，保证线上兼容
+
+**计划文档**: [.planning/phases/11-channel-promotion-system/11-PLAN.md](.planning/phases/11-channel-promotion-system/11-PLAN.md)
+**上下文文档**: [.planning/phases/11-channel-promotion-system/11-CONTEXT.md](.planning/phases/11-channel-promotion-system/11-CONTEXT.md)
+**调研文档**: [.planning/phases/11-channel-promotion-system/11-RESEARCH.md](.planning/phases/11-channel-promotion-system/11-RESEARCH.md)
