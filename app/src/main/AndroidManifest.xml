@@ -69,6 +69,7 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.BlackBox"
         android:enableOnBackInvokedCallback="true"
+        tools:replace="android:label"
         tools:targetApi="n">
         <activity
             android:name=".view.fake.FollowMyLocationOverlay"
