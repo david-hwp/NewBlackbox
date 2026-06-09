@@ -9,6 +9,15 @@ def engineVersionCodeOverride = project.hasProperty("ENGINE_VERSION_CODE")
 def engineVersionNameOverride = project.hasProperty("ENGINE_VERSION_NAME")
         ? project.property("ENGINE_VERSION_NAME")
         : rootProject.ext.versionName
+def duodianStringProperty = { name, defaultValue ->
+    (project.findProperty(name) ?: defaultValue).toString()
+}
+def duodianBuildConfigString = { value ->
+    def escaped = value.replace("\\", "\\\\").replace("\"", "\\\"")
+    "\"${escaped}\""
+}
+def apkChannel = duodianStringProperty("DUODIAN_APK_CHANNEL", "main")
+def engineApplicationId = duodianStringProperty("DUODIAN_ENGINE_APPLICATION_ID", "com.zhirang.zhanghaoguanjia.engine")
 
 android {
     namespace 'top.niunaijun.blackbox'
@@ -18,15 +27,21 @@ android {
 
     buildFeatures {
         aidl true
+        buildConfig true
         prefab true
     }
 
     defaultConfig {
-        applicationId "com.zhirang.zhanghaoguanjia.engine"
+        applicationId engineApplicationId
         minSdkVersion rootProject.ext.minSdk
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode engineVersionCodeOverride.toString().toInteger()
         versionName engineVersionNameOverride.toString()
+        buildConfigField "String", "APK_CHANNEL", duodianBuildConfigString(apkChannel)
+        manifestPlaceholders = [
+                engineBindPermission: "${engineApplicationId}.permission.BIND_ENGINE",
+                engineTaskAffinity  : "${engineApplicationId}.task_affinity"
+        ]
 
         ndk {
             abiFilters 'arm64-v8a', 'armeabi-v7a'

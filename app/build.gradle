@@ -3,19 +3,37 @@ plugins {
     alias(libs.plugins.jetbrains.kotlin.android)
 }
 
+def duodianStringProperty = { name, defaultValue ->
+    (project.findProperty(name) ?: defaultValue).toString()
+}
+
+def duodianBuildConfigString = { value ->
+    def escaped = value.replace("\\", "\\\\").replace("\"", "\\\"")
+    "\"${escaped}\""
+}
+
+def apkChannel = duodianStringProperty("DUODIAN_APK_CHANNEL", "main")
+def appApplicationId = duodianStringProperty("DUODIAN_APP_APPLICATION_ID", "com.zhirang.zhanghaoguanjia")
+def engineApplicationId = duodianStringProperty("DUODIAN_ENGINE_APPLICATION_ID", "com.zhirang.zhanghaoguanjia.engine")
+
 android {
 
     namespace 'com.zhirang.zhanghaoguanjia'
     compileSdk rootProject.ext.compileSdkVersion
     ndkVersion = "29.0.13846066"
     defaultConfig {
-        applicationId "com.zhirang.zhanghaoguanjia"
+        applicationId appApplicationId
         minSdk rootProject.ext.minSdk
         targetSdk rootProject.ext.targetSdkVersion
         versionCode rootProject.ext.versionCode
         versionName rootProject.ext.versionName
-        buildConfigField "String", "API_BASE_URL", "\"${project.findProperty('DUODIAN_API_BASE_URL') ?: 'http://dpgj.zrnh.cn/api/'}\""
-        buildConfigField "String", "APK_CHANNEL", "\"${project.findProperty('DUODIAN_APK_CHANNEL') ?: 'main'}\""
+        buildConfigField "String", "API_BASE_URL", duodianBuildConfigString(duodianStringProperty("DUODIAN_API_BASE_URL", "http://dpgj.zrnh.cn/api/"))
+        buildConfigField "String", "APK_CHANNEL", duodianBuildConfigString(apkChannel)
+        buildConfigField "String", "ENGINE_PACKAGE", duodianBuildConfigString(engineApplicationId)
+        manifestPlaceholders = [
+                appFileProviderAuthority: "${appApplicationId}.fileprovider",
+                engineBindPermission    : "${engineApplicationId}.permission.BIND_ENGINE"
+        ]
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
 

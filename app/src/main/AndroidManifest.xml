@@ -6,8 +6,8 @@
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"
         tools:ignore="QueryAllPackagesPermission" />
 
-    <!-- Required to bind to the Engine Service (com.zhirang.zhanghaoguanjia.engine) -->
-    <uses-permission android:name="com.zhirang.zhanghaoguanjia.engine.permission.BIND_ENGINE" />
+    <!-- Required to bind to the configured Engine Service. -->
+    <uses-permission android:name="${engineBindPermission}" />
 
     
     <uses-permission android:name="android.permission.INTERNET" />
@@ -158,7 +158,7 @@
         <!-- FileProvider for sharing APK files during installation -->
         <provider
             android:name="androidx.core.content.FileProvider"
-            android:authorities="${applicationId}.fileprovider"
+            android:authorities="${appFileProviderAuthority}"
             android:exported="false"
             android:grantUriPermissions="true">
             <meta-data
