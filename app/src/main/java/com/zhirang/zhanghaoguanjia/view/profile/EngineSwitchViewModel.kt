@@ -76,7 +76,8 @@ class EngineSwitchViewModel(application: Application) : AndroidViewModel(applica
                         PackageIntegrityVerifier.PackageType.ENGINE,
                         file,
                         version.versionCode,
-                        version.checksum
+                        version.checksum,
+                        validation.getOrThrow().packageName
                     )
                 ) {
                     _messageLiveData.postValue(PackageIntegrityVerifier.VERIFY_FAILED_MESSAGE)

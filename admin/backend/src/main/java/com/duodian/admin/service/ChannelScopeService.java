@@ -21,7 +21,8 @@ public class ChannelScopeService {
     }
 
     public Channel resolveAppChannel(HttpServletRequest request, String legacyApkChannel) {
-        String code = normalize(request == null ? null : request.getHeader(APK_CHANNEL_HEADER));
+        String headerCode = normalize(request == null ? null : request.getHeader(APK_CHANNEL_HEADER));
+        String code = headerCode;
         if (code == null) {
             code = normalize(legacyApkChannel);
         }
@@ -29,12 +30,22 @@ public class ChannelScopeService {
             code = Channel.MAIN_CODE;
         }
         return channelRepository.findByCodeAndDeleted(code, ACTIVE)
-                .orElseGet(this::mainChannel);
+                .orElseThrow(() -> new RuntimeException(headerCode == null && normalize(legacyApkChannel) == null
+                        ? "默认渠道不存在"
+                        : "渠道不存在"));
     }
 
     public Channel mainChannel() {
         return channelRepository.findByCodeAndDeleted(Channel.MAIN_CODE, ACTIVE)
                 .orElseThrow(() -> new RuntimeException("默认渠道不存在"));
+    }
+
+    public Channel findChannel(Long channelId) {
+        if (channelId == null) {
+            return mainChannel();
+        }
+        return channelRepository.findByIdAndDeleted(channelId, ACTIVE)
+                .orElseThrow(() -> new RuntimeException("渠道不存在"));
     }
 
     public void requireActiveForApp(Channel channel) {

@@ -25,7 +25,13 @@ public class ChannelController {
     @GetMapping
     public ApiResponse<List<Channel>> list() {
         permissionService.requireAdminRole();
-        return ApiResponse.success(channelService.findAll());
+        Long effectiveChannelId = permissionService.filterChannelForQuery(null);
+        if (effectiveChannelId == null) {
+            return ApiResponse.success(channelService.findAll());
+        }
+        return ApiResponse.success(channelService.findById(effectiveChannelId)
+                .map(List::of)
+                .orElseGet(List::of));
     }
 
     @GetMapping("/{id}")

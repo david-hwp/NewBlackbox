@@ -83,6 +83,7 @@ public class AppVersionController {
         }
         permissionService.requireActiveChannelForMutation(channelId);
         version.setChannelId(channelId);
+        version.setApplicationId(channelScopeService.findChannel(channelId).getAppApplicationId());
         version.setDeleted(ACTIVE);
         return ApiResponse.success(repository.save(version));
     }
@@ -102,6 +103,7 @@ public class AppVersionController {
                 version.getApkUrl(),
                 version.getVersionCode(),
                 version.getChecksum(),
+                version.getApplicationId(),
                 request
         );
         return ApiResponse.success(new PackageVerifyResponse(valid));
@@ -114,6 +116,7 @@ public class AppVersionController {
         permissionService.requireActiveChannelForMutation(existing.getChannelId());
         existing.setVersionCode(version.getVersionCode());
         existing.setVersionName(version.getVersionName());
+        existing.setApplicationId(channelScopeService.findChannel(existing.getChannelId()).getAppApplicationId());
         existing.setApkUrl(version.getApkUrl());
         existing.setChecksum(version.getChecksum());
         existing.setFileSize(version.getFileSize());

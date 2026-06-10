@@ -125,6 +125,68 @@ When uploading/registering a main APK release:
 - The release announcement content should include the public download URL, and the app also exposes the one-click upgrade action from the release announcement and `我的 -> 关于 -> 检查更新`.
 - Main APK upgrades also require a logged-in user token. Before starting the Android install flow, the app must send the candidate package `versionCode`, MD5, and SHA-256 to `/api/app-versions/verify`; only `valid=true` may proceed. `valid=false` must show `您使用的安装包未通过检验，不可升级`.
 
+### Phase 11 Channel Release Flow
+
+Phase 11 channel work must be verified locally unless the operator explicitly approves production deployment. Do not run `admin/deploy.sh` on the production server for Phase 11 without that approval. The only production access allowed during Phase 11 local acceptance is a one-time database dump used to restore a local Docker MySQL copy.
+
+Normal public releases for `main` and non-main channels use the unified release job:
+
+1. Create or update the channel in the admin UI with channel code, app package name, engine package name, app name, engine name, icons, status, and channel admin.
+2. Create a release job from the admin UI. The selected channel can be `main` or a non-main channel.
+3. The backend starts `admin/scripts/release-channel-apk.sh` with a job token, current admin token, `X-Apk-Channel`, package IDs, app/engine names, version names/codes, source release branch, and channel release branch.
+4. The script creates a temporary checkout, merges the source release branch into the channel release branch, builds both app and engine APKs, uploads both through the file service, then calls the release-job callback.
+5. Successful callback publishes channel-scoped `app_versions`, `engine_versions`, and one `APP_RELEASE` announcement titled `新版本发布`. Failed jobs must not publish versions or announcements.
+6. Retry a failed release job from the admin UI; retry must create a fresh temporary checkout.
+
+Channel release invariants:
+- `main` keeps package names `com.zhirang.zhanghaoguanjia` and `com.zhirang.zhanghaoguanjia.engine`, and engine data root `blackbox`.
+- Non-main channels use their configured app and engine package names. The release script passes `DUODIAN_ENGINE_DATA_ROOT_NAME=blackbox-<channelCode>` unless explicitly overridden, so virtual engine data roots are separated by channel.
+- APK requests send `X-Apk-Channel: BuildConfig.APK_CHANNEL`; old APKs without the header fall back to `main`.
+- Version and announcement queries are channel-scoped. Package verification also checks channel, versionCode, checksum, and package name.
+- Release worker logs must not contain callback tokens or admin bearer tokens.
+
+Phase 11 local acceptance checklist:
+
+```bash
+# Backend tests.
+JAVA_HOME=$(/usr/libexec/java_home -v 21) mvn test -f admin/backend/pom.xml
+
+# Frontend build.
+cd admin/frontend && npm run build
+
+# Script syntax.
+bash -n admin/scripts/release-channel-apk.sh
+python3 -m py_compile admin/scripts/release-worker-http.py
+
+# Optional local-only real release worker. Start this on the macOS host before
+# using APP_RELEASE_RUNNER=http in admin/.env.phase11-local. It binds to
+# 127.0.0.1 only; Docker reaches it through host.docker.internal.
+RELEASE_WORKER_TOKEN=phase11-local-worker \
+  admin/scripts/release-worker-http.py \
+  --host 127.0.0.1 \
+  --port 19091 \
+  --path /release
+
+# Debug channel build against local Docker API for Xiaomi real-device testing.
+./gradlew :app:assembleDebug :Bcore:assembleDebug \
+  -PDUODIAN_APK_CHANNEL=testa \
+  -PDUODIAN_APP_APPLICATION_ID=com.zhirang.channel.testa \
+  -PDUODIAN_ENGINE_APPLICATION_ID=com.zhirang.channel.testa.engine \
+  -PDUODIAN_APP_NAME=测试账号管家A \
+  -PDUODIAN_ENGINE_NAME=测试引擎A \
+  -PDUODIAN_ENGINE_DATA_ROOT_NAME=blackbox-testa \
+  -PDUODIAN_API_BASE_URL=http://<本机Tailscale-IP>:<本地后台端口>/api/
+```
+
+Before committing Phase 11 work, confirm no temporary local API address remains in source:
+
+```bash
+rg "DUODIAN_API_BASE_URL=http://|127\\.0\\.0\\.1|localhost|<本机Tailscale-IP>|100\\." \
+  app Bcore admin .planning CLAUDE.md
+```
+
+Documented examples may remain in `CLAUDE.md` and `.planning`; production source defaults must remain `http://dpgj.zrnh.cn/api/`.
+
 Example `1.1.0-release` server verification:
 
 ```bash

@@ -213,11 +213,8 @@ public class UserService {
     private void validatePhoneUniqueness(User user) {
         String role = normalizeRole(user.getRole());
         if ("SUPER_ADMIN".equals(role) || "CHANNEL".equals(role)) {
-            boolean duplicatedAdmin = userRepository.findAllByPhoneAndDeleted(user.getPhone(), ACTIVE).stream()
-                    .map(User::getRole)
-                    .map(this::normalizeRole)
-                    .anyMatch(existingRole -> "SUPER_ADMIN".equals(existingRole) || "CHANNEL".equals(existingRole));
-            if (duplicatedAdmin) {
+            boolean duplicate = !userRepository.findAllByPhoneAndDeleted(user.getPhone(), ACTIVE).isEmpty();
+            if (duplicate) {
                 throw new RuntimeException("管理员手机号已存在");
             }
             return;

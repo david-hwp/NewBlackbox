@@ -47,7 +47,9 @@ public class SoftDeleteSchemaInitializer implements CommandLineRunner {
         ensureAnnouncementTypeColumn();
         ensureUserApkChannelColumn();
         ensureChannelColumns();
+        ensurePackageVersionIdentityColumns();
         backfillMainChannel();
+        ensureUserPhoneChannelUniqueIndex();
         migrateLegacyAdminRole();
         ensureCloneColumns();
     }
@@ -193,10 +195,37 @@ public class SoftDeleteSchemaInitializer implements CommandLineRunner {
         jdbcTemplate.update("UPDATE announcements SET channel_id = ? WHERE channel_id IS NULL", mainChannelId);
         jdbcTemplate.update("UPDATE app_versions SET channel_id = ? WHERE channel_id IS NULL", mainChannelId);
         jdbcTemplate.update("UPDATE engine_versions SET channel_id = ? WHERE channel_id IS NULL", mainChannelId);
+        jdbcTemplate.update("""
+                UPDATE app_versions v
+                LEFT JOIN channels c ON c.id = v.channel_id AND c.deleted = 0
+                SET v.application_id = COALESCE(c.app_application_id, 'com.zhirang.zhanghaoguanjia')
+                WHERE v.application_id IS NULL
+                   OR v.application_id = ''
+                   OR v.application_id = 'com.zhirang.zhanghaoguanjia'
+                """);
+        jdbcTemplate.update("""
+                UPDATE engine_versions v
+                LEFT JOIN channels c ON c.id = v.channel_id AND c.deleted = 0
+                SET v.application_id = COALESCE(c.engine_application_id, 'com.zhirang.zhanghaoguanjia.engine')
+                WHERE v.application_id IS NULL
+                   OR v.application_id = ''
+                   OR v.application_id = 'com.zhirang.zhanghaoguanjia.engine'
+                """);
     }
 
     private void migrateLegacyAdminRole() {
         jdbcTemplate.update("UPDATE users SET role = 'SUPER_ADMIN' WHERE UPPER(role) = 'ADMIN'");
+    }
+
+    private void ensureUserPhoneChannelUniqueIndex() throws Exception {
+        for (String indexName : uniqueSingleColumnIndexes("users", "phone")) {
+            if (!"uk_users_channel_phone_deleted".equalsIgnoreCase(indexName)) {
+                jdbcTemplate.execute("ALTER TABLE users DROP INDEX " + indexName);
+            }
+        }
+        if (!hasIndexQuietly("users", "uk_users_channel_phone_deleted")) {
+            jdbcTemplate.execute("CREATE UNIQUE INDEX uk_users_channel_phone_deleted ON users (channel_id, phone, deleted)");
+        }
     }
 
     private void ensureAnnouncementTypeColumn() throws Exception {
@@ -238,6 +267,21 @@ public class SoftDeleteSchemaInitializer implements CommandLineRunner {
         }
         if (!hasIndex("shops", "idx_clone_instance_id")) {
             jdbcTemplate.execute("CREATE INDEX idx_clone_instance_id ON shops (clone_instance_id)");
+        }
+    }
+
+    private void ensurePackageVersionIdentityColumns() throws Exception {
+        if (!hasColumn("app_versions", "application_id")) {
+            jdbcTemplate.execute("ALTER TABLE app_versions ADD COLUMN application_id VARCHAR(128) NOT NULL DEFAULT 'com.zhirang.zhanghaoguanjia'");
+        }
+        if (!hasColumn("engine_versions", "application_id")) {
+            jdbcTemplate.execute("ALTER TABLE engine_versions ADD COLUMN application_id VARCHAR(128) NOT NULL DEFAULT 'com.zhirang.zhanghaoguanjia.engine'");
+        }
+        if (!hasIndexQuietly("app_versions", "idx_app_versions_application_id")) {
+            jdbcTemplate.execute("CREATE INDEX idx_app_versions_application_id ON app_versions (application_id)");
+        }
+        if (!hasIndexQuietly("engine_versions", "idx_engine_versions_application_id")) {
+            jdbcTemplate.execute("CREATE INDEX idx_engine_versions_application_id ON engine_versions (application_id)");
         }
     }
 
@@ -305,6 +349,32 @@ public class SoftDeleteSchemaInitializer implements CommandLineRunner {
             return hasIndex(table, index);
         } catch (Exception e) {
             return false;
+        }
+    }
+
+    private List<String> uniqueSingleColumnIndexes(String table, String column) throws Exception {
+        try (Connection connection = dataSource.getConnection()) {
+            DatabaseMetaData metaData = connection.getMetaData();
+            String catalog = connection.getCatalog();
+            try (ResultSet resultSet = metaData.getIndexInfo(catalog, null, table, false, false)) {
+                java.util.Map<String, java.util.List<String>> columnsByIndex = new java.util.LinkedHashMap<>();
+                java.util.Map<String, Boolean> uniqueByIndex = new java.util.LinkedHashMap<>();
+                while (resultSet.next()) {
+                    String indexName = resultSet.getString("INDEX_NAME");
+                    String columnName = resultSet.getString("COLUMN_NAME");
+                    if (indexName == null || columnName == null || "PRIMARY".equalsIgnoreCase(indexName)) {
+                        continue;
+                    }
+                    columnsByIndex.computeIfAbsent(indexName, ignored -> new java.util.ArrayList<>()).add(columnName);
+                    uniqueByIndex.put(indexName, !resultSet.getBoolean("NON_UNIQUE"));
+                }
+                return columnsByIndex.entrySet().stream()
+                        .filter(entry -> Boolean.TRUE.equals(uniqueByIndex.get(entry.getKey())))
+                        .filter(entry -> entry.getValue().size() == 1)
+                        .filter(entry -> column.equalsIgnoreCase(entry.getValue().get(0)))
+                        .map(java.util.Map.Entry::getKey)
+                        .toList();
+            }
         }
     }
 }

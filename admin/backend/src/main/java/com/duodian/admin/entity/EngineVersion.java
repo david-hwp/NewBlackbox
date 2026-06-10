@@ -19,6 +19,9 @@ public class EngineVersion {
     @Column(name = "version_name", nullable = false, length = 64)
     private String versionName;
 
+    @Column(name = "application_id", nullable = false, length = 128)
+    private String applicationId = "com.zhirang.zhanghaoguanjia.engine";
+
     @Column(name = "apk_url", nullable = false, length = 512)
     private String apkUrl;
 
@@ -42,6 +45,7 @@ public class EngineVersion {
 
     @PrePersist
     protected void onCreate() {
+        applicationId = normalizeRequired(applicationId, "com.zhirang.zhanghaoguanjia.engine");
         if (deleted == null) {
             deleted = 0;
         }
@@ -51,6 +55,7 @@ public class EngineVersion {
 
     @PreUpdate
     protected void onUpdate() {
+        applicationId = normalizeRequired(applicationId, "com.zhirang.zhanghaoguanjia.engine");
         updatedAt = LocalDateTime.now();
     }
 
@@ -65,6 +70,9 @@ public class EngineVersion {
 
     public String getVersionName() { return versionName; }
     public void setVersionName(String versionName) { this.versionName = versionName; }
+
+    public String getApplicationId() { return applicationId; }
+    public void setApplicationId(String applicationId) { this.applicationId = normalizeRequired(applicationId, "com.zhirang.zhanghaoguanjia.engine"); }
 
     public String getApkUrl() { return apkUrl; }
     public void setApkUrl(String apkUrl) { this.apkUrl = apkUrl; }
@@ -86,4 +94,11 @@ public class EngineVersion {
 
     public LocalDateTime getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
+
+    private String normalizeRequired(String value, String fallback) {
+        if (value == null || value.isBlank()) {
+            return fallback;
+        }
+        return value.trim();
+    }
 }

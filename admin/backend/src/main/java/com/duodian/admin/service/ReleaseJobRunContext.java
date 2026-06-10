@@ -13,6 +13,7 @@ public record ReleaseJobRunContext(
         Integer appVersionCode,
         String engineVersionName,
         Integer engineVersionCode,
+        String adminAuthorizationToken,
         String backendBaseUrl,
         String progressCallbackUrl,
         String completeCallbackUrl,

@@ -12,6 +12,16 @@ def duodianBuildConfigString = { value ->
     "\"${escaped}\""
 }
 
+def appVersionCodeOverride = project.hasProperty("APP_VERSION_CODE")
+        ? project.property("APP_VERSION_CODE")
+        : project.hasProperty("DUODIAN_APP_VERSION_CODE")
+        ? project.property("DUODIAN_APP_VERSION_CODE")
+        : rootProject.ext.versionCode
+def appVersionNameOverride = project.hasProperty("APP_VERSION_NAME")
+        ? project.property("APP_VERSION_NAME")
+        : project.hasProperty("DUODIAN_APP_VERSION_NAME")
+        ? project.property("DUODIAN_APP_VERSION_NAME")
+        : rootProject.ext.versionName
 def apkChannel = duodianStringProperty("DUODIAN_APK_CHANNEL", "main")
 def appApplicationId = duodianStringProperty("DUODIAN_APP_APPLICATION_ID", "com.zhirang.zhanghaoguanjia")
 def engineApplicationId = duodianStringProperty("DUODIAN_ENGINE_APPLICATION_ID", "com.zhirang.zhanghaoguanjia.engine")
@@ -26,8 +36,8 @@ android {
         applicationId appApplicationId
         minSdk rootProject.ext.minSdk
         targetSdk rootProject.ext.targetSdkVersion
-        versionCode rootProject.ext.versionCode
-        versionName rootProject.ext.versionName
+        versionCode appVersionCodeOverride.toString().toInteger()
+        versionName appVersionNameOverride.toString()
         buildConfigField "String", "API_BASE_URL", duodianBuildConfigString(duodianStringProperty("DUODIAN_API_BASE_URL", "http://dpgj.zrnh.cn/api/"))
         buildConfigField "String", "APK_CHANNEL", duodianBuildConfigString(apkChannel)
         buildConfigField "String", "ENGINE_PACKAGE", duodianBuildConfigString(engineApplicationId)

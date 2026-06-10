@@ -80,6 +80,7 @@ public class AuthInterceptor implements HandlerInterceptor {
             return false;
         }
         AuthContext.setPrincipal(principal);
+        AuthContext.setToken(token);
         return true;
     }
 

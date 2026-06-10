@@ -67,7 +67,8 @@ object EngineUpgradeManager {
                     PackageIntegrityVerifier.PackageType.ENGINE,
                     downloadedFile,
                     upgradeInfo.versionCode,
-                    upgradeInfo.checksum
+                    upgradeInfo.checksum,
+                    validation.getOrThrow().packageName
                 )
             ) {
                 return@withContext Result.failure(SecurityException(PackageIntegrityVerifier.VERIFY_FAILED_MESSAGE))

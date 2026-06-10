@@ -46,6 +46,7 @@
         </el-table-column>
         <el-table-column prop="versionCode" label="版本号" width="100" />
         <el-table-column prop="versionName" label="版本名称" width="140" />
+        <el-table-column prop="applicationId" label="包名" min-width="220" show-overflow-tooltip />
         <el-table-column prop="apkUrl" label="APK地址" min-width="280" show-overflow-tooltip />
         <el-table-column prop="changelog" label="更新日志" min-width="220" show-overflow-tooltip />
         <el-table-column label="发布时间" width="180">
@@ -97,6 +98,9 @@
         </el-form-item>
         <el-form-item label="版本名称" prop="versionName">
           <el-input v-model="form.versionName" />
+        </el-form-item>
+        <el-form-item label="包名" v-if="form.applicationId">
+          <el-input v-model="form.applicationId" disabled />
         </el-form-item>
         <el-form-item label="APK地址" prop="apkUrl">
           <el-input v-model="form.apkUrl" />
@@ -166,6 +170,7 @@ const emptyForm = () => ({
   versionCode: 1,
   versionName: '',
   apkUrl: '',
+  applicationId: '',
   checksum: '',
   changelog: '',
   available: true,

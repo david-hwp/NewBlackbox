@@ -10,10 +10,12 @@ public class ReleaseJobCompleteRequest {
     private String appArtifactMd5;
     private String appArtifactSha256;
     private Long appArtifactSize;
+    private String appArtifactApplicationId;
     private String engineArtifactUrl;
     private String engineArtifactMd5;
     private String engineArtifactSha256;
     private Long engineArtifactSize;
+    private String engineArtifactApplicationId;
 
     public Boolean getSuccess() { return success; }
     public void setSuccess(Boolean success) { this.success = success; }
@@ -42,6 +44,9 @@ public class ReleaseJobCompleteRequest {
     public Long getAppArtifactSize() { return appArtifactSize; }
     public void setAppArtifactSize(Long appArtifactSize) { this.appArtifactSize = appArtifactSize; }
 
+    public String getAppArtifactApplicationId() { return appArtifactApplicationId; }
+    public void setAppArtifactApplicationId(String appArtifactApplicationId) { this.appArtifactApplicationId = appArtifactApplicationId; }
+
     public String getEngineArtifactUrl() { return engineArtifactUrl; }
     public void setEngineArtifactUrl(String engineArtifactUrl) { this.engineArtifactUrl = engineArtifactUrl; }
 
@@ -53,4 +58,7 @@ public class ReleaseJobCompleteRequest {
 
     public Long getEngineArtifactSize() { return engineArtifactSize; }
     public void setEngineArtifactSize(Long engineArtifactSize) { this.engineArtifactSize = engineArtifactSize; }
+
+    public String getEngineArtifactApplicationId() { return engineArtifactApplicationId; }
+    public void setEngineArtifactApplicationId(String engineArtifactApplicationId) { this.engineArtifactApplicationId = engineArtifactApplicationId; }
 }

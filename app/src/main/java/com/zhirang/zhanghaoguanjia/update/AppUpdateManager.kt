@@ -83,7 +83,8 @@ object AppUpdateManager {
                     PackageIntegrityVerifier.PackageType.APP,
                     file,
                     candidateVersionCode,
-                    version.checksum
+                    version.checksum,
+                    validation.getOrThrow().packageName
                 )
             ) {
                 return Result.failure(SecurityException(PackageIntegrityVerifier.VERIFY_FAILED_MESSAGE))

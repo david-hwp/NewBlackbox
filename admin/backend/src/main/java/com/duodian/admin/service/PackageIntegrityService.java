@@ -25,6 +25,7 @@ public class PackageIntegrityService {
             String apkUrl,
             Integer releaseVersionCode,
             String releaseChecksum,
+            String expectedPackageName,
             PackageVerifyRequest request
     ) {
         if (request == null || request.getVersionCode() == null || releaseVersionCode == null) {
@@ -39,6 +40,13 @@ public class PackageIntegrityService {
         String requestedSha256 = normalizeHex(request.getSha256(), 64);
         if (requestedMd5 == null || requestedSha256 == null) {
             log.warn("{} package digest request invalid: version={}", packageType, request.getVersionCode());
+            return false;
+        }
+        String expectedPackage = normalizePackageName(expectedPackageName);
+        String requestedPackage = normalizePackageName(request.getPackageName());
+        if (expectedPackage != null && requestedPackage != null && !expectedPackage.equals(requestedPackage)) {
+            log.warn("{} package name mismatch: version={} expected={} request={}",
+                    packageType, request.getVersionCode(), expectedPackage, requestedPackage);
             return false;
         }
         String normalizedReleaseChecksum = normalizeChecksum(releaseChecksum);
@@ -76,6 +84,14 @@ public class PackageIntegrityService {
             return md5;
         }
         return normalizeHex(value, 64);
+    }
+
+    private String normalizePackageName(String value) {
+        if (value == null) {
+            return null;
+        }
+        String normalized = value.trim();
+        return normalized.isEmpty() ? null : normalized;
     }
 
     private String normalizeHex(String value, int expectedLength) {

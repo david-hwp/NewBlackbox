@@ -46,6 +46,7 @@
         </el-table-column>
         <el-table-column prop="versionCode" label="版本号" width="100" />
         <el-table-column prop="versionName" label="版本名称" width="150" />
+        <el-table-column prop="applicationId" label="包名" min-width="220" show-overflow-tooltip />
         <el-table-column label="APK地址" min-width="280">
           <template #default="{ row }">
             <el-link type="primary" :href="resolveDownloadUrl(row.apkUrl)" target="_blank">
@@ -108,6 +109,9 @@
         </el-form-item>
         <el-form-item label="版本名称" prop="versionName">
           <el-input v-model="form.versionName" />
+        </el-form-item>
+        <el-form-item label="包名" v-if="form.applicationId">
+          <el-input v-model="form.applicationId" disabled />
         </el-form-item>
         <el-form-item label="APK地址" prop="apkUrl">
           <el-input v-model="form.apkUrl" />
@@ -180,6 +184,7 @@ const emptyForm = () => ({
   versionCode: 1,
   versionName: '',
   apkUrl: '',
+  applicationId: '',
   checksum: '',
   fileSize: 0,
   changelog: '',

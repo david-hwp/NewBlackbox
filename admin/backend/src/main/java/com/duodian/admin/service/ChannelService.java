@@ -98,12 +98,9 @@ public class ChannelService {
             throw new RuntimeException("管理员手机号不能为空");
         }
         List<User> samePhoneUsers = userRepository.findAllByPhoneAndDeleted(phone, ACTIVE);
-        boolean duplicatedAdmin = samePhoneUsers.stream()
-                .filter(user -> !user.getId().equals(target.getId()))
-                .map(User::getRole)
-                .map(this::normalizeRole)
-                .anyMatch(role -> "SUPER_ADMIN".equals(role) || "CHANNEL".equals(role));
-        if (duplicatedAdmin) {
+        boolean duplicate = samePhoneUsers.stream()
+                .anyMatch(user -> !user.getId().equals(target.getId()));
+        if (duplicate) {
             throw new RuntimeException("管理员手机号已存在");
         }
     }

@@ -5,6 +5,7 @@ import com.duodian.admin.controller.dto.ReleaseJobCompleteRequest;
 import com.duodian.admin.controller.dto.ReleaseJobCreateRequest;
 import com.duodian.admin.controller.dto.ReleaseJobProgressRequest;
 import com.duodian.admin.controller.dto.ReleaseJobResponse;
+import com.duodian.admin.config.AuthContext;
 import com.duodian.admin.entity.Announcement;
 import com.duodian.admin.entity.AppVersion;
 import com.duodian.admin.entity.Channel;
@@ -21,6 +22,8 @@ import org.springframework.data.domain.Sort;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -165,7 +168,7 @@ public class ReleaseJobService {
         }
         job.setStatus(ReleaseJob.STATUS_CANCELLED);
         job.setFinishedAt(LocalDateTime.now());
-        appendLog(job, "Release job cancelled before worker start", null);
+        appendLog(job, "Release job cancelled before worker start");
         return toResponse(releaseJobRepository.save(job));
     }
 
@@ -213,12 +216,14 @@ public class ReleaseJobService {
         }
 
         recordArtifacts(job, request);
-        requireSuccessfulArtifacts(job);
+        Channel channel = channelRepository.findByIdAndDeleted(job.getChannelId(), ACTIVE)
+                .orElseThrow(() -> new RuntimeException("渠道不存在"));
+        requireSuccessfulArtifacts(job, channel, request);
         job.setStatus(ReleaseJob.STATUS_SUCCESS);
         job.setProgress(100);
         appendLog(job, request == null ? null : request.getLogExcerpt(), token);
         job.setFinishedAt(LocalDateTime.now());
-        publishRelease(job);
+        publishRelease(job, channel);
         return toResponse(releaseJobRepository.save(job));
     }
 
@@ -235,50 +240,79 @@ public class ReleaseJobService {
 
     private void launch(ReleaseJob job, Channel channel) {
         String token = generateToken();
+        String adminToken = normalize(AuthContext.getToken());
+        if (adminToken == null) {
+            throw new RuntimeException("发布任务需要登录态");
+        }
         job.setCallbackTokenHash(hashToken(token));
         job.setStatus(ReleaseJob.STATUS_RUNNING);
         job.setProgress(Math.max(1, job.getProgress() == null ? 0 : job.getProgress()));
         job.setStartedAt(LocalDateTime.now());
         job.setFinishedAt(null);
-        appendLog(job, "Release worker start requested for channel " + channel.getCode(), token);
+        appendLog(job, "Release worker start requested for channel " + channel.getCode(), token, adminToken);
         releaseJobRepository.save(job);
 
         String progressCallbackPath = "/api/release-jobs/" + job.getId() + "/callback/progress";
         String completeCallbackPath = "/api/release-jobs/" + job.getId() + "/callback/complete";
-        try {
-            releaseJobRunner.start(new ReleaseJobRunContext(
-                    job.getId(),
-                    channel.getCode(),
-                    channel.getAppApplicationId(),
-                    channel.getEngineApplicationId(),
-                    firstText(channel.getAppDisplayName(), channel.getName()),
-                    firstText(channel.getEngineDisplayName(), channel.getName() + "引擎"),
-                    job.getSourceReleaseBranch(),
-                    job.getChannelReleaseBranch(),
-                    job.getAppVersionName(),
-                    job.getAppVersionCode(),
-                    job.getEngineVersionName(),
-                    job.getEngineVersionCode(),
-                    normalizeBackendBaseUrl(),
-                    callbackUrl(progressCallbackPath),
-                    callbackUrl(completeCallbackPath),
-                    token
-            ));
-        } catch (RuntimeException e) {
-            job.setStatus(ReleaseJob.STATUS_FAILED);
-            job.setFinishedAt(LocalDateTime.now());
-            appendLog(job, "Release worker failed to start: " + safeError(e), token);
-            releaseJobRepository.save(job);
+        ReleaseJobRunContext context = new ReleaseJobRunContext(
+                job.getId(),
+                channel.getCode(),
+                channel.getAppApplicationId(),
+                channel.getEngineApplicationId(),
+                firstText(channel.getAppDisplayName(), channel.getName()),
+                firstText(channel.getEngineDisplayName(), channel.getName() + "引擎"),
+                job.getSourceReleaseBranch(),
+                job.getChannelReleaseBranch(),
+                job.getAppVersionName(),
+                job.getAppVersionCode(),
+                job.getEngineVersionName(),
+                job.getEngineVersionCode(),
+                adminToken,
+                normalizeBackendBaseUrl(),
+                callbackUrl(progressCallbackPath),
+                callbackUrl(completeCallbackPath),
+                token
+        );
+        startRunnerAfterCommit(context, token, adminToken);
+    }
+
+    private void startRunnerAfterCommit(ReleaseJobRunContext context, String token, String adminToken) {
+        Runnable starter = () -> {
+            try {
+                releaseJobRunner.start(context);
+            } catch (Exception e) {
+                markRunnerStartFailure(context.jobId(), safeError(e), token, adminToken);
+            }
+        };
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    starter.run();
+                }
+            });
+        } else {
+            starter.run();
         }
     }
 
-    private void publishRelease(ReleaseJob job) {
+    private void markRunnerStartFailure(Long jobId, String message, String token, String adminToken) {
+        releaseJobRepository.findByIdAndDeleted(jobId, ACTIVE).ifPresent(job -> {
+            job.setStatus(ReleaseJob.STATUS_FAILED);
+            job.setFinishedAt(LocalDateTime.now());
+            appendLog(job, "Release worker failed to start: " + message, token, adminToken);
+            releaseJobRepository.save(job);
+        });
+    }
+
+    private void publishRelease(ReleaseJob job, Channel channel) {
         AppVersion appVersion = appVersionRepository
                 .findByChannelIdAndVersionCodeAndDeleted(job.getChannelId(), job.getAppVersionCode(), ACTIVE)
                 .orElseGet(AppVersion::new);
         appVersion.setChannelId(job.getChannelId());
         appVersion.setVersionCode(job.getAppVersionCode());
         appVersion.setVersionName(job.getAppVersionName());
+        appVersion.setApplicationId(channel.getAppApplicationId());
         appVersion.setApkUrl(job.getAppArtifactUrl());
         appVersion.setChecksum(primaryChecksum(job.getAppArtifactSha256(), job.getAppArtifactMd5()));
         appVersion.setFileSize(job.getAppArtifactSize());
@@ -293,6 +327,7 @@ public class ReleaseJobService {
         engineVersion.setChannelId(job.getChannelId());
         engineVersion.setVersionCode(job.getEngineVersionCode());
         engineVersion.setVersionName(job.getEngineVersionName());
+        engineVersion.setApplicationId(channel.getEngineApplicationId());
         engineVersion.setApkUrl(job.getEngineArtifactUrl());
         engineVersion.setChecksum(primaryChecksum(job.getEngineArtifactSha256(), job.getEngineArtifactMd5()));
         engineVersion.setChangelog(job.getAnnouncementContent());
@@ -369,7 +404,7 @@ public class ReleaseJobService {
         }
     }
 
-    private void requireSuccessfulArtifacts(ReleaseJob job) {
+    private void requireSuccessfulArtifacts(ReleaseJob job, Channel channel, ReleaseJobCompleteRequest request) {
         requireText(job.getAppArtifactUrl(), "主APK产物地址不能为空");
         requireText(job.getEngineArtifactUrl(), "引擎APK产物地址不能为空");
         if (!hasText(job.getAppArtifactMd5()) && !hasText(job.getAppArtifactSha256())) {
@@ -380,6 +415,24 @@ public class ReleaseJobService {
         }
         requirePositiveLong(job.getAppArtifactSize(), "主APK文件大小必须大于0");
         requirePositiveLong(job.getEngineArtifactSize(), "引擎APK文件大小必须大于0");
+        requireApplicationId(
+                request == null ? null : request.getAppArtifactApplicationId(),
+                channel.getAppApplicationId(),
+                "主APK包名与渠道配置不一致"
+        );
+        requireApplicationId(
+                request == null ? null : request.getEngineArtifactApplicationId(),
+                channel.getEngineApplicationId(),
+                "引擎包名与渠道配置不一致"
+        );
+    }
+
+    private void requireApplicationId(String actual, String expected, String message) {
+        String normalizedExpected = requireText(expected, message);
+        String normalizedActual = requireText(actual, message);
+        if (!normalizedExpected.equals(normalizedActual)) {
+            throw new RuntimeException(message);
+        }
     }
 
     private Channel resolveMutableChannel(Long channelId) {
@@ -445,8 +498,8 @@ public class ReleaseJobService {
         }
     }
 
-    private void appendLog(ReleaseJob job, String line, String token) {
-        String sanitized = sanitizeLog(line, token);
+    private void appendLog(ReleaseJob job, String line, String... tokens) {
+        String sanitized = sanitizeLog(line, tokens);
         if (sanitized == null) {
             return;
         }
@@ -458,16 +511,23 @@ public class ReleaseJobService {
         job.setLogExcerpt(combined);
     }
 
-    private String sanitizeLog(String line, String token) {
+    private String sanitizeLog(String line, String... tokens) {
         String value = normalize(line);
         if (value == null) {
             return null;
         }
-        if (hasText(token)) {
-            value = value.replace(token, "[REDACTED]");
+        if (tokens != null) {
+            for (String token : tokens) {
+                if (hasText(token)) {
+                    value = value.replace(token, "[REDACTED]");
+                }
+            }
         }
         value = value.replaceAll("(?i)(token=)[^\\s&]+", "$1[REDACTED]");
         value = value.replaceAll("(?i)(authorization:\\s*bearer\\s+)[^\\s]+", "$1[REDACTED]");
+        value = value.replaceAll("(?i)(authorization=Bearer\\s*)[^\\s&]+", "$1[REDACTED]");
+        value = value.replaceAll("(?i)(admin_authorization_token=)[^\\s&]+", "$1[REDACTED]");
+        value = value.replaceAll("(?i)(ADMIN_AUTHORIZATION_TOKEN=)[^\\s&]+", "$1[REDACTED]");
         return value;
     }
 
@@ -601,10 +661,20 @@ public class ReleaseJobService {
 
     private String callbackUrl(String path) {
         String baseUrl = normalizeBackendBaseUrl();
-        return baseUrl.isBlank() ? path : baseUrl + path;
+        String normalizedPath = path == null || path.isBlank() ? "" : path.trim();
+        if (!normalizedPath.startsWith("/")) {
+            normalizedPath = "/" + normalizedPath;
+        }
+        if (baseUrl.isBlank()) {
+            return normalizedPath;
+        }
+        if (baseUrl.endsWith("/api") && normalizedPath.startsWith("/api/")) {
+            return baseUrl + normalizedPath.substring("/api".length());
+        }
+        return baseUrl + normalizedPath;
     }
 
-    private String safeError(RuntimeException e) {
+    private String safeError(Exception e) {
         return e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
     }
 

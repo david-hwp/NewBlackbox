@@ -1,6 +1,7 @@
 package com.duodian.admin.service;
 
 import com.duodian.admin.config.CurrentPrincipal;
+import com.duodian.admin.config.AuthContext;
 import com.duodian.admin.controller.dto.ReleaseJobCompleteRequest;
 import com.duodian.admin.controller.dto.ReleaseJobCreateRequest;
 import com.duodian.admin.controller.dto.ReleaseJobProgressRequest;
@@ -13,6 +14,7 @@ import com.duodian.admin.repository.EngineVersionRepository;
 import com.duodian.admin.repository.ReleaseJobRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.Collection;
 import java.util.Optional;
@@ -53,6 +55,8 @@ class ReleaseJobServiceTest {
 
     @BeforeEach
     void setUp() {
+        AuthContext.clear();
+        AuthContext.setToken("admin-token");
         channel = channel(2L, "beta");
         when(permissionService.currentPrincipal()).thenReturn(new CurrentPrincipal(1L, "SUPER_ADMIN", 1L, "main", "main", "test"));
         when(channelRepository.findByIdAndDeleted(2L, ACTIVE)).thenReturn(Optional.of(channel));
@@ -83,11 +87,65 @@ class ReleaseJobServiceTest {
         assertThat(job.getCallbackTokenHash()).hasSize(64);
         assertThat(runner.context).isNotNull();
         assertThat(runner.context.callbackToken()).isNotBlank();
+        assertThat(runner.context.adminAuthorizationToken()).isEqualTo("admin-token");
         assertThat(job.getCallbackTokenHash()).doesNotContain(runner.context.callbackToken());
         assertThat(job.getLogExcerpt()).doesNotContain(runner.context.callbackToken());
+        assertThat(job.getLogExcerpt()).doesNotContain(runner.context.adminAuthorizationToken());
         assertThat(runner.context.channelCode()).isEqualTo("beta");
         assertThat(runner.context.backendBaseUrl()).isEmpty();
         assertThat(runner.context.progressCallbackUrl()).isEqualTo("/api/release-jobs/10/callback/progress");
+    }
+
+    @Test
+    void startDoesNotDuplicateApiContextInCallbackUrls() {
+        ReflectionTestUtils.setField(service, "backendBaseUrl", "http://duodian-backend:8080/api/");
+        ReleaseJob job = job(10L, ReleaseJob.STATUS_PENDING);
+        when(releaseJobRepository.findByIdAndDeleted(10L, ACTIVE)).thenReturn(Optional.of(job));
+        when(releaseJobRepository.countActiveJobsForChannelExcluding(eq(ACTIVE), eq(2L), anyStatusCollection(), eq(10L)))
+                .thenReturn(0L);
+        when(releaseJobRepository.save(any(ReleaseJob.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.start(10L);
+
+        assertThat(runner.context.progressCallbackUrl())
+                .isEqualTo("http://duodian-backend:8080/api/release-jobs/10/callback/progress");
+        assertThat(runner.context.completeCallbackUrl())
+                .isEqualTo("http://duodian-backend:8080/api/release-jobs/10/callback/complete");
+    }
+
+    @Test
+    void retryStartsRunnerWithNewJobContext() {
+        ReleaseJob failed = job(10L, ReleaseJob.STATUS_FAILED);
+        when(releaseJobRepository.findByIdAndDeleted(10L, ACTIVE)).thenReturn(Optional.of(failed));
+        when(releaseJobRepository.existsByChannelIdAndStatusInAndDeleted(eq(2L), anyStatusCollection(), eq(ACTIVE)))
+                .thenReturn(false);
+        when(releaseJobRepository.save(any(ReleaseJob.class))).thenAnswer(invocation -> {
+            ReleaseJob saved = invocation.getArgument(0);
+            if (saved.getId() == null) {
+                saved.setId(11L);
+            }
+            return saved;
+        });
+
+        service.retry(10L);
+
+        assertThat(runner.context).isNotNull();
+        assertThat(runner.context.jobId()).isEqualTo(11L);
+        assertThat(runner.context.callbackToken()).isNotBlank();
+        assertThat(runner.context.adminAuthorizationToken()).isEqualTo("admin-token");
+        assertThat(runner.context.channelCode()).isEqualTo("beta");
+    }
+
+    @Test
+    void startRequiresCurrentLoginToken() {
+        AuthContext.clear();
+        ReleaseJob job = job(10L, ReleaseJob.STATUS_PENDING);
+        when(releaseJobRepository.findByIdAndDeleted(10L, ACTIVE)).thenReturn(Optional.of(job));
+        when(releaseJobRepository.countActiveJobsForChannelExcluding(eq(ACTIVE), eq(2L), anyStatusCollection(), eq(10L)))
+                .thenReturn(0L);
+
+        assertThatThrownBy(() -> service.start(10L))
+                .hasMessage("发布任务需要登录态");
     }
 
     @Test
@@ -147,6 +205,7 @@ class ReleaseJobServiceTest {
                         && "1.2.0".equals(version.getVersionName())
                         && "/api/files/app-packages/app.apk".equals(version.getApkUrl())
                         && version.getChecksum().equals(request.getAppArtifactSha256())
+                        && "com.example.beta".equals(version.getApplicationId())
                         && version.getFileSize().equals(12345L)
                         && Boolean.TRUE.equals(version.getPublished())
         ));
@@ -156,6 +215,7 @@ class ReleaseJobServiceTest {
                         && "2.2.0".equals(version.getVersionName())
                         && "/api/files/engine-packages/engine.apk".equals(version.getApkUrl())
                         && version.getChecksum().equals(request.getEngineArtifactSha256())
+                        && "com.example.beta.engine".equals(version.getApplicationId())
                         && Boolean.TRUE.equals(version.getAvailable())
         ));
         verify(announcementRepository).save(argThat(announcement ->
@@ -194,10 +254,12 @@ class ReleaseJobServiceTest {
         request.setAppArtifactMd5("0123456789abcdef0123456789abcdef");
         request.setAppArtifactSha256("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef");
         request.setAppArtifactSize(12345L);
+        request.setAppArtifactApplicationId("com.example.beta");
         request.setEngineArtifactUrl("/api/files/engine-packages/engine.apk");
         request.setEngineArtifactMd5("abcdef0123456789abcdef0123456789");
         request.setEngineArtifactSha256("abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789");
         request.setEngineArtifactSize(23456L);
+        request.setEngineArtifactApplicationId("com.example.beta.engine");
         request.setLogExcerpt("complete");
         return request;
     }

@@ -161,6 +161,7 @@ CREATE TABLE IF NOT EXISTS engine_versions (
     channel_id BIGINT COMMENT '渠道ID',
     version_code INT NOT NULL COMMENT '版本号',
     version_name VARCHAR(64) NOT NULL COMMENT '版本名称',
+    application_id VARCHAR(128) NOT NULL DEFAULT 'com.zhirang.zhanghaoguanjia.engine' COMMENT '引擎APK applicationId',
     apk_url VARCHAR(512) NOT NULL COMMENT '引擎APK下载地址',
     checksum VARCHAR(64) COMMENT 'APK校验值',
     changelog TEXT COMMENT '更新日志',
@@ -170,6 +171,7 @@ CREATE TABLE IF NOT EXISTS engine_versions (
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_available (available),
     INDEX idx_channel_id (channel_id),
+    INDEX idx_application_id (application_id),
     INDEX idx_deleted (deleted),
     INDEX idx_version_code (version_code)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='引擎版本表';
@@ -180,6 +182,7 @@ CREATE TABLE IF NOT EXISTS app_versions (
     channel_id BIGINT COMMENT '渠道ID',
     version_code INT NOT NULL COMMENT '版本号',
     version_name VARCHAR(64) NOT NULL COMMENT '版本名称',
+    application_id VARCHAR(128) NOT NULL DEFAULT 'com.zhirang.zhanghaoguanjia' COMMENT '主APK applicationId',
     apk_url VARCHAR(512) NOT NULL COMMENT '主APK下载地址',
     checksum VARCHAR(64) COMMENT 'APK校验值',
     file_size BIGINT COMMENT '文件大小，单位字节',
@@ -190,6 +193,7 @@ CREATE TABLE IF NOT EXISTS app_versions (
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_published (published),
     INDEX idx_channel_id (channel_id),
+    INDEX idx_application_id (application_id),
     INDEX idx_deleted (deleted),
     INDEX idx_version_code (version_code)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='主APK版本表';

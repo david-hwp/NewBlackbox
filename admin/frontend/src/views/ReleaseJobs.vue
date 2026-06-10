@@ -74,6 +74,7 @@
         <el-table-column label="操作" width="190" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" link @click="showDetail(row)">详情</el-button>
+            <el-button type="success" link :disabled="!isPending(row.status)" @click="startJob(row)">启动</el-button>
             <el-button type="warning" link :disabled="!isFailed(row.status)" @click="retryJob(row)">重试</el-button>
           </template>
         </el-table-column>
@@ -163,6 +164,7 @@
 
         <div class="detail-actions">
           <el-button @click="refreshJobDetail(detailJob.id)">刷新</el-button>
+          <el-button type="success" :disabled="!isPending(detailJob.status)" @click="startJob(detailJob)">启动任务</el-button>
           <el-button type="warning" :disabled="!isFailed(detailJob.status)" @click="retryJob(detailJob)">失败重试</el-button>
         </div>
 
@@ -290,6 +292,7 @@ const statusTag = (status) => {
 }
 
 const isFailed = (status) => String(status || '').toUpperCase() === 'FAILED'
+const isPending = (status) => String(status || '').toUpperCase() === 'PENDING'
 
 const normalizeProgress = (value) => {
   const parsed = Number(value ?? 0)
@@ -327,12 +330,27 @@ const submitJob = async () => {
 
   submitting.value = true
   try {
-    await request.post('/release-jobs', { ...form.value })
-    ElMessage.success('发布任务已提交')
+    const created = await request.post('/release-jobs', { ...form.value })
+    await request.post(`/release-jobs/${created.id}/start`)
+    ElMessage.success('发布任务已提交并启动')
     dialogVisible.value = false
     fetchJobs()
   } finally {
     submitting.value = false
+  }
+}
+
+const startJob = async (row) => {
+  try {
+    await request.post(`/release-jobs/${row.id}/start`)
+    ElMessage.success('发布任务已启动')
+    if (detailVisible.value) {
+      await refreshJobDetail(row.id)
+    } else {
+      fetchJobs()
+    }
+  } catch (e) {
+    console.error(e)
   }
 }
 

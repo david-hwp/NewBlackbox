@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.verify;
@@ -133,5 +134,25 @@ class UserServiceTest {
         verify(transactionLogRepository, never()).save(argThat((TransactionLog log) ->
                 "管理员增加".equals(log.getRemark()) || "管理员扣除".equals(log.getRemark())
         ));
+    }
+
+    @Test
+    void createChannelAdminRejectsPhoneAlreadyUsedByNormalUser() {
+        User request = new User();
+        request.setUsername("channel admin");
+        request.setPhone("13800000011");
+        request.setPassword("password");
+        request.setRole("CHANNEL");
+        request.setChannelId(2L);
+        User existingNormalUser = new User();
+        existingNormalUser.setId(11L);
+        existingNormalUser.setPhone("13800000011");
+        existingNormalUser.setRole("USER");
+        when(userRepository.findAllByPhoneAndDeleted("13800000011", (byte) 0)).thenReturn(java.util.List.of(existingNormalUser));
+
+        assertThatThrownBy(() -> userService.create(request))
+                .hasMessage("管理员手机号已存在");
+
+        verify(userRepository, never()).save(argThat(user -> true));
     }
 }
