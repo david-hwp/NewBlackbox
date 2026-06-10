@@ -15,6 +15,7 @@ import androidx.core.content.FileProvider
 import com.zhirang.zhanghaoguanjia.bean.dto.AppVersionDto
 import com.zhirang.zhanghaoguanjia.data.AppVersionRepository
 import com.zhirang.zhanghaoguanjia.data.TokenManager
+import com.zhirang.zhanghaoguanjia.network.RequestAuthHeaders
 import com.zhirang.zhanghaoguanjia.network.RetrofitClient
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -97,7 +98,9 @@ object AppUpdateManager {
     }
 
     private fun download(application: Application, version: AppVersionDto): File {
-        val request = Request.Builder().url(RetrofitClient.resolveUrl(version.apkUrl)).build()
+        val request = RequestAuthHeaders.apply(
+            Request.Builder().url(RetrofitClient.resolveUrl(version.apkUrl))
+        ).build()
         val response = httpClient.newCall(request).execute()
         if (!response.isSuccessful) {
             throw IOException("下载失败: ${response.code}")
