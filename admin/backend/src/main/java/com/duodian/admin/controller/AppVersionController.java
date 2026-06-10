@@ -152,6 +152,11 @@ public class AppVersionController {
     }
 
     private Long effectiveChannelId(Long requestedChannelId, HttpServletRequest request) {
+        if (requestedChannelId == null && channelScopeService.hasAppChannelHeader(request)) {
+            Channel channel = channelScopeService.resolveAppChannel(request, null);
+            channelScopeService.requireActiveForApp(channel);
+            return channel.getId();
+        }
         CurrentPrincipal principal = permissionService.currentPrincipal();
         if (principal.isAdminRole()) {
             return permissionService.filterChannelForQuery(requestedChannelId);

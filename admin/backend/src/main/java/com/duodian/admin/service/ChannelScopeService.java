@@ -35,6 +35,10 @@ public class ChannelScopeService {
                         : "渠道不存在"));
     }
 
+    public boolean hasAppChannelHeader(HttpServletRequest request) {
+        return normalize(request == null ? null : request.getHeader(APK_CHANNEL_HEADER)) != null;
+    }
+
     public Channel mainChannel() {
         return channelRepository.findByCodeAndDeleted(Channel.MAIN_CODE, ACTIVE)
                 .orElseThrow(() -> new RuntimeException("默认渠道不存在"));
