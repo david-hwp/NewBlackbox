@@ -7,6 +7,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -100,12 +101,24 @@ public class ShopService {
     public Shop update(Long id, Shop shop) {
         Shop existing = shopRepository.findByIdAndDeleted(id, ACTIVE)
                 .orElseThrow(() -> new RuntimeException("店铺不存在"));
-        String previousShopName = normalize(existing.getShopName());
-        String nextShopName = normalize(shop.getShopName());
-        existing.setShopName(shop.getShopName());
-        existing.setShopId(resolveEditableShopId(existing.getShopId(), shop.getShopId(), previousShopName, nextShopName));
-        existing.setPlatform(shop.getPlatform());
-        existing.setPlatformName(shop.getPlatformName());
+        if (shop.getShopName() != null) {
+            existing.setShopName(shop.getShopName());
+        }
+        if (shop.getShopId() != null) {
+            existing.setShopId(shop.getShopId());
+        }
+        if (Boolean.TRUE.equals(shop.getIdentityVerified()) || shop.getIdentityVerifiedAt() != null) {
+            existing.setIdentityVerified(shop.getIdentityVerified());
+        }
+        if (shop.getIdentityVerifiedAt() != null) {
+            existing.setIdentityVerifiedAt(shop.getIdentityVerifiedAt());
+        }
+        if (shop.getPlatform() != null) {
+            existing.setPlatform(shop.getPlatform());
+        }
+        if (shop.getPlatformName() != null) {
+            existing.setPlatformName(shop.getPlatformName());
+        }
         existing.setRemainingDays(shop.getRemainingDays());
         existing.setAutoRenew(shop.getAutoRenew());
         existing.setPackageName(shop.getPackageName());
@@ -159,6 +172,24 @@ public class ShopService {
         return updated;
     }
 
+    public Shop updateLoginState(
+            Long id,
+            String profile,
+            String manifest,
+            byte[] blob,
+            String sha256
+    ) {
+        Shop existing = shopRepository.findByIdAndDeleted(id, ACTIVE)
+                .orElseThrow(() -> new RuntimeException("店铺不存在"));
+        existing.setLoginStateProfile(normalize(profile));
+        existing.setLoginStateManifest(manifest);
+        existing.setLoginStateBlob(blob);
+        existing.setLoginStateSize(blob == null ? null : (long) blob.length);
+        existing.setLoginStateSha256(normalize(sha256));
+        existing.setLoginStateUpdatedAt(blob == null ? null : LocalDateTime.now());
+        return shopRepository.save(existing);
+    }
+
     public void delete(Long id) {
         Shop shop = shopRepository.findByIdAndDeleted(id, ACTIVE)
                 .orElseThrow(() -> new RuntimeException("店铺不存在"));
@@ -174,24 +205,4 @@ public class ShopService {
         return value.trim();
     }
 
-    private String resolveEditableShopId(
-            String currentShopId,
-            String requestedShopId,
-            String previousShopName,
-            String nextShopName
-    ) {
-        String normalizedCurrentShopId = normalize(currentShopId);
-        String normalizedRequestedShopId = normalize(requestedShopId);
-        if (normalizedRequestedShopId == null) {
-            return "-";
-        }
-        if (normalizedRequestedShopId.startsWith("NEW-")
-                && normalizedCurrentShopId != null
-                && normalizedCurrentShopId.startsWith("NEW-")
-                && (!java.util.Objects.equals(previousShopName, nextShopName)
-                || !java.util.Objects.equals(normalizedCurrentShopId, normalizedRequestedShopId))) {
-            return "-";
-        }
-        return normalizedRequestedShopId;
-    }
 }

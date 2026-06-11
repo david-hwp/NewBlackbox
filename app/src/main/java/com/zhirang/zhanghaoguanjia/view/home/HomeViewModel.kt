@@ -4,6 +4,7 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import android.util.Log
 import kotlinx.coroutines.launch
 import com.zhirang.zhanghaoguanjia.bean.Platform
 import com.zhirang.zhanghaoguanjia.bean.Shop
@@ -27,6 +28,9 @@ import com.zhirang.zhanghaoguanjia.util.PlatformRegistry
 import java.util.UUID
 
 class HomeViewModel : ViewModel() {
+    companion object {
+        private const val TAG = "HomeViewModel"
+    }
 
     private val _shopsLiveData = MutableLiveData<List<Shop>>()
     val shopsLiveData: LiveData<List<Shop>> = _shopsLiveData
@@ -307,9 +311,19 @@ class HomeViewModel : ViewModel() {
         return tokenManager.isLoggedIn()
     }
 
-    fun reportShop(shop: Shop, showMessage: Boolean = true, onComplete: (() -> Unit)? = null) {
+    fun reportShop(
+        shop: Shop,
+        showMessage: Boolean = true,
+        requireVerifiedIdentity: Boolean = true,
+        onComplete: (() -> Unit)? = null
+    ) {
         if (!isLoggedIn()) {
             _loadErrorLiveData.value = "请先登录后再更新店铺"
+            return
+        }
+        if (requireVerifiedIdentity && !isVerifiedShopIdentity(shop.shopId, shop.shopName)) {
+            _loadErrorLiveData.value = "店铺ID和店铺名称需由引擎识别后再更新"
+            onComplete?.invoke()
             return
         }
         viewModelScope.launch {
@@ -417,8 +431,6 @@ class HomeViewModel : ViewModel() {
 
     fun updateShop(
         shop: Shop,
-        newName: String = shop.shopName,
-        newShopId: String = shop.shopId,
         autoRenew: Boolean = shop.autoRenew
     ) {
         if (!isLoggedIn()) {
@@ -428,8 +440,8 @@ class HomeViewModel : ViewModel() {
         viewModelScope.launch {
             val request = ShopDto(
                 id = shop.id,
-                shopName = newName,
-                shopId = newShopId,
+                shopName = shop.shopName,
+                shopId = shop.shopId,
                 platform = shop.platform.id,
                 platformName = PlatformRegistry.displayName(shop.platform),
                 remainingDays = shop.remainingDays,
@@ -449,6 +461,19 @@ class HomeViewModel : ViewModel() {
                 }
             )
         }
+    }
+
+    private fun isVerifiedShopIdentity(shopId: String, shopName: String): Boolean {
+        return shopId.isNotBlank()
+                && shopId != "-"
+                && !shopId.startsWith("NEW-")
+                && !shopId.startsWith("phase13-")
+                && shopName.isNotBlank()
+                && !shopName.startsWith("新增店铺-[")
+                && !shopName.startsWith("NEW-")
+                && !shopName.startsWith("phase13-")
+                && !shopName.startsWith("User[")
+                && !shopName.startsWith("未知")
     }
 
     fun renewShop(shop: Shop, onSuccess: (Shop) -> Unit) {
@@ -526,6 +551,23 @@ class HomeViewModel : ViewModel() {
                     onFailure(message)
                 }
             )
+        }
+    }
+
+    suspend fun downloadLoginState(shopId: Long): Result<ShopRepository.LoginStateDownload?> {
+        if (!isLoggedIn()) {
+            return Result.failure(Exception("请先登录后再恢复店铺"))
+        }
+        return shopRepository.downloadLoginState(shopId)
+    }
+
+    suspend fun uploadLoginState(shopId: Long, profile: String, manifest: String, artifact: ByteArray) {
+        if (!isLoggedIn() || artifact.isEmpty()) {
+            return
+        }
+        val result = shopRepository.uploadLoginState(shopId, profile, manifest, artifact)
+        result.onFailure { e ->
+            Log.w(TAG, "upload login state failed shop=$shopId profile=$profile: ${e.message}")
         }
     }
 

@@ -46,8 +46,7 @@ interface IBlackBoxEngine {
     oneway void sendLogsToEndpoint(String caption, boolean async, String endpointUrl, String authToken);
 
     ShopInfo getShopInfo(String packageName, int userId);
-    oneway void triggerShopIdExtract(String packageName, int userId);
-    List<ShopInfo> refreshShopInfoByPlatform(String platform, String packageName);
+    ShopInfo triggerShopIdExtract(String packageName, int userId);
 
     void registerSession(String sessionId, long expireAt);
     void unregisterSession();
@@ -58,10 +57,16 @@ interface IBlackBoxEngine {
     void configureLogUpload(String endpointUrl, String authToken);
 
     int ensureCloneUser(String cloneInstanceId, String packageName, long serverUserId);
+    int findCloneUserId(String cloneInstanceId, String packageName, long serverUserId);
     void bindCloneUser(String cloneInstanceId, String packageName, long serverUserId, int userId);
     void clearCloneUser(String cloneInstanceId, String packageName, long serverUserId);
     boolean writeCloneAuthorization(String cloneInstanceId, String packageName, long serverUserId, String phone, int userId, String publicKeyId, String authorizationToken);
     Intent getAuthorizedLaunchIntent(String cloneInstanceId, String packageName, int userId);
     Intent peekAuthorizedLaunchIntent(String cloneInstanceId, String packageName, int userId);
     boolean isCloneAuthorized(String cloneInstanceId, String packageName, long serverUserId, int userId);
+    boolean clearClonePackageData(String cloneInstanceId, String packageName, long serverUserId, int userId);
+    byte[] exportLoginState(String packageName, int userId, String profileId);
+    boolean restoreLoginState(String packageName, int userId, String profileId, in byte[] artifact);
+    String defaultLoginStateProfile(String packageName);
+    String migrateCloneDataToScopedStorage();
 }

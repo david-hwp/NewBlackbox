@@ -18,11 +18,18 @@ import com.duodian.admin.service.CloneAuthorizationTokenService;
 import com.duodian.admin.service.ComputeService;
 import com.duodian.admin.service.ShopService;
 import com.duodian.admin.service.UserService;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -37,6 +44,9 @@ import java.util.Optional;
 public class ShopController {
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
     private static final int DEFAULT_AUTH_DAYS = 30;
+    private static final int MAX_LOGIN_STATE_BYTES = 2 * 1024 * 1024;
+    private static final int MAX_LOGIN_STATE_MANIFEST_BYTES = 16 * 1024;
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     private final ShopService shopService;
     private final UserService userService;
@@ -275,9 +285,15 @@ public class ShopController {
 
     @PutMapping("/{id}")
     public ApiResponse<Shop> update(@PathVariable Long id, @RequestBody Shop shop) {
-        if (!canAccessShop(id)) {
+        Optional<Shop> existing = shopService.findById(id);
+        if (existing.isEmpty() || !canAccessShop(existing.get())) {
             return ApiResponse.error("店铺不存在");
         }
+        if (hasIdentityChange(existing.get(), shop)) {
+            return ApiResponse.error("店铺ID和店铺名称只能由引擎识别更新");
+        }
+        shop.setIdentityVerified(existing.get().getIdentityVerified());
+        shop.setIdentityVerifiedAt(existing.get().getIdentityVerifiedAt());
         Long ownerId = shopService.findById(id).map(Shop::getUserId).orElse(null);
         if (!isCurrentUserAdmin()) {
             shop.setUserId(AuthContext.getUserId());
@@ -418,6 +434,84 @@ public class ShopController {
         ));
     }
 
+    @PostMapping(value = "/{id}/login-state", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ApiResponse<ShopResponse> uploadLoginState(
+            @PathVariable Long id,
+            @RequestPart("file") MultipartFile file,
+            @RequestPart(value = "profile", required = false) String profile,
+            @RequestPart(value = "manifest", required = false) String manifest
+    ) {
+        Shop shop = shopService.findById(id)
+                .filter(this::canAccessShop)
+                .orElse(null);
+        if (shop == null) {
+            return ApiResponse.error("店铺不存在");
+        }
+        String normalizedProfile = normalize(profile);
+        if (normalizedProfile == null) {
+            return ApiResponse.error("缺少登录态档位");
+        }
+        if (!normalizedProfile.matches("[A-Za-z0-9._:-]{1,128}")) {
+            return ApiResponse.error("登录态档位格式无效");
+        }
+        if (file == null || file.isEmpty()) {
+            return ApiResponse.error("登录态文件为空");
+        }
+        if (file.getSize() > MAX_LOGIN_STATE_BYTES) {
+            return ApiResponse.error("登录态文件过大，请使用最小可用档位");
+        }
+        String normalizedManifest = manifest == null ? null : manifest.trim();
+        if (normalizedManifest != null &&
+                normalizedManifest.getBytes(StandardCharsets.UTF_8).length > MAX_LOGIN_STATE_MANIFEST_BYTES) {
+            return ApiResponse.error("登录态清单过大");
+        }
+        String validationError = validateLoginStateManifest(shop, normalizedProfile, normalizedManifest);
+        if (validationError != null) {
+            return ApiResponse.error(validationError);
+        }
+        try {
+            byte[] blob = file.getBytes();
+            if (blob.length > MAX_LOGIN_STATE_BYTES) {
+                return ApiResponse.error("登录态文件过大，请使用最小可用档位");
+            }
+            Shop saved = shopService.updateLoginState(
+                    id,
+                    normalizedProfile,
+                    normalizedManifest,
+                    blob,
+                    sha256(blob)
+            );
+            return ApiResponse.success(ShopResponse.from(saved, userService.findById(saved.getUserId()).orElse(null)));
+        } catch (Exception e) {
+            return ApiResponse.error("保存登录态失败");
+        }
+    }
+
+    @GetMapping("/{id}/login-state")
+    public ResponseEntity<byte[]> downloadLoginState(@PathVariable Long id) {
+        Shop shop = shopService.findById(id)
+                .filter(this::canAccessShop)
+                .orElse(null);
+        if (shop == null) {
+            return ResponseEntity.status(404).build();
+        }
+        byte[] blob = shop.getLoginStateBlob();
+        if (blob == null || blob.length == 0) {
+            return ResponseEntity.noContent().build();
+        }
+        String profile = normalize(shop.getLoginStateProfile());
+        String filename = "shop-" + id + "-login-state"
+                + (profile == null ? "" : "-" + profile.replaceAll("[^A-Za-z0-9._-]", "_"))
+                + ".zip";
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                .contentLength(blob.length)
+                .header("X-Login-State-Profile", profile == null ? "" : profile)
+                .header("X-Login-State-Sha256", shop.getLoginStateSha256() == null ? "" : shop.getLoginStateSha256())
+                .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment().filename(filename).build().toString())
+                .body(blob);
+    }
+
     private User getCurrentUser() {
         Long currentUserId = AuthContext.getUserId();
         if (currentUserId == null) {
@@ -447,11 +541,67 @@ public class ShopController {
         return isAdmin(currentUser) || currentUser.getId().equals(shop.getUserId());
     }
 
+    private boolean hasIdentityChange(Shop existing, Shop request) {
+        if (request == null) {
+            return false;
+        }
+        String existingName = normalize(existing.getShopName());
+        String requestName = normalize(request.getShopName());
+        String existingShopId = normalize(existing.getShopId());
+        String requestShopId = normalize(request.getShopId());
+        return (requestName != null && !requestName.equals(existingName))
+                || (requestShopId != null && !requestShopId.equals(existingShopId));
+    }
+
     private String normalize(String value) {
         if (value == null || value.isBlank()) {
             return null;
         }
         return value.trim();
+    }
+
+    private String validateLoginStateManifest(Shop shop, String profile, String manifest) {
+        String shopPackageName = normalize(shop.getPackageName());
+        if (shopPackageName == null) {
+            return "店铺缺少应用包名，无法保存登录态";
+        }
+        if (!isAllowedLoginStateProfile(shopPackageName, profile)) {
+            return "登录态档位与店铺平台不匹配";
+        }
+        if (manifest == null) {
+            return null;
+        }
+        try {
+            JsonNode root = OBJECT_MAPPER.readTree(manifest);
+            if (root == null || !root.isObject()) {
+                return "登录态清单格式无效";
+            }
+            JsonNode packageNode = root.get("packageName");
+            if (packageNode != null && !packageNode.asText("").isBlank()
+                    && !shopPackageName.equals(packageNode.asText().trim())) {
+                return "登录态清单包名与店铺不匹配";
+            }
+            JsonNode profileNode = root.get("profileId");
+            if (profileNode != null && !profileNode.asText("").isBlank()
+                    && !profile.equals(profileNode.asText().trim())) {
+                return "登录态清单档位与上传档位不匹配";
+            }
+            return null;
+        } catch (Exception e) {
+            return "登录态清单格式无效";
+        }
+    }
+
+    private boolean isAllowedLoginStateProfile(String packageName, String profile) {
+        return switch (packageName) {
+            case "com.sankuai.meituan.meituanwaimaibusiness" ->
+                    "meituan-waimai-cips-f".equals(profile) || "phase13-meituan-cips-f-20260611".equals(profile);
+            case "com.jd.mrd.jingming" ->
+                    "jd-jingming-prefs-d".equals(profile) || "phase13-jd-jingming-prefs-d-20260611".equals(profile);
+            case "me.ele.napos" ->
+                    "ele-napos-prefs-e-min".equals(profile) || "phase13-ele-napos-prefs-e-min-20260611".equals(profile);
+            default -> false;
+        };
     }
 
     private boolean hasText(String value) {
@@ -521,6 +671,19 @@ public class ShopController {
         try {
             byte[] digest = MessageDigest.getInstance("SHA-256")
                     .digest(value.getBytes(StandardCharsets.UTF_8));
+            StringBuilder builder = new StringBuilder(digest.length * 2);
+            for (byte b : digest) {
+                builder.append(String.format("%02x", b));
+            }
+            return builder.toString();
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 not available", e);
+        }
+    }
+
+    private String sha256(byte[] value) {
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256").digest(value);
             StringBuilder builder = new StringBuilder(digest.length * 2);
             for (byte b : digest) {
                 builder.append(String.format("%02x", b));

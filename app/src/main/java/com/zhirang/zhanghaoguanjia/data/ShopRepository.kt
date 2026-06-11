@@ -2,6 +2,9 @@ package com.zhirang.zhanghaoguanjia.data
 
 import com.zhirang.zhanghaoguanjia.bean.dto.*
 import com.zhirang.zhanghaoguanjia.network.ApiService
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.toRequestBody
 
 class ShopRepository(api: ApiService) : BaseRepository(api) {
 
@@ -26,9 +29,52 @@ class ShopRepository(api: ApiService) : BaseRepository(api) {
     suspend fun issueShopAuthToken(id: Long, request: ShopAuthTokenRequest): Result<CloneShopCreateResult> =
         safeApiCall { api.issueShopAuthToken(id, request) }
 
+    suspend fun uploadLoginState(id: Long, profile: String, manifest: String, artifact: ByteArray): Result<ShopDto> =
+        safeApiCall {
+            val body = artifact.toRequestBody("application/zip".toMediaTypeOrNull())
+            val part = MultipartBody.Part.createFormData("file", "login-state.zip", body)
+            api.uploadShopLoginState(
+                id,
+                part,
+                profile.toRequestBody("text/plain".toMediaTypeOrNull()),
+                manifest.toRequestBody("application/json".toMediaTypeOrNull())
+            )
+        }
+
+    suspend fun downloadLoginState(id: Long): Result<LoginStateDownload?> = try {
+        val response = api.downloadShopLoginState(id)
+        when {
+            response.code() == 204 -> Result.success(null)
+            response.isSuccessful -> {
+                val bytes = response.body()?.bytes()
+                if (bytes == null || bytes.isEmpty()) {
+                    Result.success(null)
+                } else {
+                    Result.success(
+                        LoginStateDownload(
+                            profile = response.headers()["X-Login-State-Profile"]?.takeIf { it.isNotBlank() },
+                            sha256 = response.headers()["X-Login-State-Sha256"]?.takeIf { it.isNotBlank() },
+                            bytes = bytes
+                        )
+                    )
+                }
+            }
+            response.code() == 401 -> Result.failure(Exception("未登录"))
+            else -> Result.failure(Exception("下载登录态失败: ${response.code()}"))
+        }
+    } catch (e: Exception) {
+        Result.failure(e)
+    }
+
     suspend fun deleteShop(id: Long): Result<Unit> =
         safeApiCall { api.deleteShop(id) }
 
     suspend fun validateShops(shopIds: List<String>, packageName: String? = null): Result<List<ShopValidationResult>> =
         safeApiCall { api.validateShops(shopIds.joinToString(","), packageName) }
+
+    data class LoginStateDownload(
+        val profile: String?,
+        val sha256: String?,
+        val bytes: ByteArray
+    )
 }

@@ -94,7 +94,7 @@ public class JDShopIdExtractor implements ShopIdExtractor {
         if (shopName == null) {
             shopName = normalizeShopName(extractPattern(content, SHOP_NAME_PATTERN));
         }
-        if (shopId != null && isValidShopId(shopId)) {
+        if (shopId != null && shopName != null && isValidShopId(shopId)) {
             Slog.d(TAG, "Extracted shopId=" + shopId + ", shopName=" + shopName + " from " + prefFile.getName());
             return new ShopInfo(shopId, shopName, "jd");
         }
@@ -104,8 +104,7 @@ public class JDShopIdExtractor implements ShopIdExtractor {
         if (getuiValue != null && !getuiValue.isEmpty()) {
             String fallbackShopId = getuiValue.split(",")[0].trim();
             if (isValidShopId(fallbackShopId)) {
-                Slog.d(TAG, "Extracted shopId=" + fallbackShopId + " from GeTui alias in " + prefFile.getName());
-                return new ShopInfo(fallbackShopId, null, "jd");
+                Slog.d(TAG, "GeTui alias has shopId=" + fallbackShopId + " but no verified shopName in " + prefFile.getName());
             }
         }
 

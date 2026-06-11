@@ -221,6 +221,20 @@ object EngineProxy {
         }
     }
 
+    fun findCloneUserId(cloneInstanceId: String, packageName: String, serverUserId: Long): Int? {
+        if (!isConnected()) {
+            Log.w(TAG, "findCloneUserId: Engine not connected")
+            return null
+        }
+        return try {
+            mEngine!!.findCloneUserId(cloneInstanceId, packageName, serverUserId)
+                .takeIf { it >= 0 }
+        } catch (e: RemoteException) {
+            markRemoteFailure("findCloneUserId($cloneInstanceId, $packageName)", e)
+            null
+        }
+    }
+
     fun bindCloneUser(cloneInstanceId: String, packageName: String, serverUserId: Long, userId: Int) {
         if (!isConnected()) {
             Log.w(TAG, "bindCloneUser: Engine not connected")
@@ -313,6 +327,19 @@ object EngineProxy {
         }
     }
 
+    fun clearClonePackageData(cloneInstanceId: String, packageName: String, serverUserId: Long, userId: Int): Boolean {
+        if (!isConnected()) {
+            Log.w(TAG, "clearClonePackageData: Engine not connected")
+            return false
+        }
+        return try {
+            mEngine!!.clearClonePackageData(cloneInstanceId, packageName, serverUserId, userId)
+        } catch (e: RemoteException) {
+            markRemoteFailure("clearClonePackageData($cloneInstanceId, $packageName, user=$userId)", e)
+            false
+        }
+    }
+
     fun clearPackage(packageName: String, userId: Int) {
         if (!isConnected()) {
             Log.w(TAG, "clearPackage: Engine not connected")
@@ -322,6 +349,58 @@ object EngineProxy {
             mEngine!!.clearPackage(packageName, userId)
         } catch (e: RemoteException) {
             markRemoteFailure("clearPackage($packageName, user=$userId)", e)
+        }
+    }
+
+    fun exportLoginState(packageName: String, userId: Int, profileId: String? = null): ByteArray? {
+        if (!isConnected()) {
+            Log.w(TAG, "exportLoginState: Engine not connected")
+            return null
+        }
+        return try {
+            mEngine!!.exportLoginState(packageName, userId, profileId)
+        } catch (e: RemoteException) {
+            markRemoteFailure("exportLoginState($packageName, user=$userId)", e)
+            null
+        }
+    }
+
+    fun restoreLoginState(packageName: String, userId: Int, profileId: String?, artifact: ByteArray): Boolean {
+        if (!isConnected()) {
+            Log.w(TAG, "restoreLoginState: Engine not connected")
+            return false
+        }
+        return try {
+            mEngine!!.restoreLoginState(packageName, userId, profileId, artifact)
+        } catch (e: RemoteException) {
+            markRemoteFailure("restoreLoginState($packageName, user=$userId)", e)
+            false
+        }
+    }
+
+    fun defaultLoginStateProfile(packageName: String): String? {
+        if (!isConnected()) {
+            Log.w(TAG, "defaultLoginStateProfile: Engine not connected")
+            return null
+        }
+        return try {
+            mEngine!!.defaultLoginStateProfile(packageName)
+        } catch (e: RemoteException) {
+            markRemoteFailure("defaultLoginStateProfile($packageName)", e)
+            null
+        }
+    }
+
+    fun migrateCloneDataToScopedStorage(): String? {
+        if (!isConnected()) {
+            Log.w(TAG, "migrateCloneDataToScopedStorage: Engine not connected")
+            return null
+        }
+        return try {
+            mEngine!!.migrateCloneDataToScopedStorage()
+        } catch (e: RemoteException) {
+            markRemoteFailure("migrateCloneDataToScopedStorage", e)
+            null
         }
     }
 
@@ -501,28 +580,16 @@ object EngineProxy {
         }
     }
 
-    fun triggerShopIdExtract(packageName: String, userId: Int) {
+    fun triggerShopIdExtract(packageName: String, userId: Int): ShopInfo? {
         if (!isConnected()) {
             Log.w(TAG, "triggerShopIdExtract: Engine not connected")
-            return
+            return null
         }
-        try {
+        return try {
             mEngine!!.triggerShopIdExtract(packageName, userId)
         } catch (e: RemoteException) {
             markRemoteFailure("triggerShopIdExtract($packageName, user=$userId)", e)
-        }
-    }
-
-    fun refreshShopInfoByPlatform(platform: String, packageName: String): List<ShopInfo> {
-        if (!isConnected()) {
-            Log.w(TAG, "refreshShopInfoByPlatform: Engine not connected")
-            return emptyList()
-        }
-        return try {
-            mEngine!!.refreshShopInfoByPlatform(platform, packageName) ?: emptyList()
-        } catch (e: RemoteException) {
-            markRemoteFailure("refreshShopInfoByPlatform($platform, $packageName)", e)
-            emptyList()
+            null
         }
     }
 

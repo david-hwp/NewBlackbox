@@ -13,7 +13,8 @@ object RetrofitClient {
     private val SERVER_ROOT = BASE_URL.removeSuffix("/api/")
 
     private val loggingInterceptor = HttpLoggingInterceptor().apply {
-        level = HttpLoggingInterceptor.Level.BODY
+        redactHeader("Authorization")
+        level = HttpLoggingInterceptor.Level.BASIC
     }
 
     private val okHttpClient = OkHttpClient.Builder()

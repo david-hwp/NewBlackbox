@@ -90,8 +90,9 @@ class ShopListAdapter(
             cardContainer.translationX = if (expanded) -repairActionWidthPx(itemView) else 0f
 
             shopName.text = shop.shopName
+            val verifiedIdentity = shop.hasVerifiedIdentity
             newTag.visibility = if (shop.isNew) View.VISIBLE else View.GONE
-            shopId.text = "店铺ID: ${if (shop.isNew) "-" else shop.shopId}"
+            shopId.text = "店铺ID: ${if (verifiedIdentity) shop.shopId else "-"}"
 
             // 剩余天数显示（带颜色逻辑）
             remainingDaysBadge.text = "${shop.remainingDays}天"
@@ -117,8 +118,13 @@ class ShopListAdapter(
                 item = platformItem,
                 platform = iconPlatform,
                 packageName = packageName,
-                available = platformItem?.available ?: true
+                available = (platformItem?.available ?: true) && verifiedIdentity
             )
+            shopLogo.contentDescription = if (verifiedIdentity) {
+                "${shop.shopName}已登录"
+            } else {
+                "${shop.shopName}未登录"
+            }
 
             // Card click
             cardView.setOnClickListener {

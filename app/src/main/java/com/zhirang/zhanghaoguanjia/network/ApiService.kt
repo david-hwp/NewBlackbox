@@ -2,6 +2,7 @@ package com.zhirang.zhanghaoguanjia.network
 
 import okhttp3.MultipartBody
 import okhttp3.RequestBody
+import okhttp3.ResponseBody
 import retrofit2.http.*
 import com.zhirang.zhanghaoguanjia.bean.dto.*
 
@@ -60,6 +61,18 @@ interface ApiService {
         @Path("id") id: Long,
         @Body request: ShopAuthTokenRequest
     ): ApiResponse<CloneShopCreateResult>
+
+    @Multipart
+    @POST("shops/{id}/login-state")
+    suspend fun uploadShopLoginState(
+        @Path("id") id: Long,
+        @Part file: MultipartBody.Part,
+        @Part("profile") profile: RequestBody,
+        @Part("manifest") manifest: RequestBody
+    ): ApiResponse<ShopDto>
+
+    @GET("shops/{id}/login-state")
+    suspend fun downloadShopLoginState(@Path("id") id: Long): retrofit2.Response<ResponseBody>
 
     @DELETE("shops/{id}")
     suspend fun deleteShop(@Path("id") id: Long): ApiResponse<Unit>

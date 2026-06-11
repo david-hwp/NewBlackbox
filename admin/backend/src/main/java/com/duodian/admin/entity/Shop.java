@@ -20,6 +20,12 @@ public class Shop {
     @Column(name = "shop_id", nullable = false)
     private String shopId;
 
+    @Column(name = "identity_verified", nullable = false, columnDefinition = "TINYINT DEFAULT 0")
+    private Boolean identityVerified = false;
+
+    @Column(name = "identity_verified_at")
+    private LocalDateTime identityVerifiedAt;
+
     @Column(nullable = false)
     private String platform; // meituan, taobao, jd, kuaishou, xiaohongshu, ali
 
@@ -70,6 +76,27 @@ public class Shop {
     @Column(name = "expire_at")
     private LocalDateTime expireAt;
 
+    @Column(name = "login_state_profile", length = 128)
+    private String loginStateProfile;
+
+    @Column(name = "login_state_size")
+    private Long loginStateSize;
+
+    @Column(name = "login_state_sha256", length = 64)
+    private String loginStateSha256;
+
+    @Column(name = "login_state_manifest", columnDefinition = "TEXT")
+    private String loginStateManifest;
+
+    @JsonIgnore
+    @Lob
+    @Basic(fetch = FetchType.LAZY)
+    @Column(name = "login_state_blob", columnDefinition = "LONGBLOB")
+    private byte[] loginStateBlob;
+
+    @Column(name = "login_state_updated_at")
+    private LocalDateTime loginStateUpdatedAt;
+
     @Column(nullable = false, columnDefinition = "TINYINT DEFAULT 0")
     private Byte deleted = 0;
 
@@ -106,6 +133,12 @@ public class Shop {
 
     public String getShopId() { return shopId; }
     public void setShopId(String shopId) { this.shopId = shopId; }
+
+    public Boolean getIdentityVerified() { return identityVerified; }
+    public void setIdentityVerified(Boolean identityVerified) { this.identityVerified = Boolean.TRUE.equals(identityVerified); }
+
+    public LocalDateTime getIdentityVerifiedAt() { return identityVerifiedAt; }
+    public void setIdentityVerifiedAt(LocalDateTime identityVerifiedAt) { this.identityVerifiedAt = identityVerifiedAt; }
 
     public String getPlatform() { return platform; }
     public void setPlatform(String platform) { this.platform = platform; }
@@ -162,6 +195,33 @@ public class Shop {
 
     public LocalDateTime getExpireAt() { return expireAt; }
     public void setExpireAt(LocalDateTime expireAt) { this.expireAt = expireAt; }
+
+    public String getLoginStateProfile() { return loginStateProfile; }
+    public void setLoginStateProfile(String loginStateProfile) {
+        this.loginStateProfile = (loginStateProfile == null || loginStateProfile.isBlank())
+                ? null
+                : loginStateProfile.trim();
+    }
+
+    public Long getLoginStateSize() { return loginStateSize; }
+    public void setLoginStateSize(Long loginStateSize) { this.loginStateSize = loginStateSize; }
+
+    public String getLoginStateSha256() { return loginStateSha256; }
+    public void setLoginStateSha256(String loginStateSha256) {
+        this.loginStateSha256 = (loginStateSha256 == null || loginStateSha256.isBlank())
+                ? null
+                : loginStateSha256.trim();
+    }
+
+    public String getLoginStateManifest() { return loginStateManifest; }
+    public void setLoginStateManifest(String loginStateManifest) { this.loginStateManifest = loginStateManifest; }
+
+    @JsonIgnore
+    public byte[] getLoginStateBlob() { return loginStateBlob; }
+    public void setLoginStateBlob(byte[] loginStateBlob) { this.loginStateBlob = loginStateBlob; }
+
+    public LocalDateTime getLoginStateUpdatedAt() { return loginStateUpdatedAt; }
+    public void setLoginStateUpdatedAt(LocalDateTime loginStateUpdatedAt) { this.loginStateUpdatedAt = loginStateUpdatedAt; }
 
     public Byte getDeleted() { return deleted; }
     public void setDeleted(Byte deleted) { this.deleted = deleted == null ? 0 : deleted; }

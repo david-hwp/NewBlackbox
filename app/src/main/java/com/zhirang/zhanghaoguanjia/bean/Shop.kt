@@ -10,6 +10,24 @@ data class Shop(
     val packageName: String? = null,
     val cloneInstanceId: String? = null,
     val localVirtualUserId: Int? = null,
+    val hasLoginState: Boolean = false,
+    val loginStateProfile: String? = null,
+    val loginStateSize: Long? = null,
+    val loginStateSha256: String? = null,
+    val identityVerified: Boolean = false,
     val icon: Any? = null,  // 占位，后续接入真实图标
     val isNew: Boolean = false
-)
+) {
+    val hasVerifiedIdentity: Boolean
+        get() = identityVerified
+                && shopId.isNotBlank()
+                && shopId != "-"
+                && !shopId.startsWith("NEW-")
+                && !shopId.startsWith("phase13-")
+                && shopName.isNotBlank()
+                && !shopName.startsWith("新增店铺-[")
+                && !shopName.startsWith("NEW-")
+                && !shopName.startsWith("phase13-")
+                && !shopName.startsWith("User[")
+                && !shopName.startsWith("未知")
+}

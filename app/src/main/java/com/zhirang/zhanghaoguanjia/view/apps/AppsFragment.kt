@@ -178,26 +178,6 @@ class AppsFragment : Fragment() {
     override fun onResume() {
         try {
             super.onResume()
-            // Trigger shop ID re-extraction for installed apps per D-04
-            try {
-                val apps = mAdapter.getItems()
-                for (app in apps) {
-                    // Always trigger extraction on resume so that shop ID changes
-                    // (e.g., after switching stores inside the virtual app) are detected.
-                    // EngineProxy handles the IPC call to the Engine service.
-                    try {
-                        EngineProxy.triggerShopIdExtract(app.packageName, userID)
-                    } catch (e: Exception) {
-                        Log.w(TAG, "Failed to trigger extraction for ${app.packageName}: ${e.message}")
-                    }
-                }
-                // After triggering, refresh the list after a delay to show any new shop info
-                viewBinding.recyclerView.postDelayed({
-                    viewModel.getInstalledAppsWithRetry(userID)
-                }, 3000)
-            } catch (e: Exception) {
-                Log.w(TAG, "Error in onResume extraction trigger: ${e.message}")
-            }
         } catch (e: Exception) {
             Log.e(TAG, "Error in onResume: ${e.message}")
         }

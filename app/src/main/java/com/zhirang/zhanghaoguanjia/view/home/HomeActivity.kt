@@ -1,6 +1,7 @@
 package com.zhirang.zhanghaoguanjia.view.home
 
 import android.content.BroadcastReceiver
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
@@ -57,6 +58,7 @@ import com.zhirang.zhanghaoguanjia.update.AppUpdateManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.json.JSONObject
 import java.security.MessageDigest
 
 class HomeActivity : AppCompatActivity() {
@@ -81,8 +83,8 @@ class HomeActivity : AppCompatActivity() {
     private var shouldSyncCloneShopsOnNextList = false
     private var pendingEngineAction: (() -> Unit)? = null
     private var shownAnnouncementId: Long? = null
-    private val promptedCloneSwitchKeys = mutableSetOf<String>()
     private var engineUpgradeCheckInFlight = false
+    private var cloneDataMigrationInFlight = false
     private var authReceiverRegistered = false
     private var shopProgressDialog: AlertDialog? = null
     private var shopProgressMessageView: TextView? = null
@@ -97,12 +99,15 @@ class HomeActivity : AppCompatActivity() {
     private val preparedPlatformEnvironmentPackages = mutableSetOf<String>()
     private var pendingScrollToCloneInstanceId: String? = null
     private val locallyRepairedShopKeys = mutableSetOf<String>()
+    private val restoredLoginStateKeys = mutableSetOf<String>()
+    private val uploadedLoginStateKeys = mutableSetOf<String>()
     private var suppressNextShopClickAfterSwipeCollapse = false
     private var pendingEnginePermissionShop: Shop? = null
     private var pendingEnginePermissionFreshToken: String? = null
     private var pendingEnginePermissionPackage: String? = null
     private var pendingEnginePermissionBaseline = false
     private lateinit var enginePermissionLauncher: ActivityResultLauncher<Intent>
+    private lateinit var cloneDataMigrationLauncher: ActivityResultLauncher<Intent>
     private lateinit var shopSwipeHelper: ShopSwipeHelper
     private lateinit var shopItemTouchHelper: ItemTouchHelper
     private val authExpiredReceiver = object : BroadcastReceiver() {
@@ -115,9 +120,7 @@ class HomeActivity : AppCompatActivity() {
 
     companion object {
         private const val TAG = "HomeActivity"
-        private const val SHOP_RECOGNITION_MAX_ATTEMPTS = 12
-        private const val SHOP_RECOGNITION_INITIAL_DELAY_MS = 2000L
-        private const val SHOP_RECOGNITION_INTERVAL_MS = 5000L
+        private const val SHOP_RECOGNITION_AFTER_CLICK_DELAY_MS = 10_000L
         private var sessionAnnouncementsRequested = false
         private val sessionShownAnnouncementIds = mutableSetOf<Long>()
 
@@ -135,6 +138,7 @@ class HomeActivity : AppCompatActivity() {
         setContentView(viewBinding.root)
 
         initEnginePermissionLauncher()
+        initCloneDataMigrationLauncher()
         initViewModel()
         initPlatformSidebar()
         initShopList()
@@ -142,6 +146,7 @@ class HomeActivity : AppCompatActivity() {
         initClickListeners()
         observeData()
         App.ensureEngineConnection()
+        maybeRunCloneDataMigration()
         maybeRequestBaselineEnginePermissions()
     }
 
@@ -157,6 +162,7 @@ class HomeActivity : AppCompatActivity() {
             return
         }
         App.ensureEngineConnection()
+        maybeRunCloneDataMigration()
         viewModel.refreshUserInfo()
         viewModel.refreshUserInfoFromServer()
         viewModel.loadShops()
@@ -239,6 +245,14 @@ class HomeActivity : AppCompatActivity() {
         }
     }
 
+    private fun initCloneDataMigrationLauncher() {
+        cloneDataMigrationLauncher = registerForActivityResult(
+            ActivityResultContracts.StartActivityForResult()
+        ) {
+            finalizeCloneDataMigration()
+        }
+    }
+
     private fun maybeRequestBaselineEnginePermissions() {
         handler.post {
             if (!TokenManager.getInstance().isLoggedIn()) {
@@ -260,6 +274,74 @@ class HomeActivity : AppCompatActivity() {
         }
     }
 
+    private fun maybeRunCloneDataMigration() {
+        if (cloneDataMigrationInFlight || !TokenManager.getInstance().isLoggedIn()) {
+            return
+        }
+        if (!EngineProxy.isConnected()) {
+            EngineProxy.addServiceAvailableCallback {
+                runOnUiThread { maybeRunCloneDataMigration() }
+            }
+            return
+        }
+        val version = EngineInstaller.getInstalledEngineVersion(this)
+        val prefs = getSharedPreferences("clone_data_migration", Context.MODE_PRIVATE)
+        val doneVersion = prefs.getInt("scoped_done_engine_version", -1)
+        if (version > 0 && doneVersion >= version) {
+            return
+        }
+        cloneDataMigrationInFlight = true
+        if (!beginShopOperation("迁移分身数据", "正在迁移分身数据，请稍候…")) {
+            cloneDataMigrationInFlight = false
+            return
+        }
+        if (launchEngineCloneDataMigrationActivity()) {
+            return
+        }
+        finalizeCloneDataMigration()
+    }
+
+    private fun launchEngineCloneDataMigrationActivity(): Boolean {
+        return try {
+            val intent = Intent().apply {
+                component = ComponentName(
+                    EngineInstaller.ENGINE_PACKAGE,
+                    "top.niunaijun.blackbox.engine.EngineCloneDataMigrationActivity"
+                )
+                addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
+            }
+            cloneDataMigrationLauncher.launch(intent)
+            true
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to launch engine clone data migration activity; falling back to binder migration", e)
+            false
+        }
+    }
+
+    private fun finalizeCloneDataMigration() {
+        if (!EngineProxy.isConnected()) {
+            EngineProxy.addServiceAvailableCallback {
+                runOnUiThread { finalizeCloneDataMigration() }
+            }
+            return
+        }
+        val version = EngineInstaller.getInstalledEngineVersion(this)
+        val prefs = getSharedPreferences("clone_data_migration", Context.MODE_PRIVATE)
+        lifecycleScope.launch(Dispatchers.IO) {
+            val result = EngineProxy.migrateCloneDataToScopedStorage()
+            withContext(Dispatchers.Main) {
+                cloneDataMigrationInFlight = false
+                if (result != null) {
+                    prefs.edit().putInt("scoped_done_engine_version", version).apply()
+                    finishShopOperation()
+                } else {
+                    finishShopOperation()
+                    toast("分身数据迁移失败，请重启后重试")
+                }
+            }
+        }
+    }
+
     private fun initPlatformSidebar() {
         platformAdapter = PlatformSidebarAdapter { _, platform ->
             if (!platform.available) {
@@ -269,7 +351,6 @@ class HomeActivity : AppCompatActivity() {
             viewModel.selectPlatform(platform.platform)
             updateShopList()
             prepareShopEnvironmentsForPlatform(platform.packageName)
-            handler.postDelayed({ syncCloneShopStateForCurrentPlatform() }, 500)
         }
 
         viewBinding.rvPlatforms.apply {
@@ -446,7 +527,7 @@ class HomeActivity : AppCompatActivity() {
             prepareDefaultPlatformEnvironmentIfNeeded()
             if (shouldSyncCloneShopsOnNextList) {
                 shouldSyncCloneShopsOnNextList = false
-                handler.postDelayed({ syncCloneShopStateForCurrentPlatform() }, 500)
+                syncCloneShopStateForCurrentPlatform()
             }
         }
 
@@ -595,10 +676,12 @@ class HomeActivity : AppCompatActivity() {
                 return@filter false
             }
             val prepareKey = buildShopPrepareKey(shop, shopPackageName) ?: return@filter false
-            preparedShopUsers[prepareKey] == null &&
-                    !preparingShopKeys.contains(prepareKey) &&
+            val preparedUserId = preparedShopUsers[prepareKey]
+                ?: findPreparedUserIdForShop(shop, shopPackageName)
+            val restoreKey = preparedUserId?.let { "$prepareKey:$it" }
+            !preparingShopKeys.contains(prepareKey) &&
                     !locallyRepairedShopKeys.contains(prepareKey) &&
-                    findPreparedUserIdForShop(shop, shopPackageName) == null
+                    (preparedUserId == null || !restoredLoginStateKeys.contains(restoreKey))
         }
     }
 
@@ -625,8 +708,7 @@ class HomeActivity : AppCompatActivity() {
         val packageName = resolveShopPackageName(shop)
         val prepareKey = packageName?.let { buildShopPrepareKey(shop, it) }
         if (packageName.isNullOrBlank() ||
-            prepareKey == null ||
-            preparedShopUsers[prepareKey] != null
+            prepareKey == null
         ) {
             handler.post { prepareNextLoadedShopEnvironment(shops, index + 1) }
             return
@@ -874,11 +956,30 @@ class HomeActivity : AppCompatActivity() {
             return
         }
         preparedShopUsers[prepareKey]?.let { preparedUserId ->
-            val prepared = PreparedShopEnvironment(shop, packageName, preparedUserId, resolvePlatformName(shop.platform))
-            if (showProgress && launchAfterReady) {
-                launchPreparedShopAndSchedule(prepared)
+            Log.d(TAG, "Preparing shop environment uses prepared user shop=${shop.id} package=$packageName user=$preparedUserId")
+            lifecycleScope.launch(Dispatchers.IO) {
+                val restored = restoreLoginStateIfNeeded(shop, packageName, preparedUserId, showProgress)
+                val prepared = if (restored) {
+                    PreparedShopEnvironment(shop, packageName, preparedUserId, resolvePlatformName(shop.platform))
+                } else {
+                    null
+                }
+                withContext(Dispatchers.Main) {
+                    if (prepared != null) {
+                        if (showProgress && launchAfterReady) {
+                            launchPreparedShopAndSchedule(prepared)
+                        }
+                    } else {
+                        preparedShopKeys.remove(prepareKey)
+                        preparedShopUsers.remove(prepareKey)
+                        if (showProgress && launchAfterReady) {
+                            finishShopOperation()
+                            toast("店铺登录态恢复失败，请重试")
+                        }
+                    }
+                    onComplete?.invoke(prepared)
+                }
             }
-            onComplete?.invoke(prepared)
             return
         }
         if (preparingShopKeys.contains(prepareKey)) {
@@ -985,6 +1086,12 @@ class HomeActivity : AppCompatActivity() {
                     }
                 }
                 if (hasPreparedLaunchAuthorization(cloneInstanceId, packageName, userId)) {
+                    if (!restoreLoginStateIfNeeded(shop, packageName, userId, showProgress)) {
+                        withContext(Dispatchers.Main) {
+                            complete(null)
+                        }
+                        return@launch
+                    }
                     withContext(Dispatchers.Main) {
                         complete(PreparedShopEnvironment(shop, packageName, userId, platformName))
                     }
@@ -1001,7 +1108,7 @@ class HomeActivity : AppCompatActivity() {
                         onSuccess = { authorizedShop, token, publicKeyId ->
                             lifecycleScope.launch(Dispatchers.IO) {
                                 val prepared = try {
-                                    writeAuthorizationForPreparedShop(
+                                    val authorizedPrepared = writeAuthorizationForPreparedShop(
                                         shop = authorizedShop,
                                         packageName = packageName,
                                         userId = userId,
@@ -1010,6 +1117,13 @@ class HomeActivity : AppCompatActivity() {
                                         publicKeyId = publicKeyId,
                                         showProgress = showProgress
                                     )
+                                    if (authorizedPrepared != null &&
+                                        restoreLoginStateIfNeeded(authorizedShop, packageName, userId, showProgress)
+                                    ) {
+                                        authorizedPrepared
+                                    } else {
+                                        null
+                                    }
                                 } catch (e: Exception) {
                                     Log.w(TAG, "Failed to write prepared shop authorization ${shop.id}", e)
                                     null
@@ -1062,10 +1176,11 @@ class HomeActivity : AppCompatActivity() {
             }
             launchVirtualApp(shop, packageName, targetUserId, platformName) { launched ->
                 if (launched) {
+                    exportAndUploadLoginState(shop, packageName, targetUserId)
                     if (shop.isNew) {
                         reportCloneCreated(shop, targetUserId)
                     }
-                    schedulePendingShopRecognition(shop, targetUserId, showFailureToast = shop.isNew)
+                    scheduleShopInfoSyncAfterClick(shop, targetUserId, showFailureToast = shop.isNew)
                 }
             }
             return
@@ -1111,7 +1226,8 @@ class HomeActivity : AppCompatActivity() {
                 }
                 launchVirtualApp(shop, packageName, installUserId, platformName) { launched ->
                     if (launched) {
-                        schedulePendingShopRecognition(shop, installUserId, showFailureToast = shop.isNew)
+                        exportAndUploadLoginState(shop, packageName, installUserId)
+                        scheduleShopInfoSyncAfterClick(shop, installUserId, showFailureToast = shop.isNew)
                     }
                 }
             } else {
@@ -1299,7 +1415,8 @@ class HomeActivity : AppCompatActivity() {
     private fun launchPreparedShopAndSchedule(prepared: PreparedShopEnvironment) {
         launchPreparedShop(prepared) { launched ->
             if (launched) {
-                schedulePendingShopRecognition(prepared.shop, prepared.userId, showFailureToast = prepared.shop.isNew)
+                exportAndUploadLoginState(prepared.shop, prepared.packageName, prepared.userId)
+                scheduleShopInfoSyncAfterClick(prepared.shop, prepared.userId, showFailureToast = prepared.shop.isNew)
             }
         }
     }
@@ -1338,6 +1455,87 @@ class HomeActivity : AppCompatActivity() {
                 onResult(launched)
             }
         )
+    }
+
+    private suspend fun restoreLoginStateIfNeeded(
+        shop: Shop,
+        packageName: String,
+        userId: Int,
+        showProgress: Boolean
+    ): Boolean {
+        val key = buildShopPrepareKey(shop, packageName)?.let { "$it:$userId" } ?: return true
+        if (restoredLoginStateKeys.contains(key)) {
+            Log.d(TAG, "restoreLoginState skipped cached shop=${shop.id} package=$packageName user=$userId")
+            return true
+        }
+        val defaultProfile = EngineProxy.defaultLoginStateProfile(packageName)
+        if (defaultProfile == null) {
+            Log.d(TAG, "restoreLoginState skipped no profile shop=${shop.id} package=$packageName user=$userId")
+            return true
+        }
+        Log.d(
+            TAG,
+            "restoreLoginState check shop=${shop.id} package=$packageName user=$userId hasServer=${shop.hasLoginState} profile=$defaultProfile"
+        )
+        if (!shop.hasLoginState) {
+            val localArtifact = EngineProxy.exportLoginState(packageName, userId, defaultProfile)
+            if (localArtifact != null && localArtifact.isNotEmpty()) {
+                Log.d(
+                    TAG,
+                    "restoreLoginState skipped local artifact shop=${shop.id} package=$packageName user=$userId bytes=${localArtifact.size}"
+                )
+                restoredLoginStateKeys.add(key)
+                return true
+            }
+        }
+        if (showProgress) {
+            withContext(Dispatchers.Main) { updateShopProgress("正在恢复店铺登录态…") }
+        }
+        val result = viewModel.downloadLoginState(shop.id)
+        result.exceptionOrNull()?.let { error ->
+            Log.w(TAG, "restoreLoginState download failed shop=${shop.id} package=$packageName user=$userId: ${error.message}")
+        }
+        val download = result.getOrNull()
+        if (download == null || download.bytes.isEmpty()) {
+            Log.d(TAG, "restoreLoginState no server artifact shop=${shop.id} package=$packageName user=$userId")
+            restoredLoginStateKeys.add(key)
+            return true
+        }
+        Log.d(
+            TAG,
+            "restoreLoginState downloaded shop=${shop.id} package=$packageName user=$userId profile=${download.profile ?: defaultProfile} bytes=${download.bytes.size}"
+        )
+        val restored = EngineProxy.restoreLoginState(
+            packageName,
+            userId,
+            download.profile ?: defaultProfile,
+            download.bytes
+        )
+        if (restored) {
+            Log.d(TAG, "restoreLoginState restored shop=${shop.id} package=$packageName user=$userId")
+            restoredLoginStateKeys.add(key)
+        } else {
+            Log.w(TAG, "restoreLoginState restore rejected shop=${shop.id} package=$packageName user=$userId")
+        }
+        return restored
+    }
+
+    private fun exportAndUploadLoginState(shop: Shop, packageName: String, userId: Int) {
+        val key = buildShopPrepareKey(shop, packageName)?.let { "$it:$userId" } ?: return
+        if (!uploadedLoginStateKeys.add(key)) {
+            return
+        }
+        lifecycleScope.launch(Dispatchers.IO) {
+            val profile = EngineProxy.defaultLoginStateProfile(packageName) ?: return@launch
+            val artifact = EngineProxy.exportLoginState(packageName, userId, profile) ?: return@launch
+            val manifest = JSONObject()
+                .put("packageName", packageName)
+                .put("profileId", profile)
+                .put("localVirtualUserId", userId)
+                .put("bytes", artifact.size)
+                .toString()
+            viewModel.uploadLoginState(shop.id, profile, manifest, artifact)
+        }
     }
 
     private fun requestAndWriteAuthorizationThenLaunch(
@@ -1617,7 +1815,7 @@ class HomeActivity : AppCompatActivity() {
                                                 publicKeyId = createResult.publicKeyId,
                                                 launchAfterWrite = true,
                                                 onLaunched = {
-                                                    schedulePendingShopRecognition(pendingShop, createdUserId, showFailureToast = true)
+                                                    scheduleShopInfoSyncAfterClick(pendingShop, createdUserId, showFailureToast = true)
                                                 }
                                             )
                                         } else {
@@ -1677,94 +1875,95 @@ class HomeActivity : AppCompatActivity() {
                 shopId = pendingShop.shopId,
                 localVirtualUserId = userId
             ),
-            showMessage = false
+            showMessage = false,
+            requireVerifiedIdentity = false
         )
     }
 
-    private fun schedulePendingShopRecognition(
-        pendingShop: Shop,
+    private fun scheduleShopInfoSyncAfterClick(
+        shop: Shop,
         userId: Int,
         showFailureToast: Boolean = false
     ) {
-        if (!EngineProxy.isConnected()) {
-            return
-        }
-        val key = buildRecognitionKey(pendingShop, userId) ?: return
+        val key = buildRecognitionKey(shop, userId) ?: return
         if (!pendingRecognitionKeys.add(key)) {
             return
         }
-        pollPendingShopRecognition(pendingShop, userId, attempt = 1, showFailureToast = showFailureToast)
+        handler.postDelayed({
+            syncShopInfoFromEngine(shop, userId, showFailureToast)
+        }, SHOP_RECOGNITION_AFTER_CLICK_DELAY_MS)
     }
 
-    private fun pollPendingShopRecognition(
-        pendingShop: Shop,
+    private fun syncShopInfoFromEngine(
+        shop: Shop,
         userId: Int,
-        attempt: Int,
         showFailureToast: Boolean = false
     ) {
-        val packageName = resolveShopPackageName(pendingShop) ?: run {
-            buildRecognitionKey(pendingShop, userId)?.let { pendingRecognitionKeys.remove(it) }
+        val packageName = resolveShopPackageName(shop)
+        val key = buildRecognitionKey(shop, userId)
+        if (packageName == null) {
+            key?.let { pendingRecognitionKeys.remove(it) }
             return
         }
-        val key = buildRecognitionKey(pendingShop, userId)
-        EngineProxy.triggerShopIdExtract(packageName, userId)
-        val delayMs = if (attempt == 1) SHOP_RECOGNITION_INITIAL_DELAY_MS else SHOP_RECOGNITION_INTERVAL_MS
-        handler.postDelayed({
-            reportExtractedShopForPending(pendingShop, userId, attempt, showFailureToast)
-            if (!EngineProxy.isConnected()) {
-                key?.let { pendingRecognitionKeys.remove(it) }
-            }
-        }, delayMs)
-    }
-
-    private fun reportExtractedShopForPending(
-        pendingShop: Shop,
-        userId: Int,
-        attempt: Int,
-        showFailureToast: Boolean = false
-    ) {
-        val packageName = resolveShopPackageName(pendingShop) ?: return
-        val key = buildRecognitionKey(pendingShop, userId)
-        val shopInfo = EngineProxy.getShopInfo(packageName, userId)
-        val shopName = shopInfo?.shopName?.takeIf { it.isNotBlank() }
-        val shopId = shopInfo?.shopId?.takeIf { it.isNotBlank() }
-        if (shopId == null) {
-            if (attempt < SHOP_RECOGNITION_MAX_ATTEMPTS) {
-                pollPendingShopRecognition(
-                    pendingShop,
-                    userId,
-                    attempt = attempt + 1,
-                    showFailureToast = showFailureToast
-                )
+        if (!EngineProxy.isConnected()) {
+            if (EngineInstaller.isEngineInstalled(this)) {
+                EngineProxy.addServiceAvailableCallback {
+                    runOnUiThread { syncShopInfoFromEngine(shop, userId, showFailureToast) }
+                }
+                if (!App.ensureEngineConnection()) {
+                    key?.let { pendingRecognitionKeys.remove(it) }
+                }
             } else {
                 key?.let { pendingRecognitionKeys.remove(it) }
-                if (showFailureToast) {
-                    toast("未获取到店铺信息，请确认已在京东秒送登录后返回重试")
-                }
             }
             return
         }
-        val platform = pendingShop.platform
-        val finalShopName = shopName ?: pendingShop.shopName
-            .takeUnless { it.contains("未知") || it.startsWith("User[") }
-            ?: "${resolvePlatformName(platform)}-$shopId"
+        lifecycleScope.launch(Dispatchers.IO) {
+            val shopInfo = EngineProxy.triggerShopIdExtract(packageName, userId)
+            withContext(Dispatchers.Main) {
+                key?.let { pendingRecognitionKeys.remove(it) }
+                reportDetectedShopInfo(shop, packageName, userId, shopInfo, showFailureToast)
+            }
+        }
+    }
 
+    private fun reportDetectedShopInfo(
+        sourceShop: Shop,
+        packageName: String,
+        userId: Int,
+        shopInfo: top.niunaijun.blackbox.entity.pm.ShopInfo?,
+        showFailureToast: Boolean = false
+    ) {
+        val shopName = shopInfo?.shopName?.takeIf(::isVerifiedExtractedShopName)
+        val shopId = shopInfo?.shopId?.takeIf(::isVerifiedExtractedShopId)
+        if (shopId == null || shopName == null) {
+            if (showFailureToast) {
+                toast("未获取到已验证店铺信息，请确认登录后下拉刷新")
+            }
+            return
+        }
+        if (sourceShop.hasVerifiedIdentity &&
+            sourceShop.shopId == shopId &&
+            sourceShop.shopName == shopName &&
+            sourceShop.localVirtualUserId == userId
+        ) {
+            return
+        }
         viewModel.completePendingShop(
-            pendingShop,
+            sourceShop,
             Shop(
-                id = 0,
-                shopName = finalShopName,
+                id = sourceShop.id,
+                shopName = shopName,
                 shopId = shopId,
-                platform = platform,
-                remainingDays = pendingShop.remainingDays,
-                autoRenew = pendingShop.autoRenew,
+                platform = sourceShop.platform,
+                remainingDays = sourceShop.remainingDays,
+                autoRenew = sourceShop.autoRenew,
                 packageName = packageName,
-                cloneInstanceId = pendingShop.cloneInstanceId?.takeIf { it.isNotBlank() },
+                cloneInstanceId = sourceShop.cloneInstanceId?.takeIf { it.isNotBlank() },
                 localVirtualUserId = userId
             ),
-            showMessage = pendingShop.isNew
+            showMessage = sourceShop.isNew
         )
-        key?.let { pendingRecognitionKeys.remove(it) }
     }
 
     private fun buildRecognitionKey(shop: Shop, userId: Int): String? {
@@ -1797,53 +1996,22 @@ class HomeActivity : AppCompatActivity() {
             return
         }
         val packageName = platformItem.packageName ?: return
-        val cloneInfos = EngineProxy.refreshShopInfoByPlatform("", packageName)
-        if (cloneInfos.isEmpty()) {
+        val allShops = viewModel.getAllShops().filter { shop ->
+            resolveShopPackageName(shop) == packageName && shop.cloneInstanceId?.isNotBlank() == true
+        }
+        if (allShops.isEmpty()) {
             return
         }
-
-        val allShops = viewModel.getAllShops()
-        cloneInfos.forEach { shopInfo ->
-            val detectedShopId = shopInfo.shopId?.takeIf { it.isNotBlank() } ?: return@forEach
-            val detectedPlatform = platformItem.platform
-            val cloneOwner = allShops.firstOrNull { shop ->
-                resolveShopPackageName(shop) == packageName &&
-                        findUserIdForCloneInstance(shop, packageName) == shopInfo.userId
-            }
-            if (cloneOwner == null || cloneOwner.isNew) {
-                return@forEach
-            }
-            if (cloneOwner.shopId == detectedShopId) {
-                return@forEach
-            }
-            val alreadyExists = allShops.any {
-                resolveShopPackageName(it) == packageName && it.shopId == detectedShopId
-            }
-            if (alreadyExists) {
-                return@forEach
-            }
-            val promptKey = "${cloneOwner.id}:$packageName:$detectedShopId"
-            if (!promptedCloneSwitchKeys.add(promptKey)) {
-                return@forEach
-            }
-            val detectedShopName = shopInfo.shopName?.takeIf { it.isNotBlank() }
-                ?: "${resolvePlatformName(detectedPlatform)}-$detectedShopId"
-            viewModel.reportShop(
-                cloneOwner.copy(
-                    shopName = detectedShopName,
-                    shopId = detectedShopId,
-                    platform = detectedPlatform,
-                    remainingDays = cloneOwner.remainingDays,
-                    autoRenew = cloneOwner.autoRenew,
-                    packageName = packageName,
-                    cloneInstanceId = cloneOwner.cloneInstanceId,
-                    localVirtualUserId = cloneOwner.localVirtualUserId
-                ),
-                showMessage = false,
-                onComplete = {
-                    promptedCloneSwitchKeys.remove(promptKey)
+        lifecycleScope.launch(Dispatchers.IO) {
+            allShops.forEach { shop ->
+                val userId = findExistingUserIdForCloneInstance(shop, packageName)
+                    ?: findUserIdForCloneInstance(shop, packageName)
+                    ?: return@forEach
+                val shopInfo = EngineProxy.triggerShopIdExtract(packageName, userId)
+                withContext(Dispatchers.Main) {
+                    reportDetectedShopInfo(shop, packageName, userId, shopInfo, showFailureToast = false)
                 }
-            )
+            }
         }
     }
 
@@ -1865,27 +2033,33 @@ class HomeActivity : AppCompatActivity() {
     private fun findUserIdForCloneInstance(shop: Shop, packageName: String): Int? {
         val users = EngineProxy.getUsers()
         shop.cloneInstanceId?.takeIf { it.isNotBlank() }?.let { cloneInstanceId ->
+            val currentUserId = viewModel.getCurrentUserId()
+            EngineProxy.findCloneUserId(cloneInstanceId, packageName, currentUserId)?.let {
+                return it
+            }
+            users.firstOrNull {
+                EngineProxy.isCloneAuthorized(cloneInstanceId, packageName, currentUserId, it.id)
+            }?.let {
+                EngineProxy.bindCloneUser(cloneInstanceId, packageName, currentUserId, it.id)
+                return it.id
+            }
             shop.localVirtualUserId?.takeIf { it >= 0 }?.let { serverUserId ->
                 if (users.any { it.id == serverUserId }) {
-                    EngineProxy.bindCloneUser(cloneInstanceId, packageName, viewModel.getCurrentUserId(), serverUserId)
+                    EngineProxy.bindCloneUser(cloneInstanceId, packageName, currentUserId, serverUserId)
                     return serverUserId
                 }
             }
-            users.firstOrNull {
-                EngineProxy.isCloneAuthorized(cloneInstanceId, packageName, viewModel.getCurrentUserId(), it.id)
-            }?.let {
-                EngineProxy.bindCloneUser(cloneInstanceId, packageName, viewModel.getCurrentUserId(), it.id)
-                return it.id
-            }
             users.firstOrNull { buildLegacyCloneInstanceId(packageName, it.id) == cloneInstanceId }?.let {
-                EngineProxy.bindCloneUser(cloneInstanceId, packageName, viewModel.getCurrentUserId(), it.id)
+                EngineProxy.bindCloneUser(cloneInstanceId, packageName, currentUserId, it.id)
                 return it.id
             }
-            EngineProxy.ensureCloneUser(cloneInstanceId, packageName, viewModel.getCurrentUserId())?.let {
+            EngineProxy.ensureCloneUser(cloneInstanceId, packageName, currentUserId)?.let {
                 return it
             }
         }
-        shop.shopId.takeIf { it.isNotBlank() && it != "-" && !it.startsWith("NEW-") }?.let { realShopId ->
+        shop.shopId.takeIf {
+            it.isNotBlank() && it != "-" && !it.startsWith("NEW-") && !it.startsWith("phase13-")
+        }?.let { realShopId ->
             users.firstOrNull { user ->
                 EngineProxy.isInstalled(packageName, user.id) &&
                         EngineProxy.getShopInfo(packageName, user.id)?.shopId == realShopId
@@ -1899,21 +2073,27 @@ class HomeActivity : AppCompatActivity() {
     private fun findExistingUserIdForCloneInstance(shop: Shop, packageName: String): Int? {
         val users = EngineProxy.getUsers()
         shop.cloneInstanceId?.takeIf { it.isNotBlank() }?.let { cloneInstanceId ->
+            val currentUserId = viewModel.getCurrentUserId()
+            EngineProxy.findCloneUserId(cloneInstanceId, packageName, currentUserId)?.let {
+                return it
+            }
+            users.firstOrNull {
+                EngineProxy.isCloneAuthorized(cloneInstanceId, packageName, currentUserId, it.id)
+            }?.let {
+                return it.id
+            }
             shop.localVirtualUserId?.takeIf { it >= 0 }?.let { serverUserId ->
                 if (users.any { it.id == serverUserId }) {
                     return serverUserId
                 }
             }
-            users.firstOrNull {
-                EngineProxy.isCloneAuthorized(cloneInstanceId, packageName, viewModel.getCurrentUserId(), it.id)
-            }?.let {
-                return it.id
-            }
             users.firstOrNull { buildLegacyCloneInstanceId(packageName, it.id) == cloneInstanceId }?.let {
                 return it.id
             }
         }
-        shop.shopId.takeIf { it.isNotBlank() && it != "-" && !it.startsWith("NEW-") }?.let { realShopId ->
+        shop.shopId.takeIf {
+            it.isNotBlank() && it != "-" && !it.startsWith("NEW-") && !it.startsWith("phase13-")
+        }?.let { realShopId ->
             users.firstOrNull { user ->
                 EngineProxy.isInstalled(packageName, user.id) &&
                         EngineProxy.getShopInfo(packageName, user.id)?.shopId == realShopId
@@ -1996,6 +2176,22 @@ class HomeActivity : AppCompatActivity() {
             ?: resolvePlatformName(shop.platform)
     }
 
+    private fun isVerifiedExtractedShopId(value: String): Boolean {
+        return value.isNotBlank()
+                && value != "-"
+                && !value.startsWith("NEW-")
+                && !value.startsWith("phase13-")
+    }
+
+    private fun isVerifiedExtractedShopName(value: String): Boolean {
+        return value.isNotBlank()
+                && !value.startsWith("新增店铺-[")
+                && !value.startsWith("NEW-")
+                && !value.startsWith("phase13-")
+                && !value.startsWith("User[")
+                && !value.startsWith("未知")
+    }
+
     private fun sha256(value: String): String {
         return MessageDigest.getInstance("SHA-256")
             .digest(value.toByteArray(Charsets.UTF_8))
@@ -2049,8 +2245,8 @@ class HomeActivity : AppCompatActivity() {
 
     private fun showEditShopSheet(shop: Shop) {
         val sheet = EditShopSheetFragment.newInstance(shop.shopName, shop.shopId, shop.autoRenew)
-        sheet.setOnSaveListener { name, shopId, autoRenew ->
-            viewModel.updateShop(shop, name, shopId, autoRenew)
+        sheet.setOnSaveListener { _, _, autoRenew ->
+            viewModel.updateShop(shop, autoRenew = autoRenew)
         }
         sheet.show(supportFragmentManager, "EditShop")
     }
@@ -2110,7 +2306,7 @@ class HomeActivity : AppCompatActivity() {
             try {
                 updateShopProgress("正在清除店铺本地数据…")
                 EngineProxy.stopPackage(packageName, userId)
-                EngineProxy.clearPackage(packageName, userId)
+                EngineProxy.clearClonePackageData(cloneInstanceId, packageName, viewModel.getCurrentUserId(), userId)
                 EngineProxy.uninstallPackageAsUser(packageName, userId)
                 EngineProxy.clearCloneUser(cloneInstanceId, packageName, viewModel.getCurrentUserId())
                 EngineProxy.deleteUser(userId)
@@ -2130,6 +2326,10 @@ class HomeActivity : AppCompatActivity() {
             clearPreparedShopEnvironment(shop, packageName)
             invalidatePreparedPlatformEnvironment(packageName)
             buildShopPrepareKey(shop, packageName)?.let { locallyRepairedShopKeys.add(it) }
+            buildShopPrepareKey(shop, packageName)?.let { key ->
+                restoredLoginStateKeys.removeAll { it.startsWith("$key:") }
+                uploadedLoginStateKeys.removeAll { it.startsWith("$key:") }
+            }
             if (pendingPlatformEnvironmentPackage == packageName) {
                 pendingPlatformEnvironmentPackage = null
             }
@@ -2172,6 +2372,7 @@ class HomeActivity : AppCompatActivity() {
             val userId = findUserIdForCloneInstance(shop, packageName)
             try {
                 if (userId != null) {
+                    EngineProxy.clearClonePackageData(cloneInstanceId, packageName, viewModel.getCurrentUserId(), userId)
                     EngineProxy.uninstallPackageAsUser(packageName, userId)
                 }
                 EngineProxy.clearCloneUser(cloneInstanceId, packageName, viewModel.getCurrentUserId())
@@ -2271,12 +2472,13 @@ class HomeActivity : AppCompatActivity() {
     override fun onDestroy() {
         handler.removeCallbacksAndMessages(null)
         pendingRecognitionKeys.clear()
-        promptedCloneSwitchKeys.clear()
         preparingShopKeys.clear()
         preparedShopKeys.clear()
         preparedShopUsers.clear()
         preparingShopCallbacks.clear()
         locallyRepairedShopKeys.clear()
+        restoredLoginStateKeys.clear()
+        uploadedLoginStateKeys.clear()
         pendingPlatformEnvironmentPackage = null
         restoreEnvironmentCheckPackage = null
         waitingForEngineConnectionToRestore = false

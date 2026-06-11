@@ -211,3 +211,22 @@
 **计划文档**: [.planning/phases/12-meituan-review-customer-probe/12-PLAN.md](.planning/phases/12-meituan-review-customer-probe/12-PLAN.md)
 **上下文文档**: [.planning/phases/12-meituan-review-customer-probe/12-CONTEXT.md](.planning/phases/12-meituan-review-customer-probe/12-CONTEXT.md)
 **调研文档**: [.planning/phases/12-meituan-review-customer-probe/12-RESEARCH.md](.planning/phases/12-meituan-review-customer-probe/12-RESEARCH.md)
+
+## Phase 13: 登录态跨设备同步 🚧 实施中
+
+**目标**: 将已登录平台分身的关键登录态从源设备导出、上传并恢复到新设备分身目录，实现同一店铺账号在多设备上直接打开店铺，避免同步 170MB+ 全量分身缓存。
+
+**当前结论**:
+
+- OPPO 罗家臭豆腐分身数据定位到虚拟 user 3；完整包级导出压缩约 120MB、原始约 372MB，不适合作为上传物。
+- 小米真机逐档验证 A/B/C/D/E 后，E 档证明 OPPO 登录态可跨设备恢复；进一步在罗家臭豆腐实际卡片绑定的 `localVirtualUserId=22` 分身目录验证 CIPS-only 档位可直接登录。
+- 当前美团最小可用集合是 CIPS 登录态/设备态/账号态组合：仅 `cache/cips/**` 与 `files/cips/**` 选中状态文件，压缩约 0.5MB；E 档保留为手工回退/诊断档。
+- 所有功能 wave 前必须先补分身目录隔离 wave：分身数据目录以店铺管家用户 ID 做父级目录，下面按业务卡片/cloneInstance 创建 `user` 子分身目录；新版引擎新增迁移 Activity，安装/升级成功后第一时间提示并迁移历史 flat 分身数据，避免历史登录态丢失。
+- Wave 2 已按最小档 `E -> D -> C` 验证：京东秒送 `E` 失败后升到 `D` 通过，默认 profile 为 `jd-jingming-prefs-d`；淘宝闪购饿了么 `E` 通过，默认 profile 为 `ele-napos-prefs-e-min`。
+- 2026-06-12 已完成 OPPO 源端上传 + 小米清空目标分身目录后恢复验证：美团 `shops/4/login-state` 从 OPPO user3 上传约 460KB 并恢复到 Xiaomi user22；京东 `shops/5/login-state` 从 OPPO user15 上传约 32KB 并恢复到 Xiaomi user15；饿了么 `shops/6/login-state` 从 OPPO user2 上传约 74KB 并恢复到 Xiaomi user2；三者均未进入用户名/密码/SMS 登录页。
+- 后续引擎导出上传必须按 Phase 13 标准文档的 package-specific profile 生成逻辑包，并在恢复时映射到目标卡片当前 `localVirtualUserId`，不能硬编码 OPPO source user 或 ADB 测试 user 路径。
+- Wave 5 增加可信店铺身份约束：店铺 ID/名称只能由引擎从目标平台数据文件或接口提取后上报；未验证身份的店铺卡片 logo 保持灰色，验证成功并由后台返回 `identityVerified=true` 后才显示彩色。
+
+**计划文档**: [.planning/phases/13-meituan-login-state-sync/13-PLAN.md](.planning/phases/13-meituan-login-state-sync/13-PLAN.md)
+**标准文档**: [.planning/phases/13-meituan-login-state-sync/13-STANDARD.md](.planning/phases/13-meituan-login-state-sync/13-STANDARD.md)
+**调研文档**: [.planning/phases/13-meituan-login-state-sync/13-RESEARCH.md](.planning/phases/13-meituan-login-state-sync/13-RESEARCH.md)

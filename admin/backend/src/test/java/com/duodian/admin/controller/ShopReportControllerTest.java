@@ -62,6 +62,8 @@ class ShopReportControllerTest {
         assertThat(response.getData()).containsEntry("deducted", false);
         assertThat(response.getData()).containsEntry("isNew", true);
         assertThat(pendingShop.getShopId()).isEqualTo("real-shop");
+        assertThat(pendingShop.getIdentityVerified()).isTrue();
+        assertThat(pendingShop.getIdentityVerifiedAt()).isNotNull();
         assertThat(pendingShop.getLastDeductedAt()).isEqualTo(deductedAt);
         verify(shopService, never()).create(any(Shop.class));
     }
@@ -91,7 +93,36 @@ class ShopReportControllerTest {
         assertThat(response.getData()).containsEntry("switchedShop", false);
         assertThat(oldShop.getShopId()).isEqualTo("new-shop");
         assertThat(oldShop.getShopName()).isEqualTo("新店铺");
+        assertThat(oldShop.getIdentityVerified()).isTrue();
         verify(shopService, never()).create(any(Shop.class));
+    }
+
+    @Test
+    void reportWithoutVerifiedNameDoesNotOverwritePendingIdentity() {
+        AuthContext.setUserId(1L);
+        String cloneInstanceId = cloneIdForCode("server-random");
+        Shop pendingShop = shop(20L, "NEW-abc", "新增店铺-[1]", cloneInstanceId);
+        pendingShop.setCloneValidationCode("server-random");
+        pendingShop.setCloneValidationHash(sha256(pendingShop.getCloneInstanceId() + ":server-random"));
+        User user = new User();
+        user.setId(1L);
+        user.setComputeBalance(6);
+        user.setShopCount(1);
+        user.setPlatformCount(1);
+
+        when(shopService.findByUserIdAndCloneInstanceId(1L, pendingShop.getCloneInstanceId())).thenReturn(Optional.of(pendingShop));
+        when(shopService.update(eq(20L), any(Shop.class))).thenAnswer(invocation -> invocation.getArgument(1));
+        when(userService.refreshShopStats(1L)).thenReturn(user);
+
+        ApiResponse<Map<String, Object>> response = controller.report(request("real-shop", "新增店铺-[1]", pendingShop.getCloneInstanceId()));
+
+        assertThat(response.getCode()).isEqualTo(200);
+        assertThat(response.getData()).containsEntry("isNew", false);
+        assertThat(pendingShop.getShopId()).isEqualTo("NEW-abc");
+        assertThat(pendingShop.getShopName()).isEqualTo("新增店铺-[1]");
+        assertThat(pendingShop.getIdentityVerified()).isFalse();
+        assertThat(pendingShop.getIdentityVerifiedAt()).isNull();
+        verify(shopService, never()).findByUserIdAndShopIdAndPackageName(1L, "real-shop", "com.jd.pingou");
     }
 
     @Test

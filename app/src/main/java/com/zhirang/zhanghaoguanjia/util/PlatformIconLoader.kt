@@ -30,7 +30,7 @@ object PlatformIconLoader {
     ) {
         val fallbackRes = fallbackRes(platform)
         val context = imageView.context.applicationContext
-        imageView.tag = iconKey(item, platform, packageName)
+        imageView.tag = iconKey(item, platform, packageName, available)
         clearDisabledFilter(imageView)
 
         val hostIcon = loadInstalledPackageIcon(context, packageName)
@@ -124,8 +124,13 @@ object PlatformIconLoader {
         imageView.colorFilter = null
     }
 
-    private fun iconKey(item: PlatformItemDto?, platform: Platform, packageName: String?): String {
-        return listOf(platform.id, packageName.orEmpty(), item?.iconKey.orEmpty(), item?.available.toString())
+    private fun iconKey(
+        item: PlatformItemDto?,
+        platform: Platform,
+        packageName: String?,
+        available: Boolean
+    ): String {
+        return listOf(platform.id, packageName.orEmpty(), item?.iconKey.orEmpty(), available.toString())
             .joinToString("#")
     }
 

@@ -13,6 +13,8 @@ public class ShopResponse {
     private String userPhone;
     private String shopName;
     private String shopId;
+    private Boolean identityVerified;
+    private LocalDateTime identityVerifiedAt;
     private String platform;
     private String platformName;
     private Integer remainingDays;
@@ -27,6 +29,11 @@ public class ShopResponse {
     private String authorizationJti;
     private LocalDateTime lastDeductedAt;
     private LocalDateTime expireAt;
+    private Boolean hasLoginState;
+    private String loginStateProfile;
+    private Long loginStateSize;
+    private String loginStateSha256;
+    private LocalDateTime loginStateUpdatedAt;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -38,6 +45,8 @@ public class ShopResponse {
         response.setUserPhone(user != null ? user.getPhone() : null);
         response.setShopName(shop.getShopName());
         response.setShopId(shop.getShopId());
+        response.setIdentityVerified(Boolean.TRUE.equals(shop.getIdentityVerified()));
+        response.setIdentityVerifiedAt(shop.getIdentityVerifiedAt());
         response.setPlatform(shop.getPlatform());
         response.setPlatformName(shop.getPlatformName());
         response.setRemainingDays(ShopExpiration.remainingDays(shop));
@@ -52,6 +61,11 @@ public class ShopResponse {
         response.setAuthorizationJti(shop.getAuthorizationJti());
         response.setLastDeductedAt(shop.getLastDeductedAt());
         response.setExpireAt(shop.getExpireAt());
+        response.setHasLoginState(shop.getLoginStateSize() != null && shop.getLoginStateSize() > 0);
+        response.setLoginStateProfile(shop.getLoginStateProfile());
+        response.setLoginStateSize(shop.getLoginStateSize());
+        response.setLoginStateSha256(shop.getLoginStateSha256());
+        response.setLoginStateUpdatedAt(shop.getLoginStateUpdatedAt());
         response.setCreatedAt(shop.getCreatedAt());
         response.setUpdatedAt(shop.getUpdatedAt());
         return response;
@@ -74,6 +88,12 @@ public class ShopResponse {
 
     public String getShopId() { return shopId; }
     public void setShopId(String shopId) { this.shopId = shopId; }
+
+    public Boolean getIdentityVerified() { return identityVerified; }
+    public void setIdentityVerified(Boolean identityVerified) { this.identityVerified = identityVerified; }
+
+    public LocalDateTime getIdentityVerifiedAt() { return identityVerifiedAt; }
+    public void setIdentityVerifiedAt(LocalDateTime identityVerifiedAt) { this.identityVerifiedAt = identityVerifiedAt; }
 
     public String getPlatform() { return platform; }
     public void setPlatform(String platform) { this.platform = platform; }
@@ -116,6 +136,21 @@ public class ShopResponse {
 
     public LocalDateTime getExpireAt() { return expireAt; }
     public void setExpireAt(LocalDateTime expireAt) { this.expireAt = expireAt; }
+
+    public Boolean getHasLoginState() { return hasLoginState; }
+    public void setHasLoginState(Boolean hasLoginState) { this.hasLoginState = hasLoginState; }
+
+    public String getLoginStateProfile() { return loginStateProfile; }
+    public void setLoginStateProfile(String loginStateProfile) { this.loginStateProfile = loginStateProfile; }
+
+    public Long getLoginStateSize() { return loginStateSize; }
+    public void setLoginStateSize(Long loginStateSize) { this.loginStateSize = loginStateSize; }
+
+    public String getLoginStateSha256() { return loginStateSha256; }
+    public void setLoginStateSha256(String loginStateSha256) { this.loginStateSha256 = loginStateSha256; }
+
+    public LocalDateTime getLoginStateUpdatedAt() { return loginStateUpdatedAt; }
+    public void setLoginStateUpdatedAt(LocalDateTime loginStateUpdatedAt) { this.loginStateUpdatedAt = loginStateUpdatedAt; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }

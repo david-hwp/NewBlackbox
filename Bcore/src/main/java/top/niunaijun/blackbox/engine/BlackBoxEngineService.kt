@@ -164,6 +164,10 @@ class BlackBoxEngineService : Service() {
             return CloneInstanceStore.ensureCloneUser(cloneInstanceId, packageName, serverUserId)
         }
 
+        override fun findCloneUserId(cloneInstanceId: String?, packageName: String?, serverUserId: Long): Int {
+            return CloneInstanceStore.findCloneUserId(cloneInstanceId, packageName, serverUserId)
+        }
+
         override fun bindCloneUser(cloneInstanceId: String?, packageName: String?, serverUserId: Long, userId: Int) {
             CloneInstanceStore.bindCloneUser(cloneInstanceId, packageName, serverUserId, userId)
         }
@@ -222,6 +226,26 @@ class BlackBoxEngineService : Service() {
 
         override fun isCloneAuthorized(cloneInstanceId: String?, packageName: String?, serverUserId: Long, userId: Int): Boolean {
             return CloneInstanceStore.isAuthorized(cloneInstanceId, packageName, serverUserId, userId)
+        }
+
+        override fun clearClonePackageData(cloneInstanceId: String?, packageName: String?, serverUserId: Long, userId: Int): Boolean {
+            return CloneInstanceStore.clearClonePackageData(cloneInstanceId, packageName, serverUserId, userId)
+        }
+
+        override fun exportLoginState(packageName: String?, userId: Int, profileId: String?): ByteArray? {
+            return LoginStateSyncManager.exportLoginState(packageName, userId, profileId)
+        }
+
+        override fun restoreLoginState(packageName: String?, userId: Int, profileId: String?, artifact: ByteArray?): Boolean {
+            return LoginStateSyncManager.restoreLoginState(packageName, userId, profileId, artifact)
+        }
+
+        override fun defaultLoginStateProfile(packageName: String?): String? {
+            return LoginStateSyncManager.defaultProfileId(packageName)
+        }
+
+        override fun migrateCloneDataToScopedStorage(): String {
+            return CloneInstanceStore.migrateAllScoped().toString()
         }
 
         private fun isLegacyLaunchAuthorized(packageName: String, userId: Int): Boolean {
@@ -299,44 +323,22 @@ class BlackBoxEngineService : Service() {
             }
         }
 
-        override fun triggerShopIdExtract(packageName: String?, userId: Int) {
+        override fun triggerShopIdExtract(packageName: String?, userId: Int): ShopInfo? {
             if (packageName.isNullOrBlank()) {
-                return
+                return null
             }
-            try {
-                ShopIdManager.get().triggerExtract(packageName, userId, ctx)
-                Slog.d(TAG, "triggerShopIdExtract requested for $packageName, userId=$userId")
+            return try {
+                val info = ShopIdManager.get().extractNow(packageName, userId, ctx)
+                if (info != null) {
+                    info.packageName = packageName
+                    info.userId = userId
+                }
+                Slog.d(TAG, "triggerShopIdExtract completed for $packageName, userId=$userId, found=${info != null}")
+                info
             } catch (e: Exception) {
                 Slog.w(TAG, "triggerShopIdExtract failed for $packageName, userId=$userId", e)
+                null
             }
-        }
-
-        override fun refreshShopInfoByPlatform(platform: String?, packageName: String?): MutableList<ShopInfo> {
-            val targetPackage = packageName?.takeIf { it.isNotBlank() } ?: return mutableListOf()
-            val targetPlatform = platform?.takeIf { it.isNotBlank() }
-            val result = mutableListOf<ShopInfo>()
-            try {
-                BlackBoxCore.get().getUsers().orEmpty().forEach { user ->
-                    val userId = user.id
-                    if (!BlackBoxCore.get().isInstalled(targetPackage, userId)) {
-                        return@forEach
-                    }
-                    val shopInfo = ShopIdManager.get().extractNow(targetPackage, userId, ctx)
-                    if (shopInfo?.shopId.isNullOrBlank()) {
-                        return@forEach
-                    }
-                    if (!targetPlatform.isNullOrBlank() && shopInfo.platform != targetPlatform) {
-                        return@forEach
-                    }
-                    shopInfo.packageName = targetPackage
-                    shopInfo.userId = userId
-                    result.add(shopInfo)
-                }
-                Slog.d(TAG, "refreshShopInfoByPlatform platform=$platform package=$targetPackage size=${result.size}")
-            } catch (e: Exception) {
-                Slog.w(TAG, "refreshShopInfoByPlatform failed platform=$platform package=$targetPackage", e)
-            }
-            return result
         }
 
         override fun registerSession(sessionId: String?, expireAt: Long) {

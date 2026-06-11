@@ -45,16 +45,18 @@ public class ShopReportController {
         String platform = normalize(request.getPlatform());
         String packageName = normalize(request.getPackageName());
         String cloneInstanceId = normalize(request.getCloneInstanceId());
+        String shopName = normalize(request.getShopName());
         if (packageName == null) {
             return ApiResponse.error("缺少应用包名，无法处理店铺");
         }
         boolean hasRealShopId = isRealShopId(shopId);
+        boolean hasVerifiedIdentity = hasRealShopId && isVerifiedShopName(shopName);
         Optional<Shop> existing = Optional.empty();
 
         if (cloneInstanceId != null) {
             existing = shopService.findByUserIdAndCloneInstanceId(userId, cloneInstanceId);
         }
-        if (hasRealShopId) {
+        if (hasVerifiedIdentity) {
             if (existing.isEmpty()) {
                 existing = shopService.findByUserIdAndShopIdAndPackageName(userId, shopId, packageName);
             }
@@ -74,7 +76,6 @@ public class ShopReportController {
         }
 
         Map<String, Object> result = new HashMap<>();
-        result.put("shopId", request.getShopId());
         result.put("cloneInstanceId", cloneInstanceId);
 
         Shop shop = existing.get();
@@ -82,7 +83,7 @@ public class ShopReportController {
             return ApiResponse.error(403, "店铺标识校验失败");
         }
         boolean wasPending = shop.getShopId() != null && shop.getShopId().startsWith("NEW-");
-        if (hasRealShopId) {
+        if (hasVerifiedIdentity) {
             Optional<Shop> duplicate = shopService.findByUserIdAndShopIdAndPackageName(userId, shopId, packageName);
             if (duplicate.isPresent() && !duplicate.get().getId().equals(shop.getId())) {
                 return ApiResponse.error("该店铺已添加");
@@ -92,13 +93,14 @@ public class ShopReportController {
             }
         }
         result.put("deducted", false);
-        result.put("isNew", wasPending && hasRealShopId);
+        result.put("isNew", wasPending && hasVerifiedIdentity);
 
-        fillShopFromRequest(shop, request);
+        fillShopFromRequest(shop, request, hasVerifiedIdentity);
         if (cloneInstanceId != null && canAssignCloneInstanceId(userId, shop.getId(), cloneInstanceId)) {
             shop.setCloneInstanceId(cloneInstanceId);
         }
         shopService.update(shop.getId(), shop);
+        result.put("shopId", shop.getShopId());
         result.put("cloneInstanceId", shop.getCloneInstanceId());
 
         fillUserStats(result, userId);
@@ -107,12 +109,16 @@ public class ShopReportController {
         return ApiResponse.success(result);
     }
 
-    private void fillShopFromRequest(Shop shop, ShopReportRequest request) {
-        shop.setShopName(request.getShopName());
-        shop.setShopId(request.getShopId());
-        shop.setPlatform(request.getPlatform());
-        shop.setPlatformName(request.getPlatformName());
-        shop.setPackageName(request.getPackageName());
+    private void fillShopFromRequest(Shop shop, ShopReportRequest request, boolean hasVerifiedIdentity) {
+        if (hasVerifiedIdentity) {
+            shop.setShopName(normalize(request.getShopName()));
+            shop.setShopId(normalize(request.getShopId()));
+            shop.setIdentityVerified(true);
+            shop.setIdentityVerifiedAt(LocalDateTime.now());
+        }
+        shop.setPlatform(normalize(request.getPlatform()));
+        shop.setPlatformName(normalize(request.getPlatformName()));
+        shop.setPackageName(normalize(request.getPackageName()));
         shop.setRemainingDays(request.getRemainingDays());
         shop.setAutoRenew(request.getAutoRenew());
         shop.setLocalVirtualUserId(request.getLocalVirtualUserId());
@@ -170,7 +176,18 @@ public class ShopReportController {
         return shopId != null
                 && !shopId.isBlank()
                 && !"-".equals(shopId)
-                && !shopId.startsWith("NEW-");
+                && !shopId.startsWith("NEW-")
+                && !shopId.startsWith("phase13-");
+    }
+
+    private boolean isVerifiedShopName(String shopName) {
+        return shopName != null
+                && !shopName.isBlank()
+                && !shopName.startsWith("NEW-")
+                && !shopName.startsWith("phase13-")
+                && !shopName.startsWith("新增店铺-[")
+                && !shopName.startsWith("User[")
+                && !shopName.startsWith("未知");
     }
 
     private String sha256(String value) {

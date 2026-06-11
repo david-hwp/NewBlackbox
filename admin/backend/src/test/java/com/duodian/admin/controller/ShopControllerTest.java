@@ -20,12 +20,15 @@ import com.duodian.admin.service.UserService;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.ResponseEntity;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.mock.web.MockMultipartFile;
 
 import java.security.KeyPairGenerator;
 import java.time.LocalDateTime;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
@@ -126,6 +129,25 @@ class ShopControllerTest {
 
         assertThat(response.getCode()).isEqualTo(403);
         verify(shopService, never()).create(argThat(shop -> true));
+    }
+
+    @Test
+    void updateRejectsManualShopIdentityChange() {
+        AuthContext.setUserId(1L);
+        User normalUser = user(1L, "USER");
+        Shop existing = shop(10L, 1L, "真实店铺");
+        existing.setShopId("100001");
+        Shop request = shop(10L, 1L, "手填店铺");
+        request.setShopId("999999");
+
+        when(userService.findById(1L)).thenReturn(Optional.of(normalUser));
+        when(shopService.findById(10L)).thenReturn(Optional.of(existing));
+
+        ApiResponse<Shop> response = controller.update(10L, request);
+
+        assertThat(response.getCode()).isEqualTo(500);
+        assertThat(response.getMessage()).isEqualTo("店铺ID和店铺名称只能由引擎识别更新");
+        verify(shopService, never()).update(eq(10L), any(Shop.class));
     }
 
     @Test
@@ -338,6 +360,124 @@ class ShopControllerTest {
         assertThat(response.getData().getAuthorizationToken()).contains(".");
         verify(computeService, never()).deductComputeForCloneRenew(any(), any(), any(), any(), any());
         verify(computeService, never()).deductComputeForCloneCreate(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void uploadLoginStateStoresBlobMetadataWithoutReturningBlob() throws Exception {
+        AuthContext.setUserId(1L);
+        User normalUser = user(1L, "USER");
+        Shop shop = shop(12L, 1L, "login-state");
+        shop.setPackageName("com.jd.mrd.jingming");
+        byte[] payload = "zip-bytes".getBytes();
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "login-state.zip",
+                "application/zip",
+                payload
+        );
+
+        when(userService.findById(1L)).thenReturn(Optional.of(normalUser));
+        when(shopService.findById(12L)).thenReturn(Optional.of(shop));
+        when(shopService.updateLoginState(
+                eq(12L),
+                eq("jd-jingming-prefs-d"),
+                eq("{\"packageName\":\"com.jd.mrd.jingming\",\"profileId\":\"jd-jingming-prefs-d\",\"files\":1}"),
+                argThat(bytes -> Arrays.equals(bytes, payload)),
+                argThat(hash -> hash != null && hash.matches("[0-9a-f]{64}"))
+        )).thenAnswer(invocation -> {
+            Shop saved = shop;
+            saved.setLoginStateProfile(invocation.getArgument(1));
+            saved.setLoginStateManifest(invocation.getArgument(2));
+            saved.setLoginStateBlob(invocation.getArgument(3));
+            saved.setLoginStateSha256(invocation.getArgument(4));
+            saved.setLoginStateSize((long) payload.length);
+            saved.setLoginStateUpdatedAt(LocalDateTime.now());
+            return saved;
+        });
+
+        ApiResponse<ShopResponse> response = controller.uploadLoginState(
+                12L,
+                file,
+                "jd-jingming-prefs-d",
+                "{\"packageName\":\"com.jd.mrd.jingming\",\"profileId\":\"jd-jingming-prefs-d\",\"files\":1}"
+        );
+
+        assertThat(response.getCode()).isEqualTo(200);
+        assertThat(response.getData().getHasLoginState()).isTrue();
+        assertThat(response.getData().getLoginStateProfile()).isEqualTo("jd-jingming-prefs-d");
+        assertThat(response.getData().getLoginStateSize()).isEqualTo(payload.length);
+        assertThat(response.getData().getLoginStateSha256()).matches("[0-9a-f]{64}");
+    }
+
+    @Test
+    void uploadLoginStateRejectsManifestPackageMismatch() {
+        AuthContext.setUserId(1L);
+        User normalUser = user(1L, "USER");
+        Shop shop = shop(13L, 1L, "login-state-mismatch");
+        shop.setPackageName("com.jd.mrd.jingming");
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "login-state.zip",
+                "application/zip",
+                "zip-bytes".getBytes()
+        );
+
+        when(userService.findById(1L)).thenReturn(Optional.of(normalUser));
+        when(shopService.findById(13L)).thenReturn(Optional.of(shop));
+
+        ApiResponse<ShopResponse> response = controller.uploadLoginState(
+                13L,
+                file,
+                "jd-jingming-prefs-d",
+                "{\"packageName\":\"me.ele.napos\",\"profileId\":\"jd-jingming-prefs-d\"}"
+        );
+
+        assertThat(response.getCode()).isEqualTo(500);
+        assertThat(response.getMessage()).contains("包名");
+        verify(shopService, never()).updateLoginState(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void uploadLoginStateRejectsOversizedCloneData() {
+        AuthContext.setUserId(1L);
+        User normalUser = user(1L, "USER");
+        Shop shop = shop(13L, 1L, "oversized");
+        shop.setPackageName("me.ele.napos");
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "full-clone.zip",
+                "application/zip",
+                new byte[2 * 1024 * 1024 + 1]
+        );
+
+        when(userService.findById(1L)).thenReturn(Optional.of(normalUser));
+        when(shopService.findById(13L)).thenReturn(Optional.of(shop));
+
+        ApiResponse<ShopResponse> response = controller.uploadLoginState(13L, file, "ele-napos-prefs-e-min", null);
+
+        assertThat(response.getCode()).isEqualTo(500);
+        assertThat(response.getMessage()).contains("过大");
+        verify(shopService, never()).updateLoginState(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void downloadLoginStateReturnsStoredBytesForOwner() {
+        AuthContext.setUserId(1L);
+        User normalUser = user(1L, "USER");
+        Shop shop = shop(14L, 1L, "download");
+        shop.setLoginStateProfile("phase13-ele-e");
+        shop.setLoginStateBlob("zip".getBytes());
+        shop.setLoginStateSize(3L);
+        shop.setLoginStateSha256("abc");
+
+        when(userService.findById(1L)).thenReturn(Optional.of(normalUser));
+        when(shopService.findById(14L)).thenReturn(Optional.of(shop));
+
+        ResponseEntity<byte[]> response = controller.downloadLoginState(14L);
+
+        assertThat(response.getStatusCode().value()).isEqualTo(200);
+        assertThat(response.getHeaders().getFirst("X-Login-State-Profile")).isEqualTo("phase13-ele-e");
+        assertThat(response.getBody()).isEqualTo("zip".getBytes());
     }
 
     private User user(Long id, String role) {

@@ -132,7 +132,7 @@ public class IOCore {
             rule.put(String.format("/data/misc/profiles/ref/%d/%s", BlackBoxCore.getUserId(), packageName), profilesRefDir.getAbsolutePath());
 
             if (BlackBoxCore.getContext().getExternalCacheDir() != null && context.getExternalCacheDir() != null) {
-                File external = BEnvironment.getExternalUserDir(BlackBoxCore.getUserId());
+                File external = BEnvironment.getExternalUserDir(packageName, BlackBoxCore.getUserId());
 
                 
                 rule.put("/sdcard", external.getAbsolutePath());

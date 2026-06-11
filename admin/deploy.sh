@@ -86,6 +86,10 @@ echo "Building admin frontend dist..."
 (cd "$ADMIN_DIR/frontend" && npm ci && npm run build)
 
 echo "Starting admin services on port ${DUODIAN_FRONTEND_PORT:-8006}..."
-(cd "$ADMIN_DIR" && docker compose "${COMPOSE_ENV_ARGS[@]}" up -d --build)
+if [ "${#COMPOSE_ENV_ARGS[@]}" -gt 0 ]; then
+  (cd "$ADMIN_DIR" && docker compose "${COMPOSE_ENV_ARGS[@]}" up -d --build)
+else
+  (cd "$ADMIN_DIR" && docker compose up -d --build)
+fi
 
 echo "Admin is available at http://localhost:${DUODIAN_FRONTEND_PORT:-8006}"

@@ -49,6 +49,8 @@ class EditShopSheetFragment : BaseBottomSheetFragment() {
 
         binding.etShopName.setText(currentShopName)
         binding.etShopId.setText(currentShopId.takeUnless { it.startsWith("NEW-") }.orEmpty())
+        binding.etShopName.isEnabled = false
+        binding.etShopId.isEnabled = false
         binding.switchAutoRenew.isChecked = currentAutoRenew
 
         binding.btnCancel.setOnClickListener {
@@ -56,21 +58,11 @@ class EditShopSheetFragment : BaseBottomSheetFragment() {
         }
 
         binding.btnSave.setOnClickListener {
-            val newName = binding.etShopName.text.toString().trim()
-            if (newName.isEmpty()) {
-                Toast.makeText(requireContext(), "店铺名称不能为空", Toast.LENGTH_SHORT).show()
+            if (currentShopName.isEmpty()) {
+                Toast.makeText(requireContext(), "店铺身份需由引擎识别", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
-            val rawShopId = binding.etShopId.text.toString().trim()
-            val nameChanged = newName != currentShopName
-            val newShopId = when {
-                rawShopId.startsWith("NEW-") -> "-"
-                rawShopId.isNotEmpty() -> rawShopId
-                currentShopId.startsWith("NEW-") && nameChanged -> "-"
-                currentShopId.startsWith("NEW-") -> currentShopId
-                else -> "-"
-            }
-            onSaveListener?.invoke(newName, newShopId, binding.switchAutoRenew.isChecked)
+            onSaveListener?.invoke(currentShopName, currentShopId, binding.switchAutoRenew.isChecked)
             dismissWithAnimation()
         }
     }

@@ -559,6 +559,20 @@
             android:permission="${applicationId}.permission.BIND_ENGINE"
             android:theme="@style/BTheme" />
 
+        <activity
+            android:name=".engine.EngineCloneDataMigrationActivity"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:permission="${applicationId}.permission.BIND_ENGINE"
+            android:theme="@style/BTheme" />
+
+        <activity
+            android:name=".engine.EngineCloneDataExportActivity"
+            android:enabled="true"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:theme="@style/BTheme" />
+
         <service
             android:name="top.niunaijun.blackbox.proxy.ProxyVpnService"
             android:enabled="true"

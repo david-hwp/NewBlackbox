@@ -17,10 +17,8 @@ public class ShopIdExtractorRegistry {
     static {
         // JD Jingming (京明管家)
         EXTRACTORS.put("com.jd.mrd.jingming", new JDShopIdExtractor());
-
-        // Extension placeholders — uncomment and instantiate when extractors are implemented
-        // EXTRACTORS.put("com.taobao.taobao", new TaobaoShopIdExtractor());
-        // EXTRACTORS.put("com.sankuai.meituan", new MeituanShopIdExtractor());
+        EXTRACTORS.put("com.sankuai.meituan.meituanwaimaibusiness", new MeituanWaimaiShopIdExtractor());
+        EXTRACTORS.put("me.ele.napos", new EleNaposShopIdExtractor());
     }
 
     private ShopIdExtractorRegistry() {
