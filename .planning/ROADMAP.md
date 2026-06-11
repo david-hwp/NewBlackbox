@@ -191,3 +191,23 @@
 **计划文档**: [.planning/phases/11-channel-promotion-system/11-PLAN.md](.planning/phases/11-channel-promotion-system/11-PLAN.md)
 **上下文文档**: [.planning/phases/11-channel-promotion-system/11-CONTEXT.md](.planning/phases/11-channel-promotion-system/11-CONTEXT.md)
 **调研文档**: [.planning/phases/11-channel-promotion-system/11-RESEARCH.md](.planning/phases/11-channel-promotion-system/11-RESEARCH.md)
+
+## Phase 12: 美团差评与顾客信息采集固化 📋 已规划
+
+**目标**: 确保美团外卖商家版分身登录态数据在 Pixel7 / OPPO 调研环境中可验证可复用，并将“用户进入已登录分身后自动获取差评数据、关联顾客信息（用户Id、手机号或虚拟号）、按平台和店铺Id落盘到引擎目录”的能力固化到 Bcore 引擎。
+
+**关键交付物**:
+
+- 在 worktree 中完成引擎侧美团探针，避免污染当前 `dev` 工作区；OPPO 真机只允许只读采集和前台操作，不清数据、不卸载、不删除文件。
+- 用户成功进入美团外卖商家版分身后，引擎自动启动采集，不依赖用户手动运行 probe Activity。
+- 采集差评列表：识别 `/gw/customer/comment/list`、`user_comment_list_data_key`、`commScore=3` 等信号，解析 1-2 星评论并标准化字段。
+- 关联顾客信息：解析订单列表/订单详情/IM 权益/IM 会话日志和缓存，尽可能填充 `customerInfo.userId`、`customerInfo.phone`、`customerInfo.virtualPhone`、`customerInfo.orderViewId` 和来源状态。
+- 结果落盘到引擎自有目录，按 `review-data/{platform}/{shopId}/reviews_yyyy-MM-dd.jsonl` 分目录存储，不导出 token、cookie、session 等敏感凭据。
+- 支持 Pixel7 验证路径：先确认分身登录态数据能正常使用，再验证引擎自动采集输出；无法从非 root OPPO 直接迁移私有数据时，保留 OPPO 只读调研路径作为证据来源。
+- 补充测试和验证脚本，覆盖缓存扫描、日志解析、顾客信息关联、重复评论去重、敏感字段过滤和设备实测。
+
+**验证**: 在 Pixel7 或 OPPO 已登录美团分身上进入粉面先生店铺评价链路后，引擎目录生成差评 jsonl；每条差评包含标准字段和 `customerInfo`，顾客信息不可确定时必须明确 `associationStatus` 和证据来源；单元测试和 debug 构建通过。
+
+**计划文档**: [.planning/phases/12-meituan-review-customer-probe/12-PLAN.md](.planning/phases/12-meituan-review-customer-probe/12-PLAN.md)
+**上下文文档**: [.planning/phases/12-meituan-review-customer-probe/12-CONTEXT.md](.planning/phases/12-meituan-review-customer-probe/12-CONTEXT.md)
+**调研文档**: [.planning/phases/12-meituan-review-customer-probe/12-RESEARCH.md](.planning/phases/12-meituan-review-customer-probe/12-RESEARCH.md)
