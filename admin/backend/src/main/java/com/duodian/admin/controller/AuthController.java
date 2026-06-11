@@ -10,6 +10,7 @@ import com.duodian.admin.service.UserService;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -53,9 +54,13 @@ public class AuthController {
             user.setNonTransferableComputeBalance(3);
             user.setShopCount(0);
             user.setPlatformCount(0);
+            user.setSubscriptionPlan(UserService.PLAN_TRIAL);
+            user.setSubscriptionExpiresAt(LocalDateTime.now().plusDays(30));
+            user.setSubscriptionUpdatedAt(LocalDateTime.now());
 
             User saved = userService.create(user);
             userService.createRegisterBonusLog(saved, 3);
+            userService.createRegisterSubscriptionLog(saved, 30);
             return new ApiResponse<>(200, "注册成功", null);
         } catch (RuntimeException e) {
             return ApiResponse.error(e.getMessage());

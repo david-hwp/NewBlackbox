@@ -22,12 +22,21 @@ class ShopListAdapter(
 
     private var shops: List<Shop> = emptyList()
     private var expandedShopId: Long? = null
+    private var showRemainingDays: Boolean = true
 
     fun submitList(newList: List<Shop>) {
         shops = newList
         if (expandedShopId != null && shops.none { it.id == expandedShopId }) {
             expandedShopId = null
         }
+        notifyDataSetChanged()
+    }
+
+    fun setShowRemainingDays(show: Boolean) {
+        if (showRemainingDays == show) {
+            return
+        }
+        showRemainingDays = show
         notifyDataSetChanged()
     }
 
@@ -74,6 +83,7 @@ class ShopListAdapter(
         private val shopName: TextView = itemView.findViewById(R.id.shopName)
         private val newTag: TextView = itemView.findViewById(R.id.newTag)
         private val shopId: TextView = itemView.findViewById(R.id.shopId)
+        private val daysContainer: View = itemView.findViewById(R.id.daysContainer)
         private val remainingDaysBadge: TextView = itemView.findViewById(R.id.remainingDaysBadge)
         private val autoRenewTriangle: View = itemView.findViewById(R.id.autoRenewTriangle)
 
@@ -95,6 +105,7 @@ class ShopListAdapter(
             shopId.text = "店铺ID: ${if (verifiedIdentity) shop.shopId else "-"}"
 
             // 剩余天数显示（带颜色逻辑）
+            daysContainer.visibility = if (showRemainingDays) View.VISIBLE else View.GONE
             remainingDaysBadge.text = "${shop.remainingDays}天"
             val daysColor = when {
                 shop.remainingDays <= 3 -> R.color.danger

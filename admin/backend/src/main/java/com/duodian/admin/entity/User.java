@@ -42,6 +42,15 @@ public class User {
     @Column(name = "apk_channel", length = 64)
     private String apkChannel = "main";
 
+    @Column(name = "subscription_plan", length = 32)
+    private String subscriptionPlan = "NONE";
+
+    @Column(name = "subscription_expires_at")
+    private LocalDateTime subscriptionExpiresAt;
+
+    @Column(name = "subscription_updated_at")
+    private LocalDateTime subscriptionUpdatedAt;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
@@ -103,6 +112,28 @@ public class User {
 
     public String getApkChannel() { return apkChannel; }
     public void setApkChannel(String apkChannel) { this.apkChannel = apkChannel; }
+
+    public String getSubscriptionPlan() { return subscriptionPlan; }
+    public void setSubscriptionPlan(String subscriptionPlan) {
+        this.subscriptionPlan = (subscriptionPlan == null || subscriptionPlan.isBlank())
+                ? "NONE"
+                : subscriptionPlan.trim().toUpperCase();
+    }
+
+    public LocalDateTime getSubscriptionExpiresAt() { return subscriptionExpiresAt; }
+    public void setSubscriptionExpiresAt(LocalDateTime subscriptionExpiresAt) { this.subscriptionExpiresAt = subscriptionExpiresAt; }
+
+    public LocalDateTime getSubscriptionUpdatedAt() { return subscriptionUpdatedAt; }
+    public void setSubscriptionUpdatedAt(LocalDateTime subscriptionUpdatedAt) { this.subscriptionUpdatedAt = subscriptionUpdatedAt; }
+
+    public Boolean getSubscriptionActive() {
+        return isSubscriptionActive();
+    }
+
+    @JsonIgnore
+    public boolean isSubscriptionActive() {
+        return subscriptionExpiresAt != null && subscriptionExpiresAt.isAfter(LocalDateTime.now());
+    }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }

@@ -130,6 +130,85 @@ class ComputeServiceTest {
     }
 
     @Test
+    void cloneCreateSubscriptionCoverageWritesZeroAmountLogWithoutCharging() {
+        User user = user(1L, "13800000001", 0, 0);
+        user.setSubscriptionPlan("MONTHLY");
+        user.setSubscriptionExpiresAt(LocalDateTime.now().plusDays(10));
+        when(computeDeductionRepository.findByUserIdAndCloneInstanceIdAndDeductionTypeAndOperationKeyAndDeleted(
+                1L,
+                "CLN1-sub",
+                "CREATE",
+                "op-sub",
+                (byte) 0
+        )).thenReturn(Optional.empty());
+        when(userRepository.findByIdAndDeleted(1L, (byte) 0)).thenReturn(Optional.of(user));
+        when(transactionLogRepository.save(argThat(log ->
+                "CONSUME".equals(log.getType())
+                        && log.getAmount() == 0
+                        && "店铺创建订阅覆盖: CLN1-sub".equals(log.getRemark())
+        ))).thenAnswer(invocation -> {
+            TransactionLog log = invocation.getArgument(0);
+            log.setId(91L);
+            return log;
+        });
+
+        ComputeService.DeductionResult result = computeService.deductComputeForCloneCreate(
+                1L,
+                "CLN1-sub",
+                "op-sub",
+                "jd",
+                "订阅店铺"
+        );
+
+        assertThat(result.isSuccess()).isTrue();
+        assertThat(result.isDeducted()).isFalse();
+        assertThat(user.getComputeBalance()).isZero();
+        verify(userRepository, never()).save(user);
+        verify(computeDeductionRepository).save(argThat(deduction ->
+                deduction.getAmount().equals(0)
+                        && deduction.getTransactionLogId().equals(91L)
+        ));
+    }
+
+    @Test
+    void expiredSubscriptionFallsBackToComputeDeduction() {
+        User user = user(1L, "13800000001", 1, 1);
+        user.setSubscriptionPlan("MONTHLY");
+        user.setSubscriptionExpiresAt(LocalDateTime.now().minusDays(1));
+        when(computeDeductionRepository.findByUserIdAndCloneInstanceIdAndDeductionTypeAndOperationKeyAndDeleted(
+                1L,
+                "CLN1-expired",
+                "RENEW",
+                "op-expired",
+                (byte) 0
+        )).thenReturn(Optional.empty());
+        when(userRepository.findByIdAndDeleted(1L, (byte) 0)).thenReturn(Optional.of(user));
+        when(transactionLogRepository.save(argThat(log ->
+                "CONSUME".equals(log.getType())
+                        && log.getAmount() == 1
+                        && "店铺续期扣减: CLN1-expired".equals(log.getRemark())
+        ))).thenAnswer(invocation -> {
+            TransactionLog log = invocation.getArgument(0);
+            log.setId(92L);
+            return log;
+        });
+
+        ComputeService.DeductionResult result = computeService.deductComputeForCloneRenew(
+                1L,
+                "CLN1-expired",
+                "op-expired",
+                "jd",
+                "过期订阅店铺"
+        );
+
+        assertThat(result.isSuccess()).isTrue();
+        assertThat(result.isDeducted()).isTrue();
+        assertThat(user.getComputeBalance()).isZero();
+        assertThat(user.getNonTransferableComputeBalance()).isZero();
+        verify(userRepository).save(user);
+    }
+
+    @Test
     void giftComputeTransfersOnlyTransferablePortion() {
         User fromUser = user(1L, "13800000001", 5, 2);
         User toUser = user(2L, "13800000002", 0, 0);

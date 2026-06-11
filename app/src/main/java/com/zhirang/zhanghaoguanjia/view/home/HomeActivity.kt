@@ -121,6 +121,9 @@ class HomeActivity : AppCompatActivity() {
     companion object {
         private const val TAG = "HomeActivity"
         private const val SHOP_RECOGNITION_AFTER_CLICK_DELAY_MS = 10_000L
+        private const val PREF_SUBSCRIPTION_GIFT_PROMPT = "subscription_gift_prompt"
+        private const val KEY_PENDING_GIFT_PHONE = "pending_gift_phone"
+        private const val KEY_SHOWN_GIFT_USER_PREFIX = "shown_gift_user_"
         private var sessionAnnouncementsRequested = false
         private val sessionShownAnnouncementIds = mutableSetOf<Long>()
 
@@ -494,6 +497,17 @@ class HomeActivity : AppCompatActivity() {
             viewBinding.tvPhoneNumber.text = phone
         }
 
+        viewModel.subscriptionStatusLiveData.observe(this) { status ->
+            viewBinding.tvSubscriptionStatus.text = status
+        }
+
+        viewModel.activeSubscriptionLiveData.observe(this) { active ->
+            if (::shopAdapter.isInitialized) {
+                shopAdapter.setShowRemainingDays(!active)
+            }
+            updateShopList()
+        }
+
         viewModel.displayUsernameLiveData.observe(this) { username ->
             viewBinding.tvHeaderUsername.text = username
             AvatarImageLoader.bind(
@@ -571,7 +585,7 @@ class HomeActivity : AppCompatActivity() {
         }
 
         viewModel.loadShops()
-        loadAnnouncementForOpenOnce()
+        showRegistrationGiftPromptIfNeeded()
     }
 
     private fun prepareDefaultPlatformEnvironmentIfNeeded() {
@@ -584,7 +598,7 @@ class HomeActivity : AppCompatActivity() {
         }
         val packageName = platformItem.packageName?.takeIf { it.isNotBlank() } ?: return
         val hasShopsForPlatform = viewModel.getAllShops().any { shop ->
-            shop.remainingDays > 0 &&
+            (viewModel.hasActiveSubscription() || shop.remainingDays > 0) &&
                     shop.cloneInstanceId?.isNotBlank() == true &&
                     resolveShopPackageName(shop) == packageName
         }
@@ -668,7 +682,9 @@ class HomeActivity : AppCompatActivity() {
 
     private fun getPendingShopEnvironmentsForRestore(packageName: String?): List<Shop> {
         return viewModel.getAllShops().filter { shop ->
-            if (shop.remainingDays <= 0 || shop.cloneInstanceId?.isNotBlank() != true) {
+            if ((!viewModel.hasActiveSubscription() && shop.remainingDays <= 0) ||
+                shop.cloneInstanceId?.isNotBlank() != true
+            ) {
                 return@filter false
             }
             val shopPackageName = resolveShopPackageName(shop) ?: return@filter false
@@ -731,6 +747,39 @@ class HomeActivity : AppCompatActivity() {
         sessionAnnouncementsRequested = true
         viewModel.loadLatestAnnouncement()
         viewModel.loadAppReleaseAnnouncementIfNeeded()
+    }
+
+    private fun showRegistrationGiftPromptIfNeeded() {
+        val user = TokenManager.getInstance().getUser()
+        val prefs = getSharedPreferences(PREF_SUBSCRIPTION_GIFT_PROMPT, Context.MODE_PRIVATE)
+        val pendingPhone = prefs.getString(KEY_PENDING_GIFT_PHONE, null)?.takeIf { it.isNotBlank() }
+        if (user == null || pendingPhone == null || pendingPhone != user.phone) {
+            loadAnnouncementForOpenOnce()
+            return
+        }
+        val shownKey = KEY_SHOWN_GIFT_USER_PREFIX + user.id
+        if (prefs.getBoolean(shownKey, false) || isFinishing || isDestroyed) {
+            prefs.edit().remove(KEY_PENDING_GIFT_PHONE).apply()
+            loadAnnouncementForOpenOnce()
+            return
+        }
+        MaterialAlertDialogBuilder(this)
+            .setMessage("恭喜您注册成功，系统赠送您一个月的订阅特权免费体验卡，欢迎使用！")
+            .setPositiveButton("知道了") { _, _ ->
+                prefs.edit()
+                    .putBoolean(shownKey, true)
+                    .remove(KEY_PENDING_GIFT_PHONE)
+                    .apply()
+                loadAnnouncementForOpenOnce()
+            }
+            .setOnCancelListener {
+                prefs.edit()
+                    .putBoolean(shownKey, true)
+                    .remove(KEY_PENDING_GIFT_PHONE)
+                    .apply()
+                loadAnnouncementForOpenOnce()
+            }
+            .show()
     }
 
     private fun showAnnouncementDialog(announcement: AnnouncementDto) {
@@ -846,7 +895,7 @@ class HomeActivity : AppCompatActivity() {
         }
         buildShopPrepareKey(shop, packageName)?.let { locallyRepairedShopKeys.remove(it) }
 
-        if (shop.remainingDays <= 0) {
+        if (!viewModel.hasActiveSubscription() && shop.remainingDays <= 0) {
             renewExpiredShopBeforeOpen(shop)
             return
         }
@@ -862,7 +911,13 @@ class HomeActivity : AppCompatActivity() {
         }
         MaterialAlertDialogBuilder(this)
             .setTitle("店铺已到期")
-            .setMessage("是否扣减 1 点算力为该店铺续期 30 天？")
+            .setMessage(
+                if (viewModel.hasExpiredSubscriptionRecord()) {
+                    "订阅已到期，继续使用将扣除1点算力"
+                } else {
+                    "是否扣减 1 点算力为该店铺续期 30 天？"
+                }
+            )
             .setNegativeButton("取消", null)
             .setPositiveButton("确认") { _, _ ->
                 viewModel.renewShopWithToken(shop) { renewedShop, token ->

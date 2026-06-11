@@ -230,3 +230,21 @@
 **计划文档**: [.planning/phases/13-meituan-login-state-sync/13-PLAN.md](.planning/phases/13-meituan-login-state-sync/13-PLAN.md)
 **标准文档**: [.planning/phases/13-meituan-login-state-sync/13-STANDARD.md](.planning/phases/13-meituan-login-state-sync/13-STANDARD.md)
 **调研文档**: [.planning/phases/13-meituan-login-state-sync/13-RESEARCH.md](.planning/phases/13-meituan-login-state-sync/13-RESEARCH.md)
+
+## Phase 14: 用户订阅计费体系 📋 已规划
+
+**目标**: 在现有算力扣费机制上叠加用户维度订阅体系，支持新用户 30 天免费订阅、后台管理员按月/季/年升级订阅用户、订阅期内店铺创建/续期写 0 扣费交易日志，订阅过期后自动恢复店铺维度算力计费。
+
+**关键交付物**:
+
+- `users` 增加订阅状态、订阅套餐和订阅到期时间字段；`/auth/me` 和登录响应返回订阅信息。
+- 新注册用户自动赠送 30 天订阅体验，并保留原注册赠送算力兼容历史算力体系；首次登录后 APP 展示免费体验卡提示。
+- 后台用户管理支持管理员将用户设置为月度、季度、年度订阅用户或关闭订阅；老用户升级订阅不退还历史已扣算力。
+- 创建店铺、续期店铺和打开过期店铺时复用现有算力扣费链路：活跃订阅用户写交易日志但 amount=0，不减少算力余额；普通用户和订阅过期用户继续扣 1 点算力。
+- APP 首页手机号下方展示订阅到期时间；普通用户展示“升级为订阅用户，解锁无上限店铺特权”。
+- APP 店铺卡片对活跃订阅用户隐藏店铺维度剩余天数；普通用户和订阅过期用户继续展示。
+- 用户点击店铺卡片前校验订阅/店铺有效期；订阅已到期且店铺已到期时提示“订阅已到期，继续使用将扣除1点算力”，确认并由服务器扣费续期后才能进入。
+
+**计划文档**: [.planning/phases/14-subscription-billing/14-PLAN.md](.planning/phases/14-subscription-billing/14-PLAN.md)
+**上下文文档**: [.planning/phases/14-subscription-billing/14-CONTEXT.md](.planning/phases/14-subscription-billing/14-CONTEXT.md)
+**调研文档**: [.planning/phases/14-subscription-billing/14-RESEARCH.md](.planning/phases/14-subscription-billing/14-RESEARCH.md)

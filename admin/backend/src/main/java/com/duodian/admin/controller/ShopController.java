@@ -250,6 +250,9 @@ public class ShopController {
 
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime expireAt = now.plusDays(DEFAULT_AUTH_DAYS);
+        if (currentUser.isSubscriptionActive() && currentUser.getSubscriptionExpiresAt() != null) {
+            expireAt = currentUser.getSubscriptionExpiresAt();
+        }
         Shop shop = new Shop();
         shop.setUserId(userId);
         shop.setShopName(shopName);
@@ -353,7 +356,10 @@ public class ShopController {
         LocalDateTime base = shop.getAuthExpireAt() != null && shop.getAuthExpireAt().isAfter(now)
                 ? shop.getAuthExpireAt()
                 : now;
-        LocalDateTime expireAt = base.plusDays(DEFAULT_AUTH_DAYS);
+        User user = userService.refreshShopStats(userId);
+        LocalDateTime expireAt = user.isSubscriptionActive() && user.getSubscriptionExpiresAt() != null
+                ? user.getSubscriptionExpiresAt()
+                : base.plusDays(DEFAULT_AUTH_DAYS);
         shop.setRemainingDays(DEFAULT_AUTH_DAYS);
         shop.setExpireAt(expireAt);
         shop.setAuthStartAt(shop.getAuthStartAt() == null ? now : shop.getAuthStartAt());
@@ -362,7 +368,6 @@ public class ShopController {
         shop.setAuthorizationJti(randomHex(16));
         shop.setLastDeductedAt(now);
         Shop saved = shopService.update(shop.getId(), shop);
-        User user = userService.refreshShopStats(userId);
         String token = cloneAuthorizationTokenService.signToken(saved, user);
         return ApiResponse.success(ShopRenewResponse.from(saved, user, token, cloneAuthorizationTokenService.getPublicKeyId()));
     }
@@ -403,11 +408,19 @@ public class ShopController {
             return ApiResponse.error("店铺缺少应用包名，无法授权");
         }
         LocalDateTime now = LocalDateTime.now();
+        User user = userService.refreshShopStats(userId);
         LocalDateTime expireAt = firstPresent(shop.getAuthExpireAt(), shop.getExpireAt());
         boolean legacyWithoutAuthorizationWindow = expireAt == null;
         if (legacyWithoutAuthorizationWindow) {
-            expireAt = now.plusDays(DEFAULT_AUTH_DAYS);
+            expireAt = user.isSubscriptionActive() && user.getSubscriptionExpiresAt() != null
+                    ? user.getSubscriptionExpiresAt()
+                    : now.plusDays(DEFAULT_AUTH_DAYS);
             shop.setRemainingDays(DEFAULT_AUTH_DAYS);
+        } else if (!expireAt.isAfter(now) && user.isSubscriptionActive() && user.getSubscriptionExpiresAt() != null) {
+            expireAt = user.getSubscriptionExpiresAt();
+            shop.setRemainingDays(DEFAULT_AUTH_DAYS);
+            shop.setCredentialVersion((shop.getCredentialVersion() == null ? 1 : shop.getCredentialVersion()) + 1);
+            shop.setAuthorizationJti(randomHex(16));
         } else if (!expireAt.isAfter(now)) {
             return ApiResponse.error(402, "店铺已到期，请续期后再打开");
         }
@@ -423,7 +436,6 @@ public class ShopController {
             shop.setAuthorizationJti(randomHex(16));
         }
         Shop saved = shopService.update(shop.getId(), shop);
-        User user = userService.refreshShopStats(userId);
         String token = cloneAuthorizationTokenService.signToken(saved, user);
         return ApiResponse.success(CloneShopCreateResponse.from(
                 saved,

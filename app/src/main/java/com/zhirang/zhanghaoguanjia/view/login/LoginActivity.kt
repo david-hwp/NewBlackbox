@@ -182,6 +182,10 @@ class LoginActivity : AppCompatActivity() {
                     val phone = registerBinding?.etRegisterPhone?.text?.toString()?.trim().orEmpty()
                     if (phone.isNotBlank()) {
                         binding.etPhone.setText(phone)
+                        getSharedPreferences("subscription_gift_prompt", Context.MODE_PRIVATE)
+                            .edit()
+                            .putString("pending_gift_phone", phone)
+                            .apply()
                     }
                     binding.etPassword.text?.clear()
                     registerDialog?.dismiss()

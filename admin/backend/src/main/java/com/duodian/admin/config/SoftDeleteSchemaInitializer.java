@@ -43,6 +43,7 @@ public class SoftDeleteSchemaInitializer implements CommandLineRunner {
         }
         ensureAnnouncementTypeColumn();
         ensureUserApkChannelColumn();
+        ensureUserSubscriptionColumns();
         ensureTransactionLogReclaimColumns();
         ensureCloneColumns();
     }
@@ -62,6 +63,23 @@ public class SoftDeleteSchemaInitializer implements CommandLineRunner {
         }
         jdbcTemplate.execute("UPDATE users SET apk_channel = 'main' WHERE apk_channel IS NULL OR apk_channel = ''");
         jdbcTemplate.execute("ALTER TABLE users MODIFY COLUMN apk_channel VARCHAR(64) NOT NULL DEFAULT 'main'");
+    }
+
+    private void ensureUserSubscriptionColumns() throws Exception {
+        if (!hasColumn("users", "subscription_plan")) {
+            jdbcTemplate.execute("ALTER TABLE users ADD COLUMN subscription_plan VARCHAR(32) NOT NULL DEFAULT 'NONE'");
+        }
+        if (!hasColumn("users", "subscription_expires_at")) {
+            jdbcTemplate.execute("ALTER TABLE users ADD COLUMN subscription_expires_at DATETIME");
+        }
+        if (!hasColumn("users", "subscription_updated_at")) {
+            jdbcTemplate.execute("ALTER TABLE users ADD COLUMN subscription_updated_at DATETIME");
+        }
+        jdbcTemplate.execute("UPDATE users SET subscription_plan = 'NONE' WHERE subscription_plan IS NULL OR subscription_plan = ''");
+        jdbcTemplate.execute("ALTER TABLE users MODIFY COLUMN subscription_plan VARCHAR(32) NOT NULL DEFAULT 'NONE'");
+        if (!hasIndex("users", "idx_subscription_expires_at")) {
+            jdbcTemplate.execute("CREATE INDEX idx_subscription_expires_at ON users (subscription_expires_at)");
+        }
     }
 
     private void ensureAnnouncementTypeColumn() throws Exception {

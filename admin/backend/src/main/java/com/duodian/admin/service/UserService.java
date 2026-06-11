@@ -9,13 +9,20 @@ import com.duodian.admin.repository.UserRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 
 @Service
 public class UserService {
     private static final byte ACTIVE = 0;
     private static final byte DELETED = 1;
+    public static final String PLAN_NONE = "NONE";
+    public static final String PLAN_TRIAL = "TRIAL";
+    public static final String PLAN_MONTHLY = "MONTHLY";
+    public static final String PLAN_QUARTERLY = "QUARTERLY";
+    public static final String PLAN_YEARLY = "YEARLY";
 
     private final UserRepository userRepository;
     private final ShopRepository shopRepository;
@@ -76,6 +83,7 @@ public class UserService {
         user.setApkChannel(normalizeApkChannel(user.getApkChannel()));
         user.setComputeBalance(user.getComputeBalance() == null ? 0 : user.getComputeBalance());
         user.setNonTransferableComputeBalance(normalizeNonTransferableBalance(user));
+        normalizeSubscriptionState(user);
         user.setPassword(passwordService.encode(user.getPassword()));
         return userRepository.save(user);
     }
@@ -88,6 +96,7 @@ public class UserService {
         int newComputeBalance = user.getComputeBalance() == null ? 0 : user.getComputeBalance();
         existing.setUsername(user.getUsername());
         existing.setAvatarUrl(user.getAvatarUrl());
+        existing.setRole(normalizeRole(user.getRole()));
         existing.setApkChannel(normalizeApkChannel(existing.getApkChannel()));
         existing.setComputeBalance(newComputeBalance);
         existing.setNonTransferableComputeBalance(normalizeNonTransferableBalance(user));
@@ -141,6 +150,44 @@ public class UserService {
         transactionLogRepository.save(log);
     }
 
+    @Transactional
+    public void createRegisterSubscriptionLog(User user, int days) {
+        if (user == null || user.getId() == null || days <= 0) {
+            return;
+        }
+        TransactionLog log = new TransactionLog();
+        log.setUserId(user.getId());
+        log.setType("IN");
+        log.setAmount(0);
+        log.setRemark("新用户注册赠送订阅体验 " + days + " 天");
+        transactionLogRepository.save(log);
+    }
+
+    @Transactional
+    public User updateSubscription(Long id, String plan) {
+        User existing = userRepository.findByIdAndDeleted(id, ACTIVE)
+                .orElseThrow(() -> new RuntimeException("用户不存在"));
+        String normalizedPlan = normalizeAdminSubscriptionPlan(plan);
+        LocalDateTime now = LocalDateTime.now();
+        if (PLAN_NONE.equals(normalizedPlan)) {
+            existing.setSubscriptionPlan(PLAN_NONE);
+            existing.setSubscriptionExpiresAt(null);
+        } else {
+            existing.setSubscriptionPlan(normalizedPlan);
+            existing.setSubscriptionExpiresAt(expireAtForPlan(normalizedPlan, now));
+        }
+        existing.setSubscriptionUpdatedAt(now);
+        User saved = userRepository.save(withCurrentStats(existing));
+        createAdminSubscriptionAdjustmentLog(saved, normalizedPlan);
+        return saved;
+    }
+
+    public boolean hasActiveSubscription(Long userId) {
+        return userRepository.findByIdAndDeleted(userId, ACTIVE)
+                .map(User::isSubscriptionActive)
+                .orElse(false);
+    }
+
     private void createAdminComputeAdjustmentLog(User user, int delta) {
         if (user == null || user.getId() == null || delta == 0) {
             return;
@@ -153,12 +200,86 @@ public class UserService {
         transactionLogRepository.save(log);
     }
 
+    private void createAdminSubscriptionAdjustmentLog(User user, String plan) {
+        if (user == null || user.getId() == null) {
+            return;
+        }
+        TransactionLog log = new TransactionLog();
+        log.setUserId(user.getId());
+        log.setType("IN");
+        log.setAmount(0);
+        log.setRemark(PLAN_NONE.equals(plan)
+                ? "管理员关闭订阅"
+                : "管理员开通订阅: " + displaySubscriptionPlan(plan));
+        transactionLogRepository.save(log);
+    }
+
     private Integer normalizeNonTransferableBalance(User user) {
         int balance = user.getComputeBalance() == null ? 0 : user.getComputeBalance();
         int nonTransferable = user.getNonTransferableComputeBalance() == null
                 ? 0
                 : user.getNonTransferableComputeBalance();
         return Math.max(0, Math.min(nonTransferable, balance));
+    }
+
+    private void normalizeSubscriptionState(User user) {
+        if (user == null) {
+            return;
+        }
+        String plan = normalizeSubscriptionPlan(user.getSubscriptionPlan());
+        user.setSubscriptionPlan(plan);
+        if (PLAN_NONE.equals(plan)) {
+            user.setSubscriptionExpiresAt(null);
+        }
+        if (user.getSubscriptionExpiresAt() != null && user.getSubscriptionUpdatedAt() == null) {
+            user.setSubscriptionUpdatedAt(LocalDateTime.now());
+        }
+    }
+
+    public String normalizeSubscriptionPlan(String plan) {
+        if (plan == null || plan.isBlank()) {
+            return PLAN_NONE;
+        }
+        String normalized = plan.trim().toUpperCase(Locale.ROOT);
+        return switch (normalized) {
+            case PLAN_TRIAL, PLAN_MONTHLY, PLAN_QUARTERLY, PLAN_YEARLY -> normalized;
+            default -> PLAN_NONE;
+        };
+    }
+
+    private String normalizeAdminSubscriptionPlan(String plan) {
+        if (plan == null || plan.isBlank()) {
+            return PLAN_NONE;
+        }
+        String normalized = plan.trim().toUpperCase(Locale.ROOT);
+        return switch (normalized) {
+            case PLAN_NONE, PLAN_MONTHLY, PLAN_QUARTERLY, PLAN_YEARLY -> normalized;
+            default -> throw new RuntimeException("订阅套餐无效");
+        };
+    }
+
+    private LocalDateTime expireAtForPlan(String plan, LocalDateTime now) {
+        return switch (plan) {
+            case PLAN_MONTHLY -> now.plusMonths(1);
+            case PLAN_QUARTERLY -> now.plusMonths(3);
+            case PLAN_YEARLY -> now.plusYears(1);
+            case PLAN_TRIAL -> now.plusDays(30);
+            default -> null;
+        };
+    }
+
+    private String displaySubscriptionPlan(String plan) {
+        return switch (plan) {
+            case PLAN_TRIAL -> "新用户体验";
+            case PLAN_MONTHLY -> "月度";
+            case PLAN_QUARTERLY -> "季度";
+            case PLAN_YEARLY -> "年度";
+            default -> "无订阅";
+        };
+    }
+
+    private String normalizeRole(String role) {
+        return "ADMIN".equalsIgnoreCase(role) ? "ADMIN" : "USER";
     }
 
     private String normalizeApkChannel(String channel) {

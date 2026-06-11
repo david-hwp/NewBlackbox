@@ -22,7 +22,7 @@ class AuthControllerTest {
     private final AuthController controller = new AuthController(userService, jwtUtil);
 
     @Test
-    void registerGiftsNonTransferableComputeAndDoesNotLogin() {
+    void registerGiftsNonTransferableComputeSubscriptionAndDoesNotLogin() {
         RegisterRequest request = new RegisterRequest();
         request.setPhone("13800138000");
         request.setPassword("123456");
@@ -37,6 +37,8 @@ class AuthControllerTest {
         when(userService.create(argThat(user ->
                 user.getComputeBalance() == 3
                         && user.getNonTransferableComputeBalance() == 3
+                        && UserService.PLAN_TRIAL.equals(user.getSubscriptionPlan())
+                        && user.getSubscriptionExpiresAt() != null
                         && user.getPhone().equals("13800138000")
         ))).thenReturn(saved);
 
@@ -46,6 +48,7 @@ class AuthControllerTest {
         assertThat(response.getMessage()).isEqualTo("注册成功");
         assertThat(response.getData()).isNull();
         verify(userService).createRegisterBonusLog(saved, 3);
+        verify(userService).createRegisterSubscriptionLog(saved, 30);
         verify(jwtUtil, never()).generateToken(any(), any());
     }
 }

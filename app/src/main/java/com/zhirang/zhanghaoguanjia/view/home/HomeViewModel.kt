@@ -16,6 +16,7 @@ import com.zhirang.zhanghaoguanjia.bean.dto.ShopAuthTokenRequest
 import com.zhirang.zhanghaoguanjia.bean.dto.ShopDto
 import com.zhirang.zhanghaoguanjia.bean.dto.ShopReportRequest
 import com.zhirang.zhanghaoguanjia.bean.dto.ShopRenewRequest
+import com.zhirang.zhanghaoguanjia.bean.dto.UserDto
 import com.zhirang.zhanghaoguanjia.data.AnnouncementRepository
 import com.zhirang.zhanghaoguanjia.data.PlatformRepository
 import com.zhirang.zhanghaoguanjia.data.ShopRepository
@@ -52,6 +53,12 @@ class HomeViewModel : ViewModel() {
 
     private val _displayUsernameLiveData = MutableLiveData<String>()
     val displayUsernameLiveData: LiveData<String> = _displayUsernameLiveData
+
+    private val _subscriptionStatusLiveData = MutableLiveData<String>()
+    val subscriptionStatusLiveData: LiveData<String> = _subscriptionStatusLiveData
+
+    private val _activeSubscriptionLiveData = MutableLiveData<Boolean>()
+    val activeSubscriptionLiveData: LiveData<Boolean> = _activeSubscriptionLiveData
 
     private val _adminLiveData = MutableLiveData<Boolean>()
     val adminLiveData: LiveData<Boolean> = _adminLiveData
@@ -151,6 +158,8 @@ class HomeViewModel : ViewModel() {
         _computeBalanceLiveData.value = user?.computeBalance ?: 0
         _phoneNumberLiveData.value = maskPhoneNumber(user?.phone ?: "")
         _displayUsernameLiveData.value = getDisplayUsername(user?.username, user?.phone)
+        _activeSubscriptionLiveData.value = user?.isSubscriptionActiveNow == true
+        _subscriptionStatusLiveData.value = subscriptionStatusText(user)
         _avatarUrlLiveData.value = user?.avatarUrl
         _adminLiveData.value = user?.role.equals("ADMIN", ignoreCase = true)
     }
@@ -245,6 +254,13 @@ class HomeViewModel : ViewModel() {
             ?: "我的账号"
     }
 
+    private fun subscriptionStatusText(user: UserDto?): String {
+        if (user?.isSubscriptionActiveNow == true) {
+            return user.formattedSubscriptionExpiresAt?.let { "订阅到期：$it" } ?: "订阅生效中"
+        }
+        return "升级为订阅用户，解锁无上限店铺特权"
+    }
+
     fun selectPlatform(platform: Platform) {
         _selectedPlatformLiveData.value = platform
     }
@@ -305,6 +321,15 @@ class HomeViewModel : ViewModel() {
 
     fun getCurrentUserPhone(): String {
         return tokenManager.getUser()?.phone.orEmpty()
+    }
+
+    fun hasActiveSubscription(): Boolean {
+        return tokenManager.getUser()?.isSubscriptionActiveNow == true
+    }
+
+    fun hasExpiredSubscriptionRecord(): Boolean {
+        val user = tokenManager.getUser() ?: return false
+        return user.hasSubscriptionRecord && !user.isSubscriptionActiveNow
     }
 
     private fun isLoggedIn(): Boolean {

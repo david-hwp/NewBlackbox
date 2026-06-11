@@ -199,6 +199,28 @@ public class ComputeService {
 
         User user = userRepository.findByIdAndDeleted(userId, ACTIVE)
                 .orElseThrow(() -> new RuntimeException("用户不存在"));
+        if (user.isSubscriptionActive()) {
+            TransactionLog log = new TransactionLog();
+            log.setUserId(userId);
+            log.setType("CONSUME");
+            log.setAmount(0);
+            log.setPlatform(displayPlatformName(platform));
+            log.setShopName(displayName);
+            log.setRemark(subscriptionRemark(remarkPrefix, normalizedCloneId));
+            TransactionLog savedLog = transactionLogRepository.save(log);
+
+            ComputeDeduction deduction = new ComputeDeduction();
+            deduction.setUserId(userId);
+            deduction.setCloneInstanceId(normalizedCloneId);
+            deduction.setDeductionType(deductionType);
+            deduction.setOperationKey(normalizedOperationKey);
+            deduction.setAmount(0);
+            deduction.setTransactionLogId(savedLog.getId());
+            computeDeductionRepository.save(deduction);
+
+            return new DeductionResult(false, true, savedLog.getId());
+        }
+
         int balance = user.getComputeBalance() == null ? 0 : user.getComputeBalance();
         if (balance < 1) {
             return DeductionResult.insufficient();
@@ -239,6 +261,18 @@ public class ComputeService {
     private boolean deductCompute(Long userId, String shopId, String shopName, String platform, String remarkPrefix) {
         User user = userRepository.findByIdAndDeleted(userId, ACTIVE)
                 .orElseThrow(() -> new RuntimeException("用户不存在"));
+        if (user.isSubscriptionActive()) {
+            TransactionLog log = new TransactionLog();
+            log.setUserId(userId);
+            log.setType("CONSUME");
+            log.setAmount(0);
+            log.setPlatform(displayPlatformName(platform));
+            log.setShopName(shopName);
+            log.setRemark(subscriptionRemark(remarkPrefix, shopId));
+            transactionLogRepository.save(log);
+            return true;
+        }
+
         int balance = user.getComputeBalance() == null ? 0 : user.getComputeBalance();
 
         if (balance < 1) {
@@ -288,6 +322,10 @@ public class ComputeService {
             case "ali" -> "阿里本地";
             default -> platform.trim();
         };
+    }
+
+    private String subscriptionRemark(String remarkPrefix, String targetId) {
+        return remarkPrefix.replace("扣减", "订阅覆盖") + targetId;
     }
 
     @Transactional

@@ -43,6 +43,16 @@
         </el-table-column>
         <el-table-column prop="computeBalance" label="算力余额" />
         <el-table-column prop="nonTransferableComputeBalance" label="不可转赠" />
+        <el-table-column label="订阅状态" min-width="170">
+          <template #default="{ row }">
+            <div class="subscription-cell">
+              <el-tag :type="isSubscriptionActive(row) ? 'success' : 'info'" size="small">
+                {{ subscriptionPlanLabel(row.subscriptionPlan) }}
+              </el-tag>
+              <span class="subscription-expiry">{{ subscriptionText(row) }}</span>
+            </div>
+          </template>
+        </el-table-column>
         <el-table-column prop="shopCount" label="店铺数" />
         <el-table-column prop="createdAt" label="创建时间" />
         <el-table-column label="操作" width="180">
@@ -91,6 +101,18 @@
         <el-form-item label="不可转赠">
           <el-input-number v-model="form.nonTransferableComputeBalance" :min="0" :max="form.computeBalance || 0" style="width: 100%" />
         </el-form-item>
+        <el-form-item label="订阅套餐">
+          <el-select v-model="subscriptionForm.plan" style="width: 100%" :disabled="!isEdit" @change="subscriptionTouched = true">
+            <el-option label="关闭订阅" value="NONE" />
+            <el-option label="体验订阅" value="TRIAL" disabled />
+            <el-option label="月度订阅" value="MONTHLY" />
+            <el-option label="季度订阅" value="QUARTERLY" />
+            <el-option label="年度订阅" value="YEARLY" />
+          </el-select>
+        </el-form-item>
+        <el-form-item v-if="isEdit" label="到期时间">
+          <span>{{ form.subscriptionExpiresAt ? formatDateTime(form.subscriptionExpiresAt) : '未开通' }}</span>
+        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
@@ -110,6 +132,9 @@ const loading = ref(false)
 const dialogVisible = ref(false)
 const isEdit = ref(false)
 const formRef = ref()
+const originalSubscriptionPlan = ref('NONE')
+const subscriptionForm = ref({ plan: 'NONE' })
+const subscriptionTouched = ref(false)
 const filters = ref({
   username: '',
   phone: '',
@@ -120,7 +145,7 @@ const pagination = ref({
   size: 10,
   total: 0
 })
-const form = ref({ username: '', phone: '', password: '', role: 'USER', computeBalance: 0, nonTransferableComputeBalance: 0 })
+const form = ref({ username: '', phone: '', password: '', role: 'USER', computeBalance: 0, nonTransferableComputeBalance: 0, subscriptionPlan: 'NONE' })
 
 const rules = {
   username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
@@ -175,13 +200,20 @@ const handleSizeChange = (size) => {
 
 const showAddDialog = () => {
   isEdit.value = false
-  form.value = { username: '', phone: '', password: '', role: 'USER', computeBalance: 0, nonTransferableComputeBalance: 0 }
+  form.value = { username: '', phone: '', password: '', role: 'USER', computeBalance: 0, nonTransferableComputeBalance: 0, subscriptionPlan: 'NONE' }
+  originalSubscriptionPlan.value = 'NONE'
+  subscriptionForm.value = { plan: 'NONE' }
+  subscriptionTouched.value = false
   dialogVisible.value = true
 }
 
 const showEditDialog = (row) => {
   isEdit.value = true
   form.value = { ...row }
+  const plan = normalizeSubscriptionPlan(row.subscriptionPlan)
+  originalSubscriptionPlan.value = plan
+  subscriptionForm.value = { plan: isSubscriptionActive(row) ? plan : 'NONE' }
+  subscriptionTouched.value = false
   dialogVisible.value = true
 }
 
@@ -192,6 +224,9 @@ const handleSubmit = async () => {
   try {
     if (isEdit.value) {
       await request.put(`/users/${form.value.id}`, form.value)
+      if (subscriptionTouched.value && subscriptionForm.value.plan !== originalSubscriptionPlan.value) {
+        await request.put(`/users/${form.value.id}/subscription`, subscriptionForm.value)
+      }
       ElMessage.success('更新成功')
     } else {
       await request.post('/users', form.value)
@@ -216,6 +251,47 @@ const handleDelete = async (row) => {
 }
 
 onMounted(fetchUsers)
+
+const normalizeSubscriptionPlan = (plan) => {
+  const normalized = String(plan || 'NONE').toUpperCase()
+  return ['TRIAL', 'MONTHLY', 'QUARTERLY', 'YEARLY'].includes(normalized) ? normalized : 'NONE'
+}
+
+const subscriptionPlanLabel = (plan) => {
+  switch (normalizeSubscriptionPlan(plan)) {
+    case 'TRIAL':
+      return '体验订阅'
+    case 'MONTHLY':
+      return '月度订阅'
+    case 'QUARTERLY':
+      return '季度订阅'
+    case 'YEARLY':
+      return '年度订阅'
+    default:
+      return '普通用户'
+  }
+}
+
+const isSubscriptionActive = (row) => {
+  if (row.subscriptionActive === true) return true
+  if (!row.subscriptionExpiresAt) return false
+  return new Date(row.subscriptionExpiresAt).getTime() > Date.now()
+}
+
+const subscriptionText = (row) => {
+  if (isSubscriptionActive(row)) {
+    return `到期 ${formatDateTime(row.subscriptionExpiresAt)}`
+  }
+  if (normalizeSubscriptionPlan(row.subscriptionPlan) !== 'NONE') {
+    return '已到期'
+  }
+  return '未开通'
+}
+
+const formatDateTime = (value) => {
+  if (!value) return '-'
+  return String(value).replace('T', ' ').slice(0, 16)
+}
 </script>
 
 <style scoped>
@@ -240,5 +316,16 @@ onMounted(fetchUsers)
   display: flex;
   justify-content: flex-end;
   padding-top: 16px;
+}
+
+.subscription-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.subscription-expiry {
+  color: #64748b;
+  font-size: 12px;
 }
 </style>

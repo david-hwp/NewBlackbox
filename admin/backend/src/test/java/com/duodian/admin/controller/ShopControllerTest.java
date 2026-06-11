@@ -363,6 +363,38 @@ class ShopControllerTest {
     }
 
     @Test
+    void activeSubscriptionCanIssueTokenForExpiredShop() {
+        AuthContext.setUserId(1L);
+        User subscriber = user(1L, "USER");
+        subscriber.setSubscriptionPlan("MONTHLY");
+        subscriber.setSubscriptionExpiresAt(LocalDateTime.now().plusDays(12));
+        Shop expiredShop = shop(15L, 1L, "expired-sub");
+        expiredShop.setCloneInstanceId("clone-sub");
+        expiredShop.setPackageName("com.jd.mrd.jingming");
+        expiredShop.setLocalVirtualUserId(7);
+        expiredShop.setAuthStartAt(LocalDateTime.now().minusDays(40));
+        expiredShop.setAuthExpireAt(LocalDateTime.now().minusDays(1));
+        expiredShop.setExpireAt(expiredShop.getAuthExpireAt());
+        expiredShop.setCredentialVersion(1);
+        expiredShop.setAuthorizationJti("old");
+        ShopAuthTokenRequest request = new ShopAuthTokenRequest();
+        request.setLocalVirtualUserId(7);
+        request.setPackageName("com.jd.mrd.jingming");
+
+        when(userService.findById(1L)).thenReturn(Optional.of(subscriber));
+        when(userService.refreshShopStats(1L)).thenReturn(subscriber);
+        when(shopService.findById(15L)).thenReturn(Optional.of(expiredShop));
+        when(shopService.update(15L, expiredShop)).thenReturn(expiredShop);
+
+        ApiResponse<CloneShopCreateResponse> response = controller.issueAuthorizationToken(15L, request);
+
+        assertThat(response.getCode()).isEqualTo(200);
+        assertThat(expiredShop.getAuthExpireAt()).isEqualTo(subscriber.getSubscriptionExpiresAt());
+        assertThat(expiredShop.getCredentialVersion()).isEqualTo(2);
+        assertThat(response.getData().getAuthorizationToken()).contains(".");
+    }
+
+    @Test
     void uploadLoginStateStoresBlobMetadataWithoutReturningBlob() throws Exception {
         AuthContext.setUserId(1L);
         User normalUser = user(1L, "USER");

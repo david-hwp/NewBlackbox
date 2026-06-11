@@ -18,11 +18,15 @@ CREATE TABLE IF NOT EXISTS users (
     shop_count INT NOT NULL DEFAULT 0 COMMENT '店铺数量',
     platform_count INT NOT NULL DEFAULT 0 COMMENT '覆盖平台数',
     apk_channel VARCHAR(64) NOT NULL DEFAULT 'main' COMMENT '主APK渠道标识',
+    subscription_plan VARCHAR(32) NOT NULL DEFAULT 'NONE' COMMENT '订阅套餐: NONE/TRIAL/MONTHLY/QUARTERLY/YEARLY',
+    subscription_expires_at DATETIME COMMENT '订阅到期时间',
+    subscription_updated_at DATETIME COMMENT '订阅更新时间',
     deleted TINYINT(1) NOT NULL DEFAULT 0 COMMENT '软删除: 0-正常 1-已删除',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     last_login_at DATETIME COMMENT '最后登录时间',
     INDEX idx_phone (phone),
+    INDEX idx_subscription_expires_at (subscription_expires_at),
     INDEX idx_deleted (deleted)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户表';
 
@@ -198,6 +202,6 @@ CREATE TABLE IF NOT EXISTS feedbacks (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='问题反馈表';
 
 -- 插入默认管理员账号，密码使用 BCrypt 密文存储
-INSERT INTO users (username, phone, password, role, compute_balance, non_transferable_compute_balance, shop_count, platform_count)
-VALUES ('管理员', '13800138000', '$2y$12$xRCi/REAIr6LB5YhvqMIOeJ6aim.wGMW5l19JiJO3U8gpCjGAVssS', 'ADMIN', 9999, 0, 0, 0)
+INSERT INTO users (username, phone, password, role, compute_balance, non_transferable_compute_balance, shop_count, platform_count, subscription_plan)
+VALUES ('管理员', '13800138000', '$2y$12$xRCi/REAIr6LB5YhvqMIOeJ6aim.wGMW5l19JiJO3U8gpCjGAVssS', 'ADMIN', 9999, 0, 0, 0, 'NONE')
 ON DUPLICATE KEY UPDATE id=id;

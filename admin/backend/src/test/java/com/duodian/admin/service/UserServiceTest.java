@@ -131,4 +131,28 @@ class UserServiceTest {
                 "管理员增加".equals(log.getRemark()) || "管理员扣除".equals(log.getRemark())
         ));
     }
+
+    @Test
+    void updateSubscriptionSetsPlanExpiryAndWritesZeroAmountLog() {
+        User existing = new User();
+        existing.setId(11L);
+        existing.setUsername("user-11");
+        existing.setPhone("13800000011");
+        existing.setComputeBalance(1);
+        existing.setNonTransferableComputeBalance(0);
+        when(userRepository.findByIdAndDeleted(11L, (byte) 0)).thenReturn(Optional.of(existing));
+        when(userRepository.save(existing)).thenReturn(existing);
+
+        User updated = userService.updateSubscription(11L, "quarterly");
+
+        assertThat(updated.getSubscriptionPlan()).isEqualTo(UserService.PLAN_QUARTERLY);
+        assertThat(updated.getSubscriptionExpiresAt()).isAfter(java.time.LocalDateTime.now().plusMonths(2));
+        assertThat(updated.getSubscriptionUpdatedAt()).isNotNull();
+        verify(transactionLogRepository).save(argThat(log ->
+                log.getUserId().equals(11L)
+                        && "IN".equals(log.getType())
+                        && log.getAmount().equals(0)
+                        && "管理员开通订阅: 季度".equals(log.getRemark())
+        ));
+    }
 }
