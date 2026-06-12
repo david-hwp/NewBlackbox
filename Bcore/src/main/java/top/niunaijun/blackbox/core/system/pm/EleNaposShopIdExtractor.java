@@ -7,6 +7,7 @@ import org.json.JSONObject;
 
 import java.io.File;
 import java.nio.charset.StandardCharsets;
+import java.util.Iterator;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -18,12 +19,37 @@ public class EleNaposShopIdExtractor extends PatternFileShopIdExtractor {
 
     private static final String TARGET_PACKAGE = "me.ele.napos";
     private static final String ID_KEYS = "shopId|shop_id|storeId|store_id|restaurantId|restaurant_id|restId|rest_id|sellerId|seller_id";
-    private static final String NAME_KEYS = "shopName|shop_name|storeName|store_name|restaurantName|restaurant_name|restName|rest_name|sellerName|seller_name|user_name|username";
+    private static final String NAME_KEYS = "shopName|shop_name|storeName|store_name|restaurantName|restaurant_name|restName|rest_name|sellerName|seller_name";
     private static final String TAG = "EleNaposShopIdExtractor";
     private static final Pattern XML_STRING_PATTERN = Pattern.compile(
             "(?is)<string\\s+name=\"%s\"\\s*>(.*?)</string>");
+    private static final Pattern XML_STRING_ENTRY_PATTERN = Pattern.compile(
+            "(?is)<string\\s+name=\"([^\"]+)\"\\s*>(.*?)</string>");
     private static final Pattern REST_PREF_NAME_PATTERN = Pattern.compile(
             "^user_\\d+_rest_(\\d{5,20})_sp_config\\.xml$");
+    private static final String[] SHOP_ID_KEYS = {
+            "shopId", "shop_id",
+            "storeId", "store_id",
+            "restaurantId", "restaurant_id",
+            "restId", "rest_id",
+            "sellerId", "seller_id",
+            "id", "oid"
+    };
+    private static final String[] TRUSTED_SHOP_NAME_KEYS = {
+            "shopName", "shop_name",
+            "storeName", "store_name",
+            "restaurantName", "restaurant_name",
+            "restName", "rest_name",
+            "sellerName", "seller_name",
+            "name", "title"
+    };
+    private static final String[] SCOPED_SHOP_NAME_KEYS = {
+            "shopName", "shop_name",
+            "storeName", "store_name",
+            "restaurantName", "restaurant_name",
+            "restName", "rest_name",
+            "sellerName", "seller_name"
+    };
 
     public EleNaposShopIdExtractor() {
         super(TARGET_PACKAGE, "ele", TAG, ID_KEYS, NAME_KEYS);
@@ -32,75 +58,46 @@ public class EleNaposShopIdExtractor extends PatternFileShopIdExtractor {
     @Override
     public ShopInfo extract(Context context, int userId) {
         File sharedPrefsDir = new File(BEnvironment.getDataDir(TARGET_PACKAGE, userId), "shared_prefs");
-        ShopInfo primary = extractFromTracker(sharedPrefsDir);
-        if (primary != null) {
-            return primary;
-        }
-        ShopInfo switchUserInfo = extractFromSwitchLoginUserInfo(sharedPrefsDir);
-        if (switchUserInfo != null) {
-            return switchUserInfo;
-        }
-        ShopInfo fallback = super.extract(context, userId);
-        if (fallback != null) {
-            return fallback;
-        }
-        return extractFromRestPrefFileName(sharedPrefsDir);
+        return extractFromSharedPrefsDir(sharedPrefsDir);
     }
 
-    private ShopInfo extractFromTracker(File sharedPrefsDir) {
-        File tracker = new File(sharedPrefsDir, "NAPOS_LTRACKER_SP.xml");
-        String content = readText(tracker);
-        if (content == null) {
+    ShopInfo extractFromSharedPrefsDir(File sharedPrefsDir) {
+        if (sharedPrefsDir == null) {
             return null;
         }
-        String shopId = xmlValue(content, "shopId");
-        String shopName = firstNonBlank(
-                xmlValue(content, "shopName"),
-                xmlValue(content, "user_name"),
-                xmlValue(content, "username")
-        );
-        return verified(shopId, shopName, tracker.getName());
-    }
+        String currentShopId = currentShopIdFromTracker(sharedPrefsDir);
 
-    private ShopInfo extractFromSwitchLoginUserInfo(File sharedPrefsDir) {
-        File appConfig = new File(sharedPrefsDir, "app_sp_config.xml");
-        String content = readText(appConfig);
-        if (content == null) {
-            return null;
+        ShopInfo appConfig = extractFromAppConfig(sharedPrefsDir, currentShopId);
+        if (appConfig != null) {
+            return appConfig;
         }
-        String raw = xmlValue(content, "switch_login_user_info");
-        String shopName = null;
-        if (raw != null) {
-            try {
-                JSONArray users = new JSONArray(raw);
-                for (int i = 0; i < users.length(); i++) {
-                    JSONObject user = users.optJSONObject(i);
-                    if (user == null) {
-                        continue;
-                    }
-                    shopName = firstNonBlank(
-                            user.optString("shopName", null),
-                            user.optString("username", null)
-                    );
-                    if (isVerifiedShopName(shopName)) {
-                        break;
-                    }
-                }
-            } catch (Exception ignored) {
+
+        ShopInfo restScoped = extractFromRestPrefs(sharedPrefsDir, currentShopId);
+        if (restScoped != null) {
+            return restScoped;
+        }
+
+        if (currentShopId == null) {
+            appConfig = extractFromAppConfig(sharedPrefsDir, null);
+            if (appConfig != null) {
+                return appConfig;
             }
+            return extractFromRestPrefs(sharedPrefsDir, null);
         }
-        String shopId = firstRestPrefId(sharedPrefsDir);
-        return verified(shopId, shopName, appConfig.getName());
+        return null;
     }
 
-    private ShopInfo extractFromRestPrefFileName(File sharedPrefsDir) {
-        String shopId = firstRestPrefId(sharedPrefsDir);
-        String content = readText(new File(sharedPrefsDir, "NAPOS_LTRACKER_SP.xml"));
-        String shopName = content == null ? null : xmlValue(content, "user_name");
-        return verified(shopId, shopName, "rest-pref-name");
+    private String currentShopIdFromTracker(File sharedPrefsDir) {
+        File tracker = new File(sharedPrefsDir, "NAPOS_LTRACKER_SP.xml");
+        return normalizeShopId(xmlValue(readText(tracker), "shopId"));
     }
 
-    private String firstRestPrefId(File sharedPrefsDir) {
+    private ShopInfo extractFromAppConfig(File sharedPrefsDir, String preferredShopId) {
+        File appConfig = new File(sharedPrefsDir, "app_sp_config.xml");
+        return extractFromJsonXmlStrings(readText(appConfig), preferredShopId, appConfig.getName());
+    }
+
+    private ShopInfo extractFromRestPrefs(File sharedPrefsDir, String preferredShopId) {
         File[] files = sharedPrefsDir.listFiles((dir, name) ->
                 name != null && REST_PREF_NAME_PATTERN.matcher(name).matches());
         if (files == null) {
@@ -108,22 +105,133 @@ public class EleNaposShopIdExtractor extends PatternFileShopIdExtractor {
         }
         for (File file : files) {
             Matcher matcher = REST_PREF_NAME_PATTERN.matcher(file.getName());
-            if (matcher.matches()) {
-                String shopId = matcher.group(1);
-                if (isVerifiedShopId(shopId)) {
-                    return shopId;
+            if (!matcher.matches()) {
+                continue;
+            }
+            String shopId = normalizeShopId(matcher.group(1));
+            if (shopId == null || (preferredShopId != null && !shopId.equals(preferredShopId))) {
+                continue;
+            }
+            ShopInfo fromJson = extractFromJsonXmlStrings(readText(file), shopId, file.getName());
+            if (fromJson != null) {
+                return fromJson;
+            }
+            ShopInfo scopedName = verified(shopId, explicitScopedShopName(readText(file)), file.getName());
+            if (scopedName != null) {
+                return scopedName;
+            }
+        }
+        return null;
+    }
+
+    private ShopInfo extractFromJsonXmlStrings(String content, String preferredShopId, String source) {
+        if (content == null) {
+            return null;
+        }
+        Matcher matcher = XML_STRING_ENTRY_PATTERN.matcher(content);
+        while (matcher.find()) {
+            String key = matcher.group(1);
+            String raw = normalizeXml(matcher.group(2));
+            ShopIdentity identity = findShopIdentity(parseJson(raw), preferredShopId);
+            if (identity != null) {
+                return verified(identity.shopId, identity.shopName, source + ":" + key);
+            }
+        }
+        ShopIdentity identity = findShopIdentity(parseJson(content), preferredShopId);
+        return identity == null ? null : verified(identity.shopId, identity.shopName, source);
+    }
+
+    private Object parseJson(String raw) {
+        if (raw == null) {
+            return null;
+        }
+        String value = raw.trim();
+        try {
+            if (value.startsWith("{")) {
+                return new JSONObject(value);
+            }
+            if (value.startsWith("[")) {
+                return new JSONArray(value);
+            }
+        } catch (Exception ignored) {
+        }
+        return null;
+    }
+
+    private ShopIdentity findShopIdentity(Object value, String preferredShopId) {
+        if (value instanceof JSONObject) {
+            JSONObject object = (JSONObject) value;
+            ShopIdentity self = identityFromObject(object, preferredShopId);
+            if (self != null) {
+                return self;
+            }
+            Iterator<String> keys = object.keys();
+            while (keys.hasNext()) {
+                ShopIdentity nested = findShopIdentity(object.opt(keys.next()), preferredShopId);
+                if (nested != null) {
+                    return nested;
+                }
+            }
+            return null;
+        }
+        if (value instanceof JSONArray) {
+            JSONArray array = (JSONArray) value;
+            for (int i = 0; i < array.length(); i++) {
+                ShopIdentity nested = findShopIdentity(array.opt(i), preferredShopId);
+                if (nested != null) {
+                    return nested;
                 }
             }
         }
         return null;
     }
 
-    private ShopInfo verified(String shopId, String shopName, String source) {
-        if (!isVerifiedShopId(shopId) || !isVerifiedShopName(shopName)) {
+    private ShopIdentity identityFromObject(JSONObject object, String preferredShopId) {
+        String shopId = normalizeShopId(firstObjectValue(object, SHOP_ID_KEYS));
+        if (shopId == null || (preferredShopId != null && !shopId.equals(preferredShopId))) {
             return null;
         }
-        Slog.d(TAG, "Extracted shopId=" + shopId + ", shopName=" + shopName + " from " + source);
-        return new ShopInfo(shopId.trim(), shopName.trim(), "ele");
+        String shopName = firstObjectValue(object, TRUSTED_SHOP_NAME_KEYS);
+        if (!isVerifiedShopName(shopName)) {
+            return null;
+        }
+        return new ShopIdentity(shopId, shopName.trim());
+    }
+
+    private String firstObjectValue(JSONObject object, String[] keys) {
+        for (String key : keys) {
+            if (!object.has(key) || object.isNull(key)) {
+                continue;
+            }
+            String value = normalizeXml(String.valueOf(object.opt(key)));
+            if (value != null) {
+                return value;
+            }
+        }
+        return null;
+    }
+
+    private String explicitScopedShopName(String content) {
+        if (content == null) {
+            return null;
+        }
+        for (String key : SCOPED_SHOP_NAME_KEYS) {
+            String value = xmlValue(content, key);
+            if (isVerifiedShopName(value)) {
+                return value;
+            }
+        }
+        return null;
+    }
+
+    private ShopInfo verified(String shopId, String shopName, String source) {
+        String normalizedShopId = normalizeShopId(shopId);
+        if (!isVerifiedShopId(normalizedShopId) || !isVerifiedShopName(shopName)) {
+            return null;
+        }
+        String normalizedShopName = shopName.trim();
+        logDebug("Extracted shopId=" + normalizedShopId + ", shopName=" + normalizedShopName + " from " + source);
+        return new ShopInfo(normalizedShopId, normalizedShopName, "ele");
     }
 
     private String xmlValue(String content, String key) {
@@ -146,6 +254,7 @@ public class EleNaposShopIdExtractor extends PatternFileShopIdExtractor {
                 .replace("&amp;", "&")
                 .replace("&lt;", "<")
                 .replace("&gt;", ">")
+                .replace("&apos;", "'")
                 .replace("\\/", "/");
         return normalized.isEmpty() ? null : normalized;
     }
@@ -168,36 +277,28 @@ public class EleNaposShopIdExtractor extends PatternFileShopIdExtractor {
                 return new String(bytes, 0, offset, StandardCharsets.UTF_8);
             }
         } catch (Exception e) {
-            Slog.w(TAG, "Failed to read " + file.getAbsolutePath(), e);
+            try {
+                Slog.w(TAG, "Failed to read " + file.getAbsolutePath(), e);
+            } catch (Throwable ignored) {
+            }
             return null;
         }
     }
 
-    private String firstNonBlank(String... values) {
-        if (values == null) {
-            return null;
-        }
-        for (String value : values) {
-            if (value == null) {
-                continue;
-            }
-            String normalized = value.trim();
-            if (!normalized.isEmpty() && !"null".equalsIgnoreCase(normalized)) {
-                return normalized;
-            }
-        }
-        return null;
-    }
-
-    private boolean isVerifiedShopId(String shopId) {
+    private String normalizeShopId(String shopId) {
         if (shopId == null) {
-            return false;
+            return null;
         }
         String value = shopId.trim();
         if (value.startsWith("NEW-") || value.startsWith("phase13-")) {
-            return false;
+            return null;
         }
-        return value.matches("\\d{5,20}");
+        Matcher matcher = Pattern.compile("\\d{5,20}").matcher(value);
+        return matcher.find() ? matcher.group() : null;
+    }
+
+    private boolean isVerifiedShopId(String shopId) {
+        return shopId != null && shopId.matches("\\d{5,20}");
     }
 
     private boolean isVerifiedShopName(String shopName) {
@@ -214,6 +315,13 @@ public class EleNaposShopIdExtractor extends PatternFileShopIdExtractor {
                 && value.length() <= 128;
     }
 
+    private void logDebug(String message) {
+        try {
+            Slog.d(TAG, message);
+        } catch (Throwable ignored) {
+        }
+    }
+
     @Override
     String idKeyAlternation() {
         return ID_KEYS;
@@ -222,5 +330,15 @@ public class EleNaposShopIdExtractor extends PatternFileShopIdExtractor {
     @Override
     String nameKeyAlternation() {
         return NAME_KEYS;
+    }
+
+    private static class ShopIdentity {
+        final String shopId;
+        final String shopName;
+
+        ShopIdentity(String shopId, String shopName) {
+            this.shopId = shopId;
+            this.shopName = shopName;
+        }
     }
 }

@@ -27,8 +27,8 @@
         <!-- 平台Logo - 使用真实图片 -->
         <ImageView
             android:id="@+id/platformLogo"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
+            android:layout_width="@dimen/platform_sidebar_logo_size"
+            android:layout_height="@dimen/platform_sidebar_logo_size"
             android:scaleType="centerCrop"
             android:background="@drawable/bg_platform_logo_circle" />
 

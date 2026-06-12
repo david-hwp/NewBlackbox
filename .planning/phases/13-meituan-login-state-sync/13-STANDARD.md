@@ -286,7 +286,7 @@ Verified source and target:
 | Field | Value |
 | --- | --- |
 | OPPO source user | `2` |
-| Source evidence | `shopId=1184657317`, `shopName=luojia6688`, `userId=5329558971` |
+| Source evidence | `NAPOS_LTRACKER_SP.xml` current `shopId=1184657317`, plus `app_sp_config.xml` `DD_SHOP` object `id=1184657317`, `name=罗家臭豆腐·长沙一绝(东瓜山店)` |
 | Xiaomi target user | `2` |
 | Version | `14.4.4 / 140404` |
 
@@ -492,7 +492,7 @@ Current platform identity evidence:
 | --- | --- | --- |
 | Meituan Waimai merchant | `com.sankuai.meituan.meituanwaimaibusiness` | Prefer CIPS files `files/cips/common/com.sankuai.meituan.meituanwaimaibusiness.modules.main.request.model.PoiInfo/kv`, `files/cips/common/com.sankuai.meituanwaimaibusiness.db.green.Poi/kv`, and `files/cips/common/com.sankuai.meituan.retail.poi.RetailPoiInfo/kv`. Accept active POI JSON only when it contains a real `wmPoiId`/`wmPoiIdStr`/`poiId` plus `poiName`/`poi_name`/`wmPoiName`. |
 | JD Jingming | `com.jd.mrd.jingming` | `shared_prefs/JingmingAndroidClient.xml` containing both `storeId=14395758` and `storeName=罗家臭豆腐(东瓜山店)`, or an equivalent small shared-prefs file with the same verified id/name pair. GeTui alias id alone is not accepted as verified identity. |
-| Ele.me Napos | `me.ele.napos` | Primary: `shared_prefs/NAPOS_LTRACKER_SP.xml` containing `shopId=1184657317` plus `shopName`/`user_name`/`username`, verified on Xiaomi as `user_name=luojia6688`. Fallback: `shared_prefs/app_sp_config.xml` `switch_login_user_info` for a verified name combined with `user_*_rest_<shopId>_sp_config.xml` for a real rest id. |
+| Ele.me Napos | `me.ele.napos` | `shared_prefs/NAPOS_LTRACKER_SP.xml` provides the current numeric `shopId`. The verified shop name must come from a shop object with the same id, such as `shared_prefs/app_sp_config.xml` `DD_SHOP` containing `id=1184657317` and `name=罗家臭豆腐·长沙一绝(东瓜山店)`, or an equivalent `user_*_rest_<shopId>_sp_config.xml` shop/store/restaurant object. `user_name`, `username`, and `switch_login_user_info.shopName` are account/login fields and must not be accepted as `shopName`. |
 
 ## Final Real App/Backend Validation
 
@@ -527,7 +527,7 @@ Verified shop identity flow was also rerun on Xiaomi after installing
 
 | Trigger | Platform/card | Evidence |
 | --- | --- | --- |
-| Pull-to-refresh | Ele.me shop `6`, Xiaomi user `2` | Main app first logged `GET /api/shops/my`, then engine logged `EleNaposShopIdExtractor: Extracted shopId=1184657317, shopName=luojia6688 from NAPOS_LTRACKER_SP.xml`, then main app posted `/api/shops/report` with HTTP 200. Server row became `identityVerified=true`; UI showed `店铺ID: 1184657317` and `luojia6688已登录`. |
+| Pull-to-refresh | Ele.me shop `6`, Xiaomi user `2` | Superseded evidence: the first extractor version logged `shopName=luojia6688` from account fields. This is invalid because Xiaomi `app_sp_config.xml` also contains `DD_SHOP.id=1184657317` and `DD_SHOP.name=罗家臭豆腐·长沙一绝(东瓜山店)`, while `switch_login_user_info.shopName`/`username` are login-account fields. The accepted extractor source is now the same-id `DD_SHOP`/shop object name only. |
 | Pull-to-refresh | Meituan shop `4`, Xiaomi user `22` | Main app first logged `GET /api/shops/my`, then engine logged `MeituanWaimaiShopIdExtractor: Extracted verified shop identity from CIPS ...PoiInfo/kv`; no report was needed because server history already matched `24059918 / 罗家臭豆腐（小吃·炸串·万家丽宇宙中心店）`. |
 | Pull-to-refresh | JD shop `5`, Xiaomi user `15` | Main app first logged `GET /api/shops/my`, then engine logged `JDShopIdExtractor: Extracted shopId=14395758, shopName=罗家臭豆腐(东瓜山店) from JingmingAndroidClient.xml`; no report was needed because server history already matched. |
 | Shop-card click + 10 seconds | JD shop `5`, Xiaomi user `15` | After card launch reached `com.jd.mrd.cater.CaterMainActivity`, the main app timer called the engine and `triggerShopIdExtract completed ... found=true`. The engine did not proactively report or scan from lifecycle callbacks. |

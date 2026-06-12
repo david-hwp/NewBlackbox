@@ -248,7 +248,7 @@ Source evidence:
 | OPPO source user | `2` |
 | Export | `tmp/phase13-oppo-jd-ele-first/clone_data_me.ele.napos_u2_20260611_212516.zip` |
 | Full export zip bytes | `177,963,836` |
-| Source shop evidence | `shopId=1184657317`, `shopName=luojia6688`, `userId=5329558971` in shared prefs |
+| Source shop evidence | `NAPOS_LTRACKER_SP.xml` current `shopId=1184657317`, and `app_sp_config.xml` `DD_SHOP.id=1184657317`, `DD_SHOP.name=罗家臭豆腐·长沙一绝(东瓜山店)`. `luojia6688` appears in account fields and is not a shop name. |
 
 Ele.me candidates tested on Xiaomi `user2`:
 
@@ -342,7 +342,7 @@ Pull-to-refresh evidence:
 | --- | ---: | --- | --- |
 | Meituan | `22` | After `GET /api/shops/my`, engine logged `MeituanWaimaiShopIdExtractor: Extracted verified shop identity from CIPS files/cips/common/com.sankuai.meituan.meituanwaimaibusiness.modules.main.request.model.PoiInfo/kv`; `triggerShopIdExtract ... found=true`. | Server already matched `24059918 / 罗家臭豆腐（小吃·炸串·万家丽宇宙中心店）`; no report needed. |
 | JD | `15` | After `GET /api/shops/my`, engine logged `JDShopIdExtractor: Extracted shopId=14395758, shopName=罗家臭豆腐(东瓜山店) from JingmingAndroidClient.xml`; `triggerShopIdExtract ... found=true`. | Server already matched `14395758 / 罗家臭豆腐(东瓜山店)`; no report needed. |
-| Ele.me | `2` | After `GET /api/shops/my`, engine logged `EleNaposShopIdExtractor: Extracted shopId=1184657317, shopName=luojia6688 from NAPOS_LTRACKER_SP.xml`; `triggerShopIdExtract ... found=true`, then main app posted `/api/shops/report` with HTTP 200. | Server row `6` changed from `phase13-ele-luojia / identityVerified=false` to `1184657317 / luojia6688 / identityVerified=true`; UI showed `店铺ID: 1184657317` and content description `luojia6688已登录`. |
+| Ele.me | `2` | Superseded evidence: the first extractor accepted `shopName=luojia6688` from account fields. Xiaomi follow-up inspection found the real same-id shop object in `app_sp_config.xml` `DD_SHOP`: `id=1184657317`, `name=罗家臭豆腐·长沙一绝(东瓜山店)`. | The accepted implementation must report `1184657317 / 罗家臭豆腐·长沙一绝(东瓜山店)` and must not verify account fields such as `user_name`, `username`, or `switch_login_user_info.shopName`. |
 
 Pending-card evidence:
 
