@@ -248,3 +248,21 @@
 **计划文档**: [.planning/phases/14-subscription-billing/14-PLAN.md](.planning/phases/14-subscription-billing/14-PLAN.md)
 **上下文文档**: [.planning/phases/14-subscription-billing/14-CONTEXT.md](.planning/phases/14-subscription-billing/14-CONTEXT.md)
 **调研文档**: [.planning/phases/14-subscription-billing/14-RESEARCH.md](.planning/phases/14-subscription-billing/14-RESEARCH.md)
+
+## Phase 15: 首页滚动播报公告 ✅ 已完成 (2026-06-12)
+
+**目标**: 在 APP 首页 header 下方新增全宽滚动播报条，由服务端新增“滚动播报”公告类型维护。播报条无额外分割线，作为 header 与主体内容之间的自然分隔；无已发布播报时不占位。
+
+**关键交付物**:
+
+- 后台公告管理新增“滚动播报”类型筛选、发布、编辑和列表展示。
+- 服务端公告类型复用现有 `announcements.type` 字段，支持 `SCROLLING_TICKER` 查询和保存。
+- APP 首页新增 header 下方全宽浅绿色播报条，搜索框、平台列表和店铺列表整体下移。
+- 短播报静态展示，长播报一行横向慢速滚动；触摸暂停，辅助功能触摸探索开启时不自动滚动。
+- 移除 header 下方旧 1px 分割线，滚动播报条本身承担视觉分隔。
+
+**验证**: `:app:compileDebugKotlin`、后台前端 `npm run build`、后端 `mvn -Dtest=AnnouncementControllerTest test` 均通过。
+
+**计划文档**: [.planning/phases/15-scrolling-ticker-announcement/15-PLAN.md](.planning/phases/15-scrolling-ticker-announcement/15-PLAN.md)
+**上下文文档**: [.planning/phases/15-scrolling-ticker-announcement/15-CONTEXT.md](.planning/phases/15-scrolling-ticker-announcement/15-CONTEXT.md)
+**调研文档**: [.planning/phases/15-scrolling-ticker-announcement/15-RESEARCH.md](.planning/phases/15-scrolling-ticker-announcement/15-RESEARCH.md)

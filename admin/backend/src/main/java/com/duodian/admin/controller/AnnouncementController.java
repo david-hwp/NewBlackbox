@@ -10,6 +10,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Locale;
 
 @RestController
 @RequestMapping("/announcements")
@@ -88,7 +89,7 @@ public class AnnouncementController {
         if (type == null || type.isBlank()) {
             return null;
         }
-        return type.trim();
+        return type.trim().toUpperCase(Locale.ROOT);
     }
 
     private boolean hasText(String value) {

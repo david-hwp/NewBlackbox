@@ -31,6 +31,9 @@ import java.util.UUID
 class HomeViewModel : ViewModel() {
     companion object {
         private const val TAG = "HomeViewModel"
+        private const val NORMAL_ANNOUNCEMENT_TYPE = "NORMAL"
+        private const val APP_RELEASE_ANNOUNCEMENT_TYPE = "APP_RELEASE"
+        private const val TICKER_ANNOUNCEMENT_TYPE = "SCROLLING_TICKER"
     }
 
     private val _shopsLiveData = MutableLiveData<List<Shop>>()
@@ -72,6 +75,9 @@ class HomeViewModel : ViewModel() {
     private val _appReleaseAnnouncementLiveData = MutableLiveData<AnnouncementDto?>()
     val appReleaseAnnouncementLiveData: LiveData<AnnouncementDto?> = _appReleaseAnnouncementLiveData
 
+    private val _tickerAnnouncementLiveData = MutableLiveData<AnnouncementDto?>()
+    val tickerAnnouncementLiveData: LiveData<AnnouncementDto?> = _tickerAnnouncementLiveData
+
     private val _platformShopCounts = MutableLiveData<Map<Platform, Int>>()
     val platformShopCounts: LiveData<Map<Platform, Int>> = _platformShopCounts
 
@@ -103,13 +109,31 @@ class HomeViewModel : ViewModel() {
             return
         }
         viewModelScope.launch {
-            val result = announcementRepository.getPublishedAnnouncements("NORMAL")
+            val result = announcementRepository.getPublishedAnnouncements(NORMAL_ANNOUNCEMENT_TYPE)
             result.fold(
                 onSuccess = { announcements ->
                     _latestAnnouncementLiveData.value = announcements.firstOrNull()
                 },
                 onFailure = {
                     _latestAnnouncementLiveData.value = null
+                }
+            )
+        }
+    }
+
+    fun loadTickerAnnouncement() {
+        if (!isLoggedIn()) {
+            _tickerAnnouncementLiveData.value = null
+            return
+        }
+        viewModelScope.launch {
+            val result = announcementRepository.getPublishedAnnouncements(TICKER_ANNOUNCEMENT_TYPE)
+            result.fold(
+                onSuccess = { announcements ->
+                    _tickerAnnouncementLiveData.value = announcements.firstOrNull()
+                },
+                onFailure = {
+                    _tickerAnnouncementLiveData.value = null
                 }
             )
         }
@@ -136,7 +160,7 @@ class HomeViewModel : ViewModel() {
                         _appReleaseAnnouncementLiveData.value = null
                         return@fold
                     }
-                    val announcementResult = announcementRepository.getPublishedAnnouncements("APP_RELEASE")
+                    val announcementResult = announcementRepository.getPublishedAnnouncements(APP_RELEASE_ANNOUNCEMENT_TYPE)
                     announcementResult.fold(
                         onSuccess = { announcements ->
                             _appReleaseAnnouncementLiveData.value = announcements.firstOrNull()

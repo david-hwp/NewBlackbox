@@ -141,10 +141,27 @@
         </LinearLayout>
     </LinearLayout>
 
-    <View
+    <FrameLayout
+        android:id="@+id/tickerBanner"
         android:layout_width="match_parent"
-        android:layout_height="1px"
-        android:background="@color/border" />
+        android:layout_height="28dp"
+        android:background="@drawable/bg_ticker_banner"
+        android:clipChildren="true"
+        android:paddingHorizontal="16dp"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/tvTickerText"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:ellipsize="end"
+            android:focusable="false"
+            android:focusableInTouchMode="false"
+            android:gravity="center_vertical"
+            android:singleLine="true"
+            android:textColor="@color/accent_hover"
+            android:textSize="12sp" />
+    </FrameLayout>
 
     <!-- 用户卡片下方主体区：左平台栏 + 右店铺内容 -->
     <LinearLayout

@@ -16,6 +16,7 @@
           <el-select v-model="filters.type" clearable placeholder="全部类型" style="width: 150px">
             <el-option label="普通公告" value="NORMAL" />
             <el-option label="版本发布" value="APP_RELEASE" />
+            <el-option label="滚动播报" value="SCROLLING_TICKER" />
           </el-select>
         </el-form-item>
         <el-form-item label="状态">
@@ -35,7 +36,7 @@
         <el-table-column prop="title" label="标题" min-width="180" />
         <el-table-column prop="type" label="类型" width="120">
           <template #default="{ row }">
-            <el-tag :type="row.type === 'APP_RELEASE' ? 'success' : 'info'">
+            <el-tag :type="typeTag(row.type)">
               {{ typeLabel(row.type) }}
             </el-tag>
           </template>
@@ -85,6 +86,7 @@
           <el-select v-model="form.type" style="width: 100%">
             <el-option label="普通公告" value="NORMAL" />
             <el-option label="版本发布" value="APP_RELEASE" />
+            <el-option label="滚动播报" value="SCROLLING_TICKER" />
           </el-select>
         </el-form-item>
         <el-form-item label="内容" prop="content">
@@ -114,6 +116,8 @@ const isEdit = ref(false)
 const formRef = ref()
 const APP_RELEASE_TYPE = 'APP_RELEASE'
 const APP_RELEASE_TITLE = '新版本发布'
+const TICKER_TYPE = 'SCROLLING_TICKER'
+const TICKER_TITLE = '滚动播报'
 const filters = ref({
   title: '',
   type: '',
@@ -134,7 +138,14 @@ const rules = {
 
 const typeLabel = (type) => {
   if (type === APP_RELEASE_TYPE) return '版本发布'
+  if (type === TICKER_TYPE) return '滚动播报'
   return '普通公告'
+}
+
+const typeTag = (type) => {
+  if (type === APP_RELEASE_TYPE) return 'success'
+  if (type === TICKER_TYPE) return 'warning'
+  return 'info'
 }
 
 watch(
@@ -142,6 +153,8 @@ watch(
   (type) => {
     if (type === APP_RELEASE_TYPE) {
       form.value.title = APP_RELEASE_TITLE
+    } else if (type === TICKER_TYPE && (!form.value.title || form.value.title === APP_RELEASE_TITLE)) {
+      form.value.title = TICKER_TITLE
     }
   }
 )

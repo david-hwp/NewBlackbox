@@ -17,6 +17,7 @@ import android.text.util.Linkify
 import android.util.Log
 import android.view.MotionEvent
 import android.view.View
+import android.view.accessibility.AccessibilityManager
 import android.widget.TextView
 import android.widget.ProgressBar
 import androidx.activity.result.contract.ActivityResultContracts
@@ -102,6 +103,22 @@ class HomeActivity : AppCompatActivity() {
     private val restoredLoginStateKeys = mutableSetOf<String>()
     private val uploadedLoginStateKeys = mutableSetOf<String>()
     private var suppressNextShopClickAfterSwipeCollapse = false
+    private var tickerShouldScroll = false
+    private var tickerPausedByTouch = false
+    private var tickerScrollStartTime = 0L
+    private var tickerScrollDistance = 0f
+    private val tickerScrollRunnable = object : Runnable {
+        override fun run() {
+            if (!tickerShouldScroll || tickerPausedByTouch || isTouchExplorationEnabled()) {
+                return
+            }
+            val elapsed = System.currentTimeMillis() - tickerScrollStartTime
+            val cycleMs = tickerCycleMs()
+            val progress = (elapsed % cycleMs).toFloat() / cycleMs
+            viewBinding.tvTickerText.translationX = -tickerScrollDistance * progress
+            handler.postDelayed(this, TICKER_FRAME_DELAY_MS)
+        }
+    }
     private var pendingEnginePermissionShop: Shop? = null
     private var pendingEnginePermissionFreshToken: String? = null
     private var pendingEnginePermissionPackage: String? = null
@@ -124,6 +141,9 @@ class HomeActivity : AppCompatActivity() {
         private const val PREF_SUBSCRIPTION_GIFT_PROMPT = "subscription_gift_prompt"
         private const val KEY_PENDING_GIFT_PHONE = "pending_gift_phone"
         private const val KEY_SHOWN_GIFT_USER_PREFIX = "shown_gift_user_"
+        private const val TICKER_SCROLL_SPEED_PX_PER_SECOND = 18f
+        private const val TICKER_MIN_CYCLE_MS = 12_000L
+        private const val TICKER_FRAME_DELAY_MS = 16L
         private var sessionAnnouncementsRequested = false
         private val sessionShownAnnouncementIds = mutableSetOf<Long>()
 
@@ -146,6 +166,7 @@ class HomeActivity : AppCompatActivity() {
         initPlatformSidebar()
         initShopList()
         initSearch()
+        initTickerBanner()
         initClickListeners()
         observeData()
         App.ensureEngineConnection()
@@ -171,6 +192,7 @@ class HomeActivity : AppCompatActivity() {
         viewModel.loadShops()
         checkForEngineUpgrade()
         maybeRequestBaselineEnginePermissions()
+        startTickerScrollIfNeeded(restart = false)
     }
 
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
@@ -202,6 +224,7 @@ class HomeActivity : AppCompatActivity() {
 
     override fun onPause() {
         collapseShopRepairSwipe()
+        stopTickerScroll()
         super.onPause()
     }
 
@@ -472,6 +495,23 @@ class HomeActivity : AppCompatActivity() {
         })
     }
 
+    private fun initTickerBanner() {
+        viewBinding.tickerBanner.setOnTouchListener { _, event ->
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    tickerPausedByTouch = true
+                    stopTickerScroll()
+                }
+                MotionEvent.ACTION_UP,
+                MotionEvent.ACTION_CANCEL -> {
+                    tickerPausedByTouch = false
+                    startTickerScrollIfNeeded(restart = false)
+                }
+            }
+            false
+        }
+    }
+
     private fun initClickListeners() {
         // 个人中心入口（左侧栏底部）
         viewBinding.btnMyProfile.setOnClickListener {
@@ -582,6 +622,10 @@ class HomeActivity : AppCompatActivity() {
 
         viewModel.appReleaseAnnouncementLiveData.observe(this) { announcement ->
             announcement?.let { showAnnouncementDialog(it) }
+        }
+
+        viewModel.tickerAnnouncementLiveData.observe(this) { announcement ->
+            updateTickerBanner(announcement)
         }
 
         viewModel.loadShops()
@@ -745,8 +789,82 @@ class HomeActivity : AppCompatActivity() {
             return
         }
         sessionAnnouncementsRequested = true
+        viewModel.loadTickerAnnouncement()
         viewModel.loadLatestAnnouncement()
         viewModel.loadAppReleaseAnnouncementIfNeeded()
+    }
+
+    private fun updateTickerBanner(announcement: AnnouncementDto?) {
+        val content = announcement?.content?.trim().orEmpty()
+        if (content.isBlank()) {
+            tickerShouldScroll = false
+            stopTickerScroll()
+            viewBinding.tvTickerText.text = ""
+            viewBinding.tickerBanner.visibility = View.GONE
+            return
+        }
+        viewBinding.tvTickerText.text = content
+        viewBinding.tvTickerText.contentDescription = "滚动播报：$content"
+        viewBinding.tickerBanner.contentDescription = "滚动播报：$content"
+        viewBinding.tickerBanner.visibility = View.VISIBLE
+        viewBinding.tvTickerText.translationX = 0f
+        viewBinding.tvTickerText.post {
+            configureTickerScroll()
+        }
+    }
+
+    private fun configureTickerScroll() {
+        val textView = viewBinding.tvTickerText
+        val availableWidth = viewBinding.tickerBanner.width -
+                viewBinding.tickerBanner.paddingStart -
+                viewBinding.tickerBanner.paddingEnd
+        if (availableWidth <= 0 || textView.text.isNullOrBlank()) {
+            tickerShouldScroll = false
+            textView.translationX = 0f
+            return
+        }
+        val textWidth = textView.paint.measureText(textView.text.toString())
+        tickerShouldScroll = textWidth > availableWidth
+        tickerScrollDistance = (textWidth - availableWidth).coerceAtLeast(0f)
+        val targetWidth = if (tickerShouldScroll) textWidth.toInt() + 1 else availableWidth
+        if (textView.layoutParams.width != targetWidth) {
+            textView.layoutParams = textView.layoutParams.apply {
+                width = targetWidth
+            }
+        }
+        textView.translationX = 0f
+        startTickerScrollIfNeeded(restart = true)
+    }
+
+    private fun startTickerScrollIfNeeded(restart: Boolean) {
+        stopTickerScroll()
+        if (!tickerShouldScroll || tickerPausedByTouch || isTouchExplorationEnabled()) {
+            viewBinding.tvTickerText.translationX = 0f
+            return
+        }
+        if (restart) {
+            tickerScrollStartTime = System.currentTimeMillis()
+        } else {
+            val currentOffset = -viewBinding.tvTickerText.translationX
+            tickerScrollStartTime = System.currentTimeMillis() -
+                    ((currentOffset / tickerScrollDistance.coerceAtLeast(1f)) * tickerCycleMs()).toLong()
+        }
+        handler.post(tickerScrollRunnable)
+    }
+
+    private fun stopTickerScroll() {
+        handler.removeCallbacks(tickerScrollRunnable)
+    }
+
+    private fun tickerCycleMs(): Long {
+        return ((tickerScrollDistance / TICKER_SCROLL_SPEED_PX_PER_SECOND) * 1000f)
+            .toLong()
+            .coerceAtLeast(TICKER_MIN_CYCLE_MS)
+    }
+
+    private fun isTouchExplorationEnabled(): Boolean {
+        val manager = getSystemService(Context.ACCESSIBILITY_SERVICE) as? AccessibilityManager
+        return manager?.isTouchExplorationEnabled == true
     }
 
     private fun showRegistrationGiftPromptIfNeeded() {
@@ -2534,6 +2652,7 @@ class HomeActivity : AppCompatActivity() {
         locallyRepairedShopKeys.clear()
         restoredLoginStateKeys.clear()
         uploadedLoginStateKeys.clear()
+        stopTickerScroll()
         pendingPlatformEnvironmentPackage = null
         restoreEnvironmentCheckPackage = null
         waitingForEngineConnectionToRestore = false
