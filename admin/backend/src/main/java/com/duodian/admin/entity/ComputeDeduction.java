@@ -25,6 +25,9 @@ public class ComputeDeduction {
     @Column(name = "user_id", nullable = false)
     private Long userId;
 
+    @Column(name = "channel_id")
+    private Long channelId;
+
     @Column(name = "clone_instance_id", nullable = false, length = 255)
     private String cloneInstanceId;
 
@@ -62,6 +65,9 @@ public class ComputeDeduction {
 
     public Long getUserId() { return userId; }
     public void setUserId(Long userId) { this.userId = userId; }
+
+    public Long getChannelId() { return channelId; }
+    public void setChannelId(Long channelId) { this.channelId = channelId; }
 
     public String getCloneInstanceId() { return cloneInstanceId; }
     public void setCloneInstanceId(String cloneInstanceId) { this.cloneInstanceId = cloneInstanceId; }

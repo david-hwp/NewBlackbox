@@ -13,8 +13,14 @@ public class AppVersion {
     @Column(name = "version_code", nullable = false)
     private Integer versionCode;
 
+    @Column(name = "channel_id")
+    private Long channelId;
+
     @Column(name = "version_name", nullable = false, length = 64)
     private String versionName;
+
+    @Column(name = "application_id", nullable = false, length = 128)
+    private String applicationId = "com.zhirang.zhanghaoguanjia";
 
     @Column(name = "apk_url", nullable = false, length = 512)
     private String apkUrl;
@@ -42,6 +48,7 @@ public class AppVersion {
 
     @PrePersist
     protected void onCreate() {
+        applicationId = normalizeRequired(applicationId, "com.zhirang.zhanghaoguanjia");
         if (deleted == null) {
             deleted = 0;
         }
@@ -51,6 +58,7 @@ public class AppVersion {
 
     @PreUpdate
     protected void onUpdate() {
+        applicationId = normalizeRequired(applicationId, "com.zhirang.zhanghaoguanjia");
         updatedAt = LocalDateTime.now();
     }
 
@@ -60,8 +68,14 @@ public class AppVersion {
     public Integer getVersionCode() { return versionCode; }
     public void setVersionCode(Integer versionCode) { this.versionCode = versionCode; }
 
+    public Long getChannelId() { return channelId; }
+    public void setChannelId(Long channelId) { this.channelId = channelId; }
+
     public String getVersionName() { return versionName; }
     public void setVersionName(String versionName) { this.versionName = normalize(versionName); }
+
+    public String getApplicationId() { return applicationId; }
+    public void setApplicationId(String applicationId) { this.applicationId = normalizeRequired(applicationId, "com.zhirang.zhanghaoguanjia"); }
 
     public String getApkUrl() { return apkUrl; }
     public void setApkUrl(String apkUrl) { this.apkUrl = normalize(apkUrl); }
@@ -92,5 +106,10 @@ public class AppVersion {
             return null;
         }
         return value.trim();
+    }
+
+    private String normalizeRequired(String value, String fallback) {
+        String normalized = normalize(value);
+        return normalized == null ? fallback : normalized;
     }
 }

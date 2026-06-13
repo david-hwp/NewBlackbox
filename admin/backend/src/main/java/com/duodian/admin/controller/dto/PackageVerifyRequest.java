@@ -4,6 +4,7 @@ public class PackageVerifyRequest {
     private Integer versionCode;
     private String md5;
     private String sha256;
+    private String packageName;
 
     public Integer getVersionCode() {
         return versionCode;
@@ -27,5 +28,13 @@ public class PackageVerifyRequest {
 
     public void setSha256(String sha256) {
         this.sha256 = sha256;
+    }
+
+    public String getPackageName() {
+        return packageName;
+    }
+
+    public void setPackageName(String packageName) {
+        this.packageName = packageName;
     }
 }

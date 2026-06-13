@@ -1,5 +1,7 @@
 package top.niunaijun.blackbox.core.env;
 
+import android.content.Context;
+
 import org.json.JSONObject;
 
 import java.io.ByteArrayOutputStream;
@@ -7,44 +9,72 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.util.Locale;
 
+import top.niunaijun.blackbox.BuildConfig;
 import top.niunaijun.blackbox.BlackBoxCore;
-import top.niunaijun.blackbox.app.BActivityThread;
 import top.niunaijun.blackbox.utils.FileUtils;
-
+import top.niunaijun.blackbox.utils.Slog;
 
 public class BEnvironment {
-    private static final File sVirtualRoot = new File(BlackBoxCore.getContext().getCacheDir().getParent(), "blackbox");
-    private static final File sExternalVirtualRoot = BlackBoxCore.getContext().getExternalFilesDir("blackbox");
+    private static final String TAG = "BEnvironment";
+    private static final String FALLBACK_ENGINE_ROOT_NAME = "blackbox";
+    private static volatile File sVirtualRoot;
+    private static volatile File sExternalVirtualRoot;
 
     public static File JUNIT_JAR = new File(getCacheDir(), "junit.apk");
     public static File EMPTY_JAR = new File(getCacheDir(), "empty.apk");
 
     public static void load() {
-        FileUtils.mkdirs(sVirtualRoot);
-        FileUtils.mkdirs(sExternalVirtualRoot);
+        FileUtils.mkdirs(getVirtualRoot());
+        FileUtils.mkdirs(getExternalVirtualRoot());
         FileUtils.mkdirs(getSystemDir());
         FileUtils.mkdirs(getCacheDir());
         FileUtils.mkdirs(getProcDir());
+        Slog.i(TAG, "Resolved engine data roots: " + describeRoots());
     }
 
     public static File getVirtualRoot() {
+        if (sVirtualRoot == null) {
+            synchronized (BEnvironment.class) {
+                if (sVirtualRoot == null) {
+                    sVirtualRoot = new File(getPrivateDataRoot(), resolveRootName());
+                }
+            }
+        }
         return sVirtualRoot;
     }
 
     public static File getExternalVirtualRoot() {
+        if (sExternalVirtualRoot == null) {
+            synchronized (BEnvironment.class) {
+                if (sExternalVirtualRoot == null) {
+                    File externalRoot = BlackBoxCore.getContext().getExternalFilesDir(resolveRootName());
+                    sExternalVirtualRoot = externalRoot != null
+                            ? externalRoot
+                            : new File(getVirtualRoot(), "external");
+                }
+            }
+        }
         return sExternalVirtualRoot;
     }
 
+    public static String describeRoots() {
+        Context context = BlackBoxCore.getContext();
+        return "package=" + context.getPackageName()
+                + ", privateDataRoot=" + getPrivateDataRoot().getAbsolutePath()
+                + ", virtualRoot=" + getVirtualRoot().getAbsolutePath()
+                + ", externalVirtualRoot=" + getExternalVirtualRoot().getAbsolutePath();
+    }
+
     public static File getSystemDir() {
-        return new File(sVirtualRoot, "system");
+        return new File(getVirtualRoot(), "system");
     }
 
     public static File getProcDir() {
-        return new File(sVirtualRoot, "proc");
+        return new File(getVirtualRoot(), "proc");
     }
 
     public static File getCacheDir() {
-        return new File(sVirtualRoot, "cache");
+        return new File(getVirtualRoot(), "cache");
     }
 
     public static File getUserInfoConf() {
@@ -80,8 +110,7 @@ public class BEnvironment {
     }
 
     public static File getExternalUserDir(String packageName, int userId) {
-        File scoped = getScopedExternalUserDir(packageName, userId);
-        return scoped != null ? scoped : getLegacyExternalUserDir(userId);
+        return getRequiredScopedExternalUserDir(packageName, userId);
     }
 
     public static File getUserDir(int userId) {
@@ -92,37 +121,32 @@ public class BEnvironment {
         return new File(getExternalUserDir(packageName, userId), String.format(Locale.CHINA, "Android/obb/%s", packageName));
     }
 
-
     public static File getDeDataDir(String packageName, int userId) {
-        File scoped = getScopedDataDir(packageName, userId, "user_de");
-        return scoped != null ? scoped : getLegacyDeDataDir(packageName, userId);
+        return getRequiredScopedDataDir(packageName, userId, "user_de");
     }
 
     public static File getExternalDataDir(String packageName, int userId) {
-        File scoped = getScopedExternalDataDir(packageName, userId);
-        return scoped != null ? scoped : getLegacyExternalDataDir(packageName, userId);
+        return getRequiredScopedExternalDataDir(packageName, userId);
     }
 
-
     public static File getDataDir(String packageName, int userId) {
-        File scoped = getScopedDataDir(packageName, userId, "user");
-        return scoped != null ? scoped : getLegacyDataDir(packageName, userId);
+        return getRequiredScopedDataDir(packageName, userId, "user");
     }
 
     public static File getLegacyUserDir(int userId) {
-        return new File(sVirtualRoot, String.format(Locale.CHINA, "data/user/%d", userId));
+        return new File(getVirtualRoot(), String.format(Locale.CHINA, "data/user/%d", userId));
     }
 
     public static File getLegacyDataDir(String packageName, int userId) {
-        return new File(sVirtualRoot, String.format(Locale.CHINA, "data/user/%d/%s", userId, packageName));
+        return new File(getVirtualRoot(), String.format(Locale.CHINA, "data/user/%d/%s", userId, packageName));
     }
 
     public static File getLegacyDeDataDir(String packageName, int userId) {
-        return new File(sVirtualRoot, String.format(Locale.CHINA, "data/user_de/%d/%s", userId, packageName));
+        return new File(getVirtualRoot(), String.format(Locale.CHINA, "data/user_de/%d/%s", userId, packageName));
     }
 
     public static File getLegacyExternalUserDir(int userId) {
-        return new File(sExternalVirtualRoot, String.format(Locale.CHINA, "storage/emulated/%d/", userId));
+        return new File(getExternalVirtualRoot(), String.format(Locale.CHINA, "storage/emulated/%d/", userId));
     }
 
     public static File getLegacyExternalDataDir(String packageName, int userId) {
@@ -164,11 +188,11 @@ public class BEnvironment {
     }
 
     public static File getAppDir(String packageName) {
-        return new File(sVirtualRoot, "data/app/" + packageName);
+        return new File(getVirtualRoot(), "data/app/" + packageName);
     }
 
     public static File getBaseApkDir(String packageName) {
-        return new File(sVirtualRoot, "data/app/" + packageName + "/base.apk");
+        return new File(getVirtualRoot(), "data/app/" + packageName + "/base.apk");
     }
 
     public static File getAppLibDir(String packageName) {
@@ -183,45 +207,41 @@ public class BEnvironment {
        return new File(BEnvironment.getDataDir(packageName, userId), "shared_prefs/" + prefFileName + ".xml");
     }
 
-    private static File getScopedDataDir(String packageName, int userId, String userDirName) {
+    private static File getRequiredScopedDataDir(String packageName, int userId, String userDirName) {
         JSONObject mapping = findCloneMapping(packageName, userId);
         if (mapping == null) {
-            return null;
+            throw new IllegalStateException("Missing clone mapping for package=" + packageName + ", userId=" + userId);
         }
         String cloneId = mapping.optString("cloneInstanceId");
         long serverUserId = mapping.optLong("serverUserId", -1L);
         if (cloneId.isEmpty() || serverUserId < 0) {
-            return null;
+            throw new IllegalStateException("Invalid clone mapping for package=" + packageName + ", userId=" + userId);
         }
         return new File(cardRoot(serverUserId, cloneId), userDirName + "/" + userId + "/" + packageName);
     }
 
-    private static File getScopedExternalUserDir(String packageName, int userId) {
+    private static File getRequiredScopedExternalUserDir(String packageName, int userId) {
         JSONObject mapping = findCloneMapping(packageName, userId);
         if (mapping == null) {
-            return null;
+            throw new IllegalStateException("Missing clone mapping for package=" + packageName + ", userId=" + userId);
         }
         String cloneId = mapping.optString("cloneInstanceId");
         long serverUserId = mapping.optLong("serverUserId", -1L);
         if (cloneId.isEmpty() || serverUserId < 0) {
-            return null;
+            throw new IllegalStateException("Invalid clone mapping for package=" + packageName + ", userId=" + userId);
         }
         return new File(externalCardRoot(serverUserId, cloneId), "storage/emulated/" + userId);
     }
 
-    private static File getScopedExternalDataDir(String packageName, int userId) {
-        File scopedUserDir = getScopedExternalUserDir(packageName, userId);
-        if (scopedUserDir == null) {
-            return null;
-        }
-        return new File(scopedUserDir, "Android/data/" + packageName);
+    private static File getRequiredScopedExternalDataDir(String packageName, int userId) {
+        return new File(getRequiredScopedExternalUserDir(packageName, userId), "Android/data/" + packageName);
     }
 
     private static JSONObject findCloneMapping(String packageName, int userId) {
         if (packageName == null || packageName.trim().isEmpty() || userId < 0) {
             return null;
         }
-        File file = new File(sVirtualRoot, "system/clone-instances.json");
+        File file = new File(getSystemDir(), "clone-instances.json");
         if (!file.exists()) {
             return null;
         }
@@ -256,14 +276,37 @@ public class BEnvironment {
     }
 
     private static File cardRoot(long serverUserId, String cloneInstanceId) {
-        return new File(sVirtualRoot, "accounts/" + safeName(String.valueOf(serverUserId)) + "/cards/" + safeName(cloneInstanceId));
+        return new File(getVirtualRoot(), "accounts/" + safeName(String.valueOf(serverUserId)) + "/cards/" + safeName(cloneInstanceId));
     }
 
     private static File externalCardRoot(long serverUserId, String cloneInstanceId) {
-        return new File(sExternalVirtualRoot, "accounts/" + safeName(String.valueOf(serverUserId)) + "/cards/" + safeName(cloneInstanceId));
+        return new File(getExternalVirtualRoot(), "accounts/" + safeName(String.valueOf(serverUserId)) + "/cards/" + safeName(cloneInstanceId));
     }
 
     private static String safeName(String value) {
         return value.replaceAll("[^A-Za-z0-9._-]", "_");
+    }
+
+    private static File getPrivateDataRoot() {
+        Context context = BlackBoxCore.getContext();
+        File cacheDir = context.getCacheDir();
+        File privateRoot = cacheDir != null ? cacheDir.getParentFile() : null;
+        if (privateRoot != null) {
+            return privateRoot;
+        }
+        File filesDir = context.getFilesDir();
+        privateRoot = filesDir != null ? filesDir.getParentFile() : null;
+        if (privateRoot != null) {
+            return privateRoot;
+        }
+        return context.getDir("engine-data-root", Context.MODE_PRIVATE);
+    }
+
+    private static String resolveRootName() {
+        String rootName = BuildConfig.ENGINE_DATA_ROOT_NAME.trim();
+        if (rootName.length() == 0 || rootName.contains("/") || ".".equals(rootName) || "..".equals(rootName)) {
+            return FALLBACK_ENGINE_ROOT_NAME;
+        }
+        return rootName;
     }
 }

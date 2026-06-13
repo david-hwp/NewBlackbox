@@ -4,6 +4,7 @@ import android.content.Context
 import android.os.Build
 import android.util.Log
 import com.zhirang.zhanghaoguanjia.data.TokenManager
+import com.zhirang.zhanghaoguanjia.network.RequestAuthHeaders
 import com.zhirang.zhanghaoguanjia.network.RetrofitClient
 import com.zhirang.zhanghaoguanjia.update.PackageIntegrityVerifier
 import kotlinx.coroutines.Dispatchers
@@ -67,7 +68,8 @@ object EngineUpgradeManager {
                     PackageIntegrityVerifier.PackageType.ENGINE,
                     downloadedFile,
                     upgradeInfo.versionCode,
-                    upgradeInfo.checksum
+                    upgradeInfo.checksum,
+                    validation.getOrThrow().packageName
                 )
             ) {
                 return@withContext Result.failure(SecurityException(PackageIntegrityVerifier.VERIFY_FAILED_MESSAGE))
@@ -100,7 +102,8 @@ object EngineUpgradeManager {
 
         val resolvedUrl = RetrofitClient.resolveUrl(upgradeInfo.downloadUrl)
         Log.d(TAG, "Downloading from $resolvedUrl to ${destFile.absolutePath}")
-        val response = httpClient.newCall(Request.Builder().url(resolvedUrl).build()).execute()
+        val request = RequestAuthHeaders.apply(Request.Builder().url(resolvedUrl)).build()
+        val response = httpClient.newCall(request).execute()
         if (!response.isSuccessful) {
             throw IllegalStateException("下载失败: ${response.code}")
         }

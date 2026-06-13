@@ -2,7 +2,6 @@ package com.zhirang.zhanghaoguanjia.engine
 
 import android.Manifest
 import android.app.AppOpsManager
-import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -13,8 +12,6 @@ object EnginePermissionCenter {
     private const val TAG = "EnginePermissionCenter"
     private const val PREF_NAME = "engine_permission_center"
     private const val KEY_BASELINE_PROMPTED_ENGINE_VERSION = "baseline_prompted_engine_version"
-    private const val ENGINE_PERMISSION_ACTIVITY =
-        "top.niunaijun.blackbox.engine.EnginePermissionActivity"
 
     const val EXTRA_PERMISSIONS = "permissions"
     const val EXTRA_TITLE = "title"
@@ -141,7 +138,7 @@ object EnginePermissionCenter {
         reason: String
     ): Intent {
         return Intent().apply {
-            component = ComponentName(EngineInstaller.ENGINE_PACKAGE, ENGINE_PERMISSION_ACTIVITY)
+            component = EngineIdentity.component(EngineIdentity.ENGINE_PERMISSION_ACTIVITY_CLASS)
             putExtra(EXTRA_PERMISSIONS, permissions.distinct().toTypedArray())
             putExtra(EXTRA_TITLE, title)
             putExtra(EXTRA_MESSAGE, message)
@@ -169,9 +166,10 @@ object EnginePermissionCenter {
             return true
         }
         return try {
+            val enginePackage = EngineIdentity.packageName
             context.packageManager.checkPermission(
                 permission,
-                EngineInstaller.ENGINE_PACKAGE
+                enginePackage
             ) == PackageManager.PERMISSION_GRANTED
         } catch (e: Exception) {
             Log.w(TAG, "Failed to check engine permission $permission", e)
@@ -185,13 +183,14 @@ object EnginePermissionCenter {
         }
         val op = appOpForPermission(permission) ?: return true
         return try {
-            val appInfo = context.packageManager.getApplicationInfo(EngineInstaller.ENGINE_PACKAGE, 0)
+            val enginePackage = EngineIdentity.packageName
+            val appInfo = context.packageManager.getApplicationInfo(enginePackage, 0)
             val appOps = context.getSystemService(AppOpsManager::class.java)
             val mode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                appOps.unsafeCheckOpNoThrow(op, appInfo.uid, EngineInstaller.ENGINE_PACKAGE)
+                appOps.unsafeCheckOpNoThrow(op, appInfo.uid, enginePackage)
             } else {
                 @Suppress("DEPRECATION")
-                appOps.checkOpNoThrow(op, appInfo.uid, EngineInstaller.ENGINE_PACKAGE)
+                appOps.checkOpNoThrow(op, appInfo.uid, enginePackage)
             }
             mode == AppOpsManager.MODE_ALLOWED ||
                     mode == AppOpsManager.MODE_DEFAULT ||

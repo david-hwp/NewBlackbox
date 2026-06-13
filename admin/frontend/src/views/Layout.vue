@@ -21,7 +21,7 @@
           <el-icon><User /></el-icon>
           <span>用户管理</span>
         </el-menu-item>
-        <el-menu-item index="/platforms">
+        <el-menu-item v-if="isSuperAdmin" index="/platforms">
           <el-icon><Grid /></el-icon>
           <span>支持平台</span>
         </el-menu-item>
@@ -36,6 +36,14 @@
         <el-menu-item index="/feedbacks">
           <el-icon><ChatDotRound /></el-icon>
           <span>问题反馈</span>
+        </el-menu-item>
+        <el-menu-item v-if="isSuperAdmin" index="/channels">
+          <el-icon><SetUp /></el-icon>
+          <span>渠道管理</span>
+        </el-menu-item>
+        <el-menu-item v-if="isSuperAdmin" index="/release-jobs">
+          <el-icon><Promotion /></el-icon>
+          <span>发布任务</span>
         </el-menu-item>
         <el-menu-item index="/announcements">
           <el-icon><Bell /></el-icon>
@@ -90,8 +98,9 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Shop, Odometer, User, Document, ArrowDown, UserFilled, Bell, Connection, ChatDotRound, Grid, Upload } from '@element-plus/icons-vue'
+import { Shop, Odometer, User, Document, ArrowDown, UserFilled, Bell, Connection, ChatDotRound, Grid, Upload, Promotion, SetUp } from '@element-plus/icons-vue'
 import { getPreferredImageObjectUrl } from '../utils/files'
+import { isSuperAdminUser } from '../utils/adminSession'
 
 const route = useRoute()
 const router = useRouter()
@@ -102,6 +111,7 @@ const pageTitle = computed(() => route.meta?.title || '后台管理')
 const userInfo = ref(JSON.parse(localStorage.getItem('admin_user') || '{}'))
 const avatarObjectUrl = ref('')
 const objectUrlCache = new Map()
+const isSuperAdmin = computed(() => isSuperAdminUser(userInfo.value))
 
 const loadAvatar = async () => {
   const avatarUrl = userInfo.value?.avatarUrl

@@ -6,11 +6,13 @@ import com.duodian.admin.repository.PlatformConfigRepository;
 import com.duodian.admin.repository.ShopRepository;
 import com.duodian.admin.repository.TransactionLogRepository;
 import com.duodian.admin.repository.UserRepository;
+import com.duodian.admin.repository.ChannelRepository;
 import org.junit.jupiter.api.Test;
 
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.verify;
@@ -24,12 +26,14 @@ class UserServiceTest {
     private final PlatformConfigRepository platformConfigRepository = mock(PlatformConfigRepository.class);
     private final PasswordService passwordService = mock(PasswordService.class);
     private final TransactionLogRepository transactionLogRepository = mock(TransactionLogRepository.class);
+    private final ChannelRepository channelRepository = mock(ChannelRepository.class);
     private final UserService userService = new UserService(
             userRepository,
             shopRepository,
             platformConfigRepository,
             passwordService,
-            transactionLogRepository
+            transactionLogRepository,
+            channelRepository
     );
 
     @Test
@@ -154,5 +158,25 @@ class UserServiceTest {
                         && log.getAmount().equals(0)
                         && "管理员开通订阅: 季度".equals(log.getRemark())
         ));
+    }
+
+    @Test
+    void createChannelAdminRejectsPhoneAlreadyUsedByNormalUser() {
+        User request = new User();
+        request.setUsername("channel admin");
+        request.setPhone("13800000011");
+        request.setPassword("password");
+        request.setRole("CHANNEL");
+        request.setChannelId(2L);
+        User existingNormalUser = new User();
+        existingNormalUser.setId(11L);
+        existingNormalUser.setPhone("13800000011");
+        existingNormalUser.setRole("USER");
+        when(userRepository.findAllByPhoneAndDeleted("13800000011", (byte) 0)).thenReturn(java.util.List.of(existingNormalUser));
+
+        assertThatThrownBy(() -> userService.create(request))
+                .hasMessage("管理员手机号已存在");
+
+        verify(userRepository, never()).save(argThat(user -> true));
     }
 }

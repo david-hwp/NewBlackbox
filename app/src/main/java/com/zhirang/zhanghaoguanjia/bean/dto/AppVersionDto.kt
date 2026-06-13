@@ -4,6 +4,7 @@ data class AppVersionDto(
     val id: Long = 0,
     val versionCode: Int = 0,
     val versionName: String = "",
+    val applicationId: String? = null,
     val apkUrl: String = "",
     val checksum: String? = null,
     val fileSize: Long? = null,

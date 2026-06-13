@@ -2,6 +2,8 @@ package com.duodian.admin.service;
 
 import com.duodian.admin.entity.TransactionLog;
 import com.duodian.admin.entity.User;
+import com.duodian.admin.entity.Channel;
+import com.duodian.admin.repository.ChannelRepository;
 import com.duodian.admin.repository.PlatformConfigRepository;
 import com.duodian.admin.repository.ShopRepository;
 import com.duodian.admin.repository.TransactionLogRepository;
@@ -29,19 +31,22 @@ public class UserService {
     private final PlatformConfigRepository platformConfigRepository;
     private final PasswordService passwordService;
     private final TransactionLogRepository transactionLogRepository;
+    private final ChannelRepository channelRepository;
 
     public UserService(
             UserRepository userRepository,
             ShopRepository shopRepository,
             PlatformConfigRepository platformConfigRepository,
             PasswordService passwordService,
-            TransactionLogRepository transactionLogRepository
+            TransactionLogRepository transactionLogRepository,
+            ChannelRepository channelRepository
     ) {
         this.userRepository = userRepository;
         this.shopRepository = shopRepository;
         this.platformConfigRepository = platformConfigRepository;
         this.passwordService = passwordService;
         this.transactionLogRepository = transactionLogRepository;
+        this.channelRepository = channelRepository;
     }
 
     public List<User> findAll() {
@@ -56,6 +61,10 @@ public class UserService {
 
     public Optional<User> findByPhone(String phone) {
         return userRepository.findByPhoneAndDeleted(phone, ACTIVE);
+    }
+
+    public Optional<User> findByPhoneInChannel(String phone, Long channelId) {
+        return userRepository.findFirstByPhoneAndChannelIdAndDeleted(phone, channelId, ACTIVE);
     }
 
     @Transactional
@@ -76,11 +85,11 @@ public class UserService {
     }
 
     public User create(User user) {
-        if (userRepository.existsByPhoneAndDeleted(user.getPhone(), ACTIVE)) {
-            throw new RuntimeException("手机号已存在");
-        }
+        normalizeUserChannel(user);
+        validatePhoneUniqueness(user);
         user.setDeleted(ACTIVE);
         user.setApkChannel(normalizeApkChannel(user.getApkChannel()));
+        user.setRole(normalizeRole(user.getRole()));
         user.setComputeBalance(user.getComputeBalance() == null ? 0 : user.getComputeBalance());
         user.setNonTransferableComputeBalance(normalizeNonTransferableBalance(user));
         normalizeSubscriptionState(user);
@@ -97,6 +106,9 @@ public class UserService {
         existing.setUsername(user.getUsername());
         existing.setAvatarUrl(user.getAvatarUrl());
         existing.setRole(normalizeRole(user.getRole()));
+        if (user.getChannelId() != null) {
+            existing.setChannelId(user.getChannelId());
+        }
         existing.setApkChannel(normalizeApkChannel(existing.getApkChannel()));
         existing.setComputeBalance(newComputeBalance);
         existing.setNonTransferableComputeBalance(normalizeNonTransferableBalance(user));
@@ -104,6 +116,16 @@ public class UserService {
         User saved = userRepository.save(existing);
         createAdminComputeAdjustmentLog(saved, newComputeBalance - oldComputeBalance);
         return saved;
+    }
+
+    @Transactional
+    public User updateProfile(Long id, User user) {
+        User existing = userRepository.findByIdAndDeleted(id, ACTIVE)
+                .orElseThrow(() -> new RuntimeException("用户不存在"));
+        existing.setUsername(user.getUsername());
+        existing.setAvatarUrl(user.getAvatarUrl());
+        withCurrentStats(existing);
+        return userRepository.save(existing);
     }
 
     public void delete(Long id) {
@@ -114,8 +136,11 @@ public class UserService {
     }
 
     public User login(String phone, String password) {
-        User user = userRepository.findByPhoneAndDeleted(phone, ACTIVE)
-                .orElseThrow(() -> new RuntimeException("用户不存在"));
+        return login(phone, password, null);
+    }
+
+    public User login(String phone, String password, Long channelId) {
+        User user = resolveLoginUser(phone, channelId);
         if (!passwordService.matches(password, user.getPassword())) {
             throw new RuntimeException("密码错误");
         }
@@ -144,6 +169,7 @@ public class UserService {
         }
         TransactionLog log = new TransactionLog();
         log.setUserId(user.getId());
+        log.setChannelId(user.getChannelId());
         log.setType("IN");
         log.setAmount(amount);
         log.setRemark("新用户注册赠送算力，不可转赠");
@@ -157,6 +183,7 @@ public class UserService {
         }
         TransactionLog log = new TransactionLog();
         log.setUserId(user.getId());
+        log.setChannelId(user.getChannelId());
         log.setType("IN");
         log.setAmount(0);
         log.setRemark("新用户注册赠送订阅体验 " + days + " 天");
@@ -194,6 +221,7 @@ public class UserService {
         }
         TransactionLog log = new TransactionLog();
         log.setUserId(user.getId());
+        log.setChannelId(user.getChannelId());
         log.setType(delta > 0 ? "IN" : "CONSUME");
         log.setAmount(Math.abs(delta));
         log.setRemark(delta > 0 ? "管理员增加" : "管理员扣除");
@@ -206,6 +234,7 @@ public class UserService {
         }
         TransactionLog log = new TransactionLog();
         log.setUserId(user.getId());
+        log.setChannelId(user.getChannelId());
         log.setType("IN");
         log.setAmount(0);
         log.setRemark(PLAN_NONE.equals(plan)
@@ -278,14 +307,67 @@ public class UserService {
         };
     }
 
-    private String normalizeRole(String role) {
-        return "ADMIN".equalsIgnoreCase(role) ? "ADMIN" : "USER";
-    }
-
     private String normalizeApkChannel(String channel) {
         if (channel == null || channel.isBlank()) {
             return "main";
         }
         return channel.trim();
+    }
+
+    private void normalizeUserChannel(User user) {
+        if (user.getChannelId() != null) {
+            channelRepository.findByIdAndDeleted(user.getChannelId(), ACTIVE).ifPresent(channel ->
+                    user.setApkChannel(channel.getCode())
+            );
+            return;
+        }
+        String code = normalizeApkChannel(user.getApkChannel());
+        Channel channel = channelRepository.findByCodeAndDeleted(code, ACTIVE)
+                .orElseGet(() -> channelRepository.findByCodeAndDeleted(Channel.MAIN_CODE, ACTIVE)
+                        .orElseThrow(() -> new RuntimeException("默认渠道不存在")));
+        user.setChannelId(channel.getId());
+        user.setApkChannel(channel.getCode());
+    }
+
+    private void validatePhoneUniqueness(User user) {
+        String role = normalizeRole(user.getRole());
+        if ("SUPER_ADMIN".equals(role) || "CHANNEL".equals(role)) {
+            boolean duplicate = !userRepository.findAllByPhoneAndDeleted(user.getPhone(), ACTIVE).isEmpty();
+            if (duplicate) {
+                throw new RuntimeException("管理员手机号已存在");
+            }
+            return;
+        }
+        if (userRepository.existsByPhoneAndChannelIdAndDeleted(user.getPhone(), user.getChannelId(), ACTIVE)) {
+            throw new RuntimeException("手机号已存在");
+        }
+    }
+
+    private User resolveLoginUser(String phone, Long channelId) {
+        List<User> samePhoneUsers = userRepository.findAllByPhoneAndDeleted(phone, ACTIVE);
+        Optional<User> adminUser = samePhoneUsers.stream()
+                .filter(user -> {
+                    String role = normalizeRole(user.getRole());
+                    return "SUPER_ADMIN".equals(role) || "CHANNEL".equals(role);
+                })
+                .findFirst();
+        if (adminUser.isPresent()) {
+            return adminUser.get();
+        }
+        if (channelId != null) {
+            return userRepository.findFirstByPhoneAndChannelIdAndDeleted(phone, channelId, ACTIVE)
+                    .orElseThrow(() -> new RuntimeException("用户不存在"));
+        }
+        return samePhoneUsers.stream()
+                .findFirst()
+                .orElseThrow(() -> new RuntimeException("用户不存在"));
+    }
+
+    private String normalizeRole(String role) {
+        if (role == null || role.isBlank()) {
+            return "USER";
+        }
+        String normalized = role.trim().toUpperCase();
+        return "ADMIN".equals(normalized) ? "SUPER_ADMIN" : normalized;
     }
 }

@@ -2,6 +2,7 @@ package com.duodian.admin.service;
 
 import com.duodian.admin.entity.Shop;
 import com.duodian.admin.repository.ShopRepository;
+import com.duodian.admin.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;
@@ -16,7 +17,8 @@ import static org.mockito.Mockito.when;
 
 class ShopServiceTest {
     private final ShopRepository shopRepository = mock(ShopRepository.class);
-    private final ShopService shopService = new ShopService(shopRepository);
+    private final UserRepository userRepository = mock(UserRepository.class);
+    private final ShopService shopService = new ShopService(shopRepository, userRepository);
 
     @Test
     void refreshRemainingDaysUpdatesStaleStoredValueFromExpiration() {
