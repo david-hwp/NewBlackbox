@@ -266,3 +266,25 @@
 **计划文档**: [.planning/phases/15-scrolling-ticker-announcement/15-PLAN.md](.planning/phases/15-scrolling-ticker-announcement/15-PLAN.md)
 **上下文文档**: [.planning/phases/15-scrolling-ticker-announcement/15-CONTEXT.md](.planning/phases/15-scrolling-ticker-announcement/15-CONTEXT.md)
 **调研文档**: [.planning/phases/15-scrolling-ticker-announcement/15-RESEARCH.md](.planning/phases/15-scrolling-ticker-announcement/15-RESEARCH.md)
+
+## Phase 16: 主 App 登录态数据中心重构 ✅ 已完成 (2026-06-13)
+
+**目标**: 将登录态备份、同步元数据和业务判断从引擎目录迁移到主 App 数据目录，由主 App 作为店铺卡片登录态数据中心；引擎降级为 AIDL 能力层，只负责分身运行、店铺信息采集、登录态导出/释放等原子能力。
+
+**关键交付物**:
+
+- 主 App 新增登录态暂存与元数据仓库，按系统店铺 ID 短暂保存待上报登录态 blob，并长期保存 manifest、sha256、createdAt、uploadedAt、profile、platformPackage、cloneInstanceId、virtualUserId 和最近一次店铺信息采集摘要。
+- 引擎 AIDL 收口为无业务决策的能力接口：采集店铺信息、导出登录态、释放登录态、清空分身数据、准备启动和查询分身基础映射；引擎不再决定是否上传服务器、是否下载服务器登录态、是否覆盖本地登录态。
+- 店铺信息采集成为统一入口：只有采集到有效店铺信息后，主 App 才触发登录态导出和本地保存；采集失败视为未确认登录，不导出、不上传登录态。
+- 主 App 统一处理服务器同步：上传时按系统店铺 ID 上报，服务器只保存更新的登录态文件；下拉刷新只更新店铺基本信息，不触发登录态释放；修复店铺时才从主 App 本地或服务器最新登录态释放到引擎分身目录。
+- 服务器登录态只有两个场景可以释放并覆盖本地：新手机/本地没有可用分身登录态时用于首次恢复，或用户主动触发“修复店铺”；除此之外始终使用用户手机当前分身本地登录态，普通打开、下拉刷新、后台同步和店铺信息采集都不能用服务器登录态覆盖本机分身。
+- 服务器侧店铺信息和登录态平时只接受各设备上报并做备份；只有新设备本地无可用数据、用户主动修复这两个场景，服务器数据才作为恢复来源参与释放。
+- 数据清理规则：引擎采集到的店铺信息和登录态导出结果只通过 AIDL 返回，不在引擎侧额外落盘；主 App 上报成功后立即删除原始采集 blob/zip，只保留必要元数据、校验值和上报记录。
+- 保留引擎必需的虚拟化运行数据：虚拟用户、虚拟包安装信息、cloneInstanceId 到 virtualUserId 映射、授权 token 和分身实时运行目录仍在引擎侧；但这些不再承载登录态同步的业务真相。
+- 增加迁移与兼容：升级后主 App 从现有服务器/引擎导出链路补齐自己的本地登录态索引，避免已登录店铺因为数据归属调整而丢失可恢复能力。
+
+**验证**: `:app:compileDebugKotlin`、`ShopControllerTest`/`ShopServiceTest` 通过；小米 MIX 2S 安装 `1.2.14-beta` 主 App 和引擎后，用二公子账号 shop=53 罗家臭豆腐验证：普通打开不触发 `restoreLoginState`，未获取店铺信息时不导出上传；主动“修复店铺”触发 `reason=repair`，按系统店铺 ID 下载 462736 字节登录态并恢复到 user3；再次普通打开进入美团外卖商家版订单页，10 秒后店铺信息采集 `found=true`，服务端登录态更新到 463616 字节且 raw staging 无残留。
+
+**计划文档**: [.planning/phases/16-app/16-PLAN.md](.planning/phases/16-app/16-PLAN.md)
+**上下文文档**: [.planning/phases/16-app/16-CONTEXT.md](.planning/phases/16-app/16-CONTEXT.md)
+**调研文档**: [.planning/phases/16-app/16-RESEARCH.md](.planning/phases/16-app/16-RESEARCH.md)

@@ -34,6 +34,7 @@ public class ShopResponse {
     private Long loginStateSize;
     private String loginStateSha256;
     private LocalDateTime loginStateUpdatedAt;
+    private LocalDateTime loginStateArtifactCreatedAt;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -66,6 +67,7 @@ public class ShopResponse {
         response.setLoginStateSize(shop.getLoginStateSize());
         response.setLoginStateSha256(shop.getLoginStateSha256());
         response.setLoginStateUpdatedAt(shop.getLoginStateUpdatedAt());
+        response.setLoginStateArtifactCreatedAt(shop.getLoginStateArtifactCreatedAt());
         response.setCreatedAt(shop.getCreatedAt());
         response.setUpdatedAt(shop.getUpdatedAt());
         return response;
@@ -151,6 +153,9 @@ public class ShopResponse {
 
     public LocalDateTime getLoginStateUpdatedAt() { return loginStateUpdatedAt; }
     public void setLoginStateUpdatedAt(LocalDateTime loginStateUpdatedAt) { this.loginStateUpdatedAt = loginStateUpdatedAt; }
+
+    public LocalDateTime getLoginStateArtifactCreatedAt() { return loginStateArtifactCreatedAt; }
+    public void setLoginStateArtifactCreatedAt(LocalDateTime loginStateArtifactCreatedAt) { this.loginStateArtifactCreatedAt = loginStateArtifactCreatedAt; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }

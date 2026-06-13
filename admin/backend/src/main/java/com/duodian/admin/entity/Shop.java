@@ -97,6 +97,9 @@ public class Shop {
     @Column(name = "login_state_updated_at")
     private LocalDateTime loginStateUpdatedAt;
 
+    @Column(name = "login_state_artifact_created_at")
+    private LocalDateTime loginStateArtifactCreatedAt;
+
     @Column(nullable = false, columnDefinition = "TINYINT DEFAULT 0")
     private Byte deleted = 0;
 
@@ -222,6 +225,9 @@ public class Shop {
 
     public LocalDateTime getLoginStateUpdatedAt() { return loginStateUpdatedAt; }
     public void setLoginStateUpdatedAt(LocalDateTime loginStateUpdatedAt) { this.loginStateUpdatedAt = loginStateUpdatedAt; }
+
+    public LocalDateTime getLoginStateArtifactCreatedAt() { return loginStateArtifactCreatedAt; }
+    public void setLoginStateArtifactCreatedAt(LocalDateTime loginStateArtifactCreatedAt) { this.loginStateArtifactCreatedAt = loginStateArtifactCreatedAt; }
 
     public Byte getDeleted() { return deleted; }
     public void setDeleted(Byte deleted) { this.deleted = deleted == null ? 0 : deleted; }

@@ -36,6 +36,7 @@ import com.zhirang.zhanghaoguanjia.bean.Shop
 import com.zhirang.zhanghaoguanjia.bean.dto.AnnouncementDto
 import com.zhirang.zhanghaoguanjia.bean.dto.PlatformItemDto
 import com.zhirang.zhanghaoguanjia.data.BaseRepository
+import com.zhirang.zhanghaoguanjia.data.LoginStateBackupStore
 import com.zhirang.zhanghaoguanjia.data.TokenManager
 import com.zhirang.zhanghaoguanjia.databinding.ActivityHomeBinding
 import com.zhirang.zhanghaoguanjia.engine.EnginePermissionCenter
@@ -70,6 +71,12 @@ class HomeActivity : AppCompatActivity() {
         val userId: Int,
         val platformName: String
     )
+
+    private enum class LoginStateRestoreResult {
+        RESTORED,
+        NOT_AVAILABLE,
+        FAILED
+    }
 
     private val viewBinding: ActivityHomeBinding by inflate()
     private lateinit var viewModel: HomeViewModel
@@ -107,6 +114,7 @@ class HomeActivity : AppCompatActivity() {
     private var tickerPausedByTouch = false
     private var tickerScrollStartTime = 0L
     private var tickerScrollDistance = 0f
+    private var currentTickerAnnouncement: AnnouncementDto? = null
     private val tickerScrollRunnable = object : Runnable {
         override fun run() {
             if (!tickerShouldScroll || tickerPausedByTouch || isTouchExplorationEnabled()) {
@@ -141,8 +149,8 @@ class HomeActivity : AppCompatActivity() {
         private const val PREF_SUBSCRIPTION_GIFT_PROMPT = "subscription_gift_prompt"
         private const val KEY_PENDING_GIFT_PHONE = "pending_gift_phone"
         private const val KEY_SHOWN_GIFT_USER_PREFIX = "shown_gift_user_"
-        private const val TICKER_SCROLL_SPEED_PX_PER_SECOND = 18f
-        private const val TICKER_MIN_CYCLE_MS = 12_000L
+        private const val TICKER_SCROLL_SPEED_PX_PER_SECOND = 28f
+        private const val TICKER_MIN_CYCLE_MS = 8_000L
         private const val TICKER_FRAME_DELAY_MS = 16L
         private var sessionAnnouncementsRequested = false
         private val sessionShownAnnouncementIds = mutableSetOf<Long>()
@@ -496,6 +504,9 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun initTickerBanner() {
+        viewBinding.tickerBanner.setOnClickListener {
+            showTickerAnnouncementDialog()
+        }
         viewBinding.tickerBanner.setOnTouchListener { _, event ->
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
@@ -738,10 +749,9 @@ class HomeActivity : AppCompatActivity() {
             val prepareKey = buildShopPrepareKey(shop, shopPackageName) ?: return@filter false
             val preparedUserId = preparedShopUsers[prepareKey]
                 ?: findPreparedUserIdForShop(shop, shopPackageName)
-            val restoreKey = preparedUserId?.let { "$prepareKey:$it" }
             !preparingShopKeys.contains(prepareKey) &&
                     !locallyRepairedShopKeys.contains(prepareKey) &&
-                    (preparedUserId == null || !restoredLoginStateKeys.contains(restoreKey))
+                    preparedUserId == null
         }
     }
 
@@ -797,12 +807,14 @@ class HomeActivity : AppCompatActivity() {
     private fun updateTickerBanner(announcement: AnnouncementDto?) {
         val content = announcement?.content?.trim().orEmpty()
         if (content.isBlank()) {
+            currentTickerAnnouncement = null
             tickerShouldScroll = false
             stopTickerScroll()
             viewBinding.tvTickerText.text = ""
             viewBinding.tickerBanner.visibility = View.GONE
             return
         }
+        currentTickerAnnouncement = announcement
         viewBinding.tvTickerText.text = content
         viewBinding.tvTickerText.contentDescription = "滚动播报：$content"
         viewBinding.tickerBanner.contentDescription = "滚动播报：$content"
@@ -922,6 +934,24 @@ class HomeActivity : AppCompatActivity() {
                 dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_NEGATIVE)
                     ?.visibility = if (announcement.hasMainAppUpgradeAction()) View.VISIBLE else View.GONE
                 dialog.findViewById<android.widget.TextView>(android.R.id.message)?.let { messageView ->
+                    Linkify.addLinks(messageView, Linkify.WEB_URLS)
+                    messageView.movementMethod = LinkMovementMethod.getInstance()
+                }
+            }
+    }
+
+    private fun showTickerAnnouncementDialog() {
+        val announcement = currentTickerAnnouncement ?: return
+        if (isFinishing || isDestroyed) {
+            return
+        }
+        MaterialAlertDialogBuilder(this)
+            .setTitle("播报内容")
+            .setMessage(announcement.content)
+            .setPositiveButton(R.string.announcement_dialog_button, null)
+            .show()
+            .also { dialog ->
+                dialog.findViewById<TextView>(android.R.id.message)?.let { messageView ->
                     Linkify.addLinks(messageView, Linkify.WEB_URLS)
                     messageView.movementMethod = LinkMovementMethod.getInstance()
                 }
@@ -1130,29 +1160,11 @@ class HomeActivity : AppCompatActivity() {
         }
         preparedShopUsers[prepareKey]?.let { preparedUserId ->
             Log.d(TAG, "Preparing shop environment uses prepared user shop=${shop.id} package=$packageName user=$preparedUserId")
-            lifecycleScope.launch(Dispatchers.IO) {
-                val restored = restoreLoginStateIfNeeded(shop, packageName, preparedUserId, showProgress)
-                val prepared = if (restored) {
-                    PreparedShopEnvironment(shop, packageName, preparedUserId, resolvePlatformName(shop.platform))
-                } else {
-                    null
-                }
-                withContext(Dispatchers.Main) {
-                    if (prepared != null) {
-                        if (showProgress && launchAfterReady) {
-                            launchPreparedShopAndSchedule(prepared)
-                        }
-                    } else {
-                        preparedShopKeys.remove(prepareKey)
-                        preparedShopUsers.remove(prepareKey)
-                        if (showProgress && launchAfterReady) {
-                            finishShopOperation()
-                            toast("店铺登录态恢复失败，请重试")
-                        }
-                    }
-                    onComplete?.invoke(prepared)
-                }
+            val prepared = PreparedShopEnvironment(shop, packageName, preparedUserId, resolvePlatformName(shop.platform))
+            if (showProgress && launchAfterReady) {
+                launchPreparedShopAndSchedule(prepared)
             }
+            onComplete?.invoke(prepared)
             return
         }
         if (preparingShopKeys.contains(prepareKey)) {
@@ -1239,7 +1251,8 @@ class HomeActivity : AppCompatActivity() {
                     }
                 }
 
-                if (!EngineProxy.isInstalled(packageName, userId)) {
+                val wasInstalled = EngineProxy.isInstalled(packageName, userId)
+                if (!wasInstalled) {
                     if (showProgress) {
                         withContext(Dispatchers.Main) {
                             updateShopProgress("正在安装 ${platformName} 到店铺环境…")
@@ -1258,13 +1271,22 @@ class HomeActivity : AppCompatActivity() {
                         return@launch
                     }
                 }
-                if (hasPreparedLaunchAuthorization(cloneInstanceId, packageName, userId)) {
-                    if (!restoreLoginStateIfNeeded(shop, packageName, userId, showProgress)) {
+                if (!wasInstalled) {
+                    val restoreResult = restoreLoginStateFromServer(
+                        shop = shop,
+                        packageName = packageName,
+                        userId = userId,
+                        showProgress = showProgress,
+                        reason = "local-absent"
+                    )
+                    if (restoreResult == LoginStateRestoreResult.FAILED) {
                         withContext(Dispatchers.Main) {
                             complete(null)
                         }
                         return@launch
                     }
+                }
+                if (hasPreparedLaunchAuthorization(cloneInstanceId, packageName, userId)) {
                     withContext(Dispatchers.Main) {
                         complete(PreparedShopEnvironment(shop, packageName, userId, platformName))
                     }
@@ -1290,13 +1312,7 @@ class HomeActivity : AppCompatActivity() {
                                         publicKeyId = publicKeyId,
                                         showProgress = showProgress
                                     )
-                                    if (authorizedPrepared != null &&
-                                        restoreLoginStateIfNeeded(authorizedShop, packageName, userId, showProgress)
-                                    ) {
-                                        authorizedPrepared
-                                    } else {
-                                        null
-                                    }
+                                    authorizedPrepared
                                 } catch (e: Exception) {
                                     Log.w(TAG, "Failed to write prepared shop authorization ${shop.id}", e)
                                     null
@@ -1349,7 +1365,6 @@ class HomeActivity : AppCompatActivity() {
             }
             launchVirtualApp(shop, packageName, targetUserId, platformName) { launched ->
                 if (launched) {
-                    exportAndUploadLoginState(shop, packageName, targetUserId)
                     if (shop.isNew) {
                         reportCloneCreated(shop, targetUserId)
                     }
@@ -1393,14 +1408,24 @@ class HomeActivity : AppCompatActivity() {
             updateShopProgress("正在安装 ${platformName} 到店铺环境…")
             val result = EngineProxy.installPackageAsUser(packageName, installUserId)
             if (result.success || EngineProxy.isInstalled(packageName, installUserId)) {
-                updateShopProgress("正在获取店铺授权…")
-                if (shop.isNew) {
-                    reportCloneCreated(shop, installUserId)
-                }
-                launchVirtualApp(shop, packageName, installUserId, platformName) { launched ->
-                    if (launched) {
-                        exportAndUploadLoginState(shop, packageName, installUserId)
-                        scheduleShopInfoSyncAfterClick(shop, installUserId, showFailureToast = shop.isNew)
+                lifecycleScope.launch(Dispatchers.IO) {
+                    restoreLoginStateFromServer(
+                        shop = shop,
+                        packageName = packageName,
+                        userId = installUserId,
+                        showProgress = true,
+                        reason = "local-absent"
+                    )
+                    withContext(Dispatchers.Main) {
+                        updateShopProgress("正在获取店铺授权…")
+                        if (shop.isNew) {
+                            reportCloneCreated(shop, installUserId)
+                        }
+                        launchVirtualApp(shop, packageName, installUserId, platformName) { launched ->
+                            if (launched) {
+                                scheduleShopInfoSyncAfterClick(shop, installUserId, showFailureToast = shop.isNew)
+                            }
+                        }
                     }
                 }
             } else {
@@ -1588,7 +1613,6 @@ class HomeActivity : AppCompatActivity() {
     private fun launchPreparedShopAndSchedule(prepared: PreparedShopEnvironment) {
         launchPreparedShop(prepared) { launched ->
             if (launched) {
-                exportAndUploadLoginState(prepared.shop, prepared.packageName, prepared.userId)
                 scheduleShopInfoSyncAfterClick(prepared.shop, prepared.userId, showFailureToast = prepared.shop.isNew)
             }
         }
@@ -1630,67 +1654,61 @@ class HomeActivity : AppCompatActivity() {
         )
     }
 
-    private suspend fun restoreLoginStateIfNeeded(
+    private suspend fun restoreLoginStateFromServer(
         shop: Shop,
         packageName: String,
         userId: Int,
-        showProgress: Boolean
-    ): Boolean {
-        val key = buildShopPrepareKey(shop, packageName)?.let { "$it:$userId" } ?: return true
-        if (restoredLoginStateKeys.contains(key)) {
-            Log.d(TAG, "restoreLoginState skipped cached shop=${shop.id} package=$packageName user=$userId")
-            return true
+        showProgress: Boolean,
+        reason: String
+    ): LoginStateRestoreResult {
+        val key = buildShopPrepareKey(shop, packageName)?.let { "$it:$userId:$reason" }
+        if (key != null && restoredLoginStateKeys.contains(key)) {
+            Log.d(TAG, "restoreLoginState skipped cached shop=${shop.id} package=$packageName user=$userId reason=$reason")
+            return LoginStateRestoreResult.RESTORED
         }
         val defaultProfile = EngineProxy.defaultLoginStateProfile(packageName)
         if (defaultProfile == null) {
             Log.d(TAG, "restoreLoginState skipped no profile shop=${shop.id} package=$packageName user=$userId")
-            return true
+            return LoginStateRestoreResult.NOT_AVAILABLE
         }
         Log.d(
             TAG,
-            "restoreLoginState check shop=${shop.id} package=$packageName user=$userId hasServer=${shop.hasLoginState} profile=$defaultProfile"
+            "restoreLoginState allowed shop=${shop.id} package=$packageName user=$userId reason=$reason hasServer=${shop.hasLoginState} profile=$defaultProfile"
         )
-        if (!shop.hasLoginState) {
-            val localArtifact = EngineProxy.exportLoginState(packageName, userId, defaultProfile)
-            if (localArtifact != null && localArtifact.isNotEmpty()) {
-                Log.d(
-                    TAG,
-                    "restoreLoginState skipped local artifact shop=${shop.id} package=$packageName user=$userId bytes=${localArtifact.size}"
-                )
-                restoredLoginStateKeys.add(key)
-                return true
-            }
-        }
         if (showProgress) {
             withContext(Dispatchers.Main) { updateShopProgress("正在恢复店铺登录态…") }
         }
         val result = viewModel.downloadLoginState(shop.id)
         result.exceptionOrNull()?.let { error ->
-            Log.w(TAG, "restoreLoginState download failed shop=${shop.id} package=$packageName user=$userId: ${error.message}")
+            Log.w(TAG, "restoreLoginState download failed shop=${shop.id} package=$packageName user=$userId reason=$reason: ${error.message}")
+            return LoginStateRestoreResult.FAILED
         }
         val download = result.getOrNull()
         if (download == null || download.bytes.isEmpty()) {
-            Log.d(TAG, "restoreLoginState no server artifact shop=${shop.id} package=$packageName user=$userId")
-            restoredLoginStateKeys.add(key)
-            return true
+            Log.d(TAG, "restoreLoginState no server artifact shop=${shop.id} package=$packageName user=$userId reason=$reason")
+            return LoginStateRestoreResult.NOT_AVAILABLE
         }
+        val profile = download.profile ?: defaultProfile
+        val staged = LoginStateBackupStore.stageForRestore(shop.id, packageName, userId, profile, download.bytes)
         Log.d(
             TAG,
-            "restoreLoginState downloaded shop=${shop.id} package=$packageName user=$userId profile=${download.profile ?: defaultProfile} bytes=${download.bytes.size}"
+            "restoreLoginState downloaded shop=${shop.id} package=$packageName user=$userId reason=$reason profile=$profile bytes=${download.bytes.size}"
         )
         val restored = EngineProxy.restoreLoginState(
             packageName,
             userId,
-            download.profile ?: defaultProfile,
+            profile,
             download.bytes
         )
+        LoginStateBackupStore.markRestoreFinishedAndDelete(staged, restored)
         if (restored) {
-            Log.d(TAG, "restoreLoginState restored shop=${shop.id} package=$packageName user=$userId")
-            restoredLoginStateKeys.add(key)
+            Log.d(TAG, "restoreLoginState restored shop=${shop.id} package=$packageName user=$userId reason=$reason")
+            key?.let { restoredLoginStateKeys.add(it) }
+            return LoginStateRestoreResult.RESTORED
         } else {
-            Log.w(TAG, "restoreLoginState restore rejected shop=${shop.id} package=$packageName user=$userId")
+            Log.w(TAG, "restoreLoginState restore rejected shop=${shop.id} package=$packageName user=$userId reason=$reason")
+            return LoginStateRestoreResult.FAILED
         }
-        return restored
     }
 
     private fun exportAndUploadLoginState(shop: Shop, packageName: String, userId: Int) {
@@ -1699,15 +1717,36 @@ class HomeActivity : AppCompatActivity() {
             return
         }
         lifecycleScope.launch(Dispatchers.IO) {
-            val profile = EngineProxy.defaultLoginStateProfile(packageName) ?: return@launch
-            val artifact = EngineProxy.exportLoginState(packageName, userId, profile) ?: return@launch
+            val profile = EngineProxy.defaultLoginStateProfile(packageName) ?: run {
+                uploadedLoginStateKeys.remove(key)
+                return@launch
+            }
+            val artifact = EngineProxy.exportLoginState(packageName, userId, profile) ?: run {
+                uploadedLoginStateKeys.remove(key)
+                return@launch
+            }
+            val createdAt = System.currentTimeMillis()
             val manifest = JSONObject()
+                .put("systemShopId", shop.id)
                 .put("packageName", packageName)
                 .put("profileId", profile)
                 .put("localVirtualUserId", userId)
+                .put("artifactCreatedAtEpochMillis", createdAt)
                 .put("bytes", artifact.size)
-                .toString()
-            viewModel.uploadLoginState(shop.id, profile, manifest, artifact)
+            val staged = LoginStateBackupStore.stageForUpload(
+                shopId = shop.id,
+                packageName = packageName,
+                userId = userId,
+                profile = profile,
+                artifact = artifact,
+                manifest = manifest
+            )
+            val uploaded = viewModel.uploadLoginStateFile(shop.id, profile, manifest.toString(), staged.file)
+            if (uploaded) {
+                LoginStateBackupStore.markUploadedAndDelete(staged)
+            } else {
+                uploadedLoginStateKeys.remove(key)
+            }
         }
     }
 
@@ -2120,6 +2159,7 @@ class HomeActivity : AppCompatActivity() {
             sourceShop.shopName == shopName &&
             sourceShop.localVirtualUserId == userId
         ) {
+            exportAndUploadLoginState(sourceShop, packageName, userId)
             return
         }
         viewModel.completePendingShop(
@@ -2137,6 +2177,7 @@ class HomeActivity : AppCompatActivity() {
             ),
             showMessage = sourceShop.isNew
         )
+        exportAndUploadLoginState(sourceShop, packageName, userId)
     }
 
     private fun buildRecognitionKey(shop: Shop, userId: Int): String? {
@@ -2450,7 +2491,7 @@ class HomeActivity : AppCompatActivity() {
     private fun confirmRepairShop(shop: Shop) {
         MaterialAlertDialogBuilder(this)
             .setTitle("修复店铺")
-            .setMessage("本操作会重置该店铺的所有本地数据，清除完成后需要重新登录，是否继续？")
+            .setMessage("本操作会重置该店铺的本机分身数据，并尝试使用服务器备份登录态恢复。仅在店铺打不开或登录态异常时使用，是否继续？")
             .setNegativeButton("取消", null)
             .setPositiveButton("确认") { _, _ ->
                 repairShopLocalData(shop)
@@ -2470,21 +2511,29 @@ class HomeActivity : AppCompatActivity() {
         }
         ensureEngineReady(onUnavailable = { finishShopOperation() }) {
             val userId = findExistingUserIdForCloneInstance(shop, packageName)
+                ?: findUserIdForCloneInstance(shop, packageName)
             if (userId == null) {
-                EngineProxy.clearCloneUser(cloneInstanceId, packageName, viewModel.getCurrentUserId())
                 clearPreparedShopEnvironment(shop, packageName)
-                finishLocalRepair(shop, packageName)
+                finishLocalRepair(shop, packageName, LoginStateRestoreResult.NOT_AVAILABLE)
                 return@ensureEngineReady
             }
             try {
                 updateShopProgress("正在清除店铺本地数据…")
                 EngineProxy.stopPackage(packageName, userId)
                 EngineProxy.clearClonePackageData(cloneInstanceId, packageName, viewModel.getCurrentUserId(), userId)
-                EngineProxy.uninstallPackageAsUser(packageName, userId)
-                EngineProxy.clearCloneUser(cloneInstanceId, packageName, viewModel.getCurrentUserId())
-                EngineProxy.deleteUser(userId)
                 clearPreparedShopEnvironment(shop, packageName)
-                finishLocalRepair(shop, packageName)
+                lifecycleScope.launch(Dispatchers.IO) {
+                    val restoreResult = restoreLoginStateFromServer(
+                        shop = shop,
+                        packageName = packageName,
+                        userId = userId,
+                        showProgress = true,
+                        reason = "repair"
+                    )
+                    withContext(Dispatchers.Main) {
+                        finishLocalRepair(shop, packageName, restoreResult)
+                    }
+                }
             } catch (e: Exception) {
                 Log.w(TAG, "Failed to repair local shop data ${shop.id}", e)
                 finishShopOperation()
@@ -2493,7 +2542,11 @@ class HomeActivity : AppCompatActivity() {
         }
     }
 
-    private fun finishLocalRepair(shop: Shop, packageName: String) {
+    private fun finishLocalRepair(
+        shop: Shop,
+        packageName: String,
+        restoreResult: LoginStateRestoreResult = LoginStateRestoreResult.NOT_AVAILABLE
+    ) {
         runOnUiThread {
             updateShopProgress("修复完成")
             clearPreparedShopEnvironment(shop, packageName)
@@ -2510,7 +2563,12 @@ class HomeActivity : AppCompatActivity() {
                 restoreEnvironmentCheckPackage = null
             }
             finishShopOperation()
-            toast("本机店铺数据已清除，请重新点击店铺登录")
+            val message = when (restoreResult) {
+                LoginStateRestoreResult.RESTORED -> "店铺已修复，请重新点击店铺打开"
+                LoginStateRestoreResult.NOT_AVAILABLE -> "本机店铺数据已清除，暂无服务器备份，请重新登录店铺"
+                LoginStateRestoreResult.FAILED -> "服务器备份恢复失败，请稍后重试或重新登录店铺"
+            }
+            toast(message)
         }
     }
 

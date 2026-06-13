@@ -2,8 +2,8 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: phase11-channel-promotion-system
-status: Phase 11 planned
-last_updated: "2026-06-09T15:55:00+08:00"
+status: Phase 16 completed
+last_updated: "2026-06-13T12:21:56+08:00"
 progress:
   total_phases: 11
   completed_phases: 9
@@ -13,6 +13,22 @@ progress:
 ---
 
 ## Recent Changes
+
+### 2026-06-13: Phase 16 Main App login-state data center completed
+
+- Completed Phase 16 implementation and Xiaomi MIX 2S real-device verification.
+- Verified normal shop open keeps the current phone's local clone login-state and does not restore server backup.
+- Verified explicit repair is the release path: shop `53` 罗家臭豆腐 restored `meituan-waimai-cips-f` backup into Meituan Waimai user3, then opened the merchant order page.
+- Verified shop-info extraction gates login-state upload: pre-repair extraction failed without upload; post-repair extraction succeeded and uploaded a fresh backup by system shop ID.
+- Verified raw login-state staging files are deleted after restore/upload completion.
+- Canonical completion document: `.planning/phases/16-app/16-PLAN.md`.
+
+### 2026-06-13: Phase 16 Main App login-state data center planned
+
+- Added Phase 16 to move login-state backup artifacts, metadata, and sync decisions into the Main App data directory.
+- Locked the boundary that engine remains responsible for clone runtime infrastructure and AIDL capabilities only.
+- Required shop-info collection before login-state export, and repair-only restore/release into clone directories.
+- Canonical plan document: `.planning/phases/16-app/16-PLAN.md`.
 
 ### 2026-06-09: Phase 11 channel promotion system planned
 

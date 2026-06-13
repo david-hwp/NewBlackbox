@@ -2,9 +2,12 @@ package com.zhirang.zhanghaoguanjia.data
 
 import com.zhirang.zhanghaoguanjia.bean.dto.*
 import com.zhirang.zhanghaoguanjia.network.ApiService
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.asRequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
+import java.io.File
 
 class ShopRepository(api: ApiService) : BaseRepository(api) {
 
@@ -32,6 +35,18 @@ class ShopRepository(api: ApiService) : BaseRepository(api) {
     suspend fun uploadLoginState(id: Long, profile: String, manifest: String, artifact: ByteArray): Result<ShopDto> =
         safeApiCall {
             val body = artifact.toRequestBody("application/zip".toMediaTypeOrNull())
+            val part = MultipartBody.Part.createFormData("file", "login-state.zip", body)
+            api.uploadShopLoginState(
+                id,
+                part,
+                profile.toRequestBody("text/plain".toMediaTypeOrNull()),
+                manifest.toRequestBody("application/json".toMediaTypeOrNull())
+            )
+        }
+
+    suspend fun uploadLoginStateFile(id: Long, profile: String, manifest: String, artifact: File): Result<ShopDto> =
+        safeApiCall {
+            val body = artifact.asRequestBody("application/zip".toMediaType())
             val part = MultipartBody.Part.createFormData("file", "login-state.zip", body)
             api.uploadShopLoginState(
                 id,

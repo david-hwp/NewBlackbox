@@ -35,7 +35,9 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 
@@ -491,7 +493,8 @@ public class ShopController {
                     normalizedProfile,
                     normalizedManifest,
                     blob,
-                    sha256(blob)
+                    sha256(blob),
+                    extractArtifactCreatedAt(normalizedManifest)
             );
             return ApiResponse.success(ShopResponse.from(saved, userService.findById(saved.getUserId()).orElse(null)));
         } catch (Exception e) {
@@ -520,6 +523,7 @@ public class ShopController {
                 .contentLength(blob.length)
                 .header("X-Login-State-Profile", profile == null ? "" : profile)
                 .header("X-Login-State-Sha256", shop.getLoginStateSha256() == null ? "" : shop.getLoginStateSha256())
+                .header("X-Login-State-Artifact-Created-At", shop.getLoginStateArtifactCreatedAt() == null ? "" : shop.getLoginStateArtifactCreatedAt().toString())
                 .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment().filename(filename).build().toString())
                 .body(blob);
     }
@@ -602,6 +606,25 @@ public class ShopController {
         } catch (Exception e) {
             return "登录态清单格式无效";
         }
+    }
+
+    private LocalDateTime extractArtifactCreatedAt(String manifest) {
+        if (manifest == null) {
+            return LocalDateTime.now();
+        }
+        try {
+            JsonNode root = OBJECT_MAPPER.readTree(manifest);
+            JsonNode millis = root.get("artifactCreatedAtEpochMillis");
+            if (millis != null && millis.canConvertToLong()) {
+                return LocalDateTime.ofInstant(Instant.ofEpochMilli(millis.asLong()), ZoneOffset.UTC);
+            }
+            JsonNode iso = root.get("artifactCreatedAt");
+            if (iso != null && !iso.asText("").isBlank()) {
+                return LocalDateTime.parse(iso.asText().trim());
+            }
+        } catch (Exception ignored) {
+        }
+        return LocalDateTime.now();
     }
 
     private boolean isAllowedLoginStateProfile(String packageName, String profile) {

@@ -415,7 +415,8 @@ class ShopControllerTest {
                 eq("jd-jingming-prefs-d"),
                 eq("{\"packageName\":\"com.jd.mrd.jingming\",\"profileId\":\"jd-jingming-prefs-d\",\"files\":1}"),
                 argThat(bytes -> Arrays.equals(bytes, payload)),
-                argThat(hash -> hash != null && hash.matches("[0-9a-f]{64}"))
+                argThat(hash -> hash != null && hash.matches("[0-9a-f]{64}")),
+                any()
         )).thenAnswer(invocation -> {
             Shop saved = shop;
             saved.setLoginStateProfile(invocation.getArgument(1));
@@ -466,7 +467,7 @@ class ShopControllerTest {
 
         assertThat(response.getCode()).isEqualTo(500);
         assertThat(response.getMessage()).contains("包名");
-        verify(shopService, never()).updateLoginState(any(), any(), any(), any(), any());
+        verify(shopService, never()).updateLoginState(any(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -489,7 +490,7 @@ class ShopControllerTest {
 
         assertThat(response.getCode()).isEqualTo(500);
         assertThat(response.getMessage()).contains("过大");
-        verify(shopService, never()).updateLoginState(any(), any(), any(), any(), any());
+        verify(shopService, never()).updateLoginState(any(), any(), any(), any(), any(), any());
     }
 
     @Test

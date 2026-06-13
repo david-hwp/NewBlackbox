@@ -46,6 +46,7 @@ public class SoftDeleteSchemaInitializer implements CommandLineRunner {
         ensureUserSubscriptionColumns();
         ensureTransactionLogReclaimColumns();
         ensureCloneColumns();
+        ensureShopLoginStateColumns();
     }
 
     private void ensureTransactionLogReclaimColumns() throws Exception {
@@ -121,6 +122,12 @@ public class SoftDeleteSchemaInitializer implements CommandLineRunner {
         }
         if (!hasIndex("shops", "idx_clone_instance_id")) {
             jdbcTemplate.execute("CREATE INDEX idx_clone_instance_id ON shops (clone_instance_id)");
+        }
+    }
+
+    private void ensureShopLoginStateColumns() throws Exception {
+        if (!hasColumn("shops", "login_state_artifact_created_at")) {
+            jdbcTemplate.execute("ALTER TABLE shops ADD COLUMN login_state_artifact_created_at DATETIME");
         }
     }
 

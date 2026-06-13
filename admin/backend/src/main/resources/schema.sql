@@ -60,6 +60,7 @@ CREATE TABLE IF NOT EXISTS shops (
     login_state_manifest TEXT COMMENT '登录态文件清单',
     login_state_blob LONGBLOB COMMENT '登录态压缩包',
     login_state_updated_at DATETIME COMMENT '登录态更新时间',
+    login_state_artifact_created_at DATETIME COMMENT '登录态文件创建/导出时间',
     deleted TINYINT(1) NOT NULL DEFAULT 0 COMMENT '软删除: 0-正常 1-已删除',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

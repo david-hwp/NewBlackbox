@@ -610,14 +610,26 @@ class HomeViewModel : ViewModel() {
         return shopRepository.downloadLoginState(shopId)
     }
 
-    suspend fun uploadLoginState(shopId: Long, profile: String, manifest: String, artifact: ByteArray) {
+    suspend fun uploadLoginState(shopId: Long, profile: String, manifest: String, artifact: ByteArray): Boolean {
         if (!isLoggedIn() || artifact.isEmpty()) {
-            return
+            return false
         }
         val result = shopRepository.uploadLoginState(shopId, profile, manifest, artifact)
         result.onFailure { e ->
             Log.w(TAG, "upload login state failed shop=$shopId profile=$profile: ${e.message}")
         }
+        return result.isSuccess
+    }
+
+    suspend fun uploadLoginStateFile(shopId: Long, profile: String, manifest: String, artifact: java.io.File): Boolean {
+        if (!isLoggedIn() || !artifact.exists() || artifact.length() <= 0L) {
+            return false
+        }
+        val result = shopRepository.uploadLoginStateFile(shopId, profile, manifest, artifact)
+        result.onFailure { e ->
+            Log.w(TAG, "upload login state failed shop=$shopId profile=$profile: ${e.message}")
+        }
+        return result.isSuccess
     }
 
     fun deleteShop(shop: Shop, showMessage: Boolean = true) {

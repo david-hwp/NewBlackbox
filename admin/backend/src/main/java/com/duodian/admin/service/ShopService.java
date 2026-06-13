@@ -101,11 +101,15 @@ public class ShopService {
     public Shop update(Long id, Shop shop) {
         Shop existing = shopRepository.findByIdAndDeleted(id, ACTIVE)
                 .orElseThrow(() -> new RuntimeException("店铺不存在"));
+        String previousShopId = existing.getShopId();
         if (shop.getShopName() != null) {
             existing.setShopName(shop.getShopName());
         }
         if (shop.getShopId() != null) {
             existing.setShopId(shop.getShopId());
+        }
+        if (isTemporaryShopId(previousShopId) && !isTemporaryShopName(existing.getShopName())) {
+            existing.setShopId("-");
         }
         if (Boolean.TRUE.equals(shop.getIdentityVerified()) || shop.getIdentityVerifiedAt() != null) {
             existing.setIdentityVerified(shop.getIdentityVerified());
@@ -177,16 +181,31 @@ public class ShopService {
             String profile,
             String manifest,
             byte[] blob,
-            String sha256
+            String sha256,
+            LocalDateTime artifactCreatedAt
     ) {
         Shop existing = shopRepository.findByIdAndDeleted(id, ACTIVE)
                 .orElseThrow(() -> new RuntimeException("店铺不存在"));
+        LocalDateTime incomingCreatedAt = artifactCreatedAt == null ? LocalDateTime.now() : artifactCreatedAt;
+        LocalDateTime storedCreatedAt = existing.getLoginStateArtifactCreatedAt();
+        String normalizedSha256 = normalize(sha256);
+        if (storedCreatedAt != null && incomingCreatedAt.isBefore(storedCreatedAt)) {
+            return existing;
+        }
+        if (storedCreatedAt != null
+                && incomingCreatedAt.isEqual(storedCreatedAt)
+                && existing.getLoginStateSha256() != null
+                && normalizedSha256 != null
+                && !existing.getLoginStateSha256().equalsIgnoreCase(normalizedSha256)) {
+            return existing;
+        }
         existing.setLoginStateProfile(normalize(profile));
         existing.setLoginStateManifest(manifest);
         existing.setLoginStateBlob(blob);
         existing.setLoginStateSize(blob == null ? null : (long) blob.length);
-        existing.setLoginStateSha256(normalize(sha256));
+        existing.setLoginStateSha256(normalizedSha256);
         existing.setLoginStateUpdatedAt(blob == null ? null : LocalDateTime.now());
+        existing.setLoginStateArtifactCreatedAt(blob == null ? null : incomingCreatedAt);
         return shopRepository.save(existing);
     }
 
@@ -203,6 +222,17 @@ public class ShopService {
             return null;
         }
         return value.trim();
+    }
+
+    private boolean isTemporaryShopId(String shopId) {
+        return shopId != null && (shopId.startsWith("NEW-") || shopId.startsWith("phase13-"));
+    }
+
+    private boolean isTemporaryShopName(String shopName) {
+        return shopName == null
+                || shopName.startsWith("新增店铺-[")
+                || shopName.startsWith("NEW-")
+                || shopName.startsWith("phase13-");
     }
 
 }

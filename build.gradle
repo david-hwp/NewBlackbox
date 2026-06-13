@@ -11,7 +11,7 @@ ext {
 
     minSdk = 21
     versionCode = 50023
-    versionName = "1.2.13-phase13"
+    versionName = "1.2.14-beta"
     xVersion = '1.2.13'
     hiddenApiBypass = '4.3'
 }

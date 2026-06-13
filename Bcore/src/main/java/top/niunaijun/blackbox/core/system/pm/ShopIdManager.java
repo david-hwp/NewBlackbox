@@ -27,7 +27,11 @@ public class ShopIdManager {
     }
 
     /**
-     * Synchronously extracts shop information and persists the latest result.
+     * Synchronously extracts shop information from current clone data.
+     *
+     * <p>The result is intentionally transient. The main app owns shop-info
+     * storage/reporting decisions, so the engine must not persist extracted
+     * business data outside the live clone runtime.</p>
      *
      * @return extracted info from the current clone data, or {@code null} when
      * no verified identity can be read now
@@ -42,7 +46,6 @@ public class ShopIdManager {
             if (result != null) {
                 result.packageName = packageName;
                 result.userId = userId;
-                BPackageManager.get().updateShopInfo(packageName, userId, result);
                 return result;
             }
         } catch (Exception e) {

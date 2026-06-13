@@ -48,6 +48,50 @@ class ShopServiceTest {
         assertThat(updated.getShopId()).isEqualTo("-");
     }
 
+    @Test
+    void updateLoginStateIgnoresOlderArtifact() {
+        Shop existing = shop(12L, 30, LocalDateTime.now().plusDays(30));
+        existing.setLoginStateProfile("jd-jingming-prefs-d");
+        existing.setLoginStateSha256("old-sha");
+        existing.setLoginStateSize(3L);
+        existing.setLoginStateBlob("old".getBytes());
+        existing.setLoginStateArtifactCreatedAt(LocalDateTime.of(2026, 6, 13, 10, 0));
+        when(shopRepository.findByIdAndDeleted(12L, (byte) 0)).thenReturn(Optional.of(existing));
+
+        Shop result = shopService.updateLoginState(
+                12L,
+                "jd-jingming-prefs-d",
+                "{}",
+                "new".getBytes(),
+                "new-sha",
+                LocalDateTime.of(2026, 6, 13, 9, 59)
+        );
+
+        assertThat(result.getLoginStateSha256()).isEqualTo("old-sha");
+        verify(shopRepository, org.mockito.Mockito.never()).save(existing);
+    }
+
+    @Test
+    void updateLoginStateStoresNewerArtifact() {
+        Shop existing = shop(13L, 30, LocalDateTime.now().plusDays(30));
+        existing.setLoginStateArtifactCreatedAt(LocalDateTime.of(2026, 6, 13, 10, 0));
+        when(shopRepository.findByIdAndDeleted(13L, (byte) 0)).thenReturn(Optional.of(existing));
+        when(shopRepository.save(existing)).thenReturn(existing);
+
+        Shop result = shopService.updateLoginState(
+                13L,
+                "jd-jingming-prefs-d",
+                "{}",
+                "new".getBytes(),
+                "new-sha",
+                LocalDateTime.of(2026, 6, 13, 10, 1)
+        );
+
+        assertThat(result.getLoginStateSha256()).isEqualTo("new-sha");
+        assertThat(result.getLoginStateArtifactCreatedAt()).isEqualTo(LocalDateTime.of(2026, 6, 13, 10, 1));
+        verify(shopRepository).save(existing);
+    }
+
     private Shop shop(Long id, int remainingDays, LocalDateTime expireAt) {
         Shop shop = new Shop();
         shop.setId(id);
