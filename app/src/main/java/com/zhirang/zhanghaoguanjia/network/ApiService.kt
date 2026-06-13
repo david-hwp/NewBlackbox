@@ -86,13 +86,24 @@ interface ApiService {
     @POST("compute/gift")
     suspend fun giftCompute(@Body request: GiftRequest): ApiResponse<GiftResult>
 
+    @POST("compute/phone-minutes/gift")
+    suspend fun giftPhoneMinutes(@Body request: GiftRequest): ApiResponse<GiftResult>
+
     @GET("compute/reclaim/latest")
     suspend fun getLatestReclaimableCompute(
         @Query("toPhone") toPhone: String
     ): ApiResponse<ComputeReclaimResult>
 
+    @GET("compute/phone-minutes/reclaim/latest")
+    suspend fun getLatestReclaimablePhoneMinutes(
+        @Query("toPhone") toPhone: String
+    ): ApiResponse<ComputeReclaimResult>
+
     @POST("compute/reclaim")
     suspend fun reclaimCompute(@Body request: ComputeReclaimRequest): ApiResponse<ComputeReclaimResult>
+
+    @POST("compute/phone-minutes/reclaim")
+    suspend fun reclaimPhoneMinutes(@Body request: ComputeReclaimRequest): ApiResponse<ComputeReclaimResult>
 
     @GET("logs/my")
     suspend fun getMyLogs(

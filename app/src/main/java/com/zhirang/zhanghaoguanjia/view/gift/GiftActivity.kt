@@ -19,11 +19,19 @@ class GiftActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityGiftBinding
     private lateinit var viewModel: GiftViewModel
+    private val phoneMinutesMode: Boolean
+        get() = intent.getBooleanExtra(EXTRA_PHONE_MINUTES_MODE, false)
 
     companion object {
         fun start(context: Context) {
             context.startActivity(Intent(context, GiftActivity::class.java))
         }
+
+        fun startPhoneMinutes(context: Context) {
+            context.startActivity(Intent(context, GiftActivity::class.java).putExtra(EXTRA_PHONE_MINUTES_MODE, true))
+        }
+
+        private const val EXTRA_PHONE_MINUTES_MODE = "phone_minutes_mode"
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -41,6 +49,7 @@ class GiftActivity : AppCompatActivity() {
     }
 
     private fun initToolbar() {
+        binding.toolbar.title = getString(if (phoneMinutesMode) R.string.phone_gift_title else R.string.gift_title)
         binding.toolbar.setNavigationOnClickListener {
             finish()
         }
@@ -50,6 +59,9 @@ class GiftActivity : AppCompatActivity() {
         val user = TokenManager.getInstance().getUser()
         binding.tvPhone.text = maskPhone(user?.phone.orEmpty())
         binding.tvBalance.text = getTransferableBalance().toString()
+        binding.tvBalanceLabel.text = getString(if (phoneMinutesMode) R.string.phone_gift_balance_label else R.string.compute_gift_balance_label)
+        binding.tvAmountLabel.text = getString(if (phoneMinutesMode) R.string.phone_gift_amount else R.string.gift_amount)
+        binding.etAmount.hint = getString(if (phoneMinutesMode) R.string.phone_gift_amount_hint else R.string.compute_gift_amount_hint)
     }
 
     private fun initListeners() {
@@ -80,7 +92,7 @@ class GiftActivity : AppCompatActivity() {
             isValid = false
         } else if (parsedAmount > getTransferableBalance()) {
             binding.tvAmountError.visibility = View.VISIBLE
-            binding.tvAmountError.text = "可转赠算力余额不足"
+            binding.tvAmountError.text = getString(if (phoneMinutesMode) R.string.error_phone_minutes_balance_insufficient else R.string.error_compute_transferable_insufficient)
             isValid = false
         } else {
             binding.tvAmountError.visibility = View.GONE
@@ -95,10 +107,10 @@ class GiftActivity : AppCompatActivity() {
 
         val sheet = GiftConfirmSheetFragment.newInstance(
             targetPhone = maskPhone(phone),
-            amountText = "$amount ${getString(R.string.gift_confirm_unit)}"
+            amountText = "$amount ${unitText()}"
         )
         sheet.setOnConfirmListener {
-            viewModel.gift(phone, amount)
+            viewModel.gift(phone, amount, phoneMinutesMode)
         }
         sheet.show(supportFragmentManager, "GiftConfirm")
     }
@@ -122,7 +134,12 @@ class GiftActivity : AppCompatActivity() {
 
     private fun onGiftSuccess(result: GiftResult) {
         TokenManager.getInstance().getUser()?.let { user ->
-            TokenManager.getInstance().saveUser(user.copy(computeBalance = result.fromBalance))
+            val updated = if (phoneMinutesMode) {
+                user.copy(phoneMinutesBalance = result.fromBalance)
+            } else {
+                user.copy(computeBalance = result.fromBalance)
+            }
+            TokenManager.getInstance().saveUser(updated)
         }
         binding.tvBalance.text = getTransferableBalance().toString()
         binding.btnConfirm.text = getString(R.string.gift_success)
@@ -140,8 +157,13 @@ class GiftActivity : AppCompatActivity() {
 
     private fun getTransferableBalance(): Int {
         val user = TokenManager.getInstance().getUser() ?: return 0
+        if (phoneMinutesMode) {
+            return user.phoneMinutesBalance.coerceAtLeast(0)
+        }
         return (user.computeBalance - user.nonTransferableComputeBalance).coerceAtLeast(0)
     }
+
+    private fun unitText(): String = getString(if (phoneMinutesMode) R.string.phone_minutes_unit else R.string.gift_confirm_unit)
 
     private fun maskPhone(phone: String): String {
         return if (phone.length == 11) {

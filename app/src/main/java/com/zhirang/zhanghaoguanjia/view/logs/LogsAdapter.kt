@@ -110,6 +110,21 @@ class LogsAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
                     val color = itemView.context.getColor(R.color.duodian_primary)
                     Quadruple("收", "算力转入", "+", bg, color)
                 }
+                LogType.PHONE_CONSUME -> {
+                    val bg = itemView.context.getDrawable(R.drawable.bg_log_badge_consume)
+                    val color = itemView.context.getColor(R.color.duodian_info)
+                    Quadruple("话", "话费消耗", "-", bg, color)
+                }
+                LogType.PHONE_OUT -> {
+                    val bg = itemView.context.getDrawable(R.drawable.bg_log_badge_out)
+                    val color = itemView.context.getColor(R.color.duodian_warning)
+                    Quadruple("话", "话费转出", "-", bg, color)
+                }
+                LogType.PHONE_IN -> {
+                    val bg = itemView.context.getDrawable(R.drawable.bg_log_badge_in)
+                    val color = itemView.context.getColor(R.color.duodian_primary)
+                    Quadruple("话", "话费转入", "+", bg, color)
+                }
             }
 
             tvBadgeText.text = badgeText

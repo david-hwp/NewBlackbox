@@ -105,10 +105,14 @@
     <!-- Phase 8 Wave 1 -->
     <string name="profile_title">我的</string>
     <string name="gift_title">算力赠送</string>
+    <string name="phone_gift_title">话费赠送</string>
     <string name="reclaim_title">算力取回</string>
+    <string name="phone_reclaim_title">话费取回</string>
     <string name="logs_title">交易日志</string>
     <string name="menu_gift_compute">算力赠送</string>
     <string name="menu_reclaim_compute">算力取回</string>
+    <string name="menu_gift_phone_minutes">话费赠送</string>
+    <string name="menu_reclaim_phone_minutes">话费取回</string>
     <string name="menu_transaction_logs">交易日志</string>
     <string name="menu_change_username">修改用户名</string>
     <string name="menu_change_password">修改密码</string>
@@ -117,6 +121,7 @@
     <string name="feedback_submit">提交反馈</string>
     <string name="gift_target_phone">对方手机号</string>
     <string name="gift_amount">赠送数量</string>
+    <string name="phone_gift_amount">赠送分钟</string>
     <string name="gift_confirm">确认赠送</string>
     <string name="gift_success">赠送成功</string>
     <string name="tab_all">全部</string>
@@ -143,6 +148,8 @@
     <string name="error_password_mismatch">两次输入的密码不一致</string>
     <string name="error_phone_invalid">请输入有效的11位手机号</string>
     <string name="error_amount_invalid">请输入有效的赠送数量</string>
+    <string name="error_compute_transferable_insufficient">可转赠算力余额不足</string>
+    <string name="error_phone_minutes_balance_insufficient">可赠送话费余额不足</string>
     <string name="submit_success">提交成功</string>
     <string name="save_success">保存成功</string>
     <string name="shop_name_hint">店铺名称</string>
@@ -151,6 +158,11 @@
     <string name="gift_confirm_target">对方手机号</string>
     <string name="gift_confirm_amount">赠送数量</string>
     <string name="gift_confirm_unit">算力</string>
+    <string name="phone_minutes_unit">分钟</string>
+    <string name="compute_gift_balance_label">可转赠算力</string>
+    <string name="phone_gift_balance_label">可赠送话费</string>
+    <string name="compute_gift_amount_hint">请输入赠送数量</string>
+    <string name="phone_gift_amount_hint">请输入赠送分钟数</string>
     <string name="query">查询</string>
     <string name="querying">查询中</string>
     <string name="reclaim_action">取回</string>
@@ -159,15 +171,23 @@
     <string name="reclaim_receipt_time">交易发生时间</string>
     <string name="reclaim_receipt_gift_amount">转赠总数</string>
     <string name="reclaim_receipt_consumed">用户消耗算力</string>
+    <string name="reclaim_receipt_phone_consumed">用户消耗话费</string>
     <string name="reclaim_receipt_already_reclaimed">已取回算力</string>
+    <string name="reclaim_receipt_phone_already_reclaimed">已取回话费</string>
     <string name="reclaim_receipt_reclaimable">可取回算力</string>
+    <string name="reclaim_receipt_phone_reclaimable">可取回话费</string>
     <string name="reclaim_compute_unit">%1$d 算力</string>
+    <string name="reclaim_phone_minutes_unit">%1$d 分钟</string>
     <string name="reclaim_dialog_title">取回算力</string>
+    <string name="reclaim_phone_dialog_title">取回话费</string>
     <string name="reclaim_dialog_amount">取回数量</string>
     <string name="reclaim_dialog_max_amount">最多可取回 %1$d 算力</string>
+    <string name="reclaim_phone_dialog_max_amount">最多可取回 %1$d 分钟</string>
     <string name="reclaim_confirm">确认取回</string>
     <string name="reclaim_success_with_amount">已取回 %1$d 算力</string>
+    <string name="reclaim_phone_success_with_amount">已取回 %1$d 分钟</string>
     <string name="reclaim_none_available">当前没有可取回算力</string>
+    <string name="reclaim_phone_none_available">当前没有可取回话费</string>
     <string name="error_reclaim_amount_invalid">请输入有效的取回数量</string>
     <string name="error_reclaim_amount_exceeds">不得超过可取回算力个数</string>
 
@@ -175,6 +195,7 @@
     <string name="duodian_subtitle">多平台店铺一站式管理</string>
     <string name="compute_balance_label">算力余额</string>
     <string name="transaction_logs">交易日志</string>
+    <string name="phone_minutes_balance_home">话费余额%1$d分钟</string>
     <string name="add_shop">+ 添加店铺</string>
     <string name="my_account">我的账号</string>
     <string name="search_hint">搜索店名/ID</string>

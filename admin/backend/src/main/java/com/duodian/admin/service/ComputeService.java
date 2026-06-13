@@ -18,7 +18,9 @@ import java.util.Optional;
 public class ComputeService {
     private static final byte ACTIVE = 0;
     private static final String GIFT_REMARK_PREFIX = "赠送算力给 ";
+    private static final String PHONE_MINUTES_GIFT_REMARK_PREFIX = "赠送话费给 ";
     private static final String RECLAIM_STALE_MESSAGE = "对方新增了消耗，请重新查询可取回算力";
+    private static final String PHONE_MINUTES_RECLAIM_STALE_MESSAGE = "对方新增了消耗，请重新查询可取回话费";
     private static final String RECLAIM_NOT_FOUND_MESSAGE = "未查询到您给对方的赠送记录";
 
     private final UserRepository userRepository;
@@ -41,6 +43,12 @@ public class ComputeService {
                 .orElse(0);
     }
 
+    public Integer getPhoneMinutesBalance(Long userId) {
+        return userRepository.findByIdAndDeleted(userId, ACTIVE)
+                .map(this::phoneMinutesBalanceOf)
+                .orElse(0);
+    }
+
     public Optional<User> lockActiveUser(Long userId) {
         return userRepository.findWithLockByIdAndDeleted(userId, ACTIVE);
     }
@@ -51,6 +59,16 @@ public class ComputeService {
         User receiver = userRepository.findFirstByPhoneAndChannelIdAndDeleted(normalizePhone(toPhone), fromUser.getChannelId(), ACTIVE)
                 .orElseThrow(() -> new RuntimeException(RECLAIM_NOT_FOUND_MESSAGE));
         return toReclaimResponse(calculateReclaimable(fromUser, receiver), null);
+    }
+
+    public ComputeReclaimResponse getLatestReclaimablePhoneMinutes(Long fromUserId, String toPhone) {
+        User fromUser = userRepository.findByIdAndDeleted(fromUserId, ACTIVE)
+                .orElseThrow(() -> new RuntimeException("用户不存在"));
+        User receiver = userRepository.findFirstByPhoneAndChannelIdAndDeleted(normalizePhone(toPhone), fromUser.getChannelId(), ACTIVE)
+                .orElseThrow(() -> new RuntimeException(RECLAIM_NOT_FOUND_MESSAGE));
+        ComputeReclaimResponse response = toReclaimResponse(calculatePhoneMinutesReclaimable(fromUser, receiver), null);
+        response.setToBalance(phoneMinutesBalanceOf(receiver));
+        return response;
     }
 
     @Transactional
@@ -110,6 +128,63 @@ public class ComputeService {
 
         ComputeReclaimResponse response = toReclaimResponse(calculateReclaimable(fromUser, receiver), amount);
         response.setFromBalance(balanceOf(fromUser));
+        return response;
+    }
+
+    @Transactional
+    public ComputeReclaimResponse reclaimPhoneMinutes(Long fromUserId, String toPhone, Long giftLogId, Integer amount) {
+        if (amount == null || amount <= 0) {
+            throw new RuntimeException("取回数量必须大于0");
+        }
+
+        User fromUser = userRepository.findWithLockByIdAndDeleted(fromUserId, ACTIVE)
+                .orElseThrow(() -> new RuntimeException("用户不存在"));
+        User receiver = userRepository.findWithLockByPhoneAndChannelIdAndDeleted(normalizePhone(toPhone), fromUser.getChannelId(), ACTIVE)
+                .orElseThrow(() -> new RuntimeException(RECLAIM_NOT_FOUND_MESSAGE));
+
+        ReclaimComputation computation = calculatePhoneMinutesReclaimable(fromUser, receiver);
+        if (giftLogId != null && !giftLogId.equals(computation.sourceGift().getId())) {
+            throw new RuntimeException(PHONE_MINUTES_RECLAIM_STALE_MESSAGE);
+        }
+        if (amount > computation.reclaimableAmount()) {
+            throw new RuntimeException(PHONE_MINUTES_RECLAIM_STALE_MESSAGE);
+        }
+
+        int receiverBalance = phoneMinutesBalanceOf(receiver);
+        if (receiverBalance < amount) {
+            throw new RuntimeException(PHONE_MINUTES_RECLAIM_STALE_MESSAGE);
+        }
+
+        fromUser.setPhoneMinutesBalance(phoneMinutesBalanceOf(fromUser) + amount);
+        receiver.setPhoneMinutesBalance(receiverBalance - amount);
+        userRepository.save(fromUser);
+        userRepository.save(receiver);
+
+        TransactionLog inLog = new TransactionLog();
+        inLog.setUserId(fromUser.getId());
+        inLog.setChannelId(fromUser.getChannelId());
+        inLog.setType("PHONE_IN");
+        inLog.setAmount(amount);
+        inLog.setFromPhone(receiver.getPhone());
+        inLog.setFromName(receiver.getUsername());
+        inLog.setRelatedLogId(computation.sourceGift().getId());
+        inLog.setRemark("从" + receiver.getPhone() + "取回话费");
+        transactionLogRepository.save(inLog);
+
+        TransactionLog outLog = new TransactionLog();
+        outLog.setUserId(receiver.getId());
+        outLog.setChannelId(receiver.getChannelId());
+        outLog.setType("PHONE_OUT");
+        outLog.setAmount(amount);
+        outLog.setToPhone(fromUser.getPhone());
+        outLog.setToName(fromUser.getUsername());
+        outLog.setRelatedLogId(computation.sourceGift().getId());
+        outLog.setRemark("赠送方" + fromUser.getPhone() + "取回话费");
+        transactionLogRepository.save(outLog);
+
+        ComputeReclaimResponse response = toReclaimResponse(calculatePhoneMinutesReclaimable(fromUser, receiver), amount);
+        response.setFromBalance(phoneMinutesBalanceOf(fromUser));
+        response.setToBalance(phoneMinutesBalanceOf(receiver));
         return response;
     }
 
@@ -400,6 +475,60 @@ public class ComputeService {
     }
 
     @Transactional
+    public void giftPhoneMinutes(Long fromUserId, String toPhone, Integer amount) {
+        if (amount == null || amount <= 0) {
+            throw new RuntimeException("赠送数量必须大于0");
+        }
+
+        User fromUser = userRepository.findByIdAndDeleted(fromUserId, ACTIVE)
+                .orElseThrow(() -> new RuntimeException("转出用户不存在"));
+        int balance = phoneMinutesBalanceOf(fromUser);
+        if (balance < amount) {
+            throw new RuntimeException("可转赠话费余额不足");
+        }
+
+        User toUser = userRepository.findFirstByPhoneAndChannelIdAndDeleted(normalizePhone(toPhone), fromUser.getChannelId(), ACTIVE)
+                .orElseThrow(() -> new RuntimeException("接收用户不存在"));
+
+        if (fromUserId.equals(toUser.getId())) {
+            throw new RuntimeException("不能赠送给自己");
+        }
+        if (fromUser.getChannelId() == null || !fromUser.getChannelId().equals(toUser.getChannelId())) {
+            throw new RuntimeException("只能给同渠道用户赠送话费");
+        }
+
+        fromUser.setPhoneMinutesBalance(balance - amount);
+        toUser.setPhoneMinutesBalance(phoneMinutesBalanceOf(toUser) + amount);
+        userRepository.save(fromUser);
+        userRepository.save(toUser);
+
+        TransactionLog outLog = new TransactionLog();
+        outLog.setUserId(fromUserId);
+        outLog.setChannelId(fromUser.getChannelId());
+        outLog.setType("PHONE_OUT");
+        outLog.setAmount(amount);
+        outLog.setToPhone(toUser.getPhone());
+        outLog.setToName(toUser.getUsername());
+        outLog.setRemark(PHONE_MINUTES_GIFT_REMARK_PREFIX + toUser.getPhone());
+        TransactionLog savedOutLog = transactionLogRepository.save(outLog);
+
+        TransactionLog inLog = new TransactionLog();
+        inLog.setUserId(toUser.getId());
+        inLog.setChannelId(toUser.getChannelId());
+        inLog.setRelatedLogId(savedOutLog.getId());
+        inLog.setType("PHONE_IN");
+        inLog.setAmount(amount);
+        inLog.setFromPhone(fromUser.getPhone());
+        inLog.setFromName(fromUser.getUsername());
+        inLog.setRemark("收到 " + fromUser.getPhone() + " 赠送的话费");
+        TransactionLog savedInLog = transactionLogRepository.save(inLog);
+        if (savedOutLog.getRelatedLogId() == null && savedInLog.getId() != null) {
+            savedOutLog.setRelatedLogId(savedInLog.getId());
+            transactionLogRepository.save(savedOutLog);
+        }
+    }
+
+    @Transactional
     public AllocationResult allocateFromChannelAdmin(Long channelAdminUserId, Long targetUserId, Integer amount) {
         if (amount == null || amount <= 0) {
             throw new RuntimeException("分配数量必须大于0");
@@ -490,6 +619,38 @@ public class ComputeService {
         return new ReclaimComputation(sourceGift, receiver, consumedAmount, reclaimedAmount, reclaimableAmount);
     }
 
+    private ReclaimComputation calculatePhoneMinutesReclaimable(User fromUser, User receiver) {
+        if (fromUser == null || fromUser.getId() == null || receiver == null || receiver.getId() == null) {
+            throw new RuntimeException(RECLAIM_NOT_FOUND_MESSAGE);
+        }
+        TransactionLog sourceGift = transactionLogRepository
+                .findFirstByUserIdAndChannelIdAndTypeAndToPhoneAndRemarkStartingWithAndDeletedOrderByCreatedAtDescIdDesc(
+                        fromUser.getId(),
+                        fromUser.getChannelId(),
+                        "PHONE_OUT",
+                        receiver.getPhone(),
+                        PHONE_MINUTES_GIFT_REMARK_PREFIX,
+                        ACTIVE
+                )
+                .orElseThrow(() -> new RuntimeException(RECLAIM_NOT_FOUND_MESSAGE));
+
+        int consumedAmount = nullToZero(transactionLogRepository.sumByTypeAfter(
+                receiver.getId(),
+                ACTIVE,
+                "PHONE_CONSUME",
+                sourceGift.getCreatedAt(),
+                sourceGift.getId()
+        ));
+        int reclaimedAmount = nullToZero(transactionLogRepository.sumByTypeForSourceLog(
+                fromUser.getId(),
+                ACTIVE,
+                "PHONE_IN",
+                sourceGift.getId()
+        ));
+        int reclaimableAmount = Math.max(0, sourceGift.getAmount() - consumedAmount - reclaimedAmount);
+        return new ReclaimComputation(sourceGift, receiver, consumedAmount, reclaimedAmount, reclaimableAmount);
+    }
+
     private ComputeReclaimResponse toReclaimResponse(ReclaimComputation computation, Integer reclaimedAmount) {
         ComputeReclaimResponse response = new ComputeReclaimResponse();
         TransactionLog sourceGift = computation.sourceGift();
@@ -516,6 +677,10 @@ public class ComputeService {
 
     private int balanceOf(User user) {
         return user.getComputeBalance() == null ? 0 : user.getComputeBalance();
+    }
+
+    private int phoneMinutesBalanceOf(User user) {
+        return user.getPhoneMinutesBalance() == null ? 0 : user.getPhoneMinutesBalance();
     }
 
     private int nonTransferableOf(User user) {

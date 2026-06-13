@@ -11,6 +11,7 @@ data class UserDto(
     val role: String,
     val computeBalance: Int,
     val nonTransferableComputeBalance: Int = 0,
+    val phoneMinutesBalance: Int = 0,
     val shopCount: Int,
     val platformCount: Int,
     val apkChannel: String? = DEFAULT_APK_CHANNEL,

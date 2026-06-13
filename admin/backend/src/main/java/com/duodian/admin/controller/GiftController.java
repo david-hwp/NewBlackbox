@@ -58,6 +58,34 @@ public class GiftController {
         }
     }
 
+    @PostMapping("/phone-minutes/gift")
+    public ApiResponse<Map<String, Object>> giftPhoneMinutes(@Valid @RequestBody GiftRequest request) {
+        Long fromUserId = AuthContext.getUserId();
+        if (fromUserId == null) {
+            return ApiResponse.error(401, "未登录");
+        }
+
+        try {
+            computeService.giftPhoneMinutes(fromUserId, request.getToPhone(), request.getAmount());
+
+            User fromUser = userService.findById(fromUserId).orElse(null);
+            User toUser = fromUser == null
+                    ? null
+                    : userService.findByPhoneInChannel(request.getToPhone(), fromUser.getChannelId()).orElse(null);
+
+            Map<String, Object> result = new HashMap<>();
+            result.put("fromUser", fromUser != null ? fromUser.getPhone() : null);
+            result.put("toUser", toUser != null ? toUser.getPhone() : null);
+            result.put("amount", request.getAmount());
+            result.put("fromBalance", fromUser != null ? fromUser.getPhoneMinutesBalance() : 0);
+            result.put("toBalance", toUser != null ? toUser.getPhoneMinutesBalance() : 0);
+
+            return ApiResponse.success(result);
+        } catch (RuntimeException e) {
+            return ApiResponse.error(e.getMessage());
+        }
+    }
+
     @GetMapping("/reclaim/latest")
     public ApiResponse<ComputeReclaimResponse> latestReclaimable(@RequestParam String toPhone) {
         Long fromUserId = AuthContext.getUserId();
@@ -72,6 +100,20 @@ public class GiftController {
         }
     }
 
+    @GetMapping("/phone-minutes/reclaim/latest")
+    public ApiResponse<ComputeReclaimResponse> latestReclaimablePhoneMinutes(@RequestParam String toPhone) {
+        Long fromUserId = AuthContext.getUserId();
+        if (fromUserId == null) {
+            return ApiResponse.error(401, "未登录");
+        }
+
+        try {
+            return ApiResponse.success(computeService.getLatestReclaimablePhoneMinutes(fromUserId, toPhone));
+        } catch (RuntimeException e) {
+            return ApiResponse.error(e.getMessage());
+        }
+    }
+
     @PostMapping("/reclaim")
     public ApiResponse<ComputeReclaimResponse> reclaim(@Valid @RequestBody ComputeReclaimRequest request) {
         Long fromUserId = AuthContext.getUserId();
@@ -81,6 +123,25 @@ public class GiftController {
 
         try {
             return ApiResponse.success(computeService.reclaimCompute(
+                    fromUserId,
+                    request.getToPhone(),
+                    request.getGiftLogId(),
+                    request.getAmount()
+            ));
+        } catch (RuntimeException e) {
+            return ApiResponse.error(e.getMessage());
+        }
+    }
+
+    @PostMapping("/phone-minutes/reclaim")
+    public ApiResponse<ComputeReclaimResponse> reclaimPhoneMinutes(@Valid @RequestBody ComputeReclaimRequest request) {
+        Long fromUserId = AuthContext.getUserId();
+        if (fromUserId == null) {
+            return ApiResponse.error(401, "未登录");
+        }
+
+        try {
+            return ApiResponse.success(computeService.reclaimPhoneMinutes(
                     fromUserId,
                     request.getToPhone(),
                     request.getGiftLogId(),

@@ -24,6 +24,9 @@
             <el-option label="消耗" value="CONSUME" />
             <el-option label="转出" value="OUT" />
             <el-option label="转入" value="IN" />
+            <el-option label="话费消耗" value="PHONE_CONSUME" />
+            <el-option label="话费转出" value="PHONE_OUT" />
+            <el-option label="话费转入" value="PHONE_IN" />
           </el-select>
         </el-form-item>
         <el-form-item label="手机号">
@@ -48,7 +51,7 @@
         <el-table-column prop="amount" label="金额">
           <template #default="{ row }">
             <span :style="{ color: getAmountColor(row.type), fontWeight: 600 }">
-              {{ row.type === 'IN' ? '+' : '-' }}{{ row.amount }}
+              {{ isIncomeType(row.type) ? '+' : '-' }}{{ row.amount }}
             </span>
           </template>
         </el-table-column>
@@ -96,6 +99,9 @@
             <el-option label="消耗" value="CONSUME" />
             <el-option label="转出" value="OUT" />
             <el-option label="转入" value="IN" />
+            <el-option label="话费消耗" value="PHONE_CONSUME" />
+            <el-option label="话费转出" value="PHONE_OUT" />
+            <el-option label="话费转入" value="PHONE_IN" />
           </el-select>
         </el-form-item>
         <el-form-item label="金额" prop="amount">
@@ -213,18 +219,43 @@ const handleSizeChange = (size) => {
 }
 
 const getLogTypeTag = (type) => {
-  const map = { CONSUME: 'info', OUT: 'warning', IN: 'success' }
+  const map = {
+    CONSUME: 'info',
+    OUT: 'warning',
+    IN: 'success',
+    PHONE_CONSUME: 'info',
+    PHONE_OUT: 'warning',
+    PHONE_IN: 'success'
+  }
   return map[type] || 'info'
 }
 
 const getLogTypeText = (type) => {
-  const map = { CONSUME: '消耗', OUT: '转出', IN: '转入' }
+  const map = {
+    CONSUME: '算力消耗',
+    OUT: '算力转出',
+    IN: '算力转入',
+    PHONE_CONSUME: '话费消耗',
+    PHONE_OUT: '话费转出',
+    PHONE_IN: '话费转入'
+  }
   return map[type] || type
 }
 
 const getAmountColor = (type) => {
-  const map = { CONSUME: '#0284c7', OUT: '#d97706', IN: '#059669' }
+  const map = {
+    CONSUME: '#0284c7',
+    OUT: '#d97706',
+    IN: '#059669',
+    PHONE_CONSUME: '#0284c7',
+    PHONE_OUT: '#d97706',
+    PHONE_IN: '#059669'
+  }
   return map[type] || '#1e293b'
+}
+
+const isIncomeType = (type) => {
+  return type === 'IN' || type === 'PHONE_IN'
 }
 
 const formatAssociatedUser = (row) => {

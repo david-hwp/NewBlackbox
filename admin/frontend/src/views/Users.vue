@@ -65,6 +65,7 @@
         </el-table-column>
         <el-table-column prop="computeBalance" label="算力余额" />
         <el-table-column prop="nonTransferableComputeBalance" label="不可转赠" />
+        <el-table-column prop="phoneMinutesBalance" label="话费余额(分钟)" />
         <el-table-column label="订阅状态" min-width="170">
           <template #default="{ row }">
             <div class="subscription-cell">
@@ -123,6 +124,9 @@
         <el-form-item label="不可转赠">
           <el-input-number v-model="form.nonTransferableComputeBalance" :min="0" :max="form.computeBalance || 0" style="width: 100%" />
         </el-form-item>
+        <el-form-item label="话费余额">
+          <el-input-number v-model="form.phoneMinutesBalance" :min="0" style="width: 100%" />
+        </el-form-item>
         <el-form-item label="订阅套餐">
           <el-select v-model="subscriptionForm.plan" style="width: 100%" :disabled="!isEdit" @change="subscriptionTouched = true">
             <el-option label="关闭订阅" value="NONE" />
@@ -170,7 +174,18 @@ const pagination = ref({
   size: 10,
   total: 0
 })
-const form = ref({ username: '', phone: '', password: '', role: 'USER', computeBalance: 0, nonTransferableComputeBalance: 0, subscriptionPlan: 'NONE' })
+const emptyUserForm = () => ({
+  username: '',
+  phone: '',
+  password: '',
+  role: 'USER',
+  computeBalance: 0,
+  nonTransferableComputeBalance: 0,
+  phoneMinutesBalance: 0,
+  subscriptionPlan: 'NONE'
+})
+
+const form = ref(emptyUserForm())
 
 const { channels, isSuperAdmin, fetchChannels, channelText } = useAdminSession()
 const canMutate = isSuperAdmin
@@ -277,7 +292,7 @@ const handleSizeChange = (size) => {
 const showAddDialog = () => {
   if (!canMutate.value) return
   isEdit.value = false
-  form.value = { username: '', phone: '', password: '', role: 'USER', computeBalance: 0, nonTransferableComputeBalance: 0, subscriptionPlan: 'NONE' }
+  form.value = emptyUserForm()
   originalSubscriptionPlan.value = 'NONE'
   subscriptionForm.value = { plan: 'NONE' }
   subscriptionTouched.value = false
@@ -287,7 +302,7 @@ const showAddDialog = () => {
 const showEditDialog = (row) => {
   if (!canMutate.value) return
   isEdit.value = true
-  form.value = { ...row }
+  form.value = { ...row, phoneMinutesBalance: row.phoneMinutesBalance || 0 }
   const plan = normalizeSubscriptionPlan(row.subscriptionPlan)
   originalSubscriptionPlan.value = plan
   subscriptionForm.value = { plan: isSubscriptionActive(row) ? plan : 'NONE' }

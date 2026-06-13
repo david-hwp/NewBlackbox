@@ -45,6 +45,7 @@ CREATE TABLE IF NOT EXISTS users (
     channel_id BIGINT COMMENT '渠道ID',
     compute_balance INT NOT NULL DEFAULT 0 COMMENT '算力余额',
     non_transferable_compute_balance INT NOT NULL DEFAULT 0 COMMENT '不可转赠算力余额',
+    phone_minutes_balance INT NOT NULL DEFAULT 0 COMMENT '话费分钟余额',
     shop_count INT NOT NULL DEFAULT 0 COMMENT '店铺数量',
     platform_count INT NOT NULL DEFAULT 0 COMMENT '覆盖平台数',
     apk_channel VARCHAR(64) NOT NULL DEFAULT 'main' COMMENT '主APK渠道标识',
@@ -295,6 +296,6 @@ INSERT INTO channels (code, name, status, app_display_name, app_application_id, 
 VALUES ('main', '默认渠道', 'ACTIVE', '账号管家', 'com.zhirang.zhanghaoguanjia', '账号管家引擎', 'com.zhirang.zhanghaoguanjia.engine', 3, 0)
 ON DUPLICATE KEY UPDATE id=id;
 
-INSERT INTO users (username, phone, password, role, channel_id, compute_balance, non_transferable_compute_balance, shop_count, platform_count, apk_channel, subscription_plan)
-VALUES ('管理员', '13800138000', '$2y$12$xRCi/REAIr6LB5YhvqMIOeJ6aim.wGMW5l19JiJO3U8gpCjGAVssS', 'SUPER_ADMIN', (SELECT id FROM channels WHERE code = 'main' AND deleted = 0 LIMIT 1), 9999, 0, 0, 0, 'main', 'NONE')
+INSERT INTO users (username, phone, password, role, channel_id, compute_balance, non_transferable_compute_balance, phone_minutes_balance, shop_count, platform_count, apk_channel, subscription_plan)
+VALUES ('管理员', '13800138000', '$2y$12$xRCi/REAIr6LB5YhvqMIOeJ6aim.wGMW5l19JiJO3U8gpCjGAVssS', 'SUPER_ADMIN', (SELECT id FROM channels WHERE code = 'main' AND deleted = 0 LIMIT 1), 9999, 0, 0, 0, 0, 'main', 'NONE')
 ON DUPLICATE KEY UPDATE id=id;

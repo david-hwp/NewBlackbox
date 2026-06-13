@@ -113,6 +113,33 @@ class UserServiceTest {
     }
 
     @Test
+    void updateCreatesAdminPhoneMinutesIncreaseLogWhenBalanceIncreases() {
+        User existing = new User();
+        existing.setId(12L);
+        existing.setUsername("old");
+        existing.setPhone("13800000012");
+        existing.setComputeBalance(2);
+        existing.setNonTransferableComputeBalance(0);
+        existing.setPhoneMinutesBalance(5);
+        User request = new User();
+        request.setUsername("new");
+        request.setComputeBalance(2);
+        request.setNonTransferableComputeBalance(0);
+        request.setPhoneMinutesBalance(15);
+        when(userRepository.findByIdAndDeleted(12L, (byte) 0)).thenReturn(Optional.of(existing));
+        when(userRepository.save(existing)).thenReturn(existing);
+
+        userService.update(12L, request);
+
+        verify(transactionLogRepository).save(argThat(log ->
+                log.getUserId().equals(12L)
+                        && "PHONE_IN".equals(log.getType())
+                        && log.getAmount().equals(10)
+                        && "管理员增加话费".equals(log.getRemark())
+        ));
+    }
+
+    @Test
     void updateDoesNotCreateLogWhenComputeBalanceUnchanged() {
         User existing = new User();
         existing.setId(10L);

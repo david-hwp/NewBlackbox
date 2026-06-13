@@ -92,6 +92,7 @@ public class UserService {
         user.setRole(normalizeRole(user.getRole()));
         user.setComputeBalance(user.getComputeBalance() == null ? 0 : user.getComputeBalance());
         user.setNonTransferableComputeBalance(normalizeNonTransferableBalance(user));
+        user.setPhoneMinutesBalance(normalizePhoneMinutesBalance(user.getPhoneMinutesBalance()));
         normalizeSubscriptionState(user);
         user.setPassword(passwordService.encode(user.getPassword()));
         return userRepository.save(user);
@@ -103,6 +104,8 @@ public class UserService {
                 .orElseThrow(() -> new RuntimeException("用户不存在"));
         int oldComputeBalance = existing.getComputeBalance() == null ? 0 : existing.getComputeBalance();
         int newComputeBalance = user.getComputeBalance() == null ? 0 : user.getComputeBalance();
+        int oldPhoneMinutesBalance = existing.getPhoneMinutesBalance() == null ? 0 : existing.getPhoneMinutesBalance();
+        int newPhoneMinutesBalance = normalizePhoneMinutesBalance(user.getPhoneMinutesBalance());
         existing.setUsername(user.getUsername());
         existing.setAvatarUrl(user.getAvatarUrl());
         existing.setRole(normalizeRole(user.getRole()));
@@ -112,9 +115,11 @@ public class UserService {
         existing.setApkChannel(normalizeApkChannel(existing.getApkChannel()));
         existing.setComputeBalance(newComputeBalance);
         existing.setNonTransferableComputeBalance(normalizeNonTransferableBalance(user));
+        existing.setPhoneMinutesBalance(newPhoneMinutesBalance);
         withCurrentStats(existing);
         User saved = userRepository.save(existing);
         createAdminComputeAdjustmentLog(saved, newComputeBalance - oldComputeBalance);
+        createAdminPhoneMinutesAdjustmentLog(saved, newPhoneMinutesBalance - oldPhoneMinutesBalance);
         return saved;
     }
 
@@ -228,6 +233,19 @@ public class UserService {
         transactionLogRepository.save(log);
     }
 
+    private void createAdminPhoneMinutesAdjustmentLog(User user, int delta) {
+        if (user == null || user.getId() == null || delta == 0) {
+            return;
+        }
+        TransactionLog log = new TransactionLog();
+        log.setUserId(user.getId());
+        log.setChannelId(user.getChannelId());
+        log.setType(delta > 0 ? "PHONE_IN" : "PHONE_CONSUME");
+        log.setAmount(Math.abs(delta));
+        log.setRemark(delta > 0 ? "管理员增加话费" : "管理员扣除话费");
+        transactionLogRepository.save(log);
+    }
+
     private void createAdminSubscriptionAdjustmentLog(User user, String plan) {
         if (user == null || user.getId() == null) {
             return;
@@ -249,6 +267,10 @@ public class UserService {
                 ? 0
                 : user.getNonTransferableComputeBalance();
         return Math.max(0, Math.min(nonTransferable, balance));
+    }
+
+    private Integer normalizePhoneMinutesBalance(Integer balance) {
+        return Math.max(0, balance == null ? 0 : balance);
     }
 
     private void normalizeSubscriptionState(User user) {

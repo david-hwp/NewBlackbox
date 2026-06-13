@@ -49,12 +49,43 @@ public interface TransactionLogRepository extends JpaRepository<TransactionLog, 
             from TransactionLog t
             where t.userId = :userId
               and t.deleted = :active
+              and t.type = :type
+              and (t.createdAt > :createdAt or (t.createdAt = :createdAt and t.id > :logId))
+            """)
+    Integer sumByTypeAfter(
+            @Param("userId") Long userId,
+            @Param("active") Byte active,
+            @Param("type") String type,
+            @Param("createdAt") LocalDateTime createdAt,
+            @Param("logId") Long logId
+    );
+
+    @Query("""
+            select coalesce(sum(t.amount), 0)
+            from TransactionLog t
+            where t.userId = :userId
+              and t.deleted = :active
               and t.type = 'IN'
               and t.relatedLogId = :relatedLogId
             """)
     Integer sumReclaimedForSourceLog(
             @Param("userId") Long userId,
             @Param("active") Byte active,
+            @Param("relatedLogId") Long relatedLogId
+    );
+
+    @Query("""
+            select coalesce(sum(t.amount), 0)
+            from TransactionLog t
+            where t.userId = :userId
+              and t.deleted = :active
+              and t.type = :type
+              and t.relatedLogId = :relatedLogId
+            """)
+    Integer sumByTypeForSourceLog(
+            @Param("userId") Long userId,
+            @Param("active") Byte active,
+            @Param("type") String type,
             @Param("relatedLogId") Long relatedLogId
     );
 

@@ -20,7 +20,7 @@ public class TransactionLog {
     private Long relatedLogId;
 
     @Column(nullable = false)
-    private String type; // CONSUME, OUT, IN
+    private String type; // CONSUME, OUT, IN, PHONE_CONSUME, PHONE_OUT, PHONE_IN
 
     @Column(nullable = false)
     private Integer amount;

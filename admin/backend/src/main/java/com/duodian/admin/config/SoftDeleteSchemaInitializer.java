@@ -47,6 +47,7 @@ public class SoftDeleteSchemaInitializer implements CommandLineRunner {
         ensureAnnouncementTypeColumn();
         ensureUserApkChannelColumn();
         ensureUserSubscriptionColumns();
+        ensureUserPhoneMinutesColumn();
         ensureChannelColumns();
         ensurePackageVersionIdentityColumns();
         backfillMainChannel();
@@ -149,6 +150,14 @@ public class SoftDeleteSchemaInitializer implements CommandLineRunner {
         if (!hasIndexQuietly("users", "idx_subscription_expires_at")) {
             jdbcTemplate.execute("CREATE INDEX idx_subscription_expires_at ON users (subscription_expires_at)");
         }
+    }
+
+    private void ensureUserPhoneMinutesColumn() throws Exception {
+        if (!hasColumn("users", "phone_minutes_balance")) {
+            jdbcTemplate.execute("ALTER TABLE users ADD COLUMN phone_minutes_balance INT NOT NULL DEFAULT 0");
+        }
+        jdbcTemplate.execute("UPDATE users SET phone_minutes_balance = 0 WHERE phone_minutes_balance IS NULL");
+        jdbcTemplate.execute("ALTER TABLE users MODIFY COLUMN phone_minutes_balance INT NOT NULL DEFAULT 0");
     }
 
     private void ensureChannelColumns() throws Exception {

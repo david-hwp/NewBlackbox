@@ -150,12 +150,19 @@ const getPlatformColor = (platform) => {
 }
 
 const getLogTypeTag = (type) => {
-  const map = { CONSUME: 'info', OUT: 'warning', IN: 'success' }
+  const map = { CONSUME: 'info', OUT: 'warning', IN: 'success', PHONE_CONSUME: 'info', PHONE_OUT: 'warning', PHONE_IN: 'success' }
   return map[type] || 'info'
 }
 
 const getLogTypeText = (type) => {
-  const map = { CONSUME: '消耗', OUT: '转出', IN: '转入' }
+  const map = {
+    CONSUME: '算力消耗',
+    OUT: '算力转出',
+    IN: '算力转入',
+    PHONE_CONSUME: '话费消耗',
+    PHONE_OUT: '话费转出',
+    PHONE_IN: '话费转入'
+  }
   return map[type] || type
 }
 

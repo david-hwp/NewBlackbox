@@ -44,6 +44,9 @@ public class User {
     @Column(name = "non_transferable_compute_balance")
     private Integer nonTransferableComputeBalance = 0;
 
+    @Column(name = "phone_minutes_balance")
+    private Integer phoneMinutesBalance = 0;
+
     @Column(name = "shop_count")
     private Integer shopCount = 0;
 
@@ -117,6 +120,9 @@ public class User {
 
     public Integer getNonTransferableComputeBalance() { return nonTransferableComputeBalance; }
     public void setNonTransferableComputeBalance(Integer nonTransferableComputeBalance) { this.nonTransferableComputeBalance = nonTransferableComputeBalance; }
+
+    public Integer getPhoneMinutesBalance() { return phoneMinutesBalance; }
+    public void setPhoneMinutesBalance(Integer phoneMinutesBalance) { this.phoneMinutesBalance = phoneMinutesBalance; }
 
     public Integer getShopCount() { return shopCount; }
     public void setShopCount(Integer shopCount) { this.shopCount = shopCount; }
