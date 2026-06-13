@@ -19,6 +19,10 @@ public class ShopIdExtractorRegistry {
         EXTRACTORS.put("com.jd.mrd.jingming", new JDShopIdExtractor());
         EXTRACTORS.put("com.sankuai.meituan.meituanwaimaibusiness", new MeituanWaimaiShopIdExtractor());
         EXTRACTORS.put("me.ele.napos", new EleNaposShopIdExtractor());
+        EXTRACTORS.put("com.baidu.lbs.xinlingshou", new EleRetailShopIdExtractor());
+        EXTRACTORS.put("com.sankuai.meituan.merchant", new MeituanMerchantShopIdExtractor());
+        EXTRACTORS.put("com.Hotel.EBooking", new CtripEBookingShopIdExtractor());
+        EXTRACTORS.put("com.bytedance.ls.merchant", new DouyinLaikeShopIdExtractor());
     }
 
     private ShopIdExtractorRegistry() {

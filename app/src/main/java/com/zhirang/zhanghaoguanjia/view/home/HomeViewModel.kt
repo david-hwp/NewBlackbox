@@ -18,6 +18,7 @@ import com.zhirang.zhanghaoguanjia.bean.dto.ShopReportRequest
 import com.zhirang.zhanghaoguanjia.bean.dto.ShopRenewRequest
 import com.zhirang.zhanghaoguanjia.bean.dto.UserDto
 import com.zhirang.zhanghaoguanjia.data.AnnouncementRepository
+import com.zhirang.zhanghaoguanjia.data.LocalShopIdentityStore
 import com.zhirang.zhanghaoguanjia.data.PlatformRepository
 import com.zhirang.zhanghaoguanjia.data.ShopRepository
 import com.zhirang.zhanghaoguanjia.data.TokenManager
@@ -218,7 +219,8 @@ class HomeViewModel : ViewModel() {
             val result = shopRepository.getMyShopsFromApi()
             result.fold(
                 onSuccess = { shopDtos ->
-                    allShops = shopDtos.map { it.toShop() }
+                    val currentUserId = getCurrentUserId()
+                    allShops = shopDtos.map { LocalShopIdentityStore.apply(currentUserId, it.toShop()) }
                     _shopsLiveData.value = allShops
                     updatePlatformShopCounts()
                     _loadErrorLiveData.value = null
@@ -317,6 +319,23 @@ class HomeViewModel : ViewModel() {
     }
 
     fun getAllShops(): List<Shop> = allShops
+
+    fun markLocalIdentityVerified(
+        shop: Shop,
+        packageName: String,
+        localVirtualUserId: Int,
+        verified: Boolean
+    ) {
+        LocalShopIdentityStore.mark(getCurrentUserId(), shop, packageName, localVirtualUserId, verified)
+        allShops = allShops.map { current ->
+            if (current.id == shop.id) {
+                current.copy(localIdentityVerified = verified)
+            } else {
+                current
+            }
+        }
+        _shopsLiveData.value = allShops
+    }
 
     fun getCurrentComputeBalance(): Int {
         return _computeBalanceLiveData.value ?: tokenManager.getUser()?.computeBalance ?: 0

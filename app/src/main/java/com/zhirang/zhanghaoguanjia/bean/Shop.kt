@@ -15,11 +15,12 @@ data class Shop(
     val loginStateSize: Long? = null,
     val loginStateSha256: String? = null,
     val identityVerified: Boolean = false,
+    val localIdentityVerified: Boolean? = null,
     val icon: Any? = null,  // 占位，后续接入真实图标
     val isNew: Boolean = false
 ) {
     val hasVerifiedIdentity: Boolean
-        get() = identityVerified
+        get() = (localIdentityVerified ?: identityVerified)
                 && shopId.isNotBlank()
                 && shopId != "-"
                 && !shopId.startsWith("NEW-")

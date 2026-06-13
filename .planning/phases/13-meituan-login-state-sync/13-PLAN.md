@@ -1,6 +1,6 @@
 # Phase 13 Plan: Meituan Login-State Sync
 
-Status: implemented and OPPO-to-Xiaomi device-validated on 2026-06-12.
+Status: closed on 2026-06-13 with OPPO-to-Xiaomi device validation. Core Meituan/JD/Ele.me profiles and three Wave 6 additional platforms are accepted; Douyin Laike is documented as a legacy investigation item and is not marked supported.
 
 ## Intent
 
@@ -200,6 +200,86 @@ Acceptance:
 - Pull-to-refresh and click+10s sync are the only shop-identity refresh triggers; engine-side lifecycle auto-scan and platform-wide batch refresh APIs are absent from the app flow.
 - A cleaned or logged-out phone directory returns null from `triggerShopIdExtract`; stale engine cache does not turn a card color or create a server report.
 - Existing login-state restore behavior is unchanged.
+
+## Wave 6: Additional Platform Login-State Profiles
+
+Add login-state sync support for the first logged-in OPPO shop card on these four platforms:
+
+```text
+淘宝闪购零售版
+美团经营宝
+携程商家版
+抖音来客
+```
+
+Validation contract:
+
+- Use OPPO as the only source device and Xiaomi as the restore target.
+- Resolve source and target by the actual platform package, system shop id, `cloneInstanceId`, and active `localVirtualUserId`; platform shop ids are evidence only and must not participate in upload, download, restore, or card binding.
+- Test packages from the smallest file profile upward: `E -> D -> C -> B -> A`. Stop as soon as the restored Xiaomi card no longer reaches username/password/SMS login.
+- Treat graphic CAPTCHA, slider, device-risk, or platform security verification as login-state success. Only username/password/SMS/manual account login entry is failure.
+- Do not generalize Meituan Waimai CIPS rules to other packages. Each package must get its own verified profile and backend whitelist entry.
+- Keep every accepted upload under the login-state artifact size limit. If a candidate exceeds the limit, reduce the allowlist or record the platform as blocked instead of uploading a full clone export.
+- Clear only the active Xiaomi card-bound package directory before each restore attempt; never write OPPO source-user paths or nested package directories.
+- Run the four platform investigations in parallel where device state allows, but each platform's own escalation remains ordered from E upward.
+
+Tasks:
+
+1. Identify the exact OPPO package name, source virtual user id, system shop id, clone id, and first-card login evidence for each of the four platforms.
+2. Identify or create the matching Xiaomi card binding for each platform and verify the target package version is compatible with OPPO.
+3. Generate E candidates using the smallest platform-specific login/account/device/shop files found in `shared_prefs`, small auth files, and platform-specific state directories.
+4. If E fails, escalate to D, C, B, then A using the smallest broader sets that explain the missing login state. Do not skip directly to full package data.
+5. Add engine-side profile ids only for the smallest accepted candidate per platform.
+6. Add backend profile allowlist entries for the new package/profile pairs.
+7. Add or update tests so package/profile mismatches are rejected and accepted platform profiles can be uploaded by system shop id.
+8. Record final source/target mappings, candidate sizes, selected profile ids, and Xiaomi launch evidence in `13-RESEARCH.md` and `13-STANDARD.md`.
+
+Acceptance:
+
+- Each supported platform has a real-device accepted minimum profile, selected from E first and escalated only as needed.
+- Xiaomi restore launches the corresponding platform app into an already-authenticated or security-verification state, not username/password/SMS login.
+- Backend upload/download continues to use our system shop id only; platform shop id never controls artifact storage.
+- The restored target directory is the Xiaomi active card binding and contains no source-device user path or nested package directory.
+- Platforms that cannot pass within the size limit are explicitly documented with the smallest failing candidate and are not marked supported.
+
+Wave 6 closeout on 2026-06-13:
+
+| Platform | Package | Accepted profile | Support status |
+| --- | --- | --- | --- |
+| 淘宝闪购零售版 | `com.baidu.lbs.xinlingshou` | `ele-retail-prefs-e-min` | Completed. |
+| 美团经营宝 | `com.sankuai.meituan.merchant` | `meituan-merchant-cips-e-min` | Completed. |
+| 携程商家版 | `com.Hotel.EBooking` | `ctrip-ebooking-prefs-mmkv-e-min` | Completed. |
+| 抖音来客 | `com.bytedance.ls.merchant` | none accepted | Legacy item. Do not mark supported. |
+
+### Legacy Item: Douyin Laike Clone Login-State Restore
+
+Target clone investigated:
+
+- Clone instance id: `CLN1-15200837196-com.bytedance.ls.merchant-N1-U25-R672c8b60`.
+- Server user id: `10`.
+- Xiaomi active virtual user id: `25`.
+- Xiaomi card root: `blackbox/accounts/10/cards/CLN1-15200837196-com.bytedance.ls.merchant-N1-U25-R672c8b60`.
+
+Exploration already performed:
+
+- Started from the minimum profile direction and escalated through broader Douyin Laike candidates. E-min and expanded variants failed. D/C candidates could reach partial token/account activity but still ended in platform logout or username/SMS login.
+- Tested app-private A/full package data from the earlier OPPO export; it briefly entered Douyin Laike `MainActivity` but business requests returned authentication failure and the app navigated to the phone login page.
+- Re-exported the complete OPPO card directory on 2026-06-13, including scoped `auth/`, `user/25/...`, and `user_de/25/...`. The tar was `/tmp/dylk-oppo-card-full-20260613-203818.tar`, about 875 MB on host; after releasing to Xiaomi the card root was about 929 MB and contained 9,588 files.
+- Before the final Xiaomi test, killed the Douyin Laike, main app, and engine processes; cleared the target Xiaomi card directory and scoped external directories; extracted the OPPO card tar directly under `blackbox/accounts/10/cards`; then direct-launched through `ShortcutActivity --es pkg com.bytedance.ls.merchant --ei userId 25`.
+
+Final observed result:
+
+- UI dump: `/tmp/dylk-20260613-204323-fresh-card-full.xml`.
+- Logcat evidence: `/tmp/dylk-20260613-204323-fresh-card-full.log`.
+- Screenshot: `/tmp/dylk-20260613-204323-fresh-card-full.png`.
+- Result summary: `LOGIN_TERMS=true`, `HOME_TERMS=false`; visible page was the Douyin Laike phone login screen.
+- Logs showed `SplashActivity` -> `MainActivity` -> duplicated `LoginActivity`, repeated `merchantAccountModel is null`, `updateActiveAccount null`, `passport/user/logout`, and business API failures with `4000100 / 用户鉴权失败`.
+
+Current conclusion:
+
+- Complete clone card data is still insufficient for this Douyin Laike account to survive cross-device restore.
+- The remaining dependency is likely outside the exportable clone card directory or is server/device bound, for example Android Keystore/TEE material, ByteDance device/TicketGuard/MSSDK state, or server-side invalidation after device migration.
+- Do not enable Douyin Laike as a supported login-state sync platform until a future phase finds the missing device-bound state and passes the same Xiaomi restore test.
 
 ## Verification
 

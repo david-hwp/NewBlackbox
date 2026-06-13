@@ -212,7 +212,7 @@
 **上下文文档**: [.planning/phases/12-meituan-review-customer-probe/12-CONTEXT.md](.planning/phases/12-meituan-review-customer-probe/12-CONTEXT.md)
 **调研文档**: [.planning/phases/12-meituan-review-customer-probe/12-RESEARCH.md](.planning/phases/12-meituan-review-customer-probe/12-RESEARCH.md)
 
-## Phase 13: 登录态跨设备同步 🚧 实施中
+## Phase 13: 登录态跨设备同步 ✅ 已关闭 (2026-06-13)
 
 **目标**: 将已登录平台分身的关键登录态从源设备导出、上传并恢复到新设备分身目录，实现同一店铺账号在多设备上直接打开店铺，避免同步 170MB+ 全量分身缓存。
 
@@ -226,6 +226,7 @@
 - 2026-06-12 已完成 OPPO 源端上传 + 小米清空目标分身目录后恢复验证：美团 `shops/4/login-state` 从 OPPO user3 上传约 460KB 并恢复到 Xiaomi user22；京东 `shops/5/login-state` 从 OPPO user15 上传约 32KB 并恢复到 Xiaomi user15；饿了么 `shops/6/login-state` 从 OPPO user2 上传约 74KB 并恢复到 Xiaomi user2；三者均未进入用户名/密码/SMS 登录页。
 - 后续引擎导出上传必须按 Phase 13 标准文档的 package-specific profile 生成逻辑包，并在恢复时映射到目标卡片当前 `localVirtualUserId`，不能硬编码 OPPO source user 或 ADB 测试 user 路径。
 - Wave 5 增加可信店铺身份约束：店铺 ID/名称只能由引擎从目标平台数据文件或接口提取后上报；未验证身份的店铺卡片 logo 保持灰色，验证成功并由后台返回 `identityVerified=true` 后才显示彩色。
+- Wave 6 已关闭：淘宝闪购零售版 `com.baidu.lbs.xinlingshou`、美团经营宝 `com.sankuai.meituan.merchant`、携程商家版 `com.Hotel.EBooking` 已按各自最小 profile 标记为完成；抖音来客 `com.bytedance.ls.merchant` 的 `CLN1-15200837196-com.bytedance.ls.merchant-N1-U25-R672c8b60` 分身即使释放完整 OPPO card 包仍跳手机登录页，作为遗留事项记录，不纳入已支持平台。
 
 **计划文档**: [.planning/phases/13-meituan-login-state-sync/13-PLAN.md](.planning/phases/13-meituan-login-state-sync/13-PLAN.md)
 **标准文档**: [.planning/phases/13-meituan-login-state-sync/13-STANDARD.md](.planning/phases/13-meituan-login-state-sync/13-STANDARD.md)

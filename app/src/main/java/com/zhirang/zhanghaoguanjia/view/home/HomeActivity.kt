@@ -1041,7 +1041,6 @@ class HomeActivity : AppCompatActivity() {
             toast("该店铺暂无关联应用")
             return
         }
-        buildShopPrepareKey(shop, packageName)?.let { locallyRepairedShopKeys.remove(it) }
 
         if (!viewModel.hasActiveSubscription() && shop.remainingDays <= 0) {
             renewExpiredShopBeforeOpen(shop)
@@ -2154,6 +2153,8 @@ class HomeActivity : AppCompatActivity() {
             }
             return
         }
+        viewModel.markLocalIdentityVerified(sourceShop, packageName, userId, true)
+        buildShopPrepareKey(sourceShop, packageName)?.let { locallyRepairedShopKeys.remove(it) }
         if (sourceShop.hasVerifiedIdentity &&
             sourceShop.shopId == shopId &&
             sourceShop.shopName == shopName &&
@@ -2514,7 +2515,7 @@ class HomeActivity : AppCompatActivity() {
                 ?: findUserIdForCloneInstance(shop, packageName)
             if (userId == null) {
                 clearPreparedShopEnvironment(shop, packageName)
-                finishLocalRepair(shop, packageName, LoginStateRestoreResult.NOT_AVAILABLE)
+                finishLocalRepair(shop, packageName, null, LoginStateRestoreResult.NOT_AVAILABLE)
                 return@ensureEngineReady
             }
             try {
@@ -2531,7 +2532,7 @@ class HomeActivity : AppCompatActivity() {
                         reason = "repair"
                     )
                     withContext(Dispatchers.Main) {
-                        finishLocalRepair(shop, packageName, restoreResult)
+                        finishLocalRepair(shop, packageName, userId, restoreResult)
                     }
                 }
             } catch (e: Exception) {
@@ -2545,12 +2546,16 @@ class HomeActivity : AppCompatActivity() {
     private fun finishLocalRepair(
         shop: Shop,
         packageName: String,
+        userId: Int?,
         restoreResult: LoginStateRestoreResult = LoginStateRestoreResult.NOT_AVAILABLE
     ) {
         runOnUiThread {
             updateShopProgress("修复完成")
             clearPreparedShopEnvironment(shop, packageName)
             invalidatePreparedPlatformEnvironment(packageName)
+            (userId ?: shop.localVirtualUserId)?.let { localUserId ->
+                viewModel.markLocalIdentityVerified(shop, packageName, localUserId, false)
+            }
             buildShopPrepareKey(shop, packageName)?.let { locallyRepairedShopKeys.add(it) }
             buildShopPrepareKey(shop, packageName)?.let { key ->
                 restoredLoginStateKeys.removeAll { it.startsWith("$key:") }

@@ -635,6 +635,14 @@ public class ShopController {
                     "jd-jingming-prefs-d".equals(profile) || "phase13-jd-jingming-prefs-d-20260611".equals(profile);
             case "me.ele.napos" ->
                     "ele-napos-prefs-e-min".equals(profile) || "phase13-ele-napos-prefs-e-min-20260611".equals(profile);
+            case "com.baidu.lbs.xinlingshou" ->
+                    "ele-retail-prefs-e-min".equals(profile) || "phase13-ele-retail-prefs-e-min-20260613".equals(profile);
+            case "com.sankuai.meituan.merchant" ->
+                    "meituan-merchant-cips-e-min".equals(profile) || "phase13-meituan-merchant-cips-e-min-20260613".equals(profile);
+            case "com.Hotel.EBooking" ->
+                    "ctrip-ebooking-prefs-mmkv-e-min".equals(profile) || "phase13-ctrip-ebooking-prefs-mmkv-e-min-20260613".equals(profile);
+            case "com.bytedance.ls.merchant" ->
+                    "douyin-laike-account-keva-e-min".equals(profile) || "phase13-douyin-laike-account-keva-e-min-20260613".equals(profile);
             default -> false;
         };
     }

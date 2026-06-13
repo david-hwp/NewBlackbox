@@ -471,6 +471,73 @@ class ShopControllerTest {
     }
 
     @Test
+    void uploadLoginStateAcceptsAdditionalPhase13Profiles() throws Exception {
+        AuthContext.setUserId(1L);
+        User normalUser = user(1L, "USER");
+        String[][] cases = new String[][]{
+                {"21", "com.baidu.lbs.xinlingshou", "ele-retail-prefs-e-min"},
+                {"22", "com.sankuai.meituan.merchant", "meituan-merchant-cips-e-min"},
+                {"23", "com.Hotel.EBooking", "ctrip-ebooking-prefs-mmkv-e-min"},
+                {"24", "com.bytedance.ls.merchant", "douyin-laike-account-keva-e-min"}
+        };
+
+        when(userService.findById(1L)).thenReturn(Optional.of(normalUser));
+        for (String[] item : cases) {
+            Long shopId = Long.valueOf(item[0]);
+            Shop shop = shop(shopId, 1L, "additional-" + shopId);
+            shop.setPackageName(item[1]);
+            when(shopService.findById(shopId)).thenReturn(Optional.of(shop));
+            when(shopService.updateLoginState(
+                    eq(shopId),
+                    eq(item[2]),
+                    any(),
+                    any(),
+                    any(),
+                    any()
+            )).thenAnswer(invocation -> {
+                Shop saved = shop(shopId, 1L, "additional-" + shopId);
+                saved.setPackageName(item[1]);
+                saved.setLoginStateProfile(item[2]);
+                saved.setLoginStateBlob(invocation.getArgument(3));
+                saved.setLoginStateSize((long) ((byte[]) invocation.getArgument(3)).length);
+                return saved;
+            });
+
+            ApiResponse<ShopResponse> response = controller.uploadLoginState(
+                    shopId,
+                    new MockMultipartFile("file", "login-state.zip", "application/zip", "zip".getBytes()),
+                    item[2],
+                    "{\"packageName\":\"" + item[1] + "\",\"profileId\":\"" + item[2] + "\"}"
+            );
+
+            assertThat(response.getCode()).isEqualTo(200);
+            assertThat(response.getData().getLoginStateProfile()).isEqualTo(item[2]);
+        }
+    }
+
+    @Test
+    void uploadLoginStateRejectsAdditionalPhase13ProfileMismatch() {
+        AuthContext.setUserId(1L);
+        User normalUser = user(1L, "USER");
+        Shop shop = shop(25L, 1L, "profile-mismatch");
+        shop.setPackageName("com.bytedance.ls.merchant");
+
+        when(userService.findById(1L)).thenReturn(Optional.of(normalUser));
+        when(shopService.findById(25L)).thenReturn(Optional.of(shop));
+
+        ApiResponse<ShopResponse> response = controller.uploadLoginState(
+                25L,
+                new MockMultipartFile("file", "login-state.zip", "application/zip", "zip".getBytes()),
+                "meituan-merchant-cips-e-min",
+                "{\"packageName\":\"com.bytedance.ls.merchant\",\"profileId\":\"meituan-merchant-cips-e-min\"}"
+        );
+
+        assertThat(response.getCode()).isEqualTo(500);
+        assertThat(response.getMessage()).contains("档位");
+        verify(shopService, never()).updateLoginState(eq(25L), any(), any(), any(), any(), any());
+    }
+
+    @Test
     void uploadLoginStateRejectsOversizedCloneData() {
         AuthContext.setUserId(1L);
         User normalUser = user(1L, "USER");
