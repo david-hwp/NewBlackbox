@@ -232,7 +232,7 @@
 **标准文档**: [.planning/phases/13-meituan-login-state-sync/13-STANDARD.md](.planning/phases/13-meituan-login-state-sync/13-STANDARD.md)
 **调研文档**: [.planning/phases/13-meituan-login-state-sync/13-RESEARCH.md](.planning/phases/13-meituan-login-state-sync/13-RESEARCH.md)
 
-## Phase 14: 用户订阅计费体系 📋 已规划
+## Phase 14: 用户订阅计费体系 ✅ 已完成 (2026-06-13)
 
 **目标**: 在现有算力扣费机制上叠加用户维度订阅体系，支持新用户 30 天免费订阅、后台管理员按月/季/年升级订阅用户、订阅期内店铺创建/续期写 0 扣费交易日志，订阅过期后自动恢复店铺维度算力计费。
 
@@ -249,6 +249,8 @@
 **计划文档**: [.planning/phases/14-subscription-billing/14-PLAN.md](.planning/phases/14-subscription-billing/14-PLAN.md)
 **上下文文档**: [.planning/phases/14-subscription-billing/14-CONTEXT.md](.planning/phases/14-subscription-billing/14-CONTEXT.md)
 **调研文档**: [.planning/phases/14-subscription-billing/14-RESEARCH.md](.planning/phases/14-subscription-billing/14-RESEARCH.md)
+
+**验收记录**: 小米 MIX 2S 已完成 `1.2.14-beta` 回归：普通用户到期店铺确认后扣 1 点续期；有效订阅用户打开到期店铺不扣点且隐藏店铺剩余天数；订阅到期用户看到到期提示，确认后扣 1 点续期。
 
 ## Phase 15: 首页滚动播报公告 ✅ 已完成 (2026-06-12)
 

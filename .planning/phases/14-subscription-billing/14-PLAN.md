@@ -1,7 +1,8 @@
 # Phase 14: 用户订阅计费体系 - Plan
 
-**Status:** Planned
+**Status:** Completed
 **Created:** 2026-06-12
+**Completed:** 2026-06-13
 
 ## Goal
 
@@ -78,3 +79,11 @@ cd admin/backend && mvn -Dtest=AuthControllerTest,UserServiceTest,ComputeService
 cd admin/frontend && npm run build
 ```
 
+## Completion Evidence
+
+- Built and installed main APK and engine APK `1.2.14-beta` (`versionCode=50023`) on Xiaomi MIX 2S.
+- Verified the APK was configured for the migrated local server: `http://172.20.0.13:8006/api/`.
+- Normal user `13265710803` opened expired JD shop `81` (`新增店铺-[3]`): APP showed the compute deduction confirmation, balance changed `988 -> 987`, shop renewed to 30 days, and `RENEW` transaction/deduction logs were created.
+- Active subscriber `15200837196` opened expired Meituan shop `53`: APP showed subscription expiry under the phone number, hid shop remaining-days badges, opened the clone without a deduction prompt, and balance stayed `68`.
+- Expired subscriber scenario for `15200837196` opened expired JD shop `76`: APP showed `订阅已到期，继续使用将扣除1点算力`, confirmation deducted balance `68 -> 67`, renewed the shop to 30 days, and created `RENEW` transaction/deduction logs.
+- Restored the test account subscription expiry to `2026-07-12 09:50:13.559547` after the expired-subscription regression.
