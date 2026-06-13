@@ -3,16 +3,24 @@ gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: phase11-channel-promotion-system
 status: Phase 16 completed
-last_updated: "2026-06-13T12:21:56+08:00"
+last_updated: "2026-06-13T21:44:18+08:00"
 progress:
   total_phases: 11
-  completed_phases: 9
+  completed_phases: 10
   total_plans: 11
   completed_plans: 11
   percent: 100
 ---
 
 ## Recent Changes
+
+### 2026-06-13: Phase 14 subscription billing completed
+
+- Marked Phase 14 complete after Xiaomi MIX 2S regression against the migrated local server `172.20.0.13:8006`.
+- Verified normal user expired-shop flow: confirmation prompt, balance deduction, 30-day renewal, and `RENEW` logs.
+- Verified active subscriber flow: subscription expiry displayed, shop remaining-days hidden, expired shop opened without compute deduction.
+- Verified expired subscriber fallback: exact expiry prompt, confirmation deducted 1 compute, and renewed the shop.
+- Canonical completion document: `.planning/phases/14-subscription-billing/14-PLAN.md`.
 
 ### 2026-06-13: Phase 16 Main App login-state data center completed
 
