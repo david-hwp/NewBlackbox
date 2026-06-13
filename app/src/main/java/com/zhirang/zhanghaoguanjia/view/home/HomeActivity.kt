@@ -2492,7 +2492,7 @@ class HomeActivity : AppCompatActivity() {
     private fun confirmRepairShop(shop: Shop) {
         MaterialAlertDialogBuilder(this)
             .setTitle("修复店铺")
-            .setMessage("本操作会重置该店铺的本机分身数据，并尝试使用服务器备份登录态恢复。仅在店铺打不开或登录态异常时使用，是否继续？")
+            .setMessage("本操作会重置该店铺的本机数据，并尝试使用服务器备份登录态恢复。仅在店铺打不开或登录态异常时使用，是否继续？")
             .setNegativeButton("取消", null)
             .setPositiveButton("确认") { _, _ ->
                 repairShopLocalData(shop)

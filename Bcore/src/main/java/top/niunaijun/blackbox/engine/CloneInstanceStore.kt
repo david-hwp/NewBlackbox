@@ -88,10 +88,10 @@ object CloneInstanceStore {
         synchronized(lock) {
             try {
                 ensureUserExists(userId)
-                ensurePackageDirs(cloneId, pkg, serverUserId, userId)
                 val root = readMapping()
                 root.put(mappingKey(cloneId, pkg, serverUserId), mappingValue(cloneId, pkg, serverUserId, userId))
                 writeMapping(root)
+                ensurePackageDirs(cloneId, pkg, serverUserId, userId)
             } catch (e: Exception) {
                 Slog.w(TAG, "bindCloneUser failed clone=$cloneId package=$pkg userId=$userId", e)
             }
@@ -114,7 +114,6 @@ object CloneInstanceStore {
         return synchronized(lock) {
             try {
                 ensureUserExists(userId)
-                ensurePackageDirs(cloneId, pkg, serverUserId, userId)
                 bindCloneUser(cloneId, pkg, serverUserId, userId)
                 val dir = authDir(serverUserId, cloneId)
                 dir.mkdirs()
