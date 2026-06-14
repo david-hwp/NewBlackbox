@@ -48,6 +48,20 @@
         <el-table-column prop="id" label="ID" width="60" />
         <el-table-column prop="shopName" label="店铺名称" />
         <el-table-column prop="shopId" label="店铺ID" />
+        <el-table-column label="登录态" min-width="170">
+          <template #default="{ row }">
+            <div v-if="row.hasLoginState" class="login-state-cell">
+              <el-tag size="small" type="success">已上传</el-tag>
+              <el-text v-if="row.loginStateProfile" class="login-state-profile mono" truncated>
+                {{ row.loginStateProfile }}
+              </el-text>
+              <el-text v-if="formatLoginStateMeta(row)" class="login-state-meta" type="info">
+                {{ formatLoginStateMeta(row) }}
+              </el-text>
+            </div>
+            <el-tag v-else size="small" type="info">未上传</el-tag>
+          </template>
+        </el-table-column>
         <el-table-column label="微信接收方" min-width="180">
           <template #default="{ row }">
             <div v-if="row.wechatReceiverName || row.wechatReceiverId">
@@ -321,6 +335,31 @@ const formatReceiverType = (type) => {
   return type || '-'
 }
 
+const formatBytes = (value) => {
+  const bytes = Number(value || 0)
+  if (!Number.isFinite(bytes) || bytes <= 0) return ''
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`
+}
+
+const formatDateTime = (value) => {
+  if (!value) return ''
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return String(value)
+  const pad = (number) => String(number).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
+
+const formatLoginStateMeta = (row) => {
+  const parts = []
+  const size = formatBytes(row.loginStateSize)
+  const exportedAt = formatDateTime(row.loginStateArtifactCreatedAt || row.loginStateUpdatedAt)
+  if (size) parts.push(size)
+  if (exportedAt) parts.push(exportedAt)
+  return parts.join(' / ')
+}
+
 const showAddDialog = () => {
   if (!canMutate.value) return
   isEdit.value = false
@@ -425,5 +464,21 @@ onMounted(() => {
   display: block;
   max-width: 150px;
   margin: 2px 0;
+}
+
+.login-state-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+}
+
+.login-state-profile {
+  max-width: 150px;
+  font-size: 12px;
+}
+
+.login-state-meta {
+  font-size: 12px;
 }
 </style>
