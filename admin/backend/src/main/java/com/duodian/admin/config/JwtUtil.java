@@ -21,16 +21,28 @@ public class JwtUtil {
     private static final long EXPIRATION_DAYS = 7;
 
     public String generateToken(Long userId, String phone) {
+        return generateToken(userId, phone, null, null, null);
+    }
+
+    public String generateToken(Long userId, String phone, String role, Long channelId, String apkChannel) {
         Instant now = Instant.now();
         Instant expiration = now.plus(EXPIRATION_DAYS, ChronoUnit.DAYS);
 
-        return Jwts.builder()
+        JwtBuilder builder = Jwts.builder()
                 .subject(String.valueOf(userId))
                 .claim("phone", phone)
                 .issuedAt(Date.from(now))
-                .expiration(Date.from(expiration))
-                .signWith(SECRET_KEY)
-                .compact();
+                .expiration(Date.from(expiration));
+        if (role != null && !role.isBlank()) {
+            builder.claim("role", CurrentPrincipal.normalizeRole(role));
+        }
+        if (channelId != null) {
+            builder.claim("channelId", channelId);
+        }
+        if (apkChannel != null && !apkChannel.isBlank()) {
+            builder.claim("apkChannel", apkChannel);
+        }
+        return builder.signWith(SECRET_KEY).compact();
     }
 
     public Long extractUserId(String token) {
@@ -41,6 +53,28 @@ public class JwtUtil {
     public String extractPhone(String token) {
         Claims claims = parseToken(token);
         return claims.get("phone", String.class);
+    }
+
+    public String extractRole(String token) {
+        Claims claims = parseToken(token);
+        return claims.get("role", String.class);
+    }
+
+    public Long extractChannelId(String token) {
+        Claims claims = parseToken(token);
+        Object value = claims.get("channelId");
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof Number number) {
+            return number.longValue();
+        }
+        return Long.valueOf(value.toString());
+    }
+
+    public String extractApkChannel(String token) {
+        Claims claims = parseToken(token);
+        return claims.get("apkChannel", String.class);
     }
 
     public boolean validateToken(String token) {

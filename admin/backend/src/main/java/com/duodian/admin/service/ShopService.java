@@ -2,6 +2,7 @@ package com.duodian.admin.service;
 
 import com.duodian.admin.entity.Shop;
 import com.duodian.admin.repository.ShopRepository;
+import com.duodian.admin.repository.UserRepository;
 import com.duodian.admin.util.ShopExpiration;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -17,13 +18,19 @@ public class ShopService {
     private static final byte DELETED = 1;
 
     private final ShopRepository shopRepository;
+    private final UserRepository userRepository;
 
-    public ShopService(ShopRepository shopRepository) {
+    public ShopService(ShopRepository shopRepository, UserRepository userRepository) {
         this.shopRepository = shopRepository;
+        this.userRepository = userRepository;
     }
 
     public List<Shop> findAll() {
         return shopRepository.findByDeleted(ACTIVE);
+    }
+
+    public List<Shop> findByChannelId(Long channelId) {
+        return shopRepository.findByChannelIdAndDeleted(channelId, ACTIVE);
     }
 
     public Optional<Shop> findById(Long id) {
@@ -44,6 +51,7 @@ public class ShopService {
 
     public Page<Shop> search(
             Long userId,
+            Long channelId,
             String packageName,
             String platform,
             String phone,
@@ -54,6 +62,7 @@ public class ShopService {
         return shopRepository.searchShops(
                 ACTIVE,
                 userId,
+                channelId,
                 normalize(packageName),
                 normalize(platform),
                 normalize(phone),
@@ -65,6 +74,7 @@ public class ShopService {
 
     public Shop create(Shop shop) {
         shop.setDeleted(ACTIVE);
+        stampChannel(shop);
         ShopExpiration.applyRemainingDays(shop);
         return shopRepository.save(shop);
     }
@@ -101,12 +111,19 @@ public class ShopService {
     public Shop update(Long id, Shop shop) {
         Shop existing = shopRepository.findByIdAndDeleted(id, ACTIVE)
                 .orElseThrow(() -> new RuntimeException("店铺不存在"));
+        String previousShopName = normalize(existing.getShopName());
+        String nextShopName = normalize(shop.getShopName());
         String previousShopId = existing.getShopId();
         if (shop.getShopName() != null) {
             existing.setShopName(shop.getShopName());
         }
+        if (shop.getChannelId() != null) {
+            existing.setChannelId(shop.getChannelId());
+        } else if (existing.getChannelId() == null) {
+            stampChannel(existing);
+        }
         if (shop.getShopId() != null) {
-            existing.setShopId(shop.getShopId());
+            existing.setShopId(resolveEditableShopId(previousShopId, shop.getShopId(), previousShopName, nextShopName));
         }
         if (isTemporaryShopId(previousShopId) && !isTemporaryShopName(existing.getShopName())) {
             existing.setShopId("-");
@@ -226,6 +243,34 @@ public class ShopService {
             return null;
         }
         return value.trim();
+    }
+
+    private void stampChannel(Shop shop) {
+        if (shop.getChannelId() != null || shop.getUserId() == null) {
+            return;
+        }
+        userRepository.findByIdAndDeleted(shop.getUserId(), ACTIVE)
+                .ifPresent(user -> shop.setChannelId(user.getChannelId()));
+    }
+
+    private String resolveEditableShopId(
+            String currentShopId,
+            String requestedShopId,
+            String previousShopName,
+            String nextShopName
+    ) {
+        String normalizedCurrentShopId = normalize(currentShopId);
+        String normalizedRequestedShopId = normalize(requestedShopId);
+        if (normalizedRequestedShopId == null) {
+            return currentShopId;
+        }
+        if (isTemporaryShopId(normalizedRequestedShopId)
+                && isTemporaryShopId(normalizedCurrentShopId)
+                && (!java.util.Objects.equals(previousShopName, nextShopName)
+                || !java.util.Objects.equals(normalizedCurrentShopId, normalizedRequestedShopId))) {
+            return "-";
+        }
+        return normalizedRequestedShopId;
     }
 
     private boolean isTemporaryShopId(String shopId) {

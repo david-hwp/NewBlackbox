@@ -17,10 +17,14 @@ class GiftViewModel : ViewModel() {
     val errorLiveData = MutableLiveData<String>()
     val successLiveData = MutableLiveData<String>()
 
-    fun gift(toPhone: String, amount: Int) {
+    fun gift(toPhone: String, amount: Int, phoneMinutes: Boolean = false) {
         viewModelScope.launch {
             loadingLiveData.value = true
-            val result = computeRepository.giftCompute(toPhone, amount)
+            val result = if (phoneMinutes) {
+                computeRepository.giftPhoneMinutes(toPhone, amount)
+            } else {
+                computeRepository.giftCompute(toPhone, amount)
+            }
             result.fold(
                 onSuccess = {
                     giftResultLiveData.value = Result.success(it)

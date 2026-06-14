@@ -38,7 +38,7 @@ class LogsViewModel : ViewModel() {
             if (isLoading) return@launch
             isLoading = true
             currentPage = 1
-            val apiType = type?.name?.lowercase()
+            val apiType = type?.name
             val result = logRepository.getMyLogs(apiType, currentPage, pageSize)
             result.fold(
                 onSuccess = { pagedResult: PagedResult<LogEntryDto> ->
@@ -63,7 +63,7 @@ class LogsViewModel : ViewModel() {
             if (isLoading || !hasMore) return@launch
             isLoading = true
             currentPage++
-            val apiType = type?.name?.lowercase()
+            val apiType = type?.name
             val result = logRepository.getMyLogs(apiType, currentPage, pageSize)
             result.fold(
                 onSuccess = { pagedResult: PagedResult<LogEntryDto> ->
@@ -114,6 +114,9 @@ class LogsViewModel : ViewModel() {
                 ?: listOfNotNull(platformDisplayName(platform), shopName).joinToString(" - ").ifBlank { "算力消耗" }
             LogType.OUT -> cleanRemark ?: "转给 ${fromPhone ?: toPhone ?: "-"}"
             LogType.IN -> cleanRemark ?: "来自 ${fromPhone ?: toPhone ?: "-"}"
+            LogType.PHONE_CONSUME -> cleanRemark ?: "话费消耗"
+            LogType.PHONE_OUT -> cleanRemark ?: "转给 ${toName ?: toPhone ?: "-"}"
+            LogType.PHONE_IN -> cleanRemark ?: "来自 ${fromName ?: fromPhone ?: "-"}"
         }
         return LogEntry(
             id = id,

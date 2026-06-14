@@ -8,7 +8,9 @@ data class LogEntryDto(
     val platform: String?,
     val shopName: String?,
     val fromPhone: String?,
+    val fromName: String? = null,
     val toPhone: String?,
+    val toName: String? = null,
     val remark: String?,
     val createdAt: String
 )

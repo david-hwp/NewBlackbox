@@ -16,11 +16,13 @@ import java.util.Optional;
 public interface TransactionLogRepository extends JpaRepository<TransactionLog, Long> {
     List<TransactionLog> findByDeletedOrderByCreatedAtDesc(Byte deleted);
     Optional<TransactionLog> findByIdAndDeleted(Long id, Byte deleted);
+    List<TransactionLog> findByChannelIdAndDeletedOrderByCreatedAtDesc(Long channelId, Byte deleted);
     List<TransactionLog> findByUserIdAndDeletedOrderByCreatedAtDesc(Long userId, Byte deleted);
     List<TransactionLog> findByTypeAndDeletedOrderByCreatedAtDesc(String type, Byte deleted);
 
-    Optional<TransactionLog> findFirstByUserIdAndTypeAndToPhoneAndRelatedLogIdIsNullAndRemarkStartingWithAndDeletedOrderByCreatedAtDescIdDesc(
+    Optional<TransactionLog> findFirstByUserIdAndChannelIdAndTypeAndToPhoneAndRemarkStartingWithAndDeletedOrderByCreatedAtDescIdDesc(
             Long userId,
+            Long channelId,
             String type,
             String toPhone,
             String remarkPrefix,
@@ -47,6 +49,22 @@ public interface TransactionLogRepository extends JpaRepository<TransactionLog, 
             from TransactionLog t
             where t.userId = :userId
               and t.deleted = :active
+              and t.type = :type
+              and (t.createdAt > :createdAt or (t.createdAt = :createdAt and t.id > :logId))
+            """)
+    Integer sumByTypeAfter(
+            @Param("userId") Long userId,
+            @Param("active") Byte active,
+            @Param("type") String type,
+            @Param("createdAt") LocalDateTime createdAt,
+            @Param("logId") Long logId
+    );
+
+    @Query("""
+            select coalesce(sum(t.amount), 0)
+            from TransactionLog t
+            where t.userId = :userId
+              and t.deleted = :active
               and t.type = 'IN'
               and t.relatedLogId = :relatedLogId
             """)
@@ -57,11 +75,27 @@ public interface TransactionLogRepository extends JpaRepository<TransactionLog, 
     );
 
     @Query("""
+            select coalesce(sum(t.amount), 0)
+            from TransactionLog t
+            where t.userId = :userId
+              and t.deleted = :active
+              and t.type = :type
+              and t.relatedLogId = :relatedLogId
+            """)
+    Integer sumByTypeForSourceLog(
+            @Param("userId") Long userId,
+            @Param("active") Byte active,
+            @Param("type") String type,
+            @Param("relatedLogId") Long relatedLogId
+    );
+
+    @Query("""
             select t
             from TransactionLog t
             left join User u on u.id = t.userId and u.deleted = :active
             where t.deleted = :active
               and (:userId is null or t.userId = :userId)
+              and (:channelId is null or t.channelId = :channelId)
               and (:type is null or t.type = :type)
               and (:phone is null or t.fromPhone like concat('%', :phone, '%')
                    or t.toPhone like concat('%', :phone, '%')
@@ -71,6 +105,7 @@ public interface TransactionLogRepository extends JpaRepository<TransactionLog, 
     Page<TransactionLog> searchLogs(
             @Param("active") Byte active,
             @Param("userId") Long userId,
+            @Param("channelId") Long channelId,
             @Param("type") String type,
             @Param("phone") String phone,
             @Param("shopName") String shopName,

@@ -5,7 +5,15 @@ import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "users")
+@Table(
+        name = "users",
+        indexes = {
+                @Index(name = "idx_users_channel_id", columnList = "channel_id"),
+                @Index(name = "idx_users_phone", columnList = "phone"),
+                @Index(name = "idx_users_role", columnList = "role"),
+                @Index(name = "idx_users_deleted", columnList = "deleted")
+        }
+)
 public class User {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -17,7 +25,7 @@ public class User {
     @Column(name = "avatar_url", length = 512)
     private String avatarUrl;
 
-    @Column(nullable = false, unique = true)
+    @Column(nullable = false)
     private String phone;
 
     @Column(nullable = false)
@@ -25,13 +33,19 @@ public class User {
     private String password;
 
     @Column(nullable = false)
-    private String role = "USER"; // ADMIN / USER
+    private String role = "USER"; // SUPER_ADMIN / CHANNEL / USER, legacy ADMIN maps to SUPER_ADMIN
+
+    @Column(name = "channel_id")
+    private Long channelId;
 
     @Column(name = "compute_balance")
     private Integer computeBalance = 0;
 
     @Column(name = "non_transferable_compute_balance")
     private Integer nonTransferableComputeBalance = 0;
+
+    @Column(name = "phone_minutes_balance")
+    private Integer phoneMinutesBalance = 0;
 
     @Column(name = "shop_count")
     private Integer shopCount = 0;
@@ -96,13 +110,19 @@ public class User {
     public void setPassword(String password) { this.password = password; }
 
     public String getRole() { return role; }
-    public void setRole(String role) { this.role = role; }
+    public void setRole(String role) { this.role = normalizeRole(role); }
+
+    public Long getChannelId() { return channelId; }
+    public void setChannelId(Long channelId) { this.channelId = channelId; }
 
     public Integer getComputeBalance() { return computeBalance; }
     public void setComputeBalance(Integer computeBalance) { this.computeBalance = computeBalance; }
 
     public Integer getNonTransferableComputeBalance() { return nonTransferableComputeBalance; }
     public void setNonTransferableComputeBalance(Integer nonTransferableComputeBalance) { this.nonTransferableComputeBalance = nonTransferableComputeBalance; }
+
+    public Integer getPhoneMinutesBalance() { return phoneMinutesBalance; }
+    public void setPhoneMinutesBalance(Integer phoneMinutesBalance) { this.phoneMinutesBalance = phoneMinutesBalance; }
 
     public Integer getShopCount() { return shopCount; }
     public void setShopCount(Integer shopCount) { this.shopCount = shopCount; }
@@ -146,4 +166,12 @@ public class User {
 
     public Byte getDeleted() { return deleted; }
     public void setDeleted(Byte deleted) { this.deleted = deleted == null ? 0 : deleted; }
+
+    private String normalizeRole(String role) {
+        if (role == null || role.isBlank()) {
+            return "USER";
+        }
+        String normalized = role.trim().toUpperCase();
+        return "ADMIN".equals(normalized) ? "SUPER_ADMIN" : normalized;
+    }
 }

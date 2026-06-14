@@ -2,9 +2,10 @@
 phase: 11-channel-promotion-system
 plan: 11
 type: plan
-status: planned
+status: completed
 created_at: "2026-06-09T15:45:00+08:00"
 updated_at: "2026-06-10T00:00:00+08:00"
+completed_at: "2026-06-10T10:15:00+08:00"
 branch: dev
 waves: 3
 depends_on:
@@ -393,6 +394,32 @@ Introduce `channels` as the authoritative tenant boundary:
 </task>
 
 </waves>
+
+<completion_verification>
+
+Completed and verified locally only, per Phase 11 constraint.
+
+- Local admin stack: `ENV_FILE=.env.phase11-local ./admin/deploy.sh`, Docker project `phase11-local`, frontend at `http://localhost:8011`.
+- Backend tests: `mvn test` passed, 55 tests, 0 failures.
+- Admin frontend build: `npm run build` passed.
+- Release script syntax: `bash -n admin/scripts/release-channel-apk.sh` passed.
+- Channel release job #11 succeeded for channel `phase11qa062913`, app/engine version `phase11-local-final-verify`, versionCode `61012`.
+- Channel release branch `release/channel/phase11qa062913-local` was auto-created/updated and points at `feature-phase11-integration` commit `15ed224`.
+- Local release artifacts uploaded through the unified file service:
+  - APP SHA-256 `1e12e1419dfff334e956c67dfdc0214cce31b461b50f190627331fdb3382272a`.
+  - Engine SHA-256 `4966bf81f0f3b0e68af1449687d5d4f8eff19059dba817bf91c34eba08b0b944`.
+- Package verification APIs returned `valid=true` for both channel APP and engine 61012 artifacts, and rejected wrong channel/package/checksum cases.
+- DevTools local admin page verified:
+  - channel management page shows `Phase11测试渠道` and UI-created `Phase11页面新增验证`.
+  - release job page shows job #11, status success, APP/engine `61012`.
+- Xiaomi real device `MIX_2S` installed channel APP and engine package:
+  - `com.zhirang.channel.phase11qa062913`, versionCode `61012`, dataDir `/data/user/0/com.zhirang.channel.phase11qa062913`.
+  - `com.zhirang.channel.phase11qa062913.engine`, versionCode `61012`, dataDir `/data/user/0/com.zhirang.channel.phase11qa062913.engine`.
+  - Main packages remain installed separately under `com.zhirang.zhanghaoguanjia*`.
+- Local database evidence shows user, compute, transaction log, announcement, app version, and engine version data isolated by `channel_id`.
+- No production deployment or server mutation was performed for Phase 11.
+
+</completion_verification>
 
 <success_criteria>
 

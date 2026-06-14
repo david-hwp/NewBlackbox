@@ -128,14 +128,14 @@
             </LinearLayout>
 
             <TextView
-                android:id="@+id/btnLogs"
+                android:id="@+id/tvPhoneMinutesBalance"
                 android:layout_width="wrap_content"
                 android:layout_height="32dp"
                 android:layout_marginTop="8dp"
                 android:background="@drawable/bg_button_outline"
                 android:gravity="center"
                 android:paddingHorizontal="12dp"
-                android:text="@string/transaction_logs"
+                android:text="话费余额0分钟"
                 android:textColor="@color/fg_2"
                 android:textSize="12sp" />
         </LinearLayout>

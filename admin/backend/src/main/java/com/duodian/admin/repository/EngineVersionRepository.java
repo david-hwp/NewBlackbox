@@ -16,18 +16,24 @@ public interface EngineVersionRepository extends JpaRepository<EngineVersion, Lo
     List<EngineVersion> findByDeletedOrderByVersionCodeDesc(Byte deleted);
     Optional<EngineVersion> findByIdAndDeleted(Long id, Byte deleted);
     List<EngineVersion> findByAvailableAndDeletedOrderByVersionCodeDesc(Boolean available, Byte deleted);
+    List<EngineVersion> findByChannelIdAndAvailableAndDeletedOrderByVersionCodeDesc(Long channelId, Boolean available, Byte deleted);
+    List<EngineVersion> findByChannelIdAndDeletedOrderByVersionCodeDesc(Long channelId, Byte deleted);
     Optional<EngineVersion> findByVersionCodeAndAvailableAndDeleted(Integer versionCode, Boolean available, Byte deleted);
+    Optional<EngineVersion> findByChannelIdAndVersionCodeAndAvailableAndDeleted(Long channelId, Integer versionCode, Boolean available, Byte deleted);
+    Optional<EngineVersion> findByChannelIdAndVersionCodeAndDeleted(Long channelId, Integer versionCode, Byte deleted);
 
     @Query("""
             select v
             from EngineVersion v
             where v.deleted = :active
+              and (:channelId is null or v.channelId = :channelId)
               and (:versionCode is null or v.versionCode = :versionCode)
               and (:versionName is null or v.versionName like concat('%', :versionName, '%'))
               and (:available is null or v.available = :available)
             """)
     Page<EngineVersion> searchEngineVersions(
             @Param("active") Byte active,
+            @Param("channelId") Long channelId,
             @Param("versionCode") Integer versionCode,
             @Param("versionName") String versionName,
             @Param("available") Boolean available,

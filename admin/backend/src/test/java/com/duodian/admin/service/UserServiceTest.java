@@ -6,11 +6,13 @@ import com.duodian.admin.repository.PlatformConfigRepository;
 import com.duodian.admin.repository.ShopRepository;
 import com.duodian.admin.repository.TransactionLogRepository;
 import com.duodian.admin.repository.UserRepository;
+import com.duodian.admin.repository.ChannelRepository;
 import org.junit.jupiter.api.Test;
 
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.verify;
@@ -24,12 +26,14 @@ class UserServiceTest {
     private final PlatformConfigRepository platformConfigRepository = mock(PlatformConfigRepository.class);
     private final PasswordService passwordService = mock(PasswordService.class);
     private final TransactionLogRepository transactionLogRepository = mock(TransactionLogRepository.class);
+    private final ChannelRepository channelRepository = mock(ChannelRepository.class);
     private final UserService userService = new UserService(
             userRepository,
             shopRepository,
             platformConfigRepository,
             passwordService,
-            transactionLogRepository
+            transactionLogRepository,
+            channelRepository
     );
 
     @Test
@@ -109,6 +113,33 @@ class UserServiceTest {
     }
 
     @Test
+    void updateCreatesAdminPhoneMinutesIncreaseLogWhenBalanceIncreases() {
+        User existing = new User();
+        existing.setId(12L);
+        existing.setUsername("old");
+        existing.setPhone("13800000012");
+        existing.setComputeBalance(2);
+        existing.setNonTransferableComputeBalance(0);
+        existing.setPhoneMinutesBalance(5);
+        User request = new User();
+        request.setUsername("new");
+        request.setComputeBalance(2);
+        request.setNonTransferableComputeBalance(0);
+        request.setPhoneMinutesBalance(15);
+        when(userRepository.findByIdAndDeleted(12L, (byte) 0)).thenReturn(Optional.of(existing));
+        when(userRepository.save(existing)).thenReturn(existing);
+
+        userService.update(12L, request);
+
+        verify(transactionLogRepository).save(argThat(log ->
+                log.getUserId().equals(12L)
+                        && "PHONE_IN".equals(log.getType())
+                        && log.getAmount().equals(10)
+                        && "管理员增加话费".equals(log.getRemark())
+        ));
+    }
+
+    @Test
     void updateDoesNotCreateLogWhenComputeBalanceUnchanged() {
         User existing = new User();
         existing.setId(10L);
@@ -154,5 +185,25 @@ class UserServiceTest {
                         && log.getAmount().equals(0)
                         && "管理员开通订阅: 季度".equals(log.getRemark())
         ));
+    }
+
+    @Test
+    void createChannelAdminRejectsPhoneAlreadyUsedByNormalUser() {
+        User request = new User();
+        request.setUsername("channel admin");
+        request.setPhone("13800000011");
+        request.setPassword("password");
+        request.setRole("CHANNEL");
+        request.setChannelId(2L);
+        User existingNormalUser = new User();
+        existingNormalUser.setId(11L);
+        existingNormalUser.setPhone("13800000011");
+        existingNormalUser.setRole("USER");
+        when(userRepository.findAllByPhoneAndDeleted("13800000011", (byte) 0)).thenReturn(java.util.List.of(existingNormalUser));
+
+        assertThatThrownBy(() -> userService.create(request))
+                .hasMessage("管理员手机号已存在");
+
+        verify(userRepository, never()).save(argThat(user -> true));
     }
 }

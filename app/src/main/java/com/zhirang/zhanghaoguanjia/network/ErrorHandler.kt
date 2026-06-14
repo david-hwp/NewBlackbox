@@ -21,7 +21,7 @@ object ErrorHandler {
                     context.startActivity(intent)
                     "登录已过期，请重新登录"
                 }
-                402 -> "算力不足，请联系管理员充值"
+                402 -> throwable.message ?: "算力不足，请联系管理员充值"
                 404 -> "请求的资源不存在"
                 else -> throwable.message ?: "请求失败"
             }

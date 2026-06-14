@@ -4,11 +4,21 @@
       <template #header>
         <div class="card-header">
           <span>公告列表</span>
-          <el-button type="primary" @click="showAddDialog">发布公告</el-button>
+          <el-button v-if="canMutate" type="primary" @click="showAddDialog">发布公告</el-button>
         </div>
       </template>
 
       <el-form class="filter-bar" :model="filters" inline @submit.prevent>
+        <el-form-item v-if="isSuperAdmin" label="渠道">
+          <el-select v-model="filters.channelId" clearable filterable placeholder="全部渠道" style="width: 190px">
+            <el-option
+              v-for="channel in channels"
+              :key="channel.id"
+              :label="formatChannelLabel(channel)"
+              :value="channel.id"
+            />
+          </el-select>
+        </el-form-item>
         <el-form-item label="标题">
           <el-input v-model="filters.title" clearable placeholder="输入公告标题" style="width: 200px" @keyup.enter="handleSearch" />
         </el-form-item>
@@ -41,6 +51,11 @@
             </el-tag>
           </template>
         </el-table-column>
+        <el-table-column label="渠道" min-width="130">
+          <template #default="{ row }">
+            <el-tag size="small">{{ channelText(row) }}</el-tag>
+          </template>
+        </el-table-column>
         <el-table-column prop="content" label="内容" min-width="280" show-overflow-tooltip />
         <el-table-column prop="published" label="状态" width="100">
           <template #default="{ row }">
@@ -50,7 +65,7 @@
           </template>
         </el-table-column>
         <el-table-column prop="updatedAt" label="更新时间" width="180" />
-        <el-table-column label="操作" width="180">
+        <el-table-column v-if="canMutate" label="操作" width="180">
           <template #default="{ row }">
             <el-button type="primary" link @click="showEditDialog(row)">编辑</el-button>
             <el-button type="danger" link @click="handleDelete(row)">删除</el-button>
@@ -74,6 +89,16 @@
 
     <el-dialog v-model="dialogVisible" :title="isEdit ? '编辑公告' : '发布公告'" width="640px">
       <el-form :model="form" :rules="rules" ref="formRef" label-width="80px">
+        <el-form-item v-if="isSuperAdmin" label="渠道" prop="channelId">
+          <el-select v-model="form.channelId" filterable placeholder="请选择渠道" style="width: 100%">
+            <el-option
+              v-for="channel in channels"
+              :key="channel.id"
+              :label="formatChannelLabel(channel)"
+              :value="channel.id"
+            />
+          </el-select>
+        </el-form-item>
         <el-form-item label="标题" prop="title">
           <el-input
             v-model="form.title"
@@ -105,9 +130,10 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted } from 'vue'
+import { computed, ref, watch, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import request from '../utils/request'
+import { channelFilterParam, formatChannelLabel, useAdminSession } from '../utils/adminSession'
 
 const announcements = ref([])
 const loading = ref(false)
@@ -121,19 +147,23 @@ const TICKER_TITLE = '滚动播报'
 const filters = ref({
   title: '',
   type: '',
-  published: null
+  published: null,
+  channelId: ''
 })
 const pagination = ref({
   page: 1,
   size: 10,
   total: 0
 })
-const form = ref({ title: '', content: '', type: 'NORMAL', published: true })
+const { channels, isSuperAdmin, isReadonlyChannel, ownChannelId, fetchChannels, channelText } = useAdminSession()
+const canMutate = computed(() => !isReadonlyChannel.value)
+const form = ref({ title: '', content: '', type: 'NORMAL', published: true, channelId: null })
 
 const rules = {
   title: [{ required: true, message: '请输入标题', trigger: 'blur' }],
   type: [{ required: true, message: '请选择公告类型', trigger: 'change' }],
-  content: [{ required: true, message: '请输入内容', trigger: 'blur' }]
+  content: [{ required: true, message: '请输入内容', trigger: 'blur' }],
+  channelId: [{ required: true, message: '请选择渠道', trigger: 'change' }]
 }
 
 const typeLabel = (type) => {
@@ -168,7 +198,8 @@ const fetchAnnouncements = async () => {
         size: pagination.value.size,
         title: filters.value.title || undefined,
         type: filters.value.type || undefined,
-        published: normalizeBooleanFilter(filters.value.published)
+        published: normalizeBooleanFilter(filters.value.published),
+        channelId: channelFilterParam(isSuperAdmin.value, filters.value.channelId)
       }
     })
     announcements.value = result.list || result.content || []
@@ -187,7 +218,8 @@ const resetFilters = () => {
   filters.value = {
     title: '',
     type: '',
-    published: null
+    published: null,
+    channelId: ''
   }
   pagination.value.page = 1
   fetchAnnouncements()
@@ -209,12 +241,20 @@ const normalizeBooleanFilter = (value) => {
 }
 
 const showAddDialog = () => {
+  if (!canMutate.value) return
   isEdit.value = false
-  form.value = { title: '', content: '', type: 'NORMAL', published: true }
+  form.value = {
+    title: '',
+    content: '',
+    type: 'NORMAL',
+    published: true,
+    channelId: isSuperAdmin.value ? (filters.value.channelId || null) : ownChannelId.value
+  }
   dialogVisible.value = true
 }
 
 const showEditDialog = (row) => {
+  if (!canMutate.value) return
   isEdit.value = true
   form.value = { ...row, type: row.type || 'NORMAL' }
   if (form.value.type === APP_RELEASE_TYPE) {
@@ -224,6 +264,9 @@ const showEditDialog = (row) => {
 }
 
 const handleSubmit = async () => {
+  if (!isSuperAdmin.value && !form.value.channelId) {
+    form.value.channelId = ownChannelId.value
+  }
   if (form.value.type === APP_RELEASE_TYPE) {
     form.value.title = APP_RELEASE_TITLE
   }
@@ -252,7 +295,9 @@ const handleDelete = async (row) => {
   }
 }
 
-onMounted(fetchAnnouncements)
+onMounted(() => {
+  fetchChannels().finally(fetchAnnouncements)
+})
 </script>
 
 <style scoped>

@@ -15,6 +15,7 @@ import java.util.Optional;
 public interface FeedbackRepository extends JpaRepository<Feedback, Long> {
     List<Feedback> findByDeletedOrderByCreatedAtDesc(Byte deleted);
     Optional<Feedback> findByIdAndDeleted(Long id, Byte deleted);
+    List<Feedback> findByChannelIdAndDeletedOrderByCreatedAtDesc(Long channelId, Byte deleted);
     List<Feedback> findByUserIdAndDeletedOrderByCreatedAtDesc(Long userId, Byte deleted);
     List<Feedback> findByStatusAndDeletedOrderByCreatedAtDesc(String status, Byte deleted);
 
@@ -22,6 +23,7 @@ public interface FeedbackRepository extends JpaRepository<Feedback, Long> {
             select f
             from Feedback f
             where f.deleted = :active
+              and (:channelId is null or f.channelId = :channelId)
               and (:userPhone is null or f.userPhone like concat('%', :userPhone, '%'))
               and (:status is null or f.status = :status)
               and (:content is null or f.content like concat('%', :content, '%')
@@ -30,6 +32,7 @@ public interface FeedbackRepository extends JpaRepository<Feedback, Long> {
             """)
     Page<Feedback> searchFeedbacks(
             @Param("active") Byte active,
+            @Param("channelId") Long channelId,
             @Param("userPhone") String userPhone,
             @Param("status") String status,
             @Param("content") String content,

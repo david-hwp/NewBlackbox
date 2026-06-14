@@ -13,6 +13,12 @@
 - [Wave 2 - 微信分身首次绑定 clone mapping 修复](17-02-PLAN.md)
 - [Wave 3 - 店铺卡片微信接收方绑定与一键分享](17-03-PLAN.md)
 
+## Current Status
+
+- Wave 1: Implemented, pending final regression on local server and real devices.
+- Wave 2: Implemented, pending final Xiaomi regression for new clone creation/opening.
+- Wave 3: Partially implemented and paused. Code is retained; top share entry is hidden. Store remark and WeChat receiver metadata are now persisted on the server/admin side, and APP card display uses remark under shop ID.
+
 ## Cross-Wave Constraints
 
 - Java/Android 构建使用 JDK 21。

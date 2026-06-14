@@ -28,6 +28,7 @@ import black.android.content.res.BRAssetManager;
 import top.niunaijun.blackbox.BlackBoxCore;
 import top.niunaijun.blackbox.core.env.AppSystemEnv;
 import top.niunaijun.blackbox.core.env.BEnvironment;
+import top.niunaijun.blackbox.core.system.user.BUserHandle;
 import top.niunaijun.blackbox.entity.pm.InstallOption;
 import top.niunaijun.blackbox.utils.ArrayUtils;
 import top.niunaijun.blackbox.utils.FileUtils;
@@ -297,7 +298,7 @@ public class PackageManagerCompat {
         if ((flags & PackageManager.GET_META_DATA) != 0) {
             ai.metaData = p.mAppMetaData;
         }
-        ai.dataDir = BEnvironment.getDataDir(ai.packageName, userId).getAbsolutePath();
+        ai.dataDir = getApplicationDataDir(ai.packageName, userId);
         if (!p.installOption.isFlag(InstallOption.FLAG_SYSTEM)) {
             ai.nativeLibraryDir = BEnvironment.getAppLibDir(ai.packageName).getAbsolutePath();
         }
@@ -313,7 +314,7 @@ public class PackageManagerCompat {
             BRApplicationInfoL.get(ai)._set_scanSourceDir(BRApplicationInfoL.get(baseApplication).scanSourceDir());
         }
         if (BuildCompat.isN()) {
-            ai.deviceProtectedDataDir = BEnvironment.getDeDataDir(p.packageName, userId).getAbsolutePath();
+            ai.deviceProtectedDataDir = getApplicationDeDataDir(p.packageName, userId);
 
             if (BRApplicationInfoN.get(ai)._check_deviceEncryptedDataDir() != null) {
                 BRApplicationInfoN.get(ai)._set_deviceEncryptedDataDir(ai.deviceProtectedDataDir);
@@ -330,6 +331,35 @@ public class PackageManagerCompat {
         }
         fixJar(ai);
         return ai;
+    }
+
+    private static String getApplicationDataDir(String packageName, int userId) {
+        try {
+            return BEnvironment.getDataDir(packageName, userId).getAbsolutePath();
+        } catch (IllegalStateException e) {
+            if (shouldUseSystemUserLegacyDir(userId, e)) {
+                return BEnvironment.getLegacyDataDir(packageName, userId).getAbsolutePath();
+            }
+            throw e;
+        }
+    }
+
+    private static String getApplicationDeDataDir(String packageName, int userId) {
+        try {
+            return BEnvironment.getDeDataDir(packageName, userId).getAbsolutePath();
+        } catch (IllegalStateException e) {
+            if (shouldUseSystemUserLegacyDir(userId, e)) {
+                return BEnvironment.getLegacyDeDataDir(packageName, userId).getAbsolutePath();
+            }
+            throw e;
+        }
+    }
+
+    private static boolean shouldUseSystemUserLegacyDir(int userId, IllegalStateException e) {
+        String message = e.getMessage();
+        return userId == BUserHandle.USER_SYSTEM
+                && message != null
+                && message.startsWith("Missing clone mapping");
     }
 
     private static boolean checkUseInstalledOrHidden(int flags, BPackageUserState state,

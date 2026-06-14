@@ -13,8 +13,14 @@ public class TransactionLog {
     @Column(name = "user_id")
     private Long userId;
 
+    @Column(name = "channel_id")
+    private Long channelId;
+
+    @Column(name = "related_log_id")
+    private Long relatedLogId;
+
     @Column(nullable = false)
-    private String type; // CONSUME, OUT, IN
+    private String type; // CONSUME, OUT, IN, PHONE_CONSUME, PHONE_OUT, PHONE_IN
 
     @Column(nullable = false)
     private Integer amount;
@@ -35,9 +41,6 @@ public class TransactionLog {
 
     @Column(name = "to_name")
     private String toName;
-
-    @Column(name = "related_log_id")
-    private Long relatedLogId;
 
     private String remark;
 
@@ -63,6 +66,12 @@ public class TransactionLog {
     public Long getUserId() { return userId; }
     public void setUserId(Long userId) { this.userId = userId; }
 
+    public Long getChannelId() { return channelId; }
+    public void setChannelId(Long channelId) { this.channelId = channelId; }
+
+    public Long getRelatedLogId() { return relatedLogId; }
+    public void setRelatedLogId(Long relatedLogId) { this.relatedLogId = relatedLogId; }
+
     public String getType() { return type; }
     public void setType(String type) { this.type = type; }
 
@@ -86,9 +95,6 @@ public class TransactionLog {
 
     public String getToName() { return toName; }
     public void setToName(String toName) { this.toName = toName; }
-
-    public Long getRelatedLogId() { return relatedLogId; }
-    public void setRelatedLogId(Long relatedLogId) { this.relatedLogId = relatedLogId; }
 
     public String getRemark() { return remark; }
     public void setRemark(String remark) { this.remark = remark; }

@@ -4,11 +4,21 @@
       <template #header>
         <div class="card-header">
           <span>引擎版本</span>
-          <el-button type="primary" @click="showAddDialog">新增版本</el-button>
+          <el-button v-if="canMutate" type="primary" @click="showAddDialog">新增版本</el-button>
         </div>
       </template>
 
       <el-form class="filter-bar" :model="filters" inline @submit.prevent>
+        <el-form-item v-if="isSuperAdmin" label="渠道">
+          <el-select v-model="filters.channelId" clearable filterable placeholder="全部渠道" style="width: 190px">
+            <el-option
+              v-for="channel in channels"
+              :key="channel.id"
+              :label="formatChannelLabel(channel)"
+              :value="channel.id"
+            />
+          </el-select>
+        </el-form-item>
         <el-form-item label="版本号">
           <el-input v-model="filters.versionCode" clearable placeholder="输入版本号" style="width: 140px" @keyup.enter="handleSearch" />
         </el-form-item>
@@ -29,8 +39,14 @@
 
       <el-table :data="versions" v-loading="loading" style="width: 100%">
         <el-table-column prop="id" label="ID" width="70" />
+        <el-table-column label="渠道" min-width="130">
+          <template #default="{ row }">
+            <el-tag size="small">{{ channelText(row) }}</el-tag>
+          </template>
+        </el-table-column>
         <el-table-column prop="versionCode" label="版本号" width="100" />
         <el-table-column prop="versionName" label="版本名称" width="140" />
+        <el-table-column prop="applicationId" label="包名" min-width="220" show-overflow-tooltip />
         <el-table-column prop="apkUrl" label="APK地址" min-width="280" show-overflow-tooltip />
         <el-table-column prop="changelog" label="更新日志" min-width="220" show-overflow-tooltip />
         <el-table-column label="发布时间" width="180">
@@ -43,7 +59,7 @@
             <el-tag :type="row.available ? 'success' : 'info'">{{ row.available ? '可用' : '停用' }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="180">
+        <el-table-column v-if="canMutate" label="操作" width="180">
           <template #default="{ row }">
             <el-button type="primary" link @click="showEditDialog(row)">编辑</el-button>
             <el-button type="danger" link @click="handleDelete(row)">删除</el-button>
@@ -67,11 +83,24 @@
 
     <el-dialog v-model="dialogVisible" :title="isEdit ? '编辑版本' : '新增版本'" width="620px">
       <el-form :model="form" :rules="rules" ref="formRef" label-width="100px">
+        <el-form-item v-if="isSuperAdmin" label="渠道" prop="channelId">
+          <el-select v-model="form.channelId" filterable placeholder="请选择渠道" style="width: 100%">
+            <el-option
+              v-for="channel in channels"
+              :key="channel.id"
+              :label="formatChannelLabel(channel)"
+              :value="channel.id"
+            />
+          </el-select>
+        </el-form-item>
         <el-form-item label="版本号" prop="versionCode">
           <el-input-number v-model="form.versionCode" :min="1" style="width: 100%" />
         </el-form-item>
         <el-form-item label="版本名称" prop="versionName">
           <el-input v-model="form.versionName" />
+        </el-form-item>
+        <el-form-item label="包名" v-if="form.applicationId">
+          <el-input v-model="form.applicationId" disabled />
         </el-form-item>
         <el-form-item label="APK地址" prop="apkUrl">
           <el-input v-model="form.apkUrl" />
@@ -112,9 +141,10 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import request from '../utils/request'
+import { channelFilterParam, formatChannelLabel, formatDateTime, useAdminSession } from '../utils/adminSession'
 
 const versions = ref([])
 const loading = ref(false)
@@ -122,22 +152,38 @@ const uploading = ref(false)
 const dialogVisible = ref(false)
 const isEdit = ref(false)
 const formRef = ref()
+const { channels, isSuperAdmin, isReadonlyChannel, ownChannelId, fetchChannels, channelText } = useAdminSession()
+const canMutate = computed(() => !isReadonlyChannel.value)
 const filters = ref({
   versionCode: '',
   versionName: '',
-  available: null
+  available: null,
+  channelId: ''
 })
 const pagination = ref({
   page: 1,
   size: 10,
   total: 0
 })
-const form = ref({ versionCode: 1, versionName: '', apkUrl: '', checksum: '', changelog: '', available: true })
+
+const emptyForm = () => ({
+  versionCode: 1,
+  versionName: '',
+  apkUrl: '',
+  applicationId: '',
+  checksum: '',
+  changelog: '',
+  available: true,
+  channelId: isSuperAdmin.value ? null : ownChannelId.value
+})
+
+const form = ref(emptyForm())
 
 const rules = {
   versionCode: [{ required: true, message: '请输入版本号', trigger: 'blur' }],
   versionName: [{ required: true, message: '请输入版本名称', trigger: 'blur' }],
-  apkUrl: [{ required: true, message: '请输入APK地址', trigger: 'blur' }]
+  apkUrl: [{ required: true, message: '请输入APK地址', trigger: 'blur' }],
+  channelId: [{ required: true, message: '请选择渠道', trigger: 'change' }]
 }
 
 const fetchVersions = async () => {
@@ -149,7 +195,8 @@ const fetchVersions = async () => {
         size: pagination.value.size,
         versionCode: normalizeVersionCode(filters.value.versionCode),
         versionName: filters.value.versionName || undefined,
-        available: normalizeBooleanFilter(filters.value.available)
+        available: normalizeBooleanFilter(filters.value.available),
+        channelId: channelFilterParam(isSuperAdmin.value, filters.value.channelId)
       }
     })
     versions.value = result.list || result.content || []
@@ -168,7 +215,8 @@ const resetFilters = () => {
   filters.value = {
     versionCode: '',
     versionName: '',
-    available: null
+    available: null,
+    channelId: ''
   }
   pagination.value.page = 1
   fetchVersions()
@@ -196,20 +244,25 @@ const normalizeBooleanFilter = (value) => {
 }
 
 const showAddDialog = () => {
+  if (!canMutate.value) return
   isEdit.value = false
-  form.value = { versionCode: 1, versionName: '', apkUrl: '', checksum: '', changelog: '', available: true }
+  form.value = {
+    ...emptyForm(),
+    channelId: isSuperAdmin.value ? (filters.value.channelId || null) : ownChannelId.value
+  }
   dialogVisible.value = true
 }
 
 const showEditDialog = (row) => {
+  if (!canMutate.value) return
   isEdit.value = true
   form.value = { ...row, changelog: row.changelog || '' }
   dialogVisible.value = true
 }
 
-const formatDateTime = (value) => {
-  if (!value) return '-'
-  return String(value).replace('T', ' ').slice(0, 19)
+const uploadChannelConfig = () => {
+  const channel = channels.value.find(item => Number(item.id) === Number(form.value.channelId))
+  return channel?.code ? { headers: { 'X-Apk-Channel': channel.code } } : undefined
 }
 
 const handleApkChange = async (uploadFile) => {
@@ -219,7 +272,7 @@ const handleApkChange = async (uploadFile) => {
   uploading.value = true
   try {
     const checksum = await sha256(uploadFile.raw)
-    const res = await request.post('/files/engine-packages', data)
+    const res = await request.post('/files/engine-packages', data, uploadChannelConfig())
     form.value.apkUrl = res.url
     form.value.checksum = checksum
     ElMessage.success('APK上传成功')
@@ -235,6 +288,9 @@ const sha256 = async (file) => {
 }
 
 const handleSubmit = async () => {
+  if (!isSuperAdmin.value && !form.value.channelId) {
+    form.value.channelId = ownChannelId.value
+  }
   const valid = await formRef.value.validate().catch(() => false)
   if (!valid) return
 
@@ -260,7 +316,9 @@ const handleDelete = async (row) => {
   }
 }
 
-onMounted(fetchVersions)
+onMounted(() => {
+  fetchChannels().finally(fetchVersions)
+})
 </script>
 
 <style scoped>

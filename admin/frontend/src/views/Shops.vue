@@ -4,11 +4,21 @@
       <template #header>
         <div class="card-header">
           <span>店铺列表</span>
-          <el-button type="primary" @click="showAddDialog">新增店铺</el-button>
+          <el-button v-if="canMutate" type="primary" @click="showAddDialog">新增店铺</el-button>
         </div>
       </template>
 
       <el-form class="filter-bar" :model="filters" inline @submit.prevent>
+        <el-form-item v-if="isSuperAdmin" label="渠道">
+          <el-select v-model="filters.channelId" clearable filterable placeholder="全部渠道" style="width: 190px">
+            <el-option
+              v-for="channel in channels"
+              :key="channel.id"
+              :label="formatChannelLabel(channel)"
+              :value="channel.id"
+            />
+          </el-select>
+        </el-form-item>
         <el-form-item label="平台">
           <el-select v-model="filters.platform" clearable placeholder="全部平台" style="width: 160px">
             <el-option
@@ -60,6 +70,11 @@
             {{ row.userName || row.userPhone || row.userId || '-' }}
           </template>
         </el-table-column>
+        <el-table-column label="渠道" min-width="130">
+          <template #default="{ row }">
+            <el-tag size="small">{{ channelText(row) }}</el-tag>
+          </template>
+        </el-table-column>
         <el-table-column prop="platformName" label="平台" />
         <el-table-column prop="remainingDays" label="剩余天数">
           <template #default="{ row }">
@@ -74,7 +89,7 @@
           </template>
         </el-table-column>
         <el-table-column prop="createdAt" label="创建时间" />
-        <el-table-column label="操作" width="180">
+        <el-table-column v-if="canMutate" label="操作" width="180">
           <template #default="{ row }">
             <el-button type="primary" link @click="showEditDialog(row)">编辑</el-button>
             <el-button type="danger" link @click="handleDelete(row)">删除</el-button>
@@ -98,6 +113,16 @@
 
     <el-dialog v-model="dialogVisible" :title="isEdit ? '编辑店铺' : '新增店铺'" width="500px">
       <el-form :model="form" :rules="rules" ref="formRef" label-width="100px">
+        <el-form-item v-if="isSuperAdmin" label="所属渠道" prop="channelId">
+          <el-select v-model="form.channelId" filterable placeholder="请选择渠道" style="width: 100%">
+            <el-option
+              v-for="channel in channels"
+              :key="channel.id"
+              :label="formatChannelLabel(channel)"
+              :value="channel.id"
+            />
+          </el-select>
+        </el-form-item>
         <el-form-item label="店铺名称" prop="shopName">
           <el-input v-model="form.shopName" />
         </el-form-item>
@@ -156,9 +181,10 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import request from '../utils/request'
+import { channelFilterParam, formatChannelLabel, useAdminSession } from '../utils/adminSession'
 
 const shops = ref([])
 const users = ref([])
@@ -172,7 +198,8 @@ const filters = ref({
   platform: '',
   phone: '',
   userKeyword: '',
-  shopName: ''
+  shopName: '',
+  channelId: ''
 })
 const pagination = ref({
   page: 1,
@@ -192,14 +219,19 @@ const form = ref({
   wechatReceiverId: '',
   wechatReceiverName: '',
   wechatReceiverType: '',
-  remark: ''
+  remark: '',
+  channelId: null
 })
+
+const { channels, isSuperAdmin, isReadonlyChannel, ownChannelId, fetchChannels, channelText } = useAdminSession()
+const canMutate = computed(() => isSuperAdmin.value || !isReadonlyChannel.value)
 
 const rules = {
   shopName: [{ required: true, message: '请输入店铺名称', trigger: 'blur' }],
   shopId: [{ required: true, message: '请输入店铺ID', trigger: 'blur' }],
   userId: [{ required: true, message: '请选择所属用户', trigger: 'change' }],
-  platform: [{ required: true, message: '请选择平台', trigger: 'change' }]
+  platform: [{ required: true, message: '请选择平台', trigger: 'change' }],
+  channelId: [{ required: true, message: '请选择所属渠道', trigger: 'change' }]
 }
 
 const fetchShops = async () => {
@@ -212,7 +244,8 @@ const fetchShops = async () => {
         platform: filters.value.platform || undefined,
         phone: filters.value.phone || undefined,
         userKeyword: filters.value.userKeyword || undefined,
-        shopName: filters.value.shopName || undefined
+        shopName: filters.value.shopName || undefined,
+        channelId: channelFilterParam(isSuperAdmin.value, filters.value.channelId)
       }
     })
     shops.value = result.list || result.content || []
@@ -226,11 +259,11 @@ const fetchMetadata = async () => {
   metadataLoading.value = true
   try {
     const [userList, platformList] = await Promise.all([
-      request.get('/users'),
+      request.get('/users', { params: { page: 1, size: 100 } }),
       request.get('/platforms')
     ])
-    users.value = userList
-    platforms.value = platformList
+    users.value = userList.list || userList.content || userList || []
+    platforms.value = platformList.list || platformList.content || platformList || []
   } finally {
     metadataLoading.value = false
   }
@@ -246,7 +279,8 @@ const resetFilters = () => {
     platform: '',
     phone: '',
     userKeyword: '',
-    shopName: ''
+    shopName: '',
+    channelId: ''
   }
   pagination.value.page = 1
   fetchShops()
@@ -283,6 +317,7 @@ const formatReceiverType = (type) => {
 }
 
 const showAddDialog = () => {
+  if (!canMutate.value) return
   isEdit.value = false
   form.value = {
     shopName: '',
@@ -297,18 +332,23 @@ const showAddDialog = () => {
     wechatReceiverId: '',
     wechatReceiverName: '',
     wechatReceiverType: '',
-    remark: ''
+    remark: '',
+    channelId: isSuperAdmin.value ? (filters.value.channelId || null) : ownChannelId.value
   }
   dialogVisible.value = true
 }
 
 const showEditDialog = (row) => {
+  if (!canMutate.value) return
   isEdit.value = true
   form.value = { ...row }
   dialogVisible.value = true
 }
 
 const handleSubmit = async () => {
+  if (!isSuperAdmin.value && !form.value.channelId) {
+    form.value.channelId = ownChannelId.value
+  }
   const valid = await formRef.value.validate().catch(() => false)
   if (!valid) return
 
@@ -339,8 +379,10 @@ const handleDelete = async (row) => {
 }
 
 onMounted(() => {
-  fetchMetadata()
-  fetchShops()
+  fetchChannels().finally(() => {
+    fetchMetadata()
+    fetchShops()
+  })
 })
 </script>
 

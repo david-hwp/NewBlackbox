@@ -14,6 +14,7 @@ import com.zhirang.zhanghaoguanjia.data.EngineVersionRepository
 import com.zhirang.zhanghaoguanjia.data.TokenManager
 import com.zhirang.zhanghaoguanjia.engine.EngineInstaller
 import com.zhirang.zhanghaoguanjia.engine.EngineUpgradeState
+import com.zhirang.zhanghaoguanjia.network.RequestAuthHeaders
 import com.zhirang.zhanghaoguanjia.network.RetrofitClient
 import com.zhirang.zhanghaoguanjia.update.PackageIntegrityVerifier
 import java.io.File
@@ -76,7 +77,8 @@ class EngineSwitchViewModel(application: Application) : AndroidViewModel(applica
                         PackageIntegrityVerifier.PackageType.ENGINE,
                         file,
                         version.versionCode,
-                        version.checksum
+                        version.checksum,
+                        validation.getOrThrow().packageName
                     )
                 ) {
                     _messageLiveData.postValue(PackageIntegrityVerifier.VERIFY_FAILED_MESSAGE)
@@ -101,7 +103,9 @@ class EngineSwitchViewModel(application: Application) : AndroidViewModel(applica
     }
 
     private fun download(version: EngineVersionDto): File {
-        val request = Request.Builder().url(RetrofitClient.resolveUrl(version.apkUrl)).build()
+        val request = RequestAuthHeaders.apply(
+            Request.Builder().url(RetrofitClient.resolveUrl(version.apkUrl))
+        ).build()
         val response = httpClient.newCall(request).execute()
         if (!response.isSuccessful) {
             throw IllegalStateException("下载失败: ${response.code}")

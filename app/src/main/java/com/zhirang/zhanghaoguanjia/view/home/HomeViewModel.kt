@@ -52,6 +52,9 @@ class HomeViewModel : ViewModel() {
     private val _computeBalanceLiveData = MutableLiveData<Int>()
     val computeBalanceLiveData: LiveData<Int> = _computeBalanceLiveData
 
+    private val _phoneMinutesBalanceLiveData = MutableLiveData<Int>()
+    val phoneMinutesBalanceLiveData: LiveData<Int> = _phoneMinutesBalanceLiveData
+
     private val _phoneNumberLiveData = MutableLiveData<String>()
     val phoneNumberLiveData: LiveData<String> = _phoneNumberLiveData
 
@@ -181,6 +184,7 @@ class HomeViewModel : ViewModel() {
     fun refreshUserInfo() {
         val user = tokenManager.getUser()
         _computeBalanceLiveData.value = user?.computeBalance ?: 0
+        _phoneMinutesBalanceLiveData.value = user?.phoneMinutesBalance ?: 0
         _phoneNumberLiveData.value = maskPhoneNumber(user?.phone ?: "")
         _displayUsernameLiveData.value = getDisplayUsername(user?.username, user?.phone)
         _activeSubscriptionLiveData.value = user?.isSubscriptionActiveNow == true

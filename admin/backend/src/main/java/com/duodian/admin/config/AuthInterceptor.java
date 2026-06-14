@@ -1,5 +1,9 @@
 package com.duodian.admin.config;
 
+import com.duodian.admin.entity.Channel;
+import com.duodian.admin.entity.User;
+import com.duodian.admin.repository.ChannelRepository;
+import com.duodian.admin.repository.UserRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.stereotype.Component;
@@ -10,8 +14,11 @@ import java.util.List;
 
 @Component
 public class AuthInterceptor implements HandlerInterceptor {
+    private static final byte ACTIVE = 0;
 
     private final JwtUtil jwtUtil;
+    private final UserRepository userRepository;
+    private final ChannelRepository channelRepository;
 
     private static final List<String> WHITE_LIST = Arrays.asList(
             "/auth/login",
@@ -19,8 +26,10 @@ public class AuthInterceptor implements HandlerInterceptor {
             "/feedbacks/log-upload"
     );
 
-    public AuthInterceptor(JwtUtil jwtUtil) {
+    public AuthInterceptor(JwtUtil jwtUtil, UserRepository userRepository, ChannelRepository channelRepository) {
         this.jwtUtil = jwtUtil;
+        this.userRepository = userRepository;
+        this.channelRepository = channelRepository;
     }
 
     @Override
@@ -32,6 +41,10 @@ public class AuthInterceptor implements HandlerInterceptor {
         }
 
         if (isPublicFileRequest(request.getMethod()) && isPublicFileDownload(path)) {
+            return true;
+        }
+
+        if (isReleaseJobCallback(request.getMethod(), path)) {
             return true;
         }
 
@@ -59,8 +72,15 @@ public class AuthInterceptor implements HandlerInterceptor {
             return false;
         }
 
-        Long userId = jwtUtil.extractUserId(token);
-        AuthContext.setUserId(userId);
+        CurrentPrincipal principal = resolvePrincipal(token);
+        if (principal == null) {
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            response.setContentType("application/json;charset=UTF-8");
+            response.getWriter().write("{\"code\":401,\"message\":\"用户不存在或已停用\",\"data\":null}");
+            return false;
+        }
+        AuthContext.setPrincipal(principal);
+        AuthContext.setToken(token);
         return true;
     }
 
@@ -81,5 +101,39 @@ public class AuthInterceptor implements HandlerInterceptor {
 
     private boolean isPublicFileRequest(String method) {
         return "GET".equalsIgnoreCase(method) || "HEAD".equalsIgnoreCase(method);
+    }
+
+    private boolean isReleaseJobCallback(String method, String path) {
+        if (!"POST".equalsIgnoreCase(method) || !path.startsWith("/release-jobs/")) {
+            return false;
+        }
+        return path.endsWith("/callback/progress") || path.endsWith("/callback/complete");
+    }
+
+    private CurrentPrincipal resolvePrincipal(String token) {
+        Long userId = jwtUtil.extractUserId(token);
+        String role = jwtUtil.extractRole(token);
+        Long channelId = jwtUtil.extractChannelId(token);
+        String apkChannel = jwtUtil.extractApkChannel(token);
+        if (role != null && channelId != null && apkChannel != null) {
+            return new CurrentPrincipal(userId, role, channelId, apkChannel, apkChannel, "jwt");
+        }
+
+        User user = userRepository.findByIdAndDeleted(userId, ACTIVE).orElse(null);
+        if (user == null) {
+            return null;
+        }
+        Channel channel = user.getChannelId() == null
+                ? null
+                : channelRepository.findByIdAndDeleted(user.getChannelId(), ACTIVE).orElse(null);
+        String channelCode = channel != null ? channel.getCode() : user.getApkChannel();
+        return new CurrentPrincipal(
+                user.getId(),
+                user.getRole(),
+                user.getChannelId(),
+                channelCode,
+                user.getApkChannel(),
+                "db"
+        );
     }
 }

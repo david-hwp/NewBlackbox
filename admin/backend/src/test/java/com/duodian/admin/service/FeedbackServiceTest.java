@@ -2,6 +2,7 @@ package com.duodian.admin.service;
 
 import com.duodian.admin.entity.Feedback;
 import com.duodian.admin.repository.FeedbackRepository;
+import com.duodian.admin.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 
 import java.util.Optional;
@@ -14,7 +15,8 @@ import static org.mockito.Mockito.when;
 class FeedbackServiceTest {
 
     private final FeedbackRepository feedbackRepository = mock(FeedbackRepository.class);
-    private final FeedbackService feedbackService = new FeedbackService(feedbackRepository);
+    private final UserRepository userRepository = mock(UserRepository.class);
+    private final FeedbackService feedbackService = new FeedbackService(feedbackRepository, userRepository);
 
     @Test
     void deleteMarksFeedbackDeletedInsteadOfHardDeleting() {

@@ -68,9 +68,10 @@
                     android:orientation="horizontal">
 
                     <TextView
+                        android:id="@+id/tvBalanceLabel"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="可转赠算力"
+                        android:text="@string/compute_gift_balance_label"
                         android:textColor="@color/duodian_text_secondary"
                         android:textSize="14sp" />
 
@@ -95,6 +96,7 @@
 
                 <!-- 对方手机号 -->
                 <TextView
+                    android:id="@+id/tvTargetPhoneLabel"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="@string/gift_target_phone"
@@ -129,6 +131,7 @@
 
                 <!-- 赠送数量 -->
                 <TextView
+                    android:id="@+id/tvAmountLabel"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="20dp"
@@ -143,7 +146,7 @@
                     android:layout_height="52dp"
                     android:layout_marginTop="8dp"
                     android:background="@drawable/bg_input_field"
-                    android:hint="请输入赠送数量"
+                    android:hint="@string/compute_gift_amount_hint"
                     android:inputType="number"
                     android:paddingHorizontal="16dp"
                     android:textColor="@color/duodian_text_primary"

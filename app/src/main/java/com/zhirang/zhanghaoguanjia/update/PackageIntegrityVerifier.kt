@@ -21,14 +21,16 @@ object PackageIntegrityVerifier {
         type: PackageType,
         file: File,
         versionCode: Int,
-        expectedChecksum: String?
+        expectedChecksum: String?,
+        packageName: String? = null
     ): Boolean {
         val md5 = computeFileDigest(file, "MD5") ?: return false
         val sha256 = computeFileDigest(file, "SHA-256") ?: return false
         val request = PackageVerifyRequest(
             versionCode = versionCode,
             md5 = md5,
-            sha256 = sha256
+            sha256 = sha256,
+            packageName = packageName
         )
         val response = try {
             when (type) {

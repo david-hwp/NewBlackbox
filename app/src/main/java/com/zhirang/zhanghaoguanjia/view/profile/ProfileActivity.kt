@@ -100,6 +100,14 @@ class ProfileActivity : AppCompatActivity() {
             ComputeReclaimActivity.start(this)
         }
 
+        binding.menuPhoneGift?.setOnClickListener {
+            GiftActivity.startPhoneMinutes(this)
+        }
+
+        binding.menuPhoneReclaim?.setOnClickListener {
+            ComputeReclaimActivity.startPhoneMinutes(this)
+        }
+
         binding.menuLogs?.setOnClickListener {
             LogsActivity.start(this)
         }
@@ -163,6 +171,7 @@ class ProfileActivity : AppCompatActivity() {
                 binding.tvShopCount?.text = it.shopCount.toString()
                 binding.tvPlatformCount?.text = it.platformCount.toString()
                 binding.tvComputeBalance?.text = it.computeBalance.toString()
+                binding.tvPhoneMinutesBalance?.text = it.phoneMinutesBalance.toString()
             }
         }
 
@@ -251,6 +260,7 @@ class ProfileActivity : AppCompatActivity() {
             return
         }
         if (::viewModel.isInitialized) {
+            viewModel.loadProfile()
             viewModel.refreshEngineUpgradeState()
             viewModel.refreshAppUpdateState()
         }

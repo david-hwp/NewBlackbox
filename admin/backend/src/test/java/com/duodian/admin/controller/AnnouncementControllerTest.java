@@ -2,7 +2,12 @@ package com.duodian.admin.controller;
 
 import com.duodian.admin.controller.dto.ApiResponse;
 import com.duodian.admin.entity.Announcement;
+import com.duodian.admin.entity.Channel;
 import com.duodian.admin.repository.AnnouncementRepository;
+import com.duodian.admin.config.CurrentPrincipal;
+import com.duodian.admin.service.ChannelScopeService;
+import com.duodian.admin.service.PermissionService;
+import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -16,17 +21,23 @@ import static org.mockito.Mockito.when;
 class AnnouncementControllerTest {
 
     private final AnnouncementRepository repository = mock(AnnouncementRepository.class);
-    private final AnnouncementController controller = new AnnouncementController(repository);
+    private final PermissionService permissionService = mock(PermissionService.class);
+    private final ChannelScopeService channelScopeService = mock(ChannelScopeService.class);
+    private final HttpServletRequest request = mock(HttpServletRequest.class);
+    private final AnnouncementController controller = new AnnouncementController(repository, permissionService, channelScopeService);
 
     @Test
     void listNormalizesScrollingTickerType() {
+        when(channelScopeService.hasAppChannelHeader(request)).thenReturn(false);
+        when(permissionService.currentPrincipal()).thenReturn(new CurrentPrincipal(1L, "SUPER_ADMIN", 1L, "main", "main", "test"));
+        when(permissionService.filterChannelForQuery(null)).thenReturn(null);
         when(repository.findByPublishedAndTypeAndDeletedOrderByCreatedAtDesc(
                 eq(true),
                 eq("SCROLLING_TICKER"),
                 eq((byte) 0)
         )).thenReturn(List.of(announcement("滚动播报", "播报内容", "SCROLLING_TICKER")));
 
-        ApiResponse<?> response = controller.list(true, " scrolling_ticker ", null, null, null);
+        ApiResponse<?> response = controller.list(true, " scrolling_ticker ", null, null, null, null, request);
 
         assertThat(response.getCode()).isEqualTo(200);
         verify(repository).findByPublishedAndTypeAndDeletedOrderByCreatedAtDesc(
@@ -39,6 +50,11 @@ class AnnouncementControllerTest {
     @Test
     void createKeepsScrollingTickerTitle() {
         Announcement request = announcement("首页提示", "今天营业数据已更新", "scrolling_ticker");
+        Channel main = new Channel();
+        main.setId(1L);
+        main.setCode("main");
+        when(permissionService.filterChannelForQuery(null)).thenReturn(null);
+        when(channelScopeService.mainChannel()).thenReturn(main);
         when(repository.save(request)).thenReturn(request);
 
         ApiResponse<Announcement> response = controller.create(request);
@@ -46,6 +62,8 @@ class AnnouncementControllerTest {
         assertThat(response.getCode()).isEqualTo(200);
         assertThat(response.getData().getType()).isEqualTo("SCROLLING_TICKER");
         assertThat(response.getData().getTitle()).isEqualTo("首页提示");
+        assertThat(response.getData().getChannelId()).isEqualTo(1L);
+        verify(permissionService).requireActiveChannelForMutation(1L);
     }
 
     private Announcement announcement(String title, String content, String type) {

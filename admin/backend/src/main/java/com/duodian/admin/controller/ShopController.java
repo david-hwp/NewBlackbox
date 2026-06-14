@@ -16,6 +16,7 @@ import com.duodian.admin.entity.Shop;
 import com.duodian.admin.entity.User;
 import com.duodian.admin.service.CloneAuthorizationTokenService;
 import com.duodian.admin.service.ComputeService;
+import com.duodian.admin.service.PermissionService;
 import com.duodian.admin.service.ShopService;
 import com.duodian.admin.service.UserService;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -54,17 +55,20 @@ public class ShopController {
     private final UserService userService;
     private final ComputeService computeService;
     private final CloneAuthorizationTokenService cloneAuthorizationTokenService;
+    private final PermissionService permissionService;
 
     public ShopController(
             ShopService shopService,
             UserService userService,
             ComputeService computeService,
-            CloneAuthorizationTokenService cloneAuthorizationTokenService
+            CloneAuthorizationTokenService cloneAuthorizationTokenService,
+            PermissionService permissionService
     ) {
         this.shopService = shopService;
         this.userService = userService;
         this.computeService = computeService;
         this.cloneAuthorizationTokenService = cloneAuthorizationTokenService;
+        this.permissionService = permissionService;
     }
 
     @GetMapping
@@ -75,25 +79,26 @@ public class ShopController {
             @RequestParam(required = false) String phone,
             @RequestParam(required = false) String userKeyword,
             @RequestParam(required = false) String shopName,
+            @RequestParam(required = false) Long channelId,
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size) {
-        User currentUser = getCurrentUser();
-        if (currentUser == null) {
-            return ApiResponse.error(401, "未登录");
-        }
+        permissionService.requireAdminRole();
+        User currentUser = permissionService.currentUser();
+        Long effectiveChannelId = permissionService.filterChannelForQuery(channelId);
         String packageFilter = normalize(packageName);
         boolean pagedRequest = page != null || size != null || hasText(platform) || hasText(phone)
-                || hasText(userKeyword) || hasText(shopName);
+                || hasText(userKeyword) || hasText(shopName) || effectiveChannelId != null;
         if (pagedRequest) {
             int pageNumber = Math.max(1, page == null ? 1 : page);
             int pageSize = Math.max(1, Math.min(100, size == null ? 10 : size));
-            Long effectiveUserId = isAdmin(currentUser) ? userId : currentUser.getId();
+            Long effectiveUserId = userId;
             Page<ShopResponse> shops = shopService.search(
                             effectiveUserId,
+                            effectiveChannelId,
                             packageFilter,
                             normalize(platform),
-                            isAdmin(currentUser) ? normalize(phone) : null,
-                            isAdmin(currentUser) ? normalize(userKeyword) : null,
+                            normalize(phone),
+                            normalize(userKeyword),
                             normalize(shopName),
                             PageRequest.of(pageNumber - 1, pageSize, Sort.by(Sort.Direction.DESC, "createdAt"))
                     )
@@ -102,10 +107,8 @@ public class ShopController {
         }
 
         List<Shop> shops;
-        if (!isAdmin(currentUser)) {
-            shops = packageFilter != null
-                    ? shopService.findByUserIdAndPackageName(currentUser.getId(), packageFilter)
-                    : shopService.findByUserId(currentUser.getId());
+        if (effectiveChannelId != null) {
+            shops = shopService.findByChannelId(effectiveChannelId);
         } else if (userId != null) {
             shops = packageFilter != null
                     ? shopService.findByUserIdAndPackageName(userId, packageFilter)
@@ -149,6 +152,7 @@ public class ShopController {
         if (!isAdmin(currentUser)) {
             return ApiResponse.error(403, "请使用店铺创建接口新增店铺");
         }
+        permissionService.requireActiveChannelForMutation(shop.getChannelId());
         Shop saved = shopService.create(shop);
         userService.refreshShopStats(saved.getUserId());
         return ApiResponse.success(saved);
@@ -290,18 +294,21 @@ public class ShopController {
 
     @PutMapping("/{id}")
     public ApiResponse<Shop> update(@PathVariable Long id, @RequestBody Shop shop) {
-        Optional<Shop> existing = shopService.findById(id);
-        if (existing.isEmpty() || !canAccessShop(existing.get())) {
+        Optional<Shop> existingOptional = shopService.findById(id);
+        if (existingOptional.isEmpty() || !canAccessShop(existingOptional.get())) {
             return ApiResponse.error("店铺不存在");
         }
-        if (hasIdentityChange(existing.get(), shop)) {
+        Shop existing = existingOptional.get();
+        if (hasIdentityChange(existing, shop)) {
             return ApiResponse.error("店铺ID和店铺名称只能由引擎识别更新");
         }
-        shop.setIdentityVerified(existing.get().getIdentityVerified());
-        shop.setIdentityVerifiedAt(existing.get().getIdentityVerifiedAt());
-        Long ownerId = shopService.findById(id).map(Shop::getUserId).orElse(null);
+        shop.setIdentityVerified(existing.getIdentityVerified());
+        shop.setIdentityVerifiedAt(existing.getIdentityVerifiedAt());
+        Long ownerId = existing.getUserId();
         if (!isCurrentUserAdmin()) {
             shop.setUserId(AuthContext.getUserId());
+        } else {
+            permissionService.requireActiveChannelForMutation(existing.getChannelId());
         }
         Shop saved = shopService.update(id, shop);
         userService.refreshShopStats(saved.getUserId());
@@ -542,7 +549,9 @@ public class ShopController {
     }
 
     private boolean isAdmin(User user) {
-        return user != null && "ADMIN".equalsIgnoreCase(user.getRole());
+        return user != null && ("ADMIN".equalsIgnoreCase(user.getRole())
+                || "SUPER_ADMIN".equalsIgnoreCase(user.getRole())
+                || "CHANNEL".equalsIgnoreCase(user.getRole()));
     }
 
     private boolean canAccessShop(Long id) {
@@ -554,7 +563,18 @@ public class ShopController {
         if (currentUser == null) {
             return false;
         }
-        return isAdmin(currentUser) || currentUser.getId().equals(shop.getUserId());
+        if (currentUser.getId().equals(shop.getUserId())) {
+            return true;
+        }
+        if (!isAdmin(currentUser)) {
+            return false;
+        }
+        try {
+            permissionService.requireChannelAccess(shop.getChannelId());
+            return true;
+        } catch (RuntimeException e) {
+            return false;
+        }
     }
 
     private boolean hasIdentityChange(Shop existing, Shop request) {

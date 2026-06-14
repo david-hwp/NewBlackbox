@@ -6,6 +6,7 @@ import com.duodian.admin.controller.dto.PagedResponse;
 import com.duodian.admin.controller.dto.TransactionLogResponse;
 import com.duodian.admin.entity.TransactionLog;
 import com.duodian.admin.repository.TransactionLogRepository;
+import com.duodian.admin.service.PermissionService;
 import com.duodian.admin.service.TransactionLogService;
 import com.duodian.admin.service.UserService;
 import org.springframework.data.domain.Page;
@@ -28,15 +29,18 @@ public class TransactionLogController {
     private final TransactionLogService logService;
     private final TransactionLogRepository logRepository;
     private final UserService userService;
+    private final PermissionService permissionService;
 
     public TransactionLogController(
             TransactionLogService logService,
             TransactionLogRepository logRepository,
-            UserService userService
+            UserService userService,
+            PermissionService permissionService
     ) {
         this.logService = logService;
         this.logRepository = logRepository;
         this.userService = userService;
+        this.permissionService = permissionService;
     }
 
     @GetMapping
@@ -45,12 +49,16 @@ public class TransactionLogController {
             @RequestParam(required = false) String type,
             @RequestParam(required = false) String phone,
             @RequestParam(required = false) String shopName,
+            @RequestParam(required = false) Long channelId,
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size) {
-        if (page != null || size != null || hasText(phone) || hasText(shopName)) {
+        permissionService.requireAdminRole();
+        Long effectiveChannelId = permissionService.filterChannelForQuery(channelId);
+        if (page != null || size != null || hasText(phone) || hasText(shopName) || effectiveChannelId != null) {
             Page<TransactionLogResponse> logs = logRepository.searchLogs(
                     ACTIVE,
                     userId,
+                    effectiveChannelId,
                     normalize(type),
                     normalize(phone),
                     normalize(shopName),
@@ -59,7 +67,9 @@ public class TransactionLogController {
             return ApiResponse.success(PagedResponse.from(logs));
         }
         List<TransactionLog> logs;
-        if (userId != null) {
+        if (effectiveChannelId != null) {
+            logs = logService.findByChannelId(effectiveChannelId);
+        } else if (userId != null) {
             logs = logService.findByUserId(userId);
         } else if (type != null) {
             logs = logService.findByType(type);
@@ -71,18 +81,25 @@ public class TransactionLogController {
 
     @GetMapping("/{id}")
     public ApiResponse<TransactionLog> get(@PathVariable Long id) {
+        permissionService.requireAdminRole();
         return logService.findById(id)
+                .filter(log -> {
+                    permissionService.requireChannelAccess(log.getChannelId());
+                    return true;
+                })
                 .map(ApiResponse::success)
                 .orElse(ApiResponse.error("日志不存在"));
     }
 
     @PostMapping
     public ApiResponse<TransactionLog> create(@RequestBody TransactionLog log) {
+        permissionService.requireSuperAdmin();
         return ApiResponse.success(logService.create(log));
     }
 
     @DeleteMapping("/{id}")
     public ApiResponse<Void> delete(@PathVariable Long id) {
+        permissionService.requireSuperAdmin();
         logService.delete(id);
         return ApiResponse.success();
     }

@@ -8,6 +8,7 @@ import com.duodian.admin.controller.dto.PagedResponse;
 import com.duodian.admin.controller.dto.SubscriptionUpdateRequest;
 import com.duodian.admin.entity.User;
 import com.duodian.admin.repository.UserRepository;
+import com.duodian.admin.service.PermissionService;
 import com.duodian.admin.service.UserService;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
@@ -25,10 +26,12 @@ public class UserController {
 
     private final UserService userService;
     private final UserRepository userRepository;
+    private final PermissionService permissionService;
 
-    public UserController(UserService userService, UserRepository userRepository) {
+    public UserController(UserService userService, UserRepository userRepository, PermissionService permissionService) {
         this.userService = userService;
         this.userRepository = userRepository;
+        this.permissionService = permissionService;
     }
 
     @GetMapping
@@ -36,18 +39,18 @@ public class UserController {
             @RequestParam(required = false) String username,
             @RequestParam(required = false) String phone,
             @RequestParam(required = false) String role,
+            @RequestParam(required = false) Long channelId,
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size) {
-        ApiResponse<Void> adminError = requireAdmin();
-        if (adminError != null) {
-            return adminError;
-        }
-        if (page != null || size != null || hasText(username) || hasText(phone) || hasText(role)) {
+        permissionService.requireAdminRole();
+        Long effectiveChannelId = permissionService.filterChannelForQuery(channelId);
+        if (page != null || size != null || hasText(username) || hasText(phone) || hasText(role) || effectiveChannelId != null) {
             Page<User> users = userRepository.searchUsers(
                     ACTIVE,
                     normalize(username),
                     normalize(phone),
                     normalize(role),
+                    effectiveChannelId,
                     PageRequest.of(pageNumber(page) - 1, pageSize(size), Sort.by(Sort.Direction.DESC, "createdAt"))
             ).map(userService::withCurrentStats);
             return ApiResponse.success(PagedResponse.from(users));
@@ -57,11 +60,12 @@ public class UserController {
 
     @GetMapping("/{id}")
     public ApiResponse<User> get(@PathVariable Long id) {
-        ApiResponse<Void> adminError = requireAdmin();
-        if (adminError != null) {
-            return ApiResponse.error(adminError.getCode(), adminError.getMessage());
-        }
+        permissionService.requireAdminRole();
         return userService.findById(id)
+                .filter(user -> {
+                    permissionService.requireChannelAccess(user.getChannelId());
+                    return true;
+                })
                 .map(userService::withCurrentStats)
                 .map(ApiResponse::success)
                 .orElse(ApiResponse.error("用户不存在"));
@@ -69,19 +73,13 @@ public class UserController {
 
     @PostMapping
     public ApiResponse<User> create(@RequestBody User user) {
-        ApiResponse<Void> adminError = requireAdmin();
-        if (adminError != null) {
-            return ApiResponse.error(adminError.getCode(), adminError.getMessage());
-        }
+        permissionService.requireSuperAdmin();
         return ApiResponse.success(userService.create(user));
     }
 
     @PutMapping("/{id}")
     public ApiResponse<User> update(@PathVariable Long id, @RequestBody User user) {
-        ApiResponse<Void> adminError = requireAdmin();
-        if (adminError != null) {
-            return ApiResponse.error(adminError.getCode(), adminError.getMessage());
-        }
+        permissionService.requireSuperAdmin();
         return ApiResponse.success(userService.update(id, user));
     }
 
@@ -90,19 +88,13 @@ public class UserController {
             @PathVariable Long id,
             @RequestBody SubscriptionUpdateRequest request
     ) {
-        ApiResponse<Void> adminError = requireAdmin();
-        if (adminError != null) {
-            return ApiResponse.error(adminError.getCode(), adminError.getMessage());
-        }
+        permissionService.requireSuperAdmin();
         return ApiResponse.success(userService.updateSubscription(id, request == null ? null : request.getPlan()));
     }
 
     @DeleteMapping("/{id}")
     public ApiResponse<Void> delete(@PathVariable Long id) {
-        ApiResponse<Void> adminError = requireAdmin();
-        if (adminError != null) {
-            return adminError;
-        }
+        permissionService.requireSuperAdmin();
         userService.delete(id);
         return ApiResponse.success();
     }
@@ -141,7 +133,7 @@ public class UserController {
         if (request.containsKey("avatarUrl")) {
             user.setAvatarUrl(avatarUrl == null || avatarUrl.isBlank() ? null : avatarUrl.trim());
         }
-        return ApiResponse.success(userService.update(userId, user));
+        return ApiResponse.success(userService.updateProfile(userId, user));
     }
 
     @PutMapping("/me/password")
@@ -176,19 +168,5 @@ public class UserController {
 
     private int pageSize(Integer size) {
         return Math.max(1, Math.min(100, size == null ? 10 : size));
-    }
-
-    private ApiResponse<Void> requireAdmin() {
-        Long currentUserId = AuthContext.getUserId();
-        if (currentUserId == null) {
-            return ApiResponse.error(401, "未登录");
-        }
-        boolean admin = userService.findById(currentUserId)
-                .map(user -> "ADMIN".equalsIgnoreCase(user.getRole()))
-                .orElse(false);
-        if (!admin) {
-            return ApiResponse.error(403, "无权限");
-        }
-        return null;
     }
 }

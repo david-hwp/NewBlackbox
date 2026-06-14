@@ -540,11 +540,6 @@ class HomeActivity : AppCompatActivity() {
             ProfileActivity.start(this)
         }
 
-        // 交易日志按钮
-        viewBinding.btnLogs.setOnClickListener {
-            LogsActivity.start(this)
-        }
-
         viewBinding.btnAddShop.setOnClickListener {
             addShopForSelectedPlatform()
         }
@@ -553,6 +548,10 @@ class HomeActivity : AppCompatActivity() {
     private fun observeData() {
         viewModel.computeBalanceLiveData.observe(this) { balance ->
             viewBinding.tvComputeBalance.text = balance.toString()
+        }
+
+        viewModel.phoneMinutesBalanceLiveData.observe(this) { balance ->
+            viewBinding.tvPhoneMinutesBalance.text = getString(R.string.phone_minutes_balance_home, balance)
         }
 
         viewModel.phoneNumberLiveData.observe(this) { phone ->

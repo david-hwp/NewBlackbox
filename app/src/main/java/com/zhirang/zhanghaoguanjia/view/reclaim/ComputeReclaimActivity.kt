@@ -20,11 +20,19 @@ class ComputeReclaimActivity : AppCompatActivity() {
     private lateinit var binding: ActivityComputeReclaimBinding
     private lateinit var viewModel: ComputeReclaimViewModel
     private var latestResult: ComputeReclaimResult? = null
+    private val phoneMinutesMode: Boolean
+        get() = intent.getBooleanExtra(EXTRA_PHONE_MINUTES_MODE, false)
 
     companion object {
         fun start(context: Context) {
             context.startActivity(Intent(context, ComputeReclaimActivity::class.java))
         }
+
+        fun startPhoneMinutes(context: Context) {
+            context.startActivity(Intent(context, ComputeReclaimActivity::class.java).putExtra(EXTRA_PHONE_MINUTES_MODE, true))
+        }
+
+        private const val EXTRA_PHONE_MINUTES_MODE = "phone_minutes_mode"
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -42,6 +50,7 @@ class ComputeReclaimActivity : AppCompatActivity() {
     }
 
     private fun initToolbar() {
+        binding.toolbar.title = getString(if (phoneMinutesMode) R.string.phone_reclaim_title else R.string.reclaim_title)
         binding.toolbar.setNavigationOnClickListener {
             finish()
         }
@@ -51,14 +60,14 @@ class ComputeReclaimActivity : AppCompatActivity() {
         binding.btnQuery.setOnClickListener {
             val phone = binding.etTargetPhone.text.toString().trim()
             if (validatePhone(phone)) {
-                viewModel.query(phone)
+                viewModel.query(phone, phoneMinutesMode)
             }
         }
 
         binding.btnReclaim.setOnClickListener {
             val result = latestResult ?: return@setOnClickListener
             if (result.reclaimableAmount <= 0) {
-                Toast.makeText(this, getString(R.string.reclaim_none_available), Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, getString(if (phoneMinutesMode) R.string.reclaim_phone_none_available else R.string.reclaim_none_available), Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
             showReclaimSheet(result)
@@ -105,17 +114,26 @@ class ComputeReclaimActivity : AppCompatActivity() {
         renderResult(result)
         result.fromBalance?.let { balance ->
             TokenManager.getInstance().getUser()?.let { user ->
-                TokenManager.getInstance().saveUser(user.copy(computeBalance = balance))
+                val updated = if (phoneMinutesMode) {
+                    user.copy(phoneMinutesBalance = balance)
+                } else {
+                    user.copy(computeBalance = balance)
+                }
+                TokenManager.getInstance().saveUser(updated)
             }
         }
         val amount = result.reclaimedAmount ?: 0
-        Toast.makeText(this, getString(R.string.reclaim_success_with_amount, amount), Toast.LENGTH_SHORT).show()
+        Toast.makeText(
+            this,
+            getString(if (phoneMinutesMode) R.string.reclaim_phone_success_with_amount else R.string.reclaim_success_with_amount, amount),
+            Toast.LENGTH_SHORT
+        ).show()
     }
 
     private fun showReclaimSheet(result: ComputeReclaimResult) {
-        val sheet = ComputeReclaimSheetFragment.newInstance(result.reclaimableAmount)
+        val sheet = ComputeReclaimSheetFragment.newInstance(result.reclaimableAmount, phoneMinutesMode)
         sheet.setOnConfirmListener { amount ->
-            viewModel.reclaim(result.toPhone, result.giftLogId, amount)
+            viewModel.reclaim(result.toPhone, result.giftLogId, amount, phoneMinutesMode)
         }
         sheet.show(supportFragmentManager, "ComputeReclaim")
     }
@@ -141,11 +159,18 @@ class ComputeReclaimActivity : AppCompatActivity() {
         binding.receiptCard.visibility = View.VISIBLE
         binding.tvReceiptPhone.text = maskPhone(result.toPhone)
         binding.tvReceiptTime.text = formatTime(result.giftCreatedAt)
-        binding.tvGiftAmount.text = getString(R.string.reclaim_compute_unit, result.giftAmount)
-        binding.tvConsumedAmount.text = getString(R.string.reclaim_compute_unit, result.receiverConsumedAmount)
-        binding.tvAlreadyReclaimedAmount.text = getString(R.string.reclaim_compute_unit, result.alreadyReclaimedAmount)
-        binding.tvReclaimableAmount.text = getString(R.string.reclaim_compute_unit, result.reclaimableAmount)
+        binding.tvConsumedLabel.text = getString(if (phoneMinutesMode) R.string.reclaim_receipt_phone_consumed else R.string.reclaim_receipt_consumed)
+        binding.tvAlreadyReclaimedLabel.text = getString(if (phoneMinutesMode) R.string.reclaim_receipt_phone_already_reclaimed else R.string.reclaim_receipt_already_reclaimed)
+        binding.tvReclaimableLabel.text = getString(if (phoneMinutesMode) R.string.reclaim_receipt_phone_reclaimable else R.string.reclaim_receipt_reclaimable)
+        binding.tvGiftAmount.text = amountText(result.giftAmount)
+        binding.tvConsumedAmount.text = amountText(result.receiverConsumedAmount)
+        binding.tvAlreadyReclaimedAmount.text = amountText(result.alreadyReclaimedAmount)
+        binding.tvReclaimableAmount.text = amountText(result.reclaimableAmount)
         binding.btnReclaim.isEnabled = result.reclaimableAmount > 0
+    }
+
+    private fun amountText(amount: Int): String {
+        return getString(if (phoneMinutesMode) R.string.reclaim_phone_minutes_unit else R.string.reclaim_compute_unit, amount)
     }
 
     private fun formatTime(value: String?): String {

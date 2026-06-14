@@ -9,6 +9,9 @@
         name="engine_cache"
         path="engine-update/" />
     <cache-path
+        name="engine_download_cache"
+        path="engine-downloads/" />
+    <cache-path
         name="app_update_cache"
         path="app-update/" />
     <!-- External files directory -->

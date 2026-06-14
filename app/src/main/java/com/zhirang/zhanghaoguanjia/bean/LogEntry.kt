@@ -8,4 +8,4 @@ data class LogEntry(
     val timestamp: Long
 )
 
-enum class LogType { CONSUME, OUT, IN }
+enum class LogType { CONSUME, OUT, IN, PHONE_CONSUME, PHONE_OUT, PHONE_IN }
