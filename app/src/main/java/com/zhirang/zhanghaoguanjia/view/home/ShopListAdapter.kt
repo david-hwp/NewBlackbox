@@ -10,7 +10,7 @@ import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.RecyclerView
 import com.zhirang.zhanghaoguanjia.R
 import com.zhirang.zhanghaoguanjia.bean.Shop
-import com.zhirang.zhanghaoguanjia.data.SystemParameterRepository
+import com.zhirang.zhanghaoguanjia.bean.dto.AdvancedFeatureDto
 import com.zhirang.zhanghaoguanjia.util.PlatformIconLoader
 import com.zhirang.zhanghaoguanjia.util.PlatformRegistry
 
@@ -19,6 +19,7 @@ class ShopListAdapter(
     private val onEditClick: (Int, Shop) -> Unit,
     private val onWechatClick: (Int, Shop) -> Unit,
     private val onQuickShareClick: (Int, Shop) -> Unit,
+    private val onAdvancedFeatureClick: (Int, Shop, AdvancedFeatureType) -> Unit,
     private val onAutoRenewClick: (Int, Shop) -> Unit,
     private val onDeleteClick: (Int, Shop) -> Unit,
     private val onRepairClick: (Int, Shop) -> Unit
@@ -30,7 +31,7 @@ class ShopListAdapter(
     private var showAutoRenewControls: Boolean = true
     private var reorderMode: Boolean = false
     private var draggingShopId: Long? = null
-    private var appParameters: Map<String, String> = emptyMap()
+    private var advancedFeatures: Map<String, AdvancedFeatureDto> = emptyMap()
     private var onLongPressDragStart: ((RecyclerView.ViewHolder) -> Unit)? = null
 
     fun submitList(newList: List<Shop>) {
@@ -45,11 +46,11 @@ class ShopListAdapter(
         onLongPressDragStart = listener
     }
 
-    fun setAppParameters(parameters: Map<String, String>) {
-        if (appParameters == parameters) {
+    fun setAdvancedFeatures(features: Map<String, AdvancedFeatureDto>) {
+        if (advancedFeatures == features) {
             return
         }
-        appParameters = parameters
+        advancedFeatures = features
         notifyDataSetChanged()
     }
 
@@ -172,6 +173,11 @@ class ShopListAdapter(
         private val shopFeatureBar: View = itemView.findViewById(R.id.shopFeatureBar)
         private val btnQuickShare: View = itemView.findViewById(R.id.btnQuickShare)
         private val btnWechat: View = itemView.findViewById(R.id.btnWechat)
+        private val btnFeatureBadReviewLocation: View = itemView.findViewById(R.id.btnFeatureBadReviewLocation)
+        private val btnFeatureBusinessReport: View = itemView.findViewById(R.id.btnFeatureBusinessReport)
+        private val btnFeatureOutboundPraise: View = itemView.findViewById(R.id.btnFeatureOutboundPraise)
+        private val btnFeatureReviewAppeal: View = itemView.findViewById(R.id.btnFeatureReviewAppeal)
+        private val btnFeaturePrivateTraffic: View = itemView.findViewById(R.id.btnFeaturePrivateTraffic)
         private val tvFeatureBadReviewLocationTitle: TextView = itemView.findViewById(R.id.tvFeatureBadReviewLocationTitle)
         private val tvFeatureBadReviewLocationLine1: TextView = itemView.findViewById(R.id.tvFeatureBadReviewLocationLine1)
         private val tvFeatureBadReviewLocationLine2: TextView = itemView.findViewById(R.id.tvFeatureBadReviewLocationLine2)
@@ -301,6 +307,11 @@ class ShopListAdapter(
                     onQuickShareClick(pos, shops[pos])
                 }
             }
+            bindAdvancedFeatureClick(btnFeatureBadReviewLocation, AdvancedFeatureType.BAD_REVIEW_LOCATION)
+            bindAdvancedFeatureClick(btnFeatureBusinessReport, AdvancedFeatureType.BUSINESS_REPORT)
+            bindAdvancedFeatureClick(btnFeatureOutboundPraise, AdvancedFeatureType.OUTBOUND_PRAISE)
+            bindAdvancedFeatureClick(btnFeatureReviewAppeal, AdvancedFeatureType.REVIEW_APPEAL)
+            bindAdvancedFeatureClick(btnFeaturePrivateTraffic, AdvancedFeatureType.PRIVATE_TRAFFIC)
             btnAutoRenew?.setOnClickListener {
                 if (reorderMode || !showAutoRenewControls) return@setOnClickListener
                 val pos = bindingAdapterPosition
@@ -324,50 +335,50 @@ class ShopListAdapter(
             }
         }
 
+        private fun bindAdvancedFeatureClick(view: View, featureType: AdvancedFeatureType) {
+            view.setOnClickListener {
+                if (reorderMode) return@setOnClickListener
+                val pos = bindingAdapterPosition
+                if (pos != RecyclerView.NO_POSITION) {
+                    onAdvancedFeatureClick(pos, shops[pos], featureType)
+                }
+            }
+        }
+
         private fun bindFeatureLabels() {
             bindFeatureBlock(
                 titleView = tvFeatureBadReviewLocationTitle,
                 line1View = tvFeatureBadReviewLocationLine1,
                 line2View = tvFeatureBadReviewLocationLine2,
-                titleCode = SystemParameterRepository.APP_SHOP_FEATURE_BAD_REVIEW_LOCATION_LABEL,
-                line1Code = SystemParameterRepository.APP_SHOP_FEATURE_BAD_REVIEW_LOCATION_LINE1,
-                line2Code = SystemParameterRepository.APP_SHOP_FEATURE_BAD_REVIEW_LOCATION_LINE2,
+                featureType = AdvancedFeatureType.BAD_REVIEW_LOCATION,
                 fallbackTitleResId = R.string.shop_feature_bad_review_location
             )
             bindFeatureBlock(
                 titleView = tvFeatureBusinessReportTitle,
                 line1View = tvFeatureBusinessReportLine1,
                 line2View = tvFeatureBusinessReportLine2,
-                titleCode = SystemParameterRepository.APP_SHOP_FEATURE_BUSINESS_REPORT_LABEL,
-                line1Code = SystemParameterRepository.APP_SHOP_FEATURE_BUSINESS_REPORT_LINE1,
-                line2Code = SystemParameterRepository.APP_SHOP_FEATURE_BUSINESS_REPORT_LINE2,
+                featureType = AdvancedFeatureType.BUSINESS_REPORT,
                 fallbackTitleResId = R.string.shop_feature_business_report
             )
             bindFeatureBlock(
                 titleView = tvFeatureOutboundPraiseTitle,
                 line1View = tvFeatureOutboundPraiseLine1,
                 line2View = tvFeatureOutboundPraiseLine2,
-                titleCode = SystemParameterRepository.APP_SHOP_FEATURE_OUTBOUND_PRAISE_LABEL,
-                line1Code = SystemParameterRepository.APP_SHOP_FEATURE_OUTBOUND_PRAISE_LINE1,
-                line2Code = SystemParameterRepository.APP_SHOP_FEATURE_OUTBOUND_PRAISE_LINE2,
+                featureType = AdvancedFeatureType.OUTBOUND_PRAISE,
                 fallbackTitleResId = R.string.shop_feature_outbound_praise
             )
             bindFeatureBlock(
                 titleView = tvFeatureReviewAppealTitle,
                 line1View = tvFeatureReviewAppealLine1,
                 line2View = tvFeatureReviewAppealLine2,
-                titleCode = SystemParameterRepository.APP_SHOP_FEATURE_REVIEW_APPEAL_LABEL,
-                line1Code = SystemParameterRepository.APP_SHOP_FEATURE_REVIEW_APPEAL_LINE1,
-                line2Code = SystemParameterRepository.APP_SHOP_FEATURE_REVIEW_APPEAL_LINE2,
+                featureType = AdvancedFeatureType.REVIEW_APPEAL,
                 fallbackTitleResId = R.string.shop_feature_review_appeal
             )
             bindFeatureBlock(
                 titleView = tvFeaturePrivateTrafficTitle,
                 line1View = tvFeaturePrivateTrafficLine1,
                 line2View = tvFeaturePrivateTrafficLine2,
-                titleCode = SystemParameterRepository.APP_SHOP_FEATURE_PRIVATE_TRAFFIC_LABEL,
-                line1Code = SystemParameterRepository.APP_SHOP_FEATURE_PRIVATE_TRAFFIC_LINE1,
-                line2Code = SystemParameterRepository.APP_SHOP_FEATURE_PRIVATE_TRAFFIC_LINE2,
+                featureType = AdvancedFeatureType.PRIVATE_TRAFFIC,
                 fallbackTitleResId = R.string.shop_feature_private_traffic
             )
         }
@@ -376,19 +387,16 @@ class ShopListAdapter(
             titleView: TextView,
             line1View: TextView,
             line2View: TextView,
-            titleCode: String,
-            line1Code: String,
-            line2Code: String,
+            featureType: AdvancedFeatureType,
             fallbackTitleResId: Int
         ) {
-            titleView.text = parameterText(titleCode, fallbackTitleResId)
-            line1View.text = parameterText(line1Code, R.string.shop_feature_custom_line_placeholder)
-            line2View.text = parameterText(line2Code, R.string.shop_feature_custom_line_placeholder)
-        }
-
-        private fun parameterText(code: String, fallbackResId: Int): String {
-            return appParameters[code]?.takeIf { it.isNotBlank() }
-                ?: itemView.context.getString(fallbackResId)
+            val feature = advancedFeatures[featureType.code]
+            titleView.text = feature?.title?.takeIf { it.isNotBlank() }
+                ?: itemView.context.getString(fallbackTitleResId)
+            line1View.text = feature?.line1?.takeIf { it.isNotBlank() }
+                ?: itemView.context.getString(R.string.shop_feature_custom_line_placeholder)
+            line2View.text = feature?.line2?.takeIf { it.isNotBlank() }
+                ?: itemView.context.getString(R.string.shop_feature_custom_line_placeholder)
         }
 
         fun applyReorderVisualState(shop: Shop) {
@@ -424,4 +432,15 @@ class ShopListAdapter(
     private companion object {
         const val WECHAT_PACKAGE = "com.tencent.mm"
     }
+}
+
+enum class AdvancedFeatureType(
+    val code: String,
+    val fallbackTitleResId: Int
+) {
+    BAD_REVIEW_LOCATION("bad_review_location", R.string.shop_feature_bad_review_location),
+    BUSINESS_REPORT("business_report", R.string.shop_feature_business_report),
+    OUTBOUND_PRAISE("outbound_praise", R.string.shop_feature_outbound_praise),
+    REVIEW_APPEAL("review_appeal", R.string.shop_feature_review_appeal),
+    PRIVATE_TRAFFIC("private_traffic", R.string.shop_feature_private_traffic)
 }

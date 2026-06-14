@@ -41,6 +41,9 @@ interface ApiService {
     @GET("system-parameters/app")
     suspend fun getAppSystemParameters(): ApiResponse<Map<String, String>>
 
+    @GET("advanced-features/app")
+    suspend fun getAppAdvancedFeatures(): ApiResponse<List<AdvancedFeatureDto>>
+
     @GET("shops/my")
     suspend fun getMyShops(): ApiResponse<List<ShopDto>>
 

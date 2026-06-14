@@ -21,11 +21,6 @@ public class SystemParameterService {
     public static final String APP_MENU_GIFT_PHONE_MINUTES_LABEL = "app.menu.gift_phone_minutes.label";
     public static final String APP_MENU_RECLAIM_PHONE_MINUTES_LABEL = "app.menu.reclaim_phone_minutes.label";
     public static final String APP_MENU_TRANSACTION_LOGS_LABEL = "app.menu.transaction_logs.label";
-    public static final String APP_SHOP_FEATURE_BAD_REVIEW_LOCATION_LABEL = "app.shop_feature.bad_review_location.label";
-    public static final String APP_SHOP_FEATURE_BUSINESS_REPORT_LABEL = "app.shop_feature.business_report.label";
-    public static final String APP_SHOP_FEATURE_OUTBOUND_PRAISE_LABEL = "app.shop_feature.outbound_praise.label";
-    public static final String APP_SHOP_FEATURE_REVIEW_APPEAL_LABEL = "app.shop_feature.review_appeal.label";
-    public static final String APP_SHOP_FEATURE_PRIVATE_TRAFFIC_LABEL = "app.shop_feature.private_traffic.label";
 
     private static final byte ACTIVE = 0;
     private static final byte DELETED = 1;

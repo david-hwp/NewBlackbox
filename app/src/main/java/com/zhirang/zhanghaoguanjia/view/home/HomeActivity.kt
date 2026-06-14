@@ -50,6 +50,7 @@ import com.zhirang.zhanghaoguanjia.util.AvatarImageLoader
 import com.zhirang.zhanghaoguanjia.util.inflate
 import com.zhirang.zhanghaoguanjia.util.PlatformRegistry
 import com.zhirang.zhanghaoguanjia.util.toast
+import com.zhirang.zhanghaoguanjia.view.dialog.AdvancedFeatureSheetFragment
 import com.zhirang.zhanghaoguanjia.view.dialog.DeleteShopSheetFragment
 import com.zhirang.zhanghaoguanjia.view.dialog.EditShopSheetFragment
 import com.zhirang.zhanghaoguanjia.view.dialog.EngineUpgradeDialog
@@ -413,6 +414,9 @@ class HomeActivity : AppCompatActivity() {
             onQuickShareClick = { _, shop ->
                 quickShareToBoundWechat(shop)
             },
+            onAdvancedFeatureClick = { _, shop, featureType ->
+                handleAdvancedFeatureClick(shop, featureType)
+            },
             onAutoRenewClick = { _, shop ->
                 handleAutoRenewClick(shop)
             },
@@ -675,12 +679,13 @@ class HomeActivity : AppCompatActivity() {
             updateTickerBanner(announcement)
         }
 
-        viewModel.appParametersLiveData.observe(this) { parameters ->
-            shopAdapter.setAppParameters(parameters)
+        viewModel.advancedFeaturesLiveData.observe(this) { features ->
+            shopAdapter.setAdvancedFeatures(features)
         }
 
         viewModel.loadShops()
         viewModel.loadAppParameters()
+        viewModel.loadAdvancedFeatures()
         showRegistrationGiftPromptIfNeeded()
     }
 
@@ -2763,6 +2768,32 @@ class HomeActivity : AppCompatActivity() {
             viewModel.updateShop(shop, autoRenew = autoRenew, remark = remark)
         }
         sheet.show(supportFragmentManager, "EditShop")
+    }
+
+    private fun handleAdvancedFeatureClick(shop: Shop, featureType: AdvancedFeatureType) {
+        val feature = viewModel.getAdvancedFeature(featureType.code)
+        val packageName = resolveShopPackageName(shop)
+        if (feature == null || !feature.online || !feature.supportsPackage(packageName)) {
+            toast(getString(R.string.advanced_feature_unavailable))
+            return
+        }
+        val title = feature.title.takeIf { it.isNotBlank() }
+            ?: getString(featureType.fallbackTitleResId)
+        val cost = feature.monthlyComputeCost.coerceAtLeast(0)
+        MaterialAlertDialogBuilder(this)
+            .setTitle(title)
+            .setMessage(getString(R.string.advanced_feature_confirm_message, cost))
+            .setNegativeButton(R.string.cancel, null)
+            .setPositiveButton(R.string.confirm) { _, _ ->
+                showAdvancedFeatureSheet(title, featureType.code)
+            }
+            .show()
+    }
+
+    private fun showAdvancedFeatureSheet(title: String, code: String) {
+        AdvancedFeatureSheetFragment
+            .newInstance(title, code)
+            .show(supportFragmentManager, "AdvancedFeature-$code")
     }
 
     private fun handleAutoRenewClick(shop: Shop) {

@@ -9,6 +9,7 @@ import kotlinx.coroutines.launch
 import com.zhirang.zhanghaoguanjia.bean.Platform
 import com.zhirang.zhanghaoguanjia.bean.Shop
 import com.zhirang.zhanghaoguanjia.bean.dto.AnnouncementDto
+import com.zhirang.zhanghaoguanjia.bean.dto.AdvancedFeatureDto
 import com.zhirang.zhanghaoguanjia.bean.dto.CloneShopCreateRequest
 import com.zhirang.zhanghaoguanjia.bean.dto.CloneShopCreateResult
 import com.zhirang.zhanghaoguanjia.bean.dto.PlatformItemDto
@@ -18,6 +19,7 @@ import com.zhirang.zhanghaoguanjia.bean.dto.ShopReportRequest
 import com.zhirang.zhanghaoguanjia.bean.dto.ShopRenewRequest
 import com.zhirang.zhanghaoguanjia.bean.dto.UserDto
 import com.zhirang.zhanghaoguanjia.data.AnnouncementRepository
+import com.zhirang.zhanghaoguanjia.data.AdvancedFeatureRepository
 import com.zhirang.zhanghaoguanjia.data.LocalShopIdentityStore
 import com.zhirang.zhanghaoguanjia.data.PlatformRepository
 import com.zhirang.zhanghaoguanjia.data.ShopRepository
@@ -96,11 +98,15 @@ class HomeViewModel : ViewModel() {
     private val userRepository = UserRepository(RetrofitClient.apiService)
     private val platformRepository = PlatformRepository(RetrofitClient.apiService)
     private val announcementRepository = AnnouncementRepository(RetrofitClient.apiService)
+    private val advancedFeatureRepository = AdvancedFeatureRepository(RetrofitClient.apiService)
     private val systemParameterRepository = SystemParameterRepository(RetrofitClient.apiService)
     private val tokenManager = TokenManager.getInstance()
 
     private val _appParametersLiveData = MutableLiveData<Map<String, String>>()
     val appParametersLiveData: LiveData<Map<String, String>> = _appParametersLiveData
+
+    private val _advancedFeaturesLiveData = MutableLiveData<Map<String, AdvancedFeatureDto>>()
+    val advancedFeaturesLiveData: LiveData<Map<String, AdvancedFeatureDto>> = _advancedFeaturesLiveData
 
     private var allShops: List<Shop> = emptyList()
 
@@ -154,6 +160,20 @@ class HomeViewModel : ViewModel() {
                 _appParametersLiveData.value = parameters
             }
         }
+    }
+
+    fun loadAdvancedFeatures() {
+        viewModelScope.launch {
+            advancedFeatureRepository.getAppAdvancedFeatures().onSuccess { features ->
+                _advancedFeaturesLiveData.value = features
+                    .filter { it.code.isNotBlank() }
+                    .associateBy { it.code }
+            }
+        }
+    }
+
+    fun getAdvancedFeature(code: String): AdvancedFeatureDto? {
+        return _advancedFeaturesLiveData.value?.get(code)
     }
 
     fun clearOperationMessage() {

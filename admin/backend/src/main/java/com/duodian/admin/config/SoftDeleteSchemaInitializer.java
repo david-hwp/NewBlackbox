@@ -24,7 +24,8 @@ public class SoftDeleteSchemaInitializer implements CommandLineRunner {
             "platform_configs",
             "feedbacks",
             "compute_deductions",
-            "system_parameters"
+            "system_parameters",
+            "advanced_features"
     );
 
     private final JdbcTemplate jdbcTemplate;
@@ -40,6 +41,7 @@ public class SoftDeleteSchemaInitializer implements CommandLineRunner {
         ensureChannelTable();
         ensureComputeDeductionTable();
         ensureSystemParameterTable();
+        ensureAdvancedFeatureTable();
         for (String table : TABLES) {
             if (!hasColumn(table, "deleted")) {
                 jdbcTemplate.execute("ALTER TABLE " + table + " ADD COLUMN deleted TINYINT NOT NULL DEFAULT 0");
@@ -59,6 +61,8 @@ public class SoftDeleteSchemaInitializer implements CommandLineRunner {
         ensureShopLoginStateColumns();
         ensureShopCardSortColumn();
         ensureDefaultSystemParameters();
+        ensureDefaultAdvancedFeatures();
+        removeLegacyShopFeatureSystemParameters();
     }
 
     private void ensureChannelTable() {
@@ -388,6 +392,69 @@ public class SoftDeleteSchemaInitializer implements CommandLineRunner {
         }
     }
 
+    private void ensureAdvancedFeatureTable() {
+        jdbcTemplate.execute("""
+                CREATE TABLE IF NOT EXISTS advanced_features (
+                    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                    code VARCHAR(64) NOT NULL,
+                    name VARCHAR(128) NOT NULL,
+                    is_online TINYINT NOT NULL DEFAULT 1,
+                    monthly_compute_cost INT NOT NULL DEFAULT 1,
+                    supported_platform_packages VARCHAR(2048),
+                    title_code VARCHAR(128) NOT NULL,
+                    line1_code VARCHAR(128) NOT NULL,
+                    line2_code VARCHAR(128) NOT NULL,
+                    title VARCHAR(128) NOT NULL,
+                    line1_text VARCHAR(255) NOT NULL DEFAULT '-',
+                    line2_text VARCHAR(255) NOT NULL DEFAULT '-',
+                    outbound_enabled TINYINT NOT NULL DEFAULT 0,
+                    sort_order INT NOT NULL DEFAULT 0,
+                    deleted TINYINT NOT NULL DEFAULT 0,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                """);
+        addColumnIfMissing("advanced_features", "is_online", "TINYINT NOT NULL DEFAULT 1");
+        addColumnIfMissing("advanced_features", "monthly_compute_cost", "INT NOT NULL DEFAULT 1");
+        addColumnIfMissing("advanced_features", "supported_platform_packages", "VARCHAR(2048)");
+        addColumnIfMissing("advanced_features", "title_code", "VARCHAR(128)");
+        addColumnIfMissing("advanced_features", "line1_code", "VARCHAR(128)");
+        addColumnIfMissing("advanced_features", "line2_code", "VARCHAR(128)");
+        addColumnIfMissing("advanced_features", "title", "VARCHAR(128)");
+        addColumnIfMissing("advanced_features", "line1_text", "VARCHAR(255) NOT NULL DEFAULT '-'");
+        addColumnIfMissing("advanced_features", "line2_text", "VARCHAR(255) NOT NULL DEFAULT '-'");
+        addColumnIfMissing("advanced_features", "outbound_enabled", "TINYINT NOT NULL DEFAULT 0");
+        addColumnIfMissing("advanced_features", "sort_order", "INT NOT NULL DEFAULT 0");
+        if (hasColumnQuietly("advanced_features", "title_param_code")) {
+            jdbcTemplate.execute("UPDATE advanced_features SET title_code = title_param_code WHERE (title_code IS NULL OR title_code = '')");
+        }
+        if (hasColumnQuietly("advanced_features", "line1_param_code")) {
+            jdbcTemplate.execute("UPDATE advanced_features SET line1_code = line1_param_code WHERE (line1_code IS NULL OR line1_code = '')");
+        }
+        if (hasColumnQuietly("advanced_features", "line2_param_code")) {
+            jdbcTemplate.execute("UPDATE advanced_features SET line2_code = line2_param_code WHERE (line2_code IS NULL OR line2_code = '')");
+        }
+        jdbcTemplate.execute("UPDATE advanced_features SET is_online = 1 WHERE is_online IS NULL");
+        jdbcTemplate.execute("UPDATE advanced_features SET monthly_compute_cost = 1 WHERE monthly_compute_cost IS NULL");
+        jdbcTemplate.execute("UPDATE advanced_features SET outbound_enabled = 0 WHERE outbound_enabled IS NULL");
+        jdbcTemplate.execute("UPDATE advanced_features SET sort_order = 0 WHERE sort_order IS NULL");
+        jdbcTemplate.execute("UPDATE advanced_features SET title_code = code WHERE title_code IS NULL OR title_code = ''");
+        jdbcTemplate.execute("UPDATE advanced_features SET line1_code = concat(code, '.line1') WHERE line1_code IS NULL OR line1_code = ''");
+        jdbcTemplate.execute("UPDATE advanced_features SET line2_code = concat(code, '.line2') WHERE line2_code IS NULL OR line2_code = ''");
+        jdbcTemplate.execute("UPDATE advanced_features SET title = name WHERE title IS NULL OR title = ''");
+        jdbcTemplate.execute("UPDATE advanced_features SET line1_text = '-' WHERE line1_text IS NULL OR line1_text = ''");
+        jdbcTemplate.execute("UPDATE advanced_features SET line2_text = '-' WHERE line2_text IS NULL OR line2_text = ''");
+        if (!hasIndexQuietly("advanced_features", "idx_advanced_features_code")) {
+            jdbcTemplate.execute("CREATE INDEX idx_advanced_features_code ON advanced_features (code)");
+        }
+        if (!hasIndexQuietly("advanced_features", "idx_advanced_features_deleted")) {
+            jdbcTemplate.execute("CREATE INDEX idx_advanced_features_deleted ON advanced_features (deleted)");
+        }
+        if (!hasIndexQuietly("advanced_features", "uk_advanced_features_code_deleted")) {
+            jdbcTemplate.execute("CREATE UNIQUE INDEX uk_advanced_features_code_deleted ON advanced_features (code, deleted)");
+        }
+    }
+
     private void ensureDefaultSystemParameters() {
         Long mainChannelId = jdbcTemplate.queryForObject(
                 "SELECT id FROM channels WHERE code = 'main' AND deleted = 0 LIMIT 1",
@@ -402,21 +469,136 @@ public class SoftDeleteSchemaInitializer implements CommandLineRunner {
         upsertDefaultParameter(mainChannelId, "话费赠送按钮名称", "app.menu.gift_phone_minutes.label", "话费赠送", "APP 交易中心入口文案");
         upsertDefaultParameter(mainChannelId, "话费取回按钮名称", "app.menu.reclaim_phone_minutes.label", "话费取回", "APP 交易中心入口文案");
         upsertDefaultParameter(mainChannelId, "交易日志按钮名称", "app.menu.transaction_logs.label", "交易日志", "APP 交易中心入口文案");
-        upsertDefaultParameter(mainChannelId, "差评定位标题", "app.shop_feature.bad_review_location.label", "差评定位", "APP 店铺卡片操作栏标题");
-        upsertDefaultParameter(mainChannelId, "差评定位第一行内容", "app.shop_feature.bad_review_location.line1", "-", "APP 店铺卡片操作栏自定义内容");
-        upsertDefaultParameter(mainChannelId, "差评定位第二行内容", "app.shop_feature.bad_review_location.line2", "-", "APP 店铺卡片操作栏自定义内容");
-        upsertDefaultParameter(mainChannelId, "经营日报标题", "app.shop_feature.business_report.label", "经营日报", "APP 店铺卡片操作栏标题");
-        upsertDefaultParameter(mainChannelId, "经营日报第一行内容", "app.shop_feature.business_report.line1", "-", "APP 店铺卡片操作栏自定义内容");
-        upsertDefaultParameter(mainChannelId, "经营日报第二行内容", "app.shop_feature.business_report.line2", "-", "APP 店铺卡片操作栏自定义内容");
-        upsertDefaultParameter(mainChannelId, "外呼好评标题", "app.shop_feature.outbound_praise.label", "外呼好评", "APP 店铺卡片操作栏标题");
-        upsertDefaultParameter(mainChannelId, "外呼好评第一行内容", "app.shop_feature.outbound_praise.line1", "-", "APP 店铺卡片操作栏自定义内容");
-        upsertDefaultParameter(mainChannelId, "外呼好评第二行内容", "app.shop_feature.outbound_praise.line2", "-", "APP 店铺卡片操作栏自定义内容");
-        upsertDefaultParameter(mainChannelId, "评价申诉标题", "app.shop_feature.review_appeal.label", "评价申诉", "APP 店铺卡片操作栏标题");
-        upsertDefaultParameter(mainChannelId, "评价申诉第一行内容", "app.shop_feature.review_appeal.line1", "-", "APP 店铺卡片操作栏自定义内容");
-        upsertDefaultParameter(mainChannelId, "评价申诉第二行内容", "app.shop_feature.review_appeal.line2", "-", "APP 店铺卡片操作栏自定义内容");
-        upsertDefaultParameter(mainChannelId, "私域吸粉标题", "app.shop_feature.private_traffic.label", "私域吸粉", "APP 店铺卡片操作栏标题");
-        upsertDefaultParameter(mainChannelId, "私域吸粉第一行内容", "app.shop_feature.private_traffic.line1", "-", "APP 店铺卡片操作栏自定义内容");
-        upsertDefaultParameter(mainChannelId, "私域吸粉第二行内容", "app.shop_feature.private_traffic.line2", "-", "APP 店铺卡片操作栏自定义内容");
+    }
+
+    private void ensureDefaultAdvancedFeatures() {
+        Long mainChannelId = jdbcTemplate.queryForObject(
+                "SELECT id FROM channels WHERE code = 'main' AND deleted = 0 LIMIT 1",
+                Long.class
+        );
+        if (mainChannelId == null) {
+            throw new IllegalStateException("默认渠道不存在");
+        }
+        upsertDefaultAdvancedFeature(
+                mainChannelId,
+                "bad_review_location",
+                "差评定位",
+                "app.shop_feature.bad_review_location.label",
+                "app.shop_feature.bad_review_location.line1",
+                "app.shop_feature.bad_review_location.line2",
+                "差评定位",
+                10
+        );
+        upsertDefaultAdvancedFeature(
+                mainChannelId,
+                "business_report",
+                "经营日报",
+                "app.shop_feature.business_report.label",
+                "app.shop_feature.business_report.line1",
+                "app.shop_feature.business_report.line2",
+                "经营日报",
+                20
+        );
+        upsertDefaultAdvancedFeature(
+                mainChannelId,
+                "outbound_praise",
+                "外呼好评",
+                "app.shop_feature.outbound_praise.label",
+                "app.shop_feature.outbound_praise.line1",
+                "app.shop_feature.outbound_praise.line2",
+                "外呼好评",
+                30
+        );
+        upsertDefaultAdvancedFeature(
+                mainChannelId,
+                "review_appeal",
+                "评价申诉",
+                "app.shop_feature.review_appeal.label",
+                "app.shop_feature.review_appeal.line1",
+                "app.shop_feature.review_appeal.line2",
+                "评价申诉",
+                40
+        );
+        upsertDefaultAdvancedFeature(
+                mainChannelId,
+                "private_traffic",
+                "私域吸粉",
+                "app.shop_feature.private_traffic.label",
+                "app.shop_feature.private_traffic.line1",
+                "app.shop_feature.private_traffic.line2",
+                "私域吸粉",
+                50
+        );
+    }
+
+    private void upsertDefaultAdvancedFeature(
+            Long mainChannelId,
+            String code,
+            String name,
+            String titleCode,
+            String line1Code,
+            String line2Code,
+            String fallbackTitle,
+            int sortOrder
+    ) {
+        String title = legacyParameterValue(mainChannelId, titleCode, fallbackTitle);
+        String line1 = legacyParameterValue(mainChannelId, line1Code, "-");
+        String line2 = legacyParameterValue(mainChannelId, line2Code, "-");
+        Integer count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM advanced_features WHERE code = ? AND deleted = 0",
+                Integer.class,
+                code
+        );
+        if (count != null && count > 0) {
+            jdbcTemplate.update("""
+                    UPDATE advanced_features
+                    SET name = ?,
+                        title_code = ?,
+                        line1_code = ?,
+                        line2_code = ?,
+                        title = CASE WHEN title IS NULL OR title = '' THEN ? ELSE title END,
+                        line1_text = CASE WHEN line1_text IS NULL OR line1_text = '' THEN ? ELSE line1_text END,
+                        line2_text = CASE WHEN line2_text IS NULL OR line2_text = '' THEN ? ELSE line2_text END,
+                        sort_order = ?
+                    WHERE code = ? AND deleted = 0
+                    """, name, titleCode, line1Code, line2Code, title, line1, line2, sortOrder, code);
+            return;
+        }
+        jdbcTemplate.update("""
+                INSERT INTO advanced_features (
+                    code,
+                    name,
+                    is_online,
+                    monthly_compute_cost,
+                    title_code,
+                    line1_code,
+                    line2_code,
+                    title,
+                    line1_text,
+                    line2_text,
+                    outbound_enabled,
+                    sort_order,
+                    deleted
+                ) VALUES (?, ?, 1, 1, ?, ?, ?, ?, ?, ?, 0, ?, 0)
+                """, code, name, titleCode, line1Code, line2Code, title, line1, line2, sortOrder);
+    }
+
+    private String legacyParameterValue(Long mainChannelId, String code, String fallback) {
+        List<String> values = jdbcTemplate.query(
+                "SELECT param_value FROM system_parameters WHERE channel_id = ? AND code = ? AND deleted = 0 ORDER BY updated_at DESC",
+                (rs, rowNum) -> rs.getString("param_value"),
+                mainChannelId,
+                code
+        );
+        return values.stream()
+                .filter(value -> value != null && !value.isBlank())
+                .findFirst()
+                .map(String::trim)
+                .orElse(fallback);
+    }
+
+    private void removeLegacyShopFeatureSystemParameters() {
+        jdbcTemplate.update("DELETE FROM system_parameters WHERE code LIKE 'app.shop_feature.%'");
     }
 
     private void upsertDefaultParameter(Long channelId, String name, String code, String value, String description) {
@@ -438,6 +620,12 @@ public class SoftDeleteSchemaInitializer implements CommandLineRunner {
                 INSERT INTO system_parameters (channel_id, name, code, param_value, description, is_builtin, deleted)
                 VALUES (?, ?, ?, ?, ?, 1, 0)
                 """, channelId, name, code, value, description);
+    }
+
+    private void addColumnIfMissing(String table, String column, String definition) {
+        if (!hasColumnQuietly(table, column)) {
+            jdbcTemplate.execute("ALTER TABLE " + table + " ADD COLUMN " + column + " " + definition);
+        }
     }
 
     private boolean hasColumnQuietly(String table, String column) {

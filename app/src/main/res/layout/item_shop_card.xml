@@ -228,10 +228,14 @@
                 </LinearLayout>
 
                 <LinearLayout
+                    android:id="@+id/btnFeatureBadReviewLocation"
                     android:layout_width="0dp"
                     android:layout_height="match_parent"
                     android:layout_marginHorizontal="2dp"
                     android:layout_weight="1"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:foreground="?attr/selectableItemBackground"
                     android:gravity="center"
                     android:orientation="vertical">
 
@@ -283,10 +287,14 @@
                 </LinearLayout>
 
                 <LinearLayout
+                    android:id="@+id/btnFeatureBusinessReport"
                     android:layout_width="0dp"
                     android:layout_height="match_parent"
                     android:layout_marginHorizontal="2dp"
                     android:layout_weight="1"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:foreground="?attr/selectableItemBackground"
                     android:gravity="center"
                     android:orientation="vertical">
 
@@ -338,10 +346,14 @@
                 </LinearLayout>
 
                 <LinearLayout
+                    android:id="@+id/btnFeatureOutboundPraise"
                     android:layout_width="0dp"
                     android:layout_height="match_parent"
                     android:layout_marginHorizontal="2dp"
                     android:layout_weight="1"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:foreground="?attr/selectableItemBackground"
                     android:gravity="center"
                     android:orientation="vertical">
 
@@ -393,10 +405,14 @@
                 </LinearLayout>
 
                 <LinearLayout
+                    android:id="@+id/btnFeatureReviewAppeal"
                     android:layout_width="0dp"
                     android:layout_height="match_parent"
                     android:layout_marginHorizontal="2dp"
                     android:layout_weight="1"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:foreground="?attr/selectableItemBackground"
                     android:gravity="center"
                     android:orientation="vertical">
 
@@ -448,10 +464,14 @@
                 </LinearLayout>
 
                 <LinearLayout
+                    android:id="@+id/btnFeaturePrivateTraffic"
                     android:layout_width="0dp"
                     android:layout_height="match_parent"
                     android:layout_marginHorizontal="2dp"
                     android:layout_weight="1"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:foreground="?attr/selectableItemBackground"
                     android:gravity="center"
                     android:orientation="vertical">
 

@@ -45,6 +45,13 @@
           <el-icon><Promotion /></el-icon>
           <span>发布任务</span>
         </el-menu-item>
+        <el-sub-menu v-if="isSuperAdmin" index="/advanced-features">
+          <template #title>
+            <el-icon><Setting /></el-icon>
+            <span>高级功能</span>
+          </template>
+          <el-menu-item index="/advanced-features/open">开放设置</el-menu-item>
+        </el-sub-menu>
         <el-menu-item index="/system-parameters">
           <el-icon><Setting /></el-icon>
           <span>系统参数</span>
