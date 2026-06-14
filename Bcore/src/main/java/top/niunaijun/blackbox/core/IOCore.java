@@ -18,6 +18,7 @@ import java.util.Set;
 
 import top.niunaijun.blackbox.BlackBoxCore;
 
+import top.niunaijun.blackbox.app.BActivityThread;
 import top.niunaijun.blackbox.core.env.BEnvironment;
 import top.niunaijun.blackbox.utils.FileUtils;
 import top.niunaijun.blackbox.utils.TrieTree;
@@ -61,6 +62,10 @@ public class IOCore {
     public String redirectPath(String path) {
         if (TextUtils.isEmpty(path))
             return path;
+        String webViewRedirect = redirectVirtualWebViewPath(path);
+        if (!TextUtils.isEmpty(webViewRedirect)) {
+            return webViewRedirect;
+        }
         if (path.contains("/blackbox/")) {
             return path;
         }
@@ -74,6 +79,40 @@ public class IOCore {
             path = path.replace(key, Objects.requireNonNull(mRedirectMap.get(key)));
 
         return path;
+    }
+
+    private String redirectVirtualWebViewPath(String path) {
+        int blackboxIndex = path.indexOf("/blackbox/");
+        if (blackboxIndex <= 0) {
+            return null;
+        }
+        int appWebViewIndex = path.indexOf("/app_webview", blackboxIndex);
+        if (appWebViewIndex >= 0) {
+            return path.substring(0, blackboxIndex) + path.substring(appWebViewIndex);
+        }
+        int chromiumCacheIndex = path.indexOf("/org.chromium.android_webview", blackboxIndex);
+        if (chromiumCacheIndex >= 0) {
+            return path.substring(0, blackboxIndex) + "/cache" + path.substring(chromiumCacheIndex);
+        }
+        int cacheWebViewIndex = findVirtualWebViewCacheIndex(path, blackboxIndex);
+        if (cacheWebViewIndex >= 0) {
+            return path.substring(0, blackboxIndex) + path.substring(cacheWebViewIndex);
+        }
+        return null;
+    }
+
+    private int findVirtualWebViewCacheIndex(String path, int startIndex) {
+        String[] patterns = new String[]{
+                "/cache/webview_",
+                "/cache/WebView_"
+        };
+        for (String pattern : patterns) {
+            int index = path.indexOf(pattern, startIndex);
+            if (index >= 0) {
+                return index;
+            }
+        }
+        return -1;
     }
 
     public File redirectPath(File path) {
@@ -112,8 +151,11 @@ public class IOCore {
         try {
             ApplicationInfo packageInfo = BlackBoxCore.getBPackageManager().getApplicationInfo(packageName, PackageManager.GET_META_DATA, BlackBoxCore.getUserId());
             int systemUserId = BlackBoxCore.getHostUserId();
+            int virtualUserId = BlackBoxCore.getUserId();
             rule.put(String.format("/data/data/%s/lib", packageName), packageInfo.nativeLibraryDir);
             rule.put(String.format("/data/user/%d/%s/lib", systemUserId, packageName), packageInfo.nativeLibraryDir);
+
+            addWebViewRedirects(packageName, systemUserId, virtualUserId, rule);
 
             rule.put(String.format("/data/data/%s", packageName), packageInfo.dataDir);
             rule.put(String.format("/data/user/%d/%s", systemUserId, packageName), packageInfo.dataDir);
@@ -155,6 +197,70 @@ public class IOCore {
             get().addBlackRedirect(s);
         }
         NativeCore.enableIO();
+    }
+
+    private void addWebViewRedirects(String packageName, int systemUserId, int virtualUserId,
+                                     Map<String, String> rule) {
+        String suffix = buildWebViewSuffix(packageName, virtualUserId);
+        File hostDataDir = new File(BlackBoxCore.getContext().getApplicationInfo().dataDir);
+        File hostCacheDir = BlackBoxCore.getContext().getCacheDir();
+
+        addWebViewRedirect(rule,
+                String.format("/data/data/%s/app_webview_%s", packageName, suffix),
+                new File(hostDataDir, "app_webview_" + suffix));
+        addWebViewRedirect(rule,
+                String.format("/data/user/%d/%s/app_webview_%s", systemUserId, packageName, suffix),
+                new File(hostDataDir, "app_webview_" + suffix));
+        addWebViewRedirect(rule,
+                String.format("/data/data/%s/cache/webview_%s", packageName, suffix),
+                new File(hostCacheDir, "webview_" + suffix));
+        addWebViewRedirect(rule,
+                String.format("/data/user/%d/%s/cache/webview_%s", systemUserId, packageName, suffix),
+                new File(hostCacheDir, "webview_" + suffix));
+
+        addWebViewRedirect(rule,
+                String.format("/data/data/%s/app_webview", packageName),
+                new File(hostDataDir, "app_webview"));
+        addWebViewRedirect(rule,
+                String.format("/data/user/%d/%s/app_webview", systemUserId, packageName),
+                new File(hostDataDir, "app_webview"));
+    }
+
+    private void addWebViewRedirect(Map<String, String> rule, String virtualPath, File hostPath) {
+        if (TextUtils.isEmpty(virtualPath) || hostPath == null) {
+            return;
+        }
+        FileUtils.mkdirs(hostPath.getAbsolutePath());
+        rule.put(virtualPath, hostPath.getAbsolutePath());
+    }
+
+    private String buildWebViewSuffix(String packageName, int userId) {
+        String processName = BActivityThread.getAppProcessName();
+        if (TextUtils.isEmpty(processName)) {
+            processName = packageName;
+        }
+        return sanitizeWebViewSuffix("u" + userId + "_" + packageName + "_" + processName);
+    }
+
+    private String sanitizeWebViewSuffix(String value) {
+        if (TextUtils.isEmpty(value)) {
+            return "blackbox";
+        }
+        StringBuilder builder = new StringBuilder(value.length());
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
+            if ((c >= 'a' && c <= 'z')
+                    || (c >= 'A' && c <= 'Z')
+                    || (c >= '0' && c <= '9')
+                    || c == '.'
+                    || c == '_'
+                    || c == '-') {
+                builder.append(c);
+            } else {
+                builder.append('_');
+            }
+        }
+        return builder.length() == 0 ? "blackbox" : builder.toString();
     }
 
     private void hideRoot(Map<String, String> rule) {

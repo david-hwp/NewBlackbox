@@ -2,17 +2,26 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: phase11-channel-promotion-system
-status: Phase 11 planned
-last_updated: "2026-06-09T15:55:00+08:00"
+status: Phase 11 completed
+last_updated: "2026-06-14T22:33:46+08:00"
 progress:
   total_phases: 11
-  completed_phases: 9
+  completed_phases: 10
   total_plans: 11
   completed_plans: 11
   percent: 100
 ---
 
 ## Recent Changes
+
+### 2026-06-14: Phase 11 checked branch completed
+
+- Closed the `phase11-checked` validation branch after minimizing the Android 15 WebView compatibility patch to four engine-side source files.
+- Build verification passed with `JAVA_HOME=$(/usr/libexec/java_home -v 21) ./gradlew :Bcore:assembleDebug --no-daemon`.
+- Pixel 9 / Android 15 (`emulator-5554`, SDK 35) installed `FxEngine_1.2.12-release_debug.apk` successfully and launched the JD clone through the debug authorized launch path.
+- JD login WebView reached `LoginFusionActivity`; DongCore WebView logs showed successful network probe and the system WebView sandbox process started.
+- SMS-code trigger was revalidated with the phone number entered into the correct `jd_phone_et` field. Within the 5-second success window, the real sliding captcha did not appear; the button entered resend countdown instead.
+- Completion evidence is recorded in `.planning/phases/11-channel-promotion-system/11-PLAN.md`.
 
 ### 2026-06-09: Phase 11 channel promotion system planned
 
