@@ -158,7 +158,6 @@ class HomeActivity : AppCompatActivity() {
         private const val WECHAT_PACKAGE = "com.tencent.mm"
         private const val WECHAT_SHARE_ACTIVITY = "com.tencent.mm.ui.tools.ShareImgUI"
         private const val WECHAT_SEND_WRAPPER_ACTIVITY = "com.tencent.mm.ui.transmit.SendAppMessageWrapperUI"
-        private const val WECHAT_SHARE_TEXT = "测试从店铺管家分享到分身微信"
         private var sessionAnnouncementsRequested = false
         private val sessionShownAnnouncementIds = mutableSetOf<Long>()
 
@@ -1136,7 +1135,7 @@ class HomeActivity : AppCompatActivity() {
             toast("店铺已到期，请先续期后再使用微信")
             return
         }
-        launchHostWechatShare()
+        launchHostWechatShare(shop)
         /*
         val wechatShop = findWechatToolShop()
         if (wechatShop == null) {
@@ -1168,11 +1167,12 @@ class HomeActivity : AppCompatActivity() {
         */
     }
 
-    private fun launchHostWechatShare() {
+    private fun launchHostWechatShare(shop: Shop) {
+        val shareText = buildWechatShareText(shop)
         val shareIntent = Intent(Intent.ACTION_SEND).apply {
             type = "text/plain"
             setPackage(WECHAT_PACKAGE)
-            putExtra(Intent.EXTRA_TEXT, WECHAT_SHARE_TEXT)
+            putExtra(Intent.EXTRA_TEXT, shareText)
         }
         if (shareIntent.resolveActivity(packageManager) == null) {
             toast("未检测到宿主系统微信，请先安装并登录微信")
@@ -1275,7 +1275,7 @@ class HomeActivity : AppCompatActivity() {
                 type = "text/plain"
                 component = ComponentName(WECHAT_PACKAGE, WECHAT_SHARE_ACTIVITY)
                 addCategory(Intent.CATEGORY_DEFAULT)
-                putExtra(Intent.EXTRA_TEXT, WECHAT_SHARE_TEXT)
+                putExtra(Intent.EXTRA_TEXT, buildWechatShareText(targetShop))
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
             Log.d(TAG, "Launching WeChat share in clone user=${preparedWechat.userId} intent=$shareIntent")
@@ -1299,7 +1299,7 @@ class HomeActivity : AppCompatActivity() {
     ) {
         updateShopProgress("正在打开微信发送页…")
         lifecycleScope.launch(Dispatchers.IO) {
-            val sendIntent = buildWechatBoundShareIntent(target)
+            val sendIntent = buildWechatBoundShareIntent(targetShop, target)
             Log.d(
                 TAG,
                 "Launching bound WeChat share shop=${targetShop.id} user=${preparedWechat.userId} receiver=${target.receiverId} intent=$sendIntent"
@@ -1316,15 +1316,19 @@ class HomeActivity : AppCompatActivity() {
         }
     }
 
-    private fun buildWechatBoundShareIntent(target: WechatShareTargetStore.Target): Intent {
+    private fun buildWechatBoundShareIntent(
+        targetShop: Shop,
+        target: WechatShareTargetStore.Target
+    ): Intent {
+        val shareText = buildWechatShareText(targetShop)
         return Intent().apply {
             component = ComponentName(WECHAT_PACKAGE, WECHAT_SEND_WRAPPER_ACTIVITY)
             type = "text/plain"
             addCategory(Intent.CATEGORY_DEFAULT)
-            putExtra(Intent.EXTRA_TEXT, WECHAT_SHARE_TEXT)
+            putExtra(Intent.EXTRA_TEXT, shareText)
             putExtra("Select_Conv_User", target.receiverId)
-            putExtra("_wxtextobject_text", WECHAT_SHARE_TEXT)
-            putExtra("_wxobject_description", WECHAT_SHARE_TEXT)
+            putExtra("_wxtextobject_text", shareText)
+            putExtra("_wxobject_description", shareText)
             putExtra("_wxapi_sendmessagetowx_req_media_type", 1)
             putExtra("_wxapi_sendmessagetowx_req_scene", 0)
             putExtra("_wxapi_command_type", 2)
@@ -1334,12 +1338,17 @@ class HomeActivity : AppCompatActivity() {
             putExtra("SendAppMessageWrapper_AppId", "")
             putExtra("SendAppMessageWrapper_Scene", 0)
             putExtra("Retr_Msg_Type", 2)
-            putExtra("Retr_Msg_content", WECHAT_SHARE_TEXT)
+            putExtra("Retr_Msg_content", shareText)
             putExtra("Retr_Msg_thumb_path", "")
             putExtra("Ksnsupload_type", 0)
             putExtra("need_result", false)
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
+    }
+
+    private fun buildWechatShareText(shop: Shop): String {
+        val shopName = shop.shopName.trim().ifBlank { "店铺" }
+        return "${shopName}日报"
     }
 
     private fun renewExpiredShopBeforeOpen(shop: Shop) {
