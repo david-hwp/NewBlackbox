@@ -134,6 +134,7 @@ class ShopAuthorizationSheetFragment : DialogFragment() {
             settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
             settings.builtInZoomControls = false
             settings.displayZoomControls = false
+            settings.setSupportZoom(false)
             settings.textZoom = 100
             setInitialScale(100)
             setOnTouchListener { webView, event ->
@@ -170,6 +171,13 @@ class ShopAuthorizationSheetFragment : DialogFragment() {
                     binding.tvShopAuthorizationStatus.visibility = View.VISIBLE
                     binding.tvShopAuthorizationStatus.text =
                         getString(R.string.shop_authorization_load_failed)
+                }
+
+                override fun onScaleChanged(view: WebView?, oldScale: Float, newScale: Float) {
+                    if (newScale != 1.0f) {
+                        view?.setInitialScale(100)
+                        installXpraStabilizer(view)
+                    }
                 }
             }
         }
@@ -327,16 +335,24 @@ class ShopAuthorizationSheetFragment : DialogFragment() {
     private fun installXpraStabilizer(view: WebView?) {
         val script = """
             (function() {
+                var viewport = document.querySelector('meta[name="viewport"]');
+                if (!viewport) {
+                    viewport = document.createElement('meta');
+                    viewport.name = 'viewport';
+                    document.head.appendChild(viewport);
+                }
+                viewport.setAttribute('content', 'width=device-width,initial-scale=1,maximum-scale=1,minimum-scale=1,user-scalable=no,viewport-fit=cover');
                 if (!document.getElementById('duodian-xpra-stable-style')) {
                     var style = document.createElement('style');
                     style.id = 'duodian-xpra-stable-style';
                     style.textContent = [
+                        '*{-webkit-text-size-adjust:100%!important;text-size-adjust:100%!important;}',
                         'html,body{margin:0!important;padding:0!important;width:100vw!important;height:100vh!important;overflow:hidden!important;background:#fff!important;}',
                         '#screen{position:fixed!important;left:0!important;top:0!important;width:100vw!important;height:100vh!important;overflow:hidden!important;background:#fff!important;}',
                         '#float_menu,.windowhead,.windowbuttons,.windowicon,.windowtitle,.ui-resizable-handle{display:none!important;}',
                         'div.window{position:absolute!important;left:0!important;top:0!important;width:100vw!important;height:100vh!important;margin:0!important;padding:0!important;border:0!important;box-shadow:none!important;overflow:hidden!important;background:#fff!important;transform:none!important;}',
                         'div.window canvas{position:absolute!important;left:0!important;top:0!important;width:100%!important;height:100%!important;display:block!important;border:0!important;touch-action:none!important;}',
-                        '#pasteboard{position:absolute!important;left:-9999px!important;top:-9999px!important;width:1px!important;height:1px!important;opacity:0!important;}'
+                        '#pasteboard{position:fixed!important;left:0!important;top:0!important;width:24px!important;height:24px!important;font-size:16px!important;line-height:24px!important;opacity:.01!important;transform:none!important;z-index:-1!important;background:transparent!important;color:transparent!important;border:0!important;outline:0!important;padding:0!important;margin:0!important;}'
                     ].join('');
                     document.head.appendChild(style);
                 }
