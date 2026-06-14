@@ -87,11 +87,7 @@ object CloneInstanceStore {
         val pkg = normalize(packageName) ?: return
         synchronized(lock) {
             try {
-                ensureUserExists(userId)
-                ensurePackageDirs(cloneId, pkg, serverUserId, userId)
-                val root = readMapping()
-                root.put(mappingKey(cloneId, pkg, serverUserId), mappingValue(cloneId, pkg, serverUserId, userId))
-                writeMapping(root)
+                bindCloneUserLocked(cloneId, pkg, serverUserId, userId)
             } catch (e: Exception) {
                 Slog.w(TAG, "bindCloneUser failed clone=$cloneId package=$pkg userId=$userId", e)
             }
@@ -113,9 +109,9 @@ object CloneInstanceStore {
         val keyId = normalize(publicKeyId) ?: CloneAuthTokenVerifier.DEFAULT_PUBLIC_KEY_ID
         return synchronized(lock) {
             try {
-                ensureUserExists(userId)
-                ensurePackageDirs(cloneId, pkg, serverUserId, userId)
-                bindCloneUser(cloneId, pkg, serverUserId, userId)
+                if (!bindCloneUserLocked(cloneId, pkg, serverUserId, userId)) {
+                    return@synchronized false
+                }
                 val dir = authDir(serverUserId, cloneId)
                 dir.mkdirs()
                 val meta = JSONObject()
@@ -360,6 +356,19 @@ object CloneInstanceStore {
 
     private fun ensurePackageDirs(cloneInstanceId: String, packageName: String, serverUserId: Long, userId: Int) {
         ScopedCloneStorage.ensurePackageDirs(serverUserId, cloneInstanceId, packageName, userId)
+    }
+
+    private fun bindCloneUserLocked(cloneInstanceId: String, packageName: String, serverUserId: Long, userId: Int): Boolean {
+        if (!ensureUserExists(userId)) {
+            Slog.w(TAG, "bindCloneUserLocked user missing clone=$cloneInstanceId package=$packageName userId=$userId")
+            return false
+        }
+        val root = readMapping()
+        root.put(mappingKey(cloneInstanceId, packageName, serverUserId), mappingValue(cloneInstanceId, packageName, serverUserId, userId))
+        writeMapping(root)
+        // BEnvironment resolves scoped package dirs from clone-instances.json.
+        ensurePackageDirs(cloneInstanceId, packageName, serverUserId, userId)
+        return true
     }
 
     private fun findMappingByCloneId(cloneInstanceId: String): JSONObject? {
