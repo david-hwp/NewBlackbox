@@ -82,21 +82,6 @@
                                 android:textStyle="bold"
                                 tools:text="新增店铺-[12] 长店铺名称第二行继续显示超出后省略" />
 
-                            <TextView
-                                android:id="@+id/newTag"
-                                android:layout_width="wrap_content"
-                                android:layout_height="18dp"
-                                android:layout_marginStart="6dp"
-                                android:background="@drawable/bg_badge_green"
-                                android:gravity="center"
-                                android:minWidth="34dp"
-                                android:paddingHorizontal="6dp"
-                                android:text="new"
-                                android:textColor="@color/white"
-                                android:textSize="10sp"
-                                android:textStyle="bold"
-                                android:visibility="gone"
-                                tools:visibility="visible" />
                         </LinearLayout>
 
                         <TextView
@@ -227,6 +212,7 @@
                         android:src="@drawable/ic_share" />
 
                     <TextView
+                        android:id="@+id/tvQuickShareLabel"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="4dp"
@@ -250,13 +236,14 @@
                     android:orientation="vertical">
 
                     <TextView
+                        android:id="@+id/tvFeatureBadReviewLocationTitle"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:ellipsize="end"
                         android:gravity="center"
                         android:includeFontPadding="false"
                         android:maxLines="2"
-                        android:text="差评定位"
+                        android:text="@string/shop_feature_bad_review_location"
                         android:textColor="@color/fg_2"
                         android:textSize="10sp" />
 
@@ -270,6 +257,7 @@
                         android:scaleY="0.72" />
 
                     <TextView
+                        android:id="@+id/tvFeatureBadReviewLocationLine1"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:ellipsize="end"
@@ -281,6 +269,7 @@
                         android:textSize="9sp" />
 
                     <TextView
+                        android:id="@+id/tvFeatureBadReviewLocationLine2"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:ellipsize="end"
@@ -302,13 +291,14 @@
                     android:orientation="vertical">
 
                     <TextView
+                        android:id="@+id/tvFeatureBusinessReportTitle"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:ellipsize="end"
                         android:gravity="center"
                         android:includeFontPadding="false"
                         android:maxLines="2"
-                        android:text="经营日报"
+                        android:text="@string/shop_feature_business_report"
                         android:textColor="@color/fg_2"
                         android:textSize="10sp" />
 
@@ -322,8 +312,10 @@
                         android:scaleY="0.72" />
 
                     <TextView
+                        android:id="@+id/tvFeatureBusinessReportLine1"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
+                        android:ellipsize="end"
                         android:gravity="center"
                         android:includeFontPadding="false"
                         android:maxLines="1"
@@ -332,8 +324,10 @@
                         android:textSize="9sp" />
 
                     <TextView
+                        android:id="@+id/tvFeatureBusinessReportLine2"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
+                        android:ellipsize="end"
                         android:gravity="center"
                         android:includeFontPadding="false"
                         android:maxLines="1"
@@ -352,13 +346,14 @@
                     android:orientation="vertical">
 
                     <TextView
+                        android:id="@+id/tvFeatureOutboundPraiseTitle"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:ellipsize="end"
                         android:gravity="center"
                         android:includeFontPadding="false"
                         android:maxLines="2"
-                        android:text="外呼好评"
+                        android:text="@string/shop_feature_outbound_praise"
                         android:textColor="@color/fg_2"
                         android:textSize="10sp" />
 
@@ -372,8 +367,10 @@
                         android:scaleY="0.72" />
 
                     <TextView
+                        android:id="@+id/tvFeatureOutboundPraiseLine1"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
+                        android:ellipsize="end"
                         android:gravity="center"
                         android:includeFontPadding="false"
                         android:maxLines="1"
@@ -382,8 +379,10 @@
                         android:textSize="9sp" />
 
                     <TextView
+                        android:id="@+id/tvFeatureOutboundPraiseLine2"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
+                        android:ellipsize="end"
                         android:gravity="center"
                         android:includeFontPadding="false"
                         android:maxLines="1"
@@ -402,13 +401,14 @@
                     android:orientation="vertical">
 
                     <TextView
+                        android:id="@+id/tvFeatureReviewAppealTitle"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:ellipsize="end"
                         android:gravity="center"
                         android:includeFontPadding="false"
                         android:maxLines="2"
-                        android:text="评价申诉"
+                        android:text="@string/shop_feature_review_appeal"
                         android:textColor="@color/fg_2"
                         android:textSize="10sp" />
 
@@ -422,8 +422,10 @@
                         android:scaleY="0.72" />
 
                     <TextView
+                        android:id="@+id/tvFeatureReviewAppealLine1"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
+                        android:ellipsize="end"
                         android:gravity="center"
                         android:includeFontPadding="false"
                         android:maxLines="1"
@@ -432,8 +434,10 @@
                         android:textSize="9sp" />
 
                     <TextView
+                        android:id="@+id/tvFeatureReviewAppealLine2"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
+                        android:ellipsize="end"
                         android:gravity="center"
                         android:includeFontPadding="false"
                         android:maxLines="1"
@@ -452,13 +456,14 @@
                     android:orientation="vertical">
 
                     <TextView
+                        android:id="@+id/tvFeaturePrivateTrafficTitle"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:ellipsize="end"
                         android:gravity="center"
                         android:includeFontPadding="false"
                         android:maxLines="2"
-                        android:text="私域吸粉"
+                        android:text="@string/shop_feature_private_traffic"
                         android:textColor="@color/fg_2"
                         android:textSize="10sp" />
 
@@ -472,8 +477,10 @@
                         android:scaleY="0.72" />
 
                     <TextView
+                        android:id="@+id/tvFeaturePrivateTrafficLine1"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
+                        android:ellipsize="end"
                         android:gravity="center"
                         android:includeFontPadding="false"
                         android:maxLines="1"
@@ -482,8 +489,10 @@
                         android:textSize="9sp" />
 
                     <TextView
+                        android:id="@+id/tvFeaturePrivateTrafficLine2"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
+                        android:ellipsize="end"
                         android:gravity="center"
                         android:includeFontPadding="false"
                         android:maxLines="1"

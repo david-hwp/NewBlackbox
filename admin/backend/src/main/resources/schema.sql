@@ -175,6 +175,24 @@ CREATE TABLE IF NOT EXISTS announcements (
     INDEX idx_created_at (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='公告表';
 
+-- 系统参数表
+CREATE TABLE IF NOT EXISTS system_parameters (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    channel_id BIGINT COMMENT '渠道ID',
+    name VARCHAR(128) NOT NULL COMMENT '中文名称',
+    code VARCHAR(128) NOT NULL COMMENT '参数编码',
+    param_value VARCHAR(1024) NOT NULL COMMENT '参数值',
+    description VARCHAR(512) COMMENT '说明',
+    is_builtin TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否内置: 0-否 1-是',
+    deleted TINYINT(1) NOT NULL DEFAULT 0 COMMENT '软删除: 0-正常 1-已删除',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_system_parameters_channel_code_deleted (channel_id, code, deleted),
+    INDEX idx_system_parameters_channel_id (channel_id),
+    INDEX idx_system_parameters_code (code),
+    INDEX idx_system_parameters_deleted (deleted)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='系统参数表';
+
 -- 引擎版本表
 CREATE TABLE IF NOT EXISTS engine_versions (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -304,4 +322,29 @@ ON DUPLICATE KEY UPDATE id=id;
 
 INSERT INTO users (username, phone, password, role, channel_id, compute_balance, non_transferable_compute_balance, phone_minutes_balance, shop_count, platform_count, apk_channel, subscription_plan)
 VALUES ('管理员', '13800138000', '$2y$12$xRCi/REAIr6LB5YhvqMIOeJ6aim.wGMW5l19JiJO3U8gpCjGAVssS', 'SUPER_ADMIN', (SELECT id FROM channels WHERE code = 'main' AND deleted = 0 LIMIT 1), 9999, 0, 0, 0, 0, 'main', 'NONE')
+ON DUPLICATE KEY UPDATE id=id;
+
+INSERT INTO system_parameters (channel_id, name, code, param_value, description, is_builtin, deleted)
+VALUES
+((SELECT id FROM channels WHERE code = 'main' AND deleted = 0 LIMIT 1), '新用户注册赠送订阅时长', 'register.trial.subscription.days', '30', '单位：天', 1, 0),
+((SELECT id FROM channels WHERE code = 'main' AND deleted = 0 LIMIT 1), '算力赠送按钮名称', 'app.menu.gift_compute.label', '算力赠送', 'APP 交易中心入口文案', 1, 0),
+((SELECT id FROM channels WHERE code = 'main' AND deleted = 0 LIMIT 1), '算力取回按钮名称', 'app.menu.reclaim_compute.label', '算力取回', 'APP 交易中心入口文案', 1, 0),
+((SELECT id FROM channels WHERE code = 'main' AND deleted = 0 LIMIT 1), '话费赠送按钮名称', 'app.menu.gift_phone_minutes.label', '话费赠送', 'APP 交易中心入口文案', 1, 0),
+((SELECT id FROM channels WHERE code = 'main' AND deleted = 0 LIMIT 1), '话费取回按钮名称', 'app.menu.reclaim_phone_minutes.label', '话费取回', 'APP 交易中心入口文案', 1, 0),
+((SELECT id FROM channels WHERE code = 'main' AND deleted = 0 LIMIT 1), '交易日志按钮名称', 'app.menu.transaction_logs.label', '交易日志', 'APP 交易中心入口文案', 1, 0),
+((SELECT id FROM channels WHERE code = 'main' AND deleted = 0 LIMIT 1), '差评定位标题', 'app.shop_feature.bad_review_location.label', '差评定位', 'APP 店铺卡片操作栏标题', 1, 0),
+((SELECT id FROM channels WHERE code = 'main' AND deleted = 0 LIMIT 1), '差评定位第一行内容', 'app.shop_feature.bad_review_location.line1', '-', 'APP 店铺卡片操作栏自定义内容', 1, 0),
+((SELECT id FROM channels WHERE code = 'main' AND deleted = 0 LIMIT 1), '差评定位第二行内容', 'app.shop_feature.bad_review_location.line2', '-', 'APP 店铺卡片操作栏自定义内容', 1, 0),
+((SELECT id FROM channels WHERE code = 'main' AND deleted = 0 LIMIT 1), '经营日报标题', 'app.shop_feature.business_report.label', '经营日报', 'APP 店铺卡片操作栏标题', 1, 0),
+((SELECT id FROM channels WHERE code = 'main' AND deleted = 0 LIMIT 1), '经营日报第一行内容', 'app.shop_feature.business_report.line1', '-', 'APP 店铺卡片操作栏自定义内容', 1, 0),
+((SELECT id FROM channels WHERE code = 'main' AND deleted = 0 LIMIT 1), '经营日报第二行内容', 'app.shop_feature.business_report.line2', '-', 'APP 店铺卡片操作栏自定义内容', 1, 0),
+((SELECT id FROM channels WHERE code = 'main' AND deleted = 0 LIMIT 1), '外呼好评标题', 'app.shop_feature.outbound_praise.label', '外呼好评', 'APP 店铺卡片操作栏标题', 1, 0),
+((SELECT id FROM channels WHERE code = 'main' AND deleted = 0 LIMIT 1), '外呼好评第一行内容', 'app.shop_feature.outbound_praise.line1', '-', 'APP 店铺卡片操作栏自定义内容', 1, 0),
+((SELECT id FROM channels WHERE code = 'main' AND deleted = 0 LIMIT 1), '外呼好评第二行内容', 'app.shop_feature.outbound_praise.line2', '-', 'APP 店铺卡片操作栏自定义内容', 1, 0),
+((SELECT id FROM channels WHERE code = 'main' AND deleted = 0 LIMIT 1), '评价申诉标题', 'app.shop_feature.review_appeal.label', '评价申诉', 'APP 店铺卡片操作栏标题', 1, 0),
+((SELECT id FROM channels WHERE code = 'main' AND deleted = 0 LIMIT 1), '评价申诉第一行内容', 'app.shop_feature.review_appeal.line1', '-', 'APP 店铺卡片操作栏自定义内容', 1, 0),
+((SELECT id FROM channels WHERE code = 'main' AND deleted = 0 LIMIT 1), '评价申诉第二行内容', 'app.shop_feature.review_appeal.line2', '-', 'APP 店铺卡片操作栏自定义内容', 1, 0),
+((SELECT id FROM channels WHERE code = 'main' AND deleted = 0 LIMIT 1), '私域吸粉标题', 'app.shop_feature.private_traffic.label', '私域吸粉', 'APP 店铺卡片操作栏标题', 1, 0),
+((SELECT id FROM channels WHERE code = 'main' AND deleted = 0 LIMIT 1), '私域吸粉第一行内容', 'app.shop_feature.private_traffic.line1', '-', 'APP 店铺卡片操作栏自定义内容', 1, 0),
+((SELECT id FROM channels WHERE code = 'main' AND deleted = 0 LIMIT 1), '私域吸粉第二行内容', 'app.shop_feature.private_traffic.line2', '-', 'APP 店铺卡片操作栏自定义内容', 1, 0)
 ON DUPLICATE KEY UPDATE id=id;

@@ -45,6 +45,10 @@
           <el-icon><Promotion /></el-icon>
           <span>发布任务</span>
         </el-menu-item>
+        <el-menu-item index="/system-parameters">
+          <el-icon><Setting /></el-icon>
+          <span>系统参数</span>
+        </el-menu-item>
         <el-menu-item index="/announcements">
           <el-icon><Bell /></el-icon>
           <span>公告管理</span>
@@ -98,7 +102,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Shop, Odometer, User, Document, ArrowDown, UserFilled, Bell, Connection, ChatDotRound, Grid, Upload, Promotion, SetUp } from '@element-plus/icons-vue'
+import { Shop, Odometer, User, Document, ArrowDown, UserFilled, Bell, Connection, ChatDotRound, Grid, Upload, Promotion, SetUp, Setting } from '@element-plus/icons-vue'
 import { getPreferredImageObjectUrl } from '../utils/files'
 import { isSuperAdminUser } from '../utils/adminSession'
 

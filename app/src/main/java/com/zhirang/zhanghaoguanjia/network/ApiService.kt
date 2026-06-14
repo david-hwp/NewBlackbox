@@ -38,6 +38,9 @@ interface ApiService {
         @Query("type") type: String? = null
     ): ApiResponse<List<AnnouncementDto>>
 
+    @GET("system-parameters/app")
+    suspend fun getAppSystemParameters(): ApiResponse<Map<String, String>>
+
     @GET("shops/my")
     suspend fun getMyShops(): ApiResponse<List<ShopDto>>
 

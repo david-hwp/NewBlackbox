@@ -435,8 +435,9 @@ class HomeActivity : AppCompatActivity() {
                 ?: return@setOnLongPressDragStart
             val shopId = shopAdapter.getShopIdAt(position) ?: return@setOnLongPressDragStart
             shopSwipeHelper.collapseExpandedItem(viewBinding.rvShops)
-            shopAdapter.setReorderMode(true, shopId)
+            shopAdapter.setReorderMode(true, shopId, refreshItems = false)
             shopItemTouchHelper.startDrag(holder)
+            shopAdapter.applyReorderVisualState(holder)
             viewBinding.rvShops.post {
                 shopAdapter.refreshReorderVisualState(excludeShopId = shopId)
             }
@@ -586,7 +587,10 @@ class HomeActivity : AppCompatActivity() {
 
         viewModel.activeSubscriptionLiveData.observe(this) { active ->
             if (::shopAdapter.isInitialized) {
-                shopAdapter.setShowRemainingDays(!active)
+                shopAdapter.setSubscriptionDisplayMode(
+                    showRemainingDays = !active,
+                    showAutoRenewControls = !active
+                )
             }
             updateShopList()
         }
@@ -671,7 +675,12 @@ class HomeActivity : AppCompatActivity() {
             updateTickerBanner(announcement)
         }
 
+        viewModel.appParametersLiveData.observe(this) { parameters ->
+            shopAdapter.setAppParameters(parameters)
+        }
+
         viewModel.loadShops()
+        viewModel.loadAppParameters()
         showRegistrationGiftPromptIfNeeded()
     }
 
@@ -1122,6 +1131,8 @@ class HomeActivity : AppCompatActivity() {
             toast("店铺已到期，请先续期后再使用微信")
             return
         }
+        launchHostWechatShare()
+        /*
         val wechatShop = findWechatToolShop()
         if (wechatShop == null) {
             toast("请先添加并登录微信店铺")
@@ -1148,6 +1159,25 @@ class HomeActivity : AppCompatActivity() {
                 }
                 launchWechatShare(targetShop = shop, preparedWechat = prepared)
             }
+        }
+        */
+    }
+
+    private fun launchHostWechatShare() {
+        val shareIntent = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            setPackage(WECHAT_PACKAGE)
+            putExtra(Intent.EXTRA_TEXT, WECHAT_SHARE_TEXT)
+        }
+        if (shareIntent.resolveActivity(packageManager) == null) {
+            toast("未检测到宿主系统微信，请先安装并登录微信")
+            return
+        }
+        runCatching {
+            startActivity(Intent.createChooser(shareIntent, "分享到微信"))
+        }.onFailure { error ->
+            Log.w(TAG, "Failed to launch host WeChat share", error)
+            toast("系统微信分享打开失败，请重试")
         }
     }
 
@@ -2183,6 +2213,10 @@ class HomeActivity : AppCompatActivity() {
             toast("该平台暂无关联应用")
             return
         }
+        if (viewModel.isCurrentUserActiveSubscriber()) {
+            createCloneAndPendingShop(platformItem, launchAfterCreate = false)
+            return
+        }
         if (viewModel.getCurrentComputeBalance() < 1) {
             toast("算力余额不足")
             return
@@ -2717,7 +2751,14 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun showEditShopSheet(shop: Shop) {
-        val sheet = EditShopSheetFragment.newInstance(shop.shopName, shop.shopId, shop.autoRenew, shop.remark)
+        val showAutoRenew = !viewModel.isCurrentUserActiveSubscriber()
+        val sheet = EditShopSheetFragment.newInstance(
+            shop.shopName,
+            shop.shopId,
+            shop.autoRenew,
+            shop.remark,
+            showAutoRenew = showAutoRenew
+        )
         sheet.setOnSaveListener { _, _, autoRenew, remark ->
             viewModel.updateShop(shop, autoRenew = autoRenew, remark = remark)
         }
@@ -2725,6 +2766,9 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun handleAutoRenewClick(shop: Shop) {
+        if (viewModel.isCurrentUserActiveSubscriber()) {
+            return
+        }
         if (shop.autoRenew) {
             viewModel.updateShop(shop, autoRenew = false)
             return

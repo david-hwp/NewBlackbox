@@ -23,7 +23,8 @@ public class SoftDeleteSchemaInitializer implements CommandLineRunner {
             "app_versions",
             "platform_configs",
             "feedbacks",
-            "compute_deductions"
+            "compute_deductions",
+            "system_parameters"
     );
 
     private final JdbcTemplate jdbcTemplate;
@@ -38,6 +39,7 @@ public class SoftDeleteSchemaInitializer implements CommandLineRunner {
     public void run(String... args) throws Exception {
         ensureChannelTable();
         ensureComputeDeductionTable();
+        ensureSystemParameterTable();
         for (String table : TABLES) {
             if (!hasColumn(table, "deleted")) {
                 jdbcTemplate.execute("ALTER TABLE " + table + " ADD COLUMN deleted TINYINT NOT NULL DEFAULT 0");
@@ -56,6 +58,7 @@ public class SoftDeleteSchemaInitializer implements CommandLineRunner {
         ensureCloneColumns();
         ensureShopLoginStateColumns();
         ensureShopCardSortColumn();
+        ensureDefaultSystemParameters();
     }
 
     private void ensureChannelTable() {
@@ -351,6 +354,98 @@ public class SoftDeleteSchemaInitializer implements CommandLineRunner {
                     INDEX idx_deleted (deleted)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
                 """);
+    }
+
+    private void ensureSystemParameterTable() {
+        jdbcTemplate.execute("""
+                CREATE TABLE IF NOT EXISTS system_parameters (
+                    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                    channel_id BIGINT,
+                    name VARCHAR(128) NOT NULL,
+                    code VARCHAR(128) NOT NULL,
+                    param_value VARCHAR(1024) NOT NULL,
+                    description VARCHAR(512),
+                    is_builtin TINYINT NOT NULL DEFAULT 0,
+                    deleted TINYINT NOT NULL DEFAULT 0,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                """);
+        if (!hasColumnQuietly("system_parameters", "is_builtin")) {
+            jdbcTemplate.execute("ALTER TABLE system_parameters ADD COLUMN is_builtin TINYINT NOT NULL DEFAULT 0");
+        }
+        if (!hasIndexQuietly("system_parameters", "idx_system_parameters_channel_id")) {
+            jdbcTemplate.execute("CREATE INDEX idx_system_parameters_channel_id ON system_parameters (channel_id)");
+        }
+        if (!hasIndexQuietly("system_parameters", "idx_system_parameters_code")) {
+            jdbcTemplate.execute("CREATE INDEX idx_system_parameters_code ON system_parameters (code)");
+        }
+        if (!hasIndexQuietly("system_parameters", "idx_system_parameters_deleted")) {
+            jdbcTemplate.execute("CREATE INDEX idx_system_parameters_deleted ON system_parameters (deleted)");
+        }
+        if (!hasIndexQuietly("system_parameters", "uk_system_parameters_channel_code_deleted")) {
+            jdbcTemplate.execute("CREATE UNIQUE INDEX uk_system_parameters_channel_code_deleted ON system_parameters (channel_id, code, deleted)");
+        }
+    }
+
+    private void ensureDefaultSystemParameters() {
+        Long mainChannelId = jdbcTemplate.queryForObject(
+                "SELECT id FROM channels WHERE code = 'main' AND deleted = 0 LIMIT 1",
+                Long.class
+        );
+        if (mainChannelId == null) {
+            throw new IllegalStateException("默认渠道不存在");
+        }
+        upsertDefaultParameter(mainChannelId, "新用户注册赠送订阅时长", "register.trial.subscription.days", "30", "单位：天");
+        upsertDefaultParameter(mainChannelId, "算力赠送按钮名称", "app.menu.gift_compute.label", "算力赠送", "APP 交易中心入口文案");
+        upsertDefaultParameter(mainChannelId, "算力取回按钮名称", "app.menu.reclaim_compute.label", "算力取回", "APP 交易中心入口文案");
+        upsertDefaultParameter(mainChannelId, "话费赠送按钮名称", "app.menu.gift_phone_minutes.label", "话费赠送", "APP 交易中心入口文案");
+        upsertDefaultParameter(mainChannelId, "话费取回按钮名称", "app.menu.reclaim_phone_minutes.label", "话费取回", "APP 交易中心入口文案");
+        upsertDefaultParameter(mainChannelId, "交易日志按钮名称", "app.menu.transaction_logs.label", "交易日志", "APP 交易中心入口文案");
+        upsertDefaultParameter(mainChannelId, "差评定位标题", "app.shop_feature.bad_review_location.label", "差评定位", "APP 店铺卡片操作栏标题");
+        upsertDefaultParameter(mainChannelId, "差评定位第一行内容", "app.shop_feature.bad_review_location.line1", "-", "APP 店铺卡片操作栏自定义内容");
+        upsertDefaultParameter(mainChannelId, "差评定位第二行内容", "app.shop_feature.bad_review_location.line2", "-", "APP 店铺卡片操作栏自定义内容");
+        upsertDefaultParameter(mainChannelId, "经营日报标题", "app.shop_feature.business_report.label", "经营日报", "APP 店铺卡片操作栏标题");
+        upsertDefaultParameter(mainChannelId, "经营日报第一行内容", "app.shop_feature.business_report.line1", "-", "APP 店铺卡片操作栏自定义内容");
+        upsertDefaultParameter(mainChannelId, "经营日报第二行内容", "app.shop_feature.business_report.line2", "-", "APP 店铺卡片操作栏自定义内容");
+        upsertDefaultParameter(mainChannelId, "外呼好评标题", "app.shop_feature.outbound_praise.label", "外呼好评", "APP 店铺卡片操作栏标题");
+        upsertDefaultParameter(mainChannelId, "外呼好评第一行内容", "app.shop_feature.outbound_praise.line1", "-", "APP 店铺卡片操作栏自定义内容");
+        upsertDefaultParameter(mainChannelId, "外呼好评第二行内容", "app.shop_feature.outbound_praise.line2", "-", "APP 店铺卡片操作栏自定义内容");
+        upsertDefaultParameter(mainChannelId, "评价申诉标题", "app.shop_feature.review_appeal.label", "评价申诉", "APP 店铺卡片操作栏标题");
+        upsertDefaultParameter(mainChannelId, "评价申诉第一行内容", "app.shop_feature.review_appeal.line1", "-", "APP 店铺卡片操作栏自定义内容");
+        upsertDefaultParameter(mainChannelId, "评价申诉第二行内容", "app.shop_feature.review_appeal.line2", "-", "APP 店铺卡片操作栏自定义内容");
+        upsertDefaultParameter(mainChannelId, "私域吸粉标题", "app.shop_feature.private_traffic.label", "私域吸粉", "APP 店铺卡片操作栏标题");
+        upsertDefaultParameter(mainChannelId, "私域吸粉第一行内容", "app.shop_feature.private_traffic.line1", "-", "APP 店铺卡片操作栏自定义内容");
+        upsertDefaultParameter(mainChannelId, "私域吸粉第二行内容", "app.shop_feature.private_traffic.line2", "-", "APP 店铺卡片操作栏自定义内容");
+    }
+
+    private void upsertDefaultParameter(Long channelId, String name, String code, String value, String description) {
+        Integer count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM system_parameters WHERE channel_id = ? AND code = ? AND deleted = 0",
+                Integer.class,
+                channelId,
+                code
+        );
+        if (count != null && count > 0) {
+            jdbcTemplate.update("""
+                    UPDATE system_parameters
+                    SET is_builtin = 1
+                    WHERE channel_id = ? AND code = ? AND deleted = 0
+                    """, channelId, code);
+            return;
+        }
+        jdbcTemplate.update("""
+                INSERT INTO system_parameters (channel_id, name, code, param_value, description, is_builtin, deleted)
+                VALUES (?, ?, ?, ?, ?, 1, 0)
+                """, channelId, name, code, value, description);
+    }
+
+    private boolean hasColumnQuietly(String table, String column) {
+        try {
+            return hasColumn(table, column);
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     private boolean hasColumn(String table, String column) throws Exception {

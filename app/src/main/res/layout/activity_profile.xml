@@ -299,6 +299,7 @@
                         app:tint="@color/duodian_primary" />
 
                     <TextView
+                        android:id="@+id/tvMenuGiftLabel"
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_marginStart="12dp"
@@ -336,6 +337,7 @@
                         app:tint="@color/duodian_primary" />
 
                     <TextView
+                        android:id="@+id/tvMenuReclaimLabel"
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_marginStart="12dp"
@@ -373,6 +375,7 @@
                         app:tint="@color/duodian_primary" />
 
                     <TextView
+                        android:id="@+id/tvMenuPhoneGiftLabel"
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_marginStart="12dp"
@@ -410,6 +413,7 @@
                         app:tint="@color/duodian_primary" />
 
                     <TextView
+                        android:id="@+id/tvMenuPhoneReclaimLabel"
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_marginStart="12dp"
@@ -447,6 +451,7 @@
                         app:tint="@color/duodian_primary" />
 
                     <TextView
+                        android:id="@+id/tvMenuLogsLabel"
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_marginStart="12dp"

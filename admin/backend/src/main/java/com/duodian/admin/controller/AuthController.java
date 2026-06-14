@@ -8,6 +8,7 @@ import com.duodian.admin.controller.dto.RegisterRequest;
 import com.duodian.admin.entity.Channel;
 import com.duodian.admin.entity.User;
 import com.duodian.admin.service.ChannelScopeService;
+import com.duodian.admin.service.SystemParameterService;
 import com.duodian.admin.service.UserService;
 import jakarta.validation.Valid;
 import jakarta.servlet.http.HttpServletRequest;
@@ -24,11 +25,18 @@ public class AuthController {
     private final UserService userService;
     private final JwtUtil jwtUtil;
     private final ChannelScopeService channelScopeService;
+    private final SystemParameterService systemParameterService;
 
-    public AuthController(UserService userService, JwtUtil jwtUtil, ChannelScopeService channelScopeService) {
+    public AuthController(
+            UserService userService,
+            JwtUtil jwtUtil,
+            ChannelScopeService channelScopeService,
+            SystemParameterService systemParameterService
+    ) {
         this.userService = userService;
         this.jwtUtil = jwtUtil;
         this.channelScopeService = channelScopeService;
+        this.systemParameterService = systemParameterService;
     }
 
     @PostMapping("/login")
@@ -74,12 +82,19 @@ public class AuthController {
             user.setShopCount(0);
             user.setPlatformCount(0);
             user.setSubscriptionPlan(UserService.PLAN_TRIAL);
-            user.setSubscriptionExpiresAt(LocalDateTime.now().plusDays(30));
+            int trialDays = systemParameterService.intValue(
+                    channel,
+                    SystemParameterService.REGISTER_TRIAL_SUBSCRIPTION_DAYS,
+                    30,
+                    0,
+                    3650
+            );
+            user.setSubscriptionExpiresAt(LocalDateTime.now().plusDays(trialDays));
             user.setSubscriptionUpdatedAt(LocalDateTime.now());
 
             User saved = userService.create(user);
             userService.createRegisterBonusLog(saved, registerBonus);
-            userService.createRegisterSubscriptionLog(saved, 30);
+            userService.createRegisterSubscriptionLog(saved, trialDays);
             return new ApiResponse<>(200, "注册成功", null);
         } catch (RuntimeException e) {
             return ApiResponse.error(e.getMessage());

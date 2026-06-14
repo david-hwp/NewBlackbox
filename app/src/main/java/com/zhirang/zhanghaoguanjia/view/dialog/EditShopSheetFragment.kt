@@ -16,6 +16,7 @@ class EditShopSheetFragment : BaseBottomSheetFragment() {
     private var currentShopId: String = ""
     private var currentAutoRenew: Boolean = false
     private var currentRemark: String = ""
+    private var showAutoRenew: Boolean = true
     private var onSaveListener: ((String, String, Boolean, String) -> Unit)? = null
 
     fun setOnSaveListener(listener: (String, String, Boolean, String) -> Unit) {
@@ -27,14 +28,22 @@ class EditShopSheetFragment : BaseBottomSheetFragment() {
         private const val ARG_SHOP_ID = "shop_id"
         private const val ARG_AUTO_RENEW = "auto_renew"
         private const val ARG_REMARK = "remark"
+        private const val ARG_SHOW_AUTO_RENEW = "show_auto_renew"
 
-        fun newInstance(shopName: String, shopId: String, autoRenew: Boolean, remark: String?): EditShopSheetFragment {
+        fun newInstance(
+            shopName: String,
+            shopId: String,
+            autoRenew: Boolean,
+            remark: String?,
+            showAutoRenew: Boolean = true
+        ): EditShopSheetFragment {
             return EditShopSheetFragment().apply {
                 arguments = Bundle().apply {
                     putString(ARG_SHOP_NAME, shopName)
                     putString(ARG_SHOP_ID, shopId)
                     putBoolean(ARG_AUTO_RENEW, autoRenew)
                     putString(ARG_REMARK, remark.orEmpty())
+                    putBoolean(ARG_SHOW_AUTO_RENEW, showAutoRenew)
                 }
             }
         }
@@ -50,10 +59,12 @@ class EditShopSheetFragment : BaseBottomSheetFragment() {
         currentShopId = arguments?.getString(ARG_SHOP_ID) ?: ""
         currentAutoRenew = arguments?.getBoolean(ARG_AUTO_RENEW) ?: false
         currentRemark = arguments?.getString(ARG_REMARK) ?: ""
+        showAutoRenew = arguments?.getBoolean(ARG_SHOW_AUTO_RENEW) ?: true
 
         binding.etShopName.setText(currentShopName)
         binding.etShopId.setText(currentShopId.takeUnless { it.startsWith("NEW-") }.orEmpty())
         binding.switchAutoRenew.isChecked = currentAutoRenew
+        binding.autoRenewRow.visibility = if (showAutoRenew) View.VISIBLE else View.GONE
         binding.etRemark.setText(currentRemark)
 
         binding.btnCancel.setOnClickListener {
@@ -70,7 +81,7 @@ class EditShopSheetFragment : BaseBottomSheetFragment() {
             onSaveListener?.invoke(
                 nextShopName,
                 nextShopId.ifBlank { "-" },
-                binding.switchAutoRenew.isChecked,
+                if (showAutoRenew) binding.switchAutoRenew.isChecked else currentAutoRenew,
                 binding.etRemark.text?.toString().orEmpty()
             )
             dismissWithAnimation()

@@ -15,6 +15,7 @@ import com.zhirang.zhanghaoguanjia.bean.dto.AppVersionDto
 import com.zhirang.zhanghaoguanjia.bean.dto.EngineVersionDto
 import com.zhirang.zhanghaoguanjia.bean.dto.UserDto
 import com.zhirang.zhanghaoguanjia.data.BaseRepository
+import com.zhirang.zhanghaoguanjia.data.SystemParameterRepository
 import com.zhirang.zhanghaoguanjia.data.TokenManager
 import com.zhirang.zhanghaoguanjia.databinding.ActivityProfileBinding
 import com.zhirang.zhanghaoguanjia.engine.EngineInstaller
@@ -66,6 +67,7 @@ class ProfileActivity : AppCompatActivity() {
         observeViewModel()
 
         viewModel.loadProfile()
+        viewModel.loadAppParameters()
         viewModel.refreshEngineUpgradeState()
         viewModel.refreshAppUpdateState()
     }
@@ -175,6 +177,10 @@ class ProfileActivity : AppCompatActivity() {
             }
         }
 
+        viewModel.appParametersLiveData.observe(this) { parameters ->
+            applyMenuLabels(parameters)
+        }
+
         viewModel.errorLiveData.observe(this) { errorMessage ->
             errorMessage?.let {
                 Toast.makeText(this, it, Toast.LENGTH_SHORT).show()
@@ -261,9 +267,42 @@ class ProfileActivity : AppCompatActivity() {
         }
         if (::viewModel.isInitialized) {
             viewModel.loadProfile()
+            viewModel.loadAppParameters()
             viewModel.refreshEngineUpgradeState()
             viewModel.refreshAppUpdateState()
         }
+    }
+
+    private fun applyMenuLabels(parameters: Map<String, String>) {
+        binding.tvMenuGiftLabel?.text = parameterText(
+            parameters,
+            SystemParameterRepository.APP_MENU_GIFT_COMPUTE_LABEL,
+            com.zhirang.zhanghaoguanjia.R.string.menu_gift_compute
+        )
+        binding.tvMenuReclaimLabel?.text = parameterText(
+            parameters,
+            SystemParameterRepository.APP_MENU_RECLAIM_COMPUTE_LABEL,
+            com.zhirang.zhanghaoguanjia.R.string.menu_reclaim_compute
+        )
+        binding.tvMenuPhoneGiftLabel?.text = parameterText(
+            parameters,
+            SystemParameterRepository.APP_MENU_GIFT_PHONE_MINUTES_LABEL,
+            com.zhirang.zhanghaoguanjia.R.string.menu_gift_phone_minutes
+        )
+        binding.tvMenuPhoneReclaimLabel?.text = parameterText(
+            parameters,
+            SystemParameterRepository.APP_MENU_RECLAIM_PHONE_MINUTES_LABEL,
+            com.zhirang.zhanghaoguanjia.R.string.menu_reclaim_phone_minutes
+        )
+        binding.tvMenuLogsLabel?.text = parameterText(
+            parameters,
+            SystemParameterRepository.APP_MENU_TRANSACTION_LOGS_LABEL,
+            com.zhirang.zhanghaoguanjia.R.string.menu_transaction_logs
+        )
+    }
+
+    private fun parameterText(parameters: Map<String, String>, code: String, fallbackResId: Int): String {
+        return parameters[code]?.takeIf { it.isNotBlank() } ?: getString(fallbackResId)
     }
 
     private fun registerAuthReceiver() {

@@ -13,6 +13,7 @@
 - [Wave 2 - 微信分身首次绑定 clone mapping 修复](17-02-PLAN.md)
 - [Wave 3 - 店铺卡片微信接收方绑定与一键分享](17-03-PLAN.md)
 - [Wave 4 - 店铺卡片长按拖动排序](17-04-PLAN.md)
+- [Wave 5 - 系统参数配置中心](17-05-PLAN.md)
 
 ## Current Status
 
@@ -20,6 +21,7 @@
 - Wave 2: Completed. clone mapping 初始化顺序修复已合并，Android 编译通过，主 APK 与引擎已安装到 OPPO/小米。
 - Wave 3: Paused / partially completed. 微信分享研究代码保留；顶部分享入口已隐藏；店铺备注和微信接收方元数据已接入服务端/后台，APP 卡片店铺 ID 下方改为展示备注。完整一键分享到微信联系人验收暂停，不标记完成。
 - Wave 4: Implemented / pending device UAT. 同用户同平台店铺卡片长按拖动排序已实现，排序结果用系统店铺 ID 上报服务端；后端测试、后台前端构建、Android 编译已通过。
+- Wave 5: Completed. 后台新增系统参数页面，服务端和 APP 消除可配置文案/时长硬编码；店铺卡片 5 个操作开关的标题和两行内容已纳入参数；内置参数不可删除；内网服务、小米和 OPPO 安装验证已完成。
 
 ## Cross-Wave Constraints
 

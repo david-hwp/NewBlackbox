@@ -14,6 +14,7 @@ import com.zhirang.zhanghaoguanjia.update.AppUpdateManager
 import com.zhirang.zhanghaoguanjia.data.EngineVersionRepository
 import com.zhirang.zhanghaoguanjia.data.PlatformRepository
 import com.zhirang.zhanghaoguanjia.data.ShopRepository
+import com.zhirang.zhanghaoguanjia.data.SystemParameterRepository
 import com.zhirang.zhanghaoguanjia.data.TokenManager
 import com.zhirang.zhanghaoguanjia.data.UserRepository
 import com.zhirang.zhanghaoguanjia.engine.EngineInstaller
@@ -26,6 +27,7 @@ class ProfileViewModel : ViewModel() {
     private val engineVersionRepository = EngineVersionRepository(RetrofitClient.apiService)
     private val platformRepository = PlatformRepository(RetrofitClient.apiService)
     private val shopRepository = ShopRepository(RetrofitClient.apiService)
+    private val systemParameterRepository = SystemParameterRepository(RetrofitClient.apiService)
     private val tokenManager = TokenManager.getInstance()
 
     private val _userProfileLiveData = MutableLiveData<UserDto?>()
@@ -39,6 +41,7 @@ class ProfileViewModel : ViewModel() {
     val appUpdateLiveData = MutableLiveData<Result<AppVersionDto?>>()
     val updateCheckLiveData = MutableLiveData<Result<UpdateCheckResult>>()
     val appInstallResultLiveData = MutableLiveData<Result<Unit>>()
+    val appParametersLiveData = MutableLiveData<Map<String, String>>()
 
     fun loadProfile() {
         val cachedUser = tokenManager.getUser()
@@ -63,6 +66,14 @@ class ProfileViewModel : ViewModel() {
                     }
                 }
             )
+        }
+    }
+
+    fun loadAppParameters() {
+        viewModelScope.launch {
+            systemParameterRepository.getAppParameters().onSuccess { parameters ->
+                appParametersLiveData.value = parameters
+            }
         }
     }
 

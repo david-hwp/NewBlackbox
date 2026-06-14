@@ -21,6 +21,7 @@ import com.zhirang.zhanghaoguanjia.data.AnnouncementRepository
 import com.zhirang.zhanghaoguanjia.data.LocalShopIdentityStore
 import com.zhirang.zhanghaoguanjia.data.PlatformRepository
 import com.zhirang.zhanghaoguanjia.data.ShopRepository
+import com.zhirang.zhanghaoguanjia.data.SystemParameterRepository
 import com.zhirang.zhanghaoguanjia.data.TokenManager
 import com.zhirang.zhanghaoguanjia.data.UserRepository
 import com.zhirang.zhanghaoguanjia.app.App
@@ -95,7 +96,11 @@ class HomeViewModel : ViewModel() {
     private val userRepository = UserRepository(RetrofitClient.apiService)
     private val platformRepository = PlatformRepository(RetrofitClient.apiService)
     private val announcementRepository = AnnouncementRepository(RetrofitClient.apiService)
+    private val systemParameterRepository = SystemParameterRepository(RetrofitClient.apiService)
     private val tokenManager = TokenManager.getInstance()
+
+    private val _appParametersLiveData = MutableLiveData<Map<String, String>>()
+    val appParametersLiveData: LiveData<Map<String, String>> = _appParametersLiveData
 
     private var allShops: List<Shop> = emptyList()
 
@@ -140,6 +145,14 @@ class HomeViewModel : ViewModel() {
                     _tickerAnnouncementLiveData.value = null
                 }
             )
+        }
+    }
+
+    fun loadAppParameters() {
+        viewModelScope.launch {
+            systemParameterRepository.getAppParameters().onSuccess { parameters ->
+                _appParametersLiveData.value = parameters
+            }
         }
     }
 
@@ -343,6 +356,11 @@ class HomeViewModel : ViewModel() {
 
     fun getCurrentComputeBalance(): Int {
         return _computeBalanceLiveData.value ?: tokenManager.getUser()?.computeBalance ?: 0
+    }
+
+    fun isCurrentUserActiveSubscriber(): Boolean {
+        val user = tokenManager.getUser() ?: return false
+        return user.hasSubscriptionRecord && user.isSubscriptionActiveNow
     }
 
     private fun updatePlatformShopCounts() {

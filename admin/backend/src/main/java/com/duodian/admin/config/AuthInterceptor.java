@@ -23,7 +23,8 @@ public class AuthInterceptor implements HandlerInterceptor {
     private static final List<String> WHITE_LIST = Arrays.asList(
             "/auth/login",
             "/auth/register",
-            "/feedbacks/log-upload"
+            "/feedbacks/log-upload",
+            "/system-parameters/app"
     );
 
     public AuthInterceptor(JwtUtil jwtUtil, UserRepository userRepository, ChannelRepository channelRepository) {

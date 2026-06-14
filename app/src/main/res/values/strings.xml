@@ -114,6 +114,12 @@
     <string name="menu_gift_phone_minutes">话费赠送</string>
     <string name="menu_reclaim_phone_minutes">话费取回</string>
     <string name="menu_transaction_logs">交易日志</string>
+    <string name="shop_feature_bad_review_location">差评定位</string>
+    <string name="shop_feature_business_report">经营日报</string>
+    <string name="shop_feature_outbound_praise">外呼好评</string>
+    <string name="shop_feature_review_appeal">评价申诉</string>
+    <string name="shop_feature_private_traffic">私域吸粉</string>
+    <string name="shop_feature_custom_line_placeholder">-</string>
     <string name="menu_change_username">修改用户名</string>
     <string name="menu_change_password">修改密码</string>
     <string name="menu_system_settings">软件设置</string>

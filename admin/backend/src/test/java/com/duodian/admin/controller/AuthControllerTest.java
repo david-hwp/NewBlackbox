@@ -6,6 +6,7 @@ import com.duodian.admin.controller.dto.RegisterRequest;
 import com.duodian.admin.entity.Channel;
 import com.duodian.admin.entity.User;
 import com.duodian.admin.service.ChannelScopeService;
+import com.duodian.admin.service.SystemParameterService;
 import com.duodian.admin.service.UserService;
 import org.junit.jupiter.api.Test;
 
@@ -22,7 +23,8 @@ class AuthControllerTest {
     private final UserService userService = mock(UserService.class);
     private final JwtUtil jwtUtil = mock(JwtUtil.class);
     private final ChannelScopeService channelScopeService = mock(ChannelScopeService.class);
-    private final AuthController controller = new AuthController(userService, jwtUtil, channelScopeService);
+    private final SystemParameterService systemParameterService = mock(SystemParameterService.class);
+    private final AuthController controller = new AuthController(userService, jwtUtil, channelScopeService, systemParameterService);
 
     @Test
     void registerGiftsNonTransferableComputeSubscriptionAndDoesNotLogin() {
@@ -44,6 +46,13 @@ class AuthControllerTest {
         main.setStatus("ACTIVE");
         main.setRegisterBonusCompute(3);
         when(channelScopeService.resolveAppChannel(any(), any())).thenReturn(main);
+        when(systemParameterService.intValue(
+                main,
+                SystemParameterService.REGISTER_TRIAL_SUBSCRIPTION_DAYS,
+                30,
+                0,
+                3650
+        )).thenReturn(45);
         when(userService.create(argThat(user ->
                 user.getComputeBalance() == 3
                         && user.getNonTransferableComputeBalance() == 3
@@ -59,7 +68,7 @@ class AuthControllerTest {
         assertThat(response.getMessage()).isEqualTo("注册成功");
         assertThat(response.getData()).isNull();
         verify(userService).createRegisterBonusLog(saved, 3);
-        verify(userService).createRegisterSubscriptionLog(saved, 30);
+        verify(userService).createRegisterSubscriptionLog(saved, 45);
         verify(jwtUtil, never()).generateToken(any(), any());
     }
 }
