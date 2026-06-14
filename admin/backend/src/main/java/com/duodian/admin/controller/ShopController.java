@@ -300,9 +300,6 @@ public class ShopController {
             return ApiResponse.error("店铺不存在");
         }
         Shop existing = existingOptional.get();
-        if (hasIdentityChange(existing, shop)) {
-            return ApiResponse.error("店铺ID和店铺名称只能由引擎识别更新");
-        }
         shop.setIdentityVerified(existing.getIdentityVerified());
         shop.setIdentityVerifiedAt(existing.getIdentityVerifiedAt());
         Long ownerId = existing.getUserId();
@@ -597,18 +594,6 @@ public class ShopController {
         } catch (RuntimeException e) {
             return false;
         }
-    }
-
-    private boolean hasIdentityChange(Shop existing, Shop request) {
-        if (request == null) {
-            return false;
-        }
-        String existingName = normalize(existing.getShopName());
-        String requestName = normalize(request.getShopName());
-        String existingShopId = normalize(existing.getShopId());
-        String requestShopId = normalize(request.getShopId());
-        return (requestName != null && !requestName.equals(existingName))
-                || (requestShopId != null && !requestShopId.equals(existingShopId));
     }
 
     private String normalize(String value) {

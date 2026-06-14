@@ -437,6 +437,9 @@ class HomeActivity : AppCompatActivity() {
             shopSwipeHelper.collapseExpandedItem(viewBinding.rvShops)
             shopAdapter.setReorderMode(true, shopId)
             shopItemTouchHelper.startDrag(holder)
+            viewBinding.rvShops.post {
+                shopAdapter.refreshReorderVisualState(excludeShopId = shopId)
+            }
         }
         viewBinding.swipeRefreshShops.setOnRefreshListener {
             exitShopReorderMode(submit = false)

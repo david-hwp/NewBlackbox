@@ -53,8 +53,6 @@ class EditShopSheetFragment : BaseBottomSheetFragment() {
 
         binding.etShopName.setText(currentShopName)
         binding.etShopId.setText(currentShopId.takeUnless { it.startsWith("NEW-") }.orEmpty())
-        binding.etShopName.isEnabled = false
-        binding.etShopId.isEnabled = false
         binding.switchAutoRenew.isChecked = currentAutoRenew
         binding.etRemark.setText(currentRemark)
 
@@ -63,13 +61,15 @@ class EditShopSheetFragment : BaseBottomSheetFragment() {
         }
 
         binding.btnSave.setOnClickListener {
-            if (currentShopName.isEmpty()) {
-                Toast.makeText(requireContext(), "店铺身份需由引擎识别", Toast.LENGTH_SHORT).show()
+            val nextShopName = binding.etShopName.text?.toString()?.trim().orEmpty()
+            val nextShopId = binding.etShopId.text?.toString()?.trim().orEmpty()
+            if (nextShopName.isEmpty()) {
+                Toast.makeText(requireContext(), "请输入店铺名称", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
             onSaveListener?.invoke(
-                currentShopName,
-                currentShopId,
+                nextShopName,
+                nextShopId.ifBlank { "-" },
                 binding.switchAutoRenew.isChecked,
                 binding.etRemark.text?.toString().orEmpty()
             )

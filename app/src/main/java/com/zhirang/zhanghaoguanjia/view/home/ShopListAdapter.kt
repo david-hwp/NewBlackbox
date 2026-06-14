@@ -51,6 +51,14 @@ class ShopListAdapter(
         notifyDataSetChanged()
     }
 
+    fun refreshReorderVisualState(excludeShopId: Long? = null) {
+        shops.forEachIndexed { index, shop ->
+            if (shop.id != excludeShopId) {
+                notifyItemChanged(index)
+            }
+        }
+    }
+
     fun setDraggingShopId(shopId: Long?) {
         if (draggingShopId == shopId) {
             return
@@ -153,7 +161,7 @@ class ShopListAdapter(
 
             shopName.text = shop.shopName
             val verifiedIdentity = shop.hasVerifiedIdentity
-            newTag.visibility = if (shop.isNew) View.VISIBLE else View.GONE
+            newTag.visibility = View.GONE
             shopId.text = "店铺ID: ${if (verifiedIdentity) shop.shopId else "-"}"
             val isWechatCard = shop.packageName == WECHAT_PACKAGE
             btnWechat.visibility = if (isWechatCard) View.GONE else View.VISIBLE
@@ -214,8 +222,6 @@ class ShopListAdapter(
                 val pos = bindingAdapterPosition
                 if (pos != RecyclerView.NO_POSITION) {
                     expandedShopId = null
-                    draggingShopId = shops[pos].id
-                    reorderMode = true
                     onLongPressDragStart?.invoke(this)
                     true
                 } else {

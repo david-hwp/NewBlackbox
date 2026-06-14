@@ -131,7 +131,7 @@ class ShopControllerTest {
     }
 
     @Test
-    void updateRejectsManualShopIdentityChange() {
+    void updateAllowsManualShopIdentityChange() {
         AuthContext.setUserId(1L);
         User normalUser = user(1L, "USER");
         Shop existing = shop(10L, 1L, "真实店铺");
@@ -141,12 +141,14 @@ class ShopControllerTest {
 
         when(userService.findById(1L)).thenReturn(Optional.of(normalUser));
         when(shopService.findById(10L)).thenReturn(Optional.of(existing));
+        when(shopService.update(10L, request)).thenReturn(request);
 
         ApiResponse<Shop> response = controller.update(10L, request);
 
-        assertThat(response.getCode()).isEqualTo(500);
-        assertThat(response.getMessage()).isEqualTo("店铺ID和店铺名称只能由引擎识别更新");
-        verify(shopService, never()).update(eq(10L), any(Shop.class));
+        assertThat(response.getCode()).isEqualTo(200);
+        assertThat(response.getData().getShopName()).isEqualTo("手填店铺");
+        assertThat(response.getData().getShopId()).isEqualTo("999999");
+        verify(shopService).update(eq(10L), any(Shop.class));
     }
 
     @Test

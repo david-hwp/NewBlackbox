@@ -42,14 +42,14 @@ class ShopServiceTest {
         existing.setShopId("NEW-abc");
         Shop request = shop(11L, 30, LocalDateTime.now().plusDays(30));
         request.setShopName("手动命名店铺");
-        request.setShopId("NEW-abc");
+        request.setShopId("real-abc");
         when(shopRepository.findByIdAndDeleted(11L, (byte) 0)).thenReturn(Optional.of(existing));
         when(shopRepository.save(existing)).thenReturn(existing);
 
         Shop updated = shopService.update(11L, request);
 
         assertThat(updated.getShopName()).isEqualTo("手动命名店铺");
-        assertThat(updated.getShopId()).isEqualTo("-");
+        assertThat(updated.getShopId()).isEqualTo("real-abc");
     }
 
     @Test

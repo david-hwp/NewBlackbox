@@ -119,9 +119,6 @@ public class ShopService {
     public Shop update(Long id, Shop shop) {
         Shop existing = shopRepository.findByIdAndDeleted(id, ACTIVE)
                 .orElseThrow(() -> new RuntimeException("店铺不存在"));
-        String previousShopName = normalize(existing.getShopName());
-        String nextShopName = normalize(shop.getShopName());
-        String previousShopId = existing.getShopId();
         if (shop.getShopName() != null) {
             existing.setShopName(shop.getShopName());
         }
@@ -131,10 +128,7 @@ public class ShopService {
             stampChannel(existing);
         }
         if (shop.getShopId() != null) {
-            existing.setShopId(resolveEditableShopId(previousShopId, shop.getShopId(), previousShopName, nextShopName));
-        }
-        if (isTemporaryShopId(previousShopId) && !isTemporaryShopName(existing.getShopName())) {
-            existing.setShopId("-");
+            existing.setShopId(resolveEditableShopId(shop.getShopId()));
         }
         if (Boolean.TRUE.equals(shop.getIdentityVerified()) || shop.getIdentityVerifiedAt() != null) {
             existing.setIdentityVerified(shop.getIdentityVerified());
@@ -359,35 +353,12 @@ public class ShopService {
         return left.equals(right);
     }
 
-    private String resolveEditableShopId(
-            String currentShopId,
-            String requestedShopId,
-            String previousShopName,
-            String nextShopName
-    ) {
-        String normalizedCurrentShopId = normalize(currentShopId);
+    private String resolveEditableShopId(String requestedShopId) {
         String normalizedRequestedShopId = normalize(requestedShopId);
         if (normalizedRequestedShopId == null) {
-            return currentShopId;
-        }
-        if (isTemporaryShopId(normalizedRequestedShopId)
-                && isTemporaryShopId(normalizedCurrentShopId)
-                && (!java.util.Objects.equals(previousShopName, nextShopName)
-                || !java.util.Objects.equals(normalizedCurrentShopId, normalizedRequestedShopId))) {
             return "-";
         }
         return normalizedRequestedShopId;
-    }
-
-    private boolean isTemporaryShopId(String shopId) {
-        return shopId != null && (shopId.startsWith("NEW-") || shopId.startsWith("phase13-"));
-    }
-
-    private boolean isTemporaryShopName(String shopName) {
-        return shopName == null
-                || shopName.startsWith("新增店铺-[")
-                || shopName.startsWith("NEW-")
-                || shopName.startsWith("phase13-");
     }
 
 }
