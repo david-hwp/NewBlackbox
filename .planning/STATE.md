@@ -2,8 +2,8 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: phase11-channel-promotion-system
-status: Phase 16 completed
-last_updated: "2026-06-14T22:33:46+08:00"
+status: Phase 19 in progress
+last_updated: "2026-06-15T02:15:00+08:00"
 progress:
   total_phases: 11
   completed_phases: 10
@@ -13,6 +13,22 @@ progress:
 ---
 
 ## Recent Changes
+
+### 2026-06-15: Phase 19 Xpra shop authorization MVP started
+
+- Created a dedicated Phase 19 worktree and branch `phase19-xpra-stream`.
+- Added the APP-side “授权登录该店铺” entry under shop ID, leaving the existing “私域吸粉” advanced-feature switch unchanged.
+- Added the “店铺授权” dialog that loads the Xpra HTML5 stream URL from build config; the dialog is centered, about two thirds of the screen height, and can move with the soft keyboard.
+- Brought up the Aliyun Ubuntu virtual desktop stack on Tailscale IP `100.99.88.6`: Xvfb/fluxbox/Chromium/Xpra HTML5/VNC.
+- Merged latest `origin/dev`, rebuilt `1.2.18-beta`, and installed it to Xiaomi real device `3ca26684`.
+- Updated APK defaults to use backend API `http://100.99.88.2:8006/api/`, Xpra stream `http://100.99.88.6:14500/`, and ZR control endpoint `http://100.99.88.6:14501/`.
+- Moved the remote startup scripts into repository source under `admin/scripts/browser/`; server-side runtime now lives under `~/data`.
+- Stabilized the remote desktop to a single `360x520` Chromium kiosk window; browser profiles are isolated under `~/data/profiles/<phone>/<shopId>/chrome` and browser tracking goes to `~/data/logs/browser-trace.jsonl`.
+- Updated ZR control so the APP sends the authorization WebView logical `width/height`, browser `scale`, and platform-specific authorization `url`; server display stack and Chromium now resize to that viewport before streaming back through Xpra.
+- Added “授权地址” to backend platform configuration; APP does not display it and only passes it to `/open`.
+- Gated Xpra keyboard capture so the soft keyboard is only focused for the JD login input regions, not for every tap inside the stream.
+- Confirmed Ubuntu apt and Docker apt sources are on Alibaba mirrors; remaining slow paths are third-party HTTPS repositories or Playwright browser downloads.
+- Canonical plan document: `.planning/phases/19-xpra-shop-authorization/19-PLAN.md`.
 
 ### 2026-06-14: Phase 11 checked branch completed
 

@@ -33,6 +33,8 @@ object PlatformRegistry {
 
     fun packageName(platform: Platform): String? = get(platform)?.packageName
 
+    fun authorizationUrl(platform: Platform): String? = get(platform)?.authorizationUrl
+
     fun platformsForPackage(packageName: String?): List<PlatformItemDto> {
         if (packageName.isNullOrBlank()) {
             return emptyList()

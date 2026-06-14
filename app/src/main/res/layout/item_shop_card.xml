@@ -97,6 +97,21 @@
                             tools:text="M123456" />
 
                         <TextView
+                            android:id="@+id/tvShopAuthorizationLogin"
+                            android:layout_width="wrap_content"
+                            android:layout_height="32dp"
+                            android:layout_marginTop="2dp"
+                            android:clickable="true"
+                            android:focusable="true"
+                            android:foreground="?attr/selectableItemBackground"
+                            android:gravity="center_vertical"
+                            android:minWidth="96dp"
+                            android:text="@string/shop_authorization_login"
+                            android:textColor="@color/duodian_primary"
+                            android:textSize="12sp"
+                            android:textStyle="bold" />
+
+                        <TextView
                             android:id="@+id/shopRemark"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"

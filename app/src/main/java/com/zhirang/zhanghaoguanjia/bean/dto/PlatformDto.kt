@@ -7,6 +7,7 @@ data class PlatformDto(
     val name: String,
     val packageName: String?,
     val iconUrl: String?,
+    val authorizationUrl: String?,
     val available: Boolean
 ) {
     fun toPlatformItem(): PlatformItemDto {
@@ -15,6 +16,7 @@ data class PlatformDto(
             platform = platform,
             displayName = name.ifBlank { platform.displayName },
             packageName = packageName?.takeIf { it.isNotBlank() },
+            authorizationUrl = authorizationUrl?.takeIf { it.isNotBlank() },
             iconKey = iconUrl ?: id,
             available = available
         )
@@ -25,6 +27,7 @@ data class PlatformItemDto(
     val platform: Platform,
     val displayName: String,
     val packageName: String?,
+    val authorizationUrl: String?,
     val iconKey: String,
     val available: Boolean
 )

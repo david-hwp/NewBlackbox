@@ -92,6 +92,7 @@ public class PlatformController {
         config.setName(request.getName());
         config.setPackageName(request.getPackageName());
         config.setIconUrl(request.getIconUrl());
+        config.setAuthorizationUrl(request.getAuthorizationUrl());
         config.setAvailable(request.isAvailable());
         config.setSortOrder(request.getSortOrder());
     }
@@ -106,6 +107,7 @@ public class PlatformController {
         );
         info.setDbId(config.getId());
         info.setSortOrder(config.getSortOrder());
+        info.setAuthorizationUrl(config.getAuthorizationUrl());
         return info;
     }
 
