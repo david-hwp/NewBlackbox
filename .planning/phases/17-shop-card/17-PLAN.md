@@ -1,6 +1,6 @@
 # Phase 17: 店铺卡片新功能 - Plan Index
 
-**Status:** In Progress
+**Status:** Partially Completed
 **Created:** 2026-06-14
 
 ## Goal
@@ -15,9 +15,9 @@
 
 ## Current Status
 
-- Wave 1: Implemented, pending final regression on local server and real devices.
-- Wave 2: Implemented, pending final Xiaomi regression for new clone creation/opening.
-- Wave 3: Partially implemented and paused. Code is retained; top share entry is hidden. Store remark and WeChat receiver metadata are now persisted on the server/admin side, and APP card display uses remark under shop ID.
+- Wave 1: Completed. 本地后端测试、后台前端构建、Android 编译、内网服务部署和 OPPO/小米安装已完成。
+- Wave 2: Completed. clone mapping 初始化顺序修复已合并，Android 编译通过，主 APK 与引擎已安装到 OPPO/小米。
+- Wave 3: Paused / partially completed. 微信分享研究代码保留；顶部分享入口已隐藏；店铺备注和微信接收方元数据已接入服务端/后台，APP 卡片店铺 ID 下方改为展示备注。完整一键分享到微信联系人验收暂停，不标记完成。
 
 ## Cross-Wave Constraints
 
