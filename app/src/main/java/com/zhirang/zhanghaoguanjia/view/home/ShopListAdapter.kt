@@ -217,7 +217,6 @@ class ShopListAdapter(
                     draggingShopId = shops[pos].id
                     reorderMode = true
                     onLongPressDragStart?.invoke(this)
-                    itemView.post { notifyDataSetChanged() }
                     true
                 } else {
                     false

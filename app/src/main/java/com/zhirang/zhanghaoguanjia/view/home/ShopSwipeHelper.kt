@@ -130,10 +130,14 @@ class ShopSwipeHelper : ItemTouchHelper.SimpleCallback(
     }
 
     override fun clearView(recyclerView: RecyclerView, viewHolder: RecyclerView.ViewHolder) {
-        if (dragging || isReorderEnabled()) {
+        if (dragging) {
             dragging = false
             super.clearView(recyclerView, viewHolder)
             onDragFinished?.invoke()
+            return
+        }
+        if (isReorderEnabled()) {
+            super.clearView(recyclerView, viewHolder)
             return
         }
         val cardContainer = getCardContainer(viewHolder) ?: return

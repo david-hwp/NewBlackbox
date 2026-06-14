@@ -430,8 +430,12 @@ class HomeActivity : AppCompatActivity() {
             adapter = shopAdapter
         }
         shopAdapter.setOnLongPressDragStart { holder ->
+            val position = holder.bindingAdapterPosition.takeIf { it != RecyclerView.NO_POSITION }
+                ?: holder.absoluteAdapterPosition.takeIf { it != RecyclerView.NO_POSITION }
+                ?: return@setOnLongPressDragStart
+            val shopId = shopAdapter.getShopIdAt(position) ?: return@setOnLongPressDragStart
             shopSwipeHelper.collapseExpandedItem(viewBinding.rvShops)
-            shopAdapter.setReorderMode(true, shopAdapter.getShopIdAt(holder.bindingAdapterPosition))
+            shopAdapter.setReorderMode(true, shopId)
             shopItemTouchHelper.startDrag(holder)
         }
         viewBinding.swipeRefreshShops.setOnRefreshListener {
