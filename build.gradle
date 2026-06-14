@@ -10,8 +10,8 @@ ext {
     targetSdkVersion = 28 
 
     minSdk = 21
-    versionCode = 50025
-    versionName = "1.2.15-beta-wechat"
+    versionCode = 50026
+    versionName = "1.2.16-beta"
     xVersion = '1.2.13'
     hiddenApiBypass = '4.3'
 }

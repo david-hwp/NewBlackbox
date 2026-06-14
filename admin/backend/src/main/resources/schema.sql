@@ -75,6 +75,7 @@ CREATE TABLE IF NOT EXISTS shops (
     identity_verified_at DATETIME COMMENT '店铺身份验证时间',
     platform VARCHAR(32) NOT NULL COMMENT '平台标识: meituan/taobao/jd/kuaishou/xiaohongshu/ali',
     platform_name VARCHAR(64) COMMENT '平台名称',
+    card_sort_order INT NOT NULL DEFAULT 0 COMMENT '同用户同平台店铺卡片排序序号',
     remaining_days INT NOT NULL DEFAULT 0 COMMENT '剩余天数',
     auto_renew TINYINT(1) NOT NULL DEFAULT 0 COMMENT '自动续时: 0-关闭 1-开启',
     package_name VARCHAR(128) COMMENT '分身应用包名',
@@ -105,6 +106,7 @@ CREATE TABLE IF NOT EXISTS shops (
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_user_id (user_id),
     INDEX idx_channel_id (channel_id),
+    INDEX idx_shop_card_sort (user_id, package_name, platform, card_sort_order),
     INDEX idx_platform (platform),
     INDEX idx_deleted (deleted),
     INDEX idx_clone_instance_id (clone_instance_id)

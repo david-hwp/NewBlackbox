@@ -26,6 +26,9 @@ class ShopRepository(api: ApiService) : BaseRepository(api) {
     suspend fun updateShop(id: Long, shop: ShopDto): Result<ShopDto> =
         safeApiCall { api.updateShop(id, shop) }
 
+    suspend fun reorderShops(shopIds: List<Long>): Result<List<ShopDto>> =
+        safeApiCall { api.reorderShops(ShopOrderRequest(shopIds)) }
+
     suspend fun renewShop(id: Long, request: ShopRenewRequest): Result<ShopRenewResponse> =
         safeApiCall { api.renewShop(id, request) }
 

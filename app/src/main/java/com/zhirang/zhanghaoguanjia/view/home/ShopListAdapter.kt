@@ -3,6 +3,7 @@ package com.zhirang.zhanghaoguanjia.view.home
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.view.animation.AnimationUtils
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.core.content.ContextCompat
@@ -25,6 +26,9 @@ class ShopListAdapter(
     private var shops: List<Shop> = emptyList()
     private var expandedShopId: Long? = null
     private var showRemainingDays: Boolean = true
+    private var reorderMode: Boolean = false
+    private var draggingShopId: Long? = null
+    private var onLongPressDragStart: ((RecyclerView.ViewHolder) -> Unit)? = null
 
     fun submitList(newList: List<Shop>) {
         shops = newList
@@ -32,6 +36,43 @@ class ShopListAdapter(
             expandedShopId = null
         }
         notifyDataSetChanged()
+    }
+
+    fun setOnLongPressDragStart(listener: (RecyclerView.ViewHolder) -> Unit) {
+        onLongPressDragStart = listener
+    }
+
+    fun setReorderMode(enabled: Boolean, draggingId: Long? = draggingShopId) {
+        if (reorderMode == enabled && draggingShopId == draggingId) {
+            return
+        }
+        reorderMode = enabled
+        draggingShopId = draggingId
+        notifyDataSetChanged()
+    }
+
+    fun setDraggingShopId(shopId: Long?) {
+        if (draggingShopId == shopId) {
+            return
+        }
+        val previousId = draggingShopId
+        draggingShopId = shopId
+        previousId?.let { notifyShopChanged(it) }
+        shopId?.let { notifyShopChanged(it) }
+    }
+
+    fun isReorderMode(): Boolean = reorderMode
+
+    fun moveItem(fromPosition: Int, toPosition: Int): Boolean {
+        if (fromPosition !in shops.indices || toPosition !in shops.indices || fromPosition == toPosition) {
+            return false
+        }
+        val mutable = shops.toMutableList()
+        val moved = mutable.removeAt(fromPosition)
+        mutable.add(toPosition, moved)
+        shops = mutable
+        notifyItemMoved(fromPosition, toPosition)
+        return true
     }
 
     fun setShowRemainingDays(show: Boolean) {
@@ -108,6 +149,7 @@ class ShopListAdapter(
             val expanded = shop.id == expandedShopId
             swipeRepairAction?.visibility = if (expanded) View.VISIBLE else View.INVISIBLE
             cardContainer.translationX = if (expanded) -repairActionWidthPx(itemView) else 0f
+            bindReorderVisualState(shop)
 
             shopName.text = shop.shopName
             val verifiedIdentity = shop.hasVerifiedIdentity
@@ -160,48 +202,88 @@ class ShopListAdapter(
 
             // Card click
             cardView.setOnClickListener {
+                if (reorderMode) {
+                    return@setOnClickListener
+                }
                 val pos = bindingAdapterPosition
                 if (pos != RecyclerView.NO_POSITION) {
                     onItemClick(pos, shops[pos])
                 }
             }
+            cardView.setOnLongClickListener {
+                val pos = bindingAdapterPosition
+                if (pos != RecyclerView.NO_POSITION) {
+                    expandedShopId = null
+                    draggingShopId = shops[pos].id
+                    reorderMode = true
+                    onLongPressDragStart?.invoke(this)
+                    itemView.post { notifyDataSetChanged() }
+                    true
+                } else {
+                    false
+                }
+            }
 
             btnEdit?.setOnClickListener {
+                if (reorderMode) return@setOnClickListener
                 val pos = bindingAdapterPosition
                 if (pos != RecyclerView.NO_POSITION) {
                     onEditClick(pos, shops[pos])
                 }
             }
             btnWechat.setOnClickListener {
+                if (reorderMode) return@setOnClickListener
                 val pos = bindingAdapterPosition
                 if (pos != RecyclerView.NO_POSITION) {
                     onWechatClick(pos, shops[pos])
                 }
             }
             btnQuickShare.setOnClickListener {
+                if (reorderMode) return@setOnClickListener
                 val pos = bindingAdapterPosition
                 if (pos != RecyclerView.NO_POSITION) {
                     onQuickShareClick(pos, shops[pos])
                 }
             }
             btnAutoRenew?.setOnClickListener {
+                if (reorderMode) return@setOnClickListener
                 val pos = bindingAdapterPosition
                 if (pos != RecyclerView.NO_POSITION) {
                     onAutoRenewClick(pos, shops[pos])
                 }
             }
             btnDelete?.setOnClickListener {
+                if (reorderMode) return@setOnClickListener
                 val pos = bindingAdapterPosition
                 if (pos != RecyclerView.NO_POSITION) {
                     onDeleteClick(pos, shops[pos])
                 }
             }
             btnRepair?.setOnClickListener {
+                if (reorderMode) return@setOnClickListener
                 val pos = bindingAdapterPosition
                 if (pos != RecyclerView.NO_POSITION) {
                     onRepairClick(pos, shops[pos])
                 }
             }
+        }
+
+        private fun bindReorderVisualState(shop: Shop) {
+            if (!reorderMode) {
+                cardView.clearAnimation()
+                itemView.alpha = 1f
+                itemView.scaleX = 1f
+                itemView.scaleY = 1f
+                itemView.rotation = 0f
+                return
+            }
+            if (cardView.animation == null) {
+                cardView.startAnimation(AnimationUtils.loadAnimation(itemView.context, R.anim.shop_card_wiggle))
+            }
+            val dragging = shop.id == draggingShopId
+            itemView.alpha = if (dragging) 1f else 0.72f
+            itemView.scaleX = if (dragging) 1.015f else 1f
+            itemView.scaleY = if (dragging) 1.015f else 1f
         }
     }
 

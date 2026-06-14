@@ -53,6 +53,9 @@ interface ApiService {
     @PUT("shops/{id}")
     suspend fun updateShop(@Path("id") id: Long, @Body request: ShopDto): ApiResponse<ShopDto>
 
+    @PUT("shops/order")
+    suspend fun reorderShops(@Body request: ShopOrderRequest): ApiResponse<List<ShopDto>>
+
     @POST("shops/{id}/renew")
     suspend fun renewShop(@Path("id") id: Long, @Body request: ShopRenewRequest): ApiResponse<ShopRenewResponse>
 

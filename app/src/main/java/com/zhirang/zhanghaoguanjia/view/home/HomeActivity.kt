@@ -136,6 +136,7 @@ class HomeActivity : AppCompatActivity() {
     private lateinit var cloneDataMigrationLauncher: ActivityResultLauncher<Intent>
     private lateinit var shopSwipeHelper: ShopSwipeHelper
     private lateinit var shopItemTouchHelper: ItemTouchHelper
+    private var pendingShopOrderSubmit = false
     private val authExpiredReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             if (intent?.action == BaseRepository.ACTION_AUTH_EXPIRED) {
@@ -428,7 +429,13 @@ class HomeActivity : AppCompatActivity() {
             layoutManager = LinearLayoutManager(this@HomeActivity)
             adapter = shopAdapter
         }
+        shopAdapter.setOnLongPressDragStart { holder ->
+            shopSwipeHelper.collapseExpandedItem(viewBinding.rvShops)
+            shopAdapter.setReorderMode(true, shopAdapter.getShopIdAt(holder.bindingAdapterPosition))
+            shopItemTouchHelper.startDrag(holder)
+        }
         viewBinding.swipeRefreshShops.setOnRefreshListener {
+            exitShopReorderMode(submit = false)
             shouldSyncCloneShopsOnNextList = true
             viewModel.loadShops()
         }
@@ -440,7 +447,15 @@ class HomeActivity : AppCompatActivity() {
         shopSwipeHelper.bindState(
             shopIdProvider = { position -> shopAdapter.getShopIdAt(position) },
             expandedShopIdProvider = { shopAdapter.getExpandedShopId() },
-            onExpandedShopChanged = { shopId -> shopAdapter.setExpandedShopId(shopId) }
+            onExpandedShopChanged = { shopId -> shopAdapter.setExpandedShopId(shopId) },
+            reorderEnabledProvider = { shopAdapter.isReorderMode() },
+            onMoveItem = { from, to -> shopAdapter.moveItem(from, to) },
+            onDragStarted = { position ->
+                shopAdapter.setDraggingShopId(shopAdapter.getShopIdAt(position))
+            },
+            onDragFinished = {
+                submitShopOrderAfterDrag()
+            }
         )
         shopItemTouchHelper = ItemTouchHelper(shopSwipeHelper)
         shopItemTouchHelper.attachToRecyclerView(viewBinding.rvShops)
@@ -1016,6 +1031,9 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun updateShopList() {
+        if (shopAdapter.isReorderMode()) {
+            return
+        }
         collapseShopRepairSwipe()
         val filtered = viewModel.getFilteredShops()
         shopAdapter.submitList(filtered)
@@ -1034,6 +1052,9 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun collapseShopRepairSwipe() {
+        if (::shopAdapter.isInitialized && shopAdapter.isReorderMode()) {
+            return
+        }
         if (::shopSwipeHelper.isInitialized) {
             shopSwipeHelper.collapseExpandedItem(viewBinding.rvShops)
         } else if (::shopAdapter.isInitialized) {
@@ -1041,7 +1062,37 @@ class HomeActivity : AppCompatActivity() {
         }
     }
 
+    private fun submitShopOrderAfterDrag() {
+        if (!::shopAdapter.isInitialized || pendingShopOrderSubmit) {
+            return
+        }
+        pendingShopOrderSubmit = true
+        val orderedShops = shopAdapter.getShops()
+        viewBinding.rvShops.post {
+            pendingShopOrderSubmit = false
+            shopAdapter.setDraggingShopId(null)
+            shopAdapter.setReorderMode(false)
+            viewModel.reorderShops(orderedShops)
+        }
+    }
+
+    private fun exitShopReorderMode(submit: Boolean) {
+        if (!::shopAdapter.isInitialized || !shopAdapter.isReorderMode()) {
+            return
+        }
+        val orderedShops = shopAdapter.getShops()
+        shopAdapter.setDraggingShopId(null)
+        shopAdapter.setReorderMode(false)
+        if (submit) {
+            viewModel.reorderShops(orderedShops)
+        }
+    }
+
     private fun onShopClick(shop: Shop) {
+        if (::shopAdapter.isInitialized && shopAdapter.isReorderMode()) {
+            exitShopReorderMode(submit = true)
+            return
+        }
         if (suppressNextShopClickAfterSwipeCollapse) {
             suppressNextShopClickAfterSwipeCollapse = false
             return

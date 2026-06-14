@@ -5,6 +5,7 @@ data class Shop(
     val shopName: String,
     val shopId: String,
     val platform: Platform,
+    val cardSortOrder: Int = 0,
     val remainingDays: Int = 0,
     val autoRenew: Boolean = false,
     val packageName: String? = null,

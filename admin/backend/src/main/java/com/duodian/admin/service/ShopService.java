@@ -9,8 +9,13 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 public class ShopService {
@@ -38,11 +43,11 @@ public class ShopService {
     }
 
     public List<Shop> findByUserId(Long userId) {
-        return shopRepository.findByUserIdAndDeleted(userId, ACTIVE);
+        return shopRepository.findByUserIdAndDeletedOrderByCardSortOrderAscCreatedAtDescIdDesc(userId, ACTIVE);
     }
 
     public List<Shop> findByUserIdAndPackageName(Long userId, String packageName) {
-        return shopRepository.findByUserIdAndPackageNameAndDeleted(userId, packageName, ACTIVE);
+        return shopRepository.findByUserIdAndPackageNameAndDeletedOrderByCardSortOrderAscCreatedAtDescIdDesc(userId, packageName, ACTIVE);
     }
 
     public List<Shop> findByPackageName(String packageName) {
@@ -75,6 +80,9 @@ public class ShopService {
     public Shop create(Shop shop) {
         shop.setDeleted(ACTIVE);
         stampChannel(shop);
+        if (shop.getCardSortOrder() == null || shop.getCardSortOrder() <= 0) {
+            shop.setCardSortOrder(nextCardSortOrder(shop.getUserId(), shop.getPackageName(), shop.getPlatform()));
+        }
         ShopExpiration.applyRemainingDays(shop);
         return shopRepository.save(shop);
     }
@@ -140,6 +148,9 @@ public class ShopService {
         if (shop.getPlatformName() != null) {
             existing.setPlatformName(shop.getPlatformName());
         }
+        if (shop.getCardSortOrder() != null) {
+            existing.setCardSortOrder(shop.getCardSortOrder());
+        }
         existing.setRemainingDays(shop.getRemainingDays());
         existing.setAutoRenew(shop.getAutoRenew());
         existing.setPackageName(shop.getPackageName());
@@ -183,6 +194,65 @@ public class ShopService {
         existing.setRemark(shop.getRemark());
         ShopExpiration.applyRemainingDays(existing);
         return shopRepository.save(existing);
+    }
+
+    public List<Shop> reorderUserPlatformShops(Long userId, List<Long> orderedShopIds) {
+        if (userId == null) {
+            throw new IllegalArgumentException("未登录");
+        }
+        List<Long> ids = normalizeIds(orderedShopIds);
+        if (ids.isEmpty()) {
+            return findByUserId(userId);
+        }
+        List<Shop> shops = shopRepository.findByIdInAndDeleted(ids, ACTIVE);
+        if (shops.size() != ids.size()) {
+            throw new IllegalArgumentException("排序列表中包含不存在的店铺");
+        }
+        String packageName = null;
+        String platform = null;
+        boolean packageInitialized = false;
+        boolean platformInitialized = false;
+        for (Shop shop : shops) {
+            if (!userId.equals(shop.getUserId())) {
+                throw new IllegalArgumentException("只能调整自己的店铺排序");
+            }
+            String currentPackage = normalize(shop.getPackageName());
+            String currentPlatform = normalize(shop.getPlatform());
+            if (!packageInitialized) {
+                packageName = currentPackage;
+                packageInitialized = true;
+            } else if (!equalsNullable(packageName, currentPackage)) {
+                throw new IllegalArgumentException("一次只能调整同一平台下的店铺排序");
+            }
+            if (!platformInitialized) {
+                platform = currentPlatform;
+                platformInitialized = true;
+            } else if (!equalsNullable(platform, currentPlatform)) {
+                throw new IllegalArgumentException("一次只能调整同一平台下的店铺排序");
+            }
+        }
+
+        List<Shop> scopeShops = platformScopeShops(userId, packageName, platform);
+        LinkedHashSet<Long> completeIds = new LinkedHashSet<>(ids);
+        for (Shop shop : scopeShops) {
+            completeIds.add(shop.getId());
+        }
+
+        Map<Long, Shop> shopById = scopeShops.stream()
+                .collect(Collectors.toMap(Shop::getId, Function.identity()));
+        List<Shop> ordered = new ArrayList<>();
+        int order = 10;
+        for (Long id : completeIds) {
+            Shop shop = shopById.get(id);
+            if (shop == null) {
+                continue;
+            }
+            shop.setCardSortOrder(order);
+            ordered.add(shop);
+            order += 10;
+        }
+        shopRepository.saveAll(ordered);
+        return findByUserId(userId);
     }
 
     public int refreshRemainingDays() {
@@ -251,6 +321,42 @@ public class ShopService {
         }
         userRepository.findByIdAndDeleted(shop.getUserId(), ACTIVE)
                 .ifPresent(user -> shop.setChannelId(user.getChannelId()));
+    }
+
+    private Integer nextCardSortOrder(Long userId, String packageName, String platform) {
+        if (userId == null) {
+            return 0;
+        }
+        return platformScopeShops(userId, packageName, platform).stream()
+                .map(Shop::getCardSortOrder)
+                .filter(value -> value != null)
+                .max(Integer::compareTo)
+                .orElse(0) + 10;
+    }
+
+    private List<Shop> platformScopeShops(Long userId, String packageName, String platform) {
+        String normalizedPackage = normalize(packageName);
+        String normalizedPlatform = normalize(platform);
+        return findByUserId(userId).stream()
+                .filter(shop -> equalsNullable(normalizedPackage, normalize(shop.getPackageName())))
+                .filter(shop -> equalsNullable(normalizedPlatform, normalize(shop.getPlatform())))
+                .toList();
+    }
+
+    private List<Long> normalizeIds(List<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return List.of();
+        }
+        return new ArrayList<>(new LinkedHashSet<>(ids.stream()
+                .filter(id -> id != null && id > 0)
+                .toList()));
+    }
+
+    private boolean equalsNullable(String left, String right) {
+        if (left == null) {
+            return right == null;
+        }
+        return left.equals(right);
     }
 
     private String resolveEditableShopId(

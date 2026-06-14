@@ -55,6 +55,7 @@ public class SoftDeleteSchemaInitializer implements CommandLineRunner {
         migrateLegacyAdminRole();
         ensureCloneColumns();
         ensureShopLoginStateColumns();
+        ensureShopCardSortColumn();
     }
 
     private void ensureChannelTable() {
@@ -301,6 +302,16 @@ public class SoftDeleteSchemaInitializer implements CommandLineRunner {
     private void ensureShopLoginStateColumns() throws Exception {
         if (!hasColumn("shops", "login_state_artifact_created_at")) {
             jdbcTemplate.execute("ALTER TABLE shops ADD COLUMN login_state_artifact_created_at DATETIME");
+        }
+    }
+
+    private void ensureShopCardSortColumn() throws Exception {
+        if (!hasColumn("shops", "card_sort_order")) {
+            jdbcTemplate.execute("ALTER TABLE shops ADD COLUMN card_sort_order INT NOT NULL DEFAULT 0");
+        }
+        jdbcTemplate.execute("UPDATE shops SET card_sort_order = 0 WHERE card_sort_order IS NULL");
+        if (!hasIndexQuietly("shops", "idx_shop_card_sort")) {
+            jdbcTemplate.execute("CREATE INDEX idx_shop_card_sort ON shops (user_id, package_name, platform, card_sort_order)");
         }
     }
 

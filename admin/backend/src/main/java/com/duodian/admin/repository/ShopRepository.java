@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
 import java.util.List;
 
 @Repository
@@ -15,8 +16,9 @@ public interface ShopRepository extends JpaRepository<Shop, Long> {
     List<Shop> findByDeleted(Byte deleted);
     java.util.Optional<Shop> findByIdAndDeleted(Long id, Byte deleted);
     List<Shop> findByChannelIdAndDeleted(Long channelId, Byte deleted);
-    List<Shop> findByUserIdAndDeleted(Long userId, Byte deleted);
-    List<Shop> findByUserIdAndPackageNameAndDeleted(Long userId, String packageName, Byte deleted);
+    List<Shop> findByUserIdAndDeletedOrderByCardSortOrderAscCreatedAtDescIdDesc(Long userId, Byte deleted);
+    List<Shop> findByUserIdAndPackageNameAndDeletedOrderByCardSortOrderAscCreatedAtDescIdDesc(Long userId, String packageName, Byte deleted);
+    List<Shop> findByIdInAndDeleted(Collection<Long> ids, Byte deleted);
     List<Shop> findByPackageNameAndDeleted(String packageName, Byte deleted);
     @Query("""
             select s

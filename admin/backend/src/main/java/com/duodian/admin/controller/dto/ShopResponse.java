@@ -20,6 +20,7 @@ public class ShopResponse {
     private LocalDateTime identityVerifiedAt;
     private String platform;
     private String platformName;
+    private Integer cardSortOrder;
     private Integer remainingDays;
     private Boolean autoRenew;
     private String packageName;
@@ -58,6 +59,7 @@ public class ShopResponse {
         response.setIdentityVerifiedAt(shop.getIdentityVerifiedAt());
         response.setPlatform(shop.getPlatform());
         response.setPlatformName(shop.getPlatformName());
+        response.setCardSortOrder(shop.getCardSortOrder() == null ? 0 : shop.getCardSortOrder());
         response.setRemainingDays(ShopExpiration.remainingDays(shop));
         response.setAutoRenew(shop.getAutoRenew());
         response.setPackageName(shop.getPackageName());
@@ -123,6 +125,9 @@ public class ShopResponse {
 
     public String getPlatformName() { return platformName; }
     public void setPlatformName(String platformName) { this.platformName = platformName; }
+
+    public Integer getCardSortOrder() { return cardSortOrder; }
+    public void setCardSortOrder(Integer cardSortOrder) { this.cardSortOrder = cardSortOrder; }
 
     public Integer getRemainingDays() { return remainingDays; }
     public void setRemainingDays(Integer remainingDays) { this.remainingDays = remainingDays; }

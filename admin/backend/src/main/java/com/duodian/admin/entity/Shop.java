@@ -35,6 +35,9 @@ public class Shop {
     @Column(name = "platform_name")
     private String platformName;
 
+    @Column(name = "card_sort_order", nullable = false)
+    private Integer cardSortOrder;
+
     @Column(name = "remaining_days")
     private Integer remainingDays = 0;
 
@@ -166,6 +169,9 @@ public class Shop {
 
     public String getPlatformName() { return platformName; }
     public void setPlatformName(String platformName) { this.platformName = platformName; }
+
+    public Integer getCardSortOrder() { return cardSortOrder; }
+    public void setCardSortOrder(Integer cardSortOrder) { this.cardSortOrder = cardSortOrder; }
 
     public Integer getRemainingDays() { return remainingDays; }
     public void setRemainingDays(Integer remainingDays) { this.remainingDays = remainingDays; }

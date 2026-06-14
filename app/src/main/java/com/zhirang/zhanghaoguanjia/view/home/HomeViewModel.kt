@@ -224,7 +224,7 @@ class HomeViewModel : ViewModel() {
             result.fold(
                 onSuccess = { shopDtos ->
                     val currentUserId = getCurrentUserId()
-                    allShops = shopDtos.map { LocalShopIdentityStore.apply(currentUserId, it.toShop()) }
+                    allShops = sortShops(shopDtos.map { LocalShopIdentityStore.apply(currentUserId, it.toShop()) })
                     _shopsLiveData.value = allShops
                     updatePlatformShopCounts()
                     _loadErrorLiveData.value = null
@@ -312,14 +312,14 @@ class HomeViewModel : ViewModel() {
             .mapNotNull { it.packageName?.trim()?.takeIf(String::isNotEmpty) }
             .toSet()
 
-        return allShops.filter { shop ->
+        return sortShops(allShops.filter { shop ->
             val visiblePlatform = shop.packageName?.trim()?.takeIf(String::isNotEmpty) in availablePackages
             val matchPlatform = platform == null || isSamePackage(shop.packageName, packageName)
             val matchQuery = query.isEmpty() ||
                     shop.shopName.contains(query, ignoreCase = true) ||
                     shop.shopId.contains(query, ignoreCase = true)
             visiblePlatform && matchPlatform && matchQuery
-        }
+        })
     }
 
     fun getAllShops(): List<Shop> = allShops
@@ -517,6 +517,7 @@ class HomeViewModel : ViewModel() {
                 shopId = shop.shopId,
                 platform = shop.platform.id,
                 platformName = PlatformRegistry.displayName(shop.platform),
+                cardSortOrder = shop.cardSortOrder,
                 remainingDays = shop.remainingDays,
                 autoRenew = autoRenew,
                 packageName = shop.packageName,
@@ -535,6 +536,38 @@ class HomeViewModel : ViewModel() {
                 },
                 onFailure = { e ->
                     _loadErrorLiveData.value = e.message
+                }
+            )
+        }
+    }
+
+    fun reorderShops(orderedShops: List<Shop>) {
+        if (!isLoggedIn()) {
+            _loadErrorLiveData.value = "请先登录后再调整店铺排序"
+            return
+        }
+        val orderedIds = orderedShops.map { it.id }.filter { it > 0 }
+        if (orderedIds.size < 2) {
+            return
+        }
+        val orderById = orderedIds.withIndex().associate { it.value to (it.index + 1) * 10 }
+        allShops = sortShops(allShops.map { shop ->
+            orderById[shop.id]?.let { order -> shop.copy(cardSortOrder = order) } ?: shop
+        })
+        _shopsLiveData.value = allShops
+        viewModelScope.launch {
+            val result = shopRepository.reorderShops(orderedIds)
+            result.fold(
+                onSuccess = { shopDtos ->
+                    val currentUserId = getCurrentUserId()
+                    allShops = sortShops(shopDtos.map { LocalShopIdentityStore.apply(currentUserId, it.toShop()) })
+                    _shopsLiveData.value = allShops
+                    updatePlatformShopCounts()
+                    _operationMessageLiveData.value = "排序已保存"
+                },
+                onFailure = { e ->
+                    _loadErrorLiveData.value = e.message ?: "保存排序失败"
+                    loadShops()
                 }
             )
         }
@@ -685,5 +718,12 @@ class HomeViewModel : ViewModel() {
         val normalizedLeft = left?.trim()?.takeIf { it.isNotEmpty() }
         val normalizedRight = right?.trim()?.takeIf { it.isNotEmpty() }
         return normalizedLeft != null && normalizedLeft == normalizedRight
+    }
+
+    private fun sortShops(shops: List<Shop>): List<Shop> {
+        return shops.sortedWith(
+            compareBy<Shop> { it.cardSortOrder }
+                .thenByDescending { it.id }
+        )
     }
 }

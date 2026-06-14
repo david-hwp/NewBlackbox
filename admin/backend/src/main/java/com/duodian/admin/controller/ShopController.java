@@ -9,6 +9,7 @@ import com.duodian.admin.controller.dto.PendingShopDeductResponse;
 import com.duodian.admin.controller.dto.ShopRenewRequest;
 import com.duodian.admin.controller.dto.ShopRenewResponse;
 import com.duodian.admin.controller.dto.ShopAuthTokenRequest;
+import com.duodian.admin.controller.dto.ShopOrderRequest;
 import com.duodian.admin.controller.dto.ShopReportRequest;
 import com.duodian.admin.controller.dto.ShopResponse;
 import com.duodian.admin.entity.ComputeDeduction;
@@ -316,6 +317,27 @@ public class ShopController {
             userService.refreshShopStats(ownerId);
         }
         return ApiResponse.success(saved);
+    }
+
+    @PutMapping("/order")
+    @Transactional
+    public ApiResponse<List<ShopResponse>> reorder(@RequestBody ShopOrderRequest request) {
+        Long userId = AuthContext.getUserId();
+        if (userId == null) {
+            return ApiResponse.error(401, "未登录");
+        }
+        if (request == null || request.getShopIds() == null || request.getShopIds().isEmpty()) {
+            return ApiResponse.error("排序列表不能为空");
+        }
+        try {
+            User user = userService.findById(userId).orElse(null);
+            List<Shop> shops = shopService.reorderUserPlatformShops(userId, request.getShopIds());
+            return ApiResponse.success(shops.stream()
+                    .map(shop -> ShopResponse.from(shop, user))
+                    .toList());
+        } catch (IllegalArgumentException e) {
+            return ApiResponse.error(e.getMessage());
+        }
     }
 
     @DeleteMapping("/{id}")

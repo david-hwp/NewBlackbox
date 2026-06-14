@@ -76,6 +76,7 @@
           </template>
         </el-table-column>
         <el-table-column prop="platformName" label="平台" />
+        <el-table-column prop="cardSortOrder" label="排序" width="90" />
         <el-table-column prop="remainingDays" label="剩余天数">
           <template #default="{ row }">
             <el-tag :type="getDaysType(row.remainingDays)">{{ row.remainingDays }}天</el-tag>
@@ -168,6 +169,9 @@
         <el-form-item label="剩余天数">
           <el-input-number v-model="form.remainingDays" :min="0" style="width: 100%" />
         </el-form-item>
+        <el-form-item label="卡片排序">
+          <el-input-number v-model="form.cardSortOrder" :min="0" style="width: 100%" />
+        </el-form-item>
         <el-form-item label="自动续时">
           <el-switch v-model="form.autoRenew" />
         </el-form-item>
@@ -212,6 +216,7 @@ const form = ref({
   userId: '',
   platform: '',
   platformName: '',
+  cardSortOrder: 0,
   remainingDays: 0,
   autoRenew: false,
   packageName: '',
@@ -325,6 +330,7 @@ const showAddDialog = () => {
     userId: '',
     platform: '',
     platformName: '',
+    cardSortOrder: 0,
     remainingDays: 0,
     autoRenew: false,
     packageName: '',

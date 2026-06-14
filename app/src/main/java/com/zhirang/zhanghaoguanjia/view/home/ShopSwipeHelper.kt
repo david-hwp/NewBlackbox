@@ -6,7 +6,10 @@ import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.RecyclerView
 import com.zhirang.zhanghaoguanjia.R
 
-class ShopSwipeHelper : ItemTouchHelper.SimpleCallback(0, ItemTouchHelper.LEFT or ItemTouchHelper.RIGHT) {
+class ShopSwipeHelper : ItemTouchHelper.SimpleCallback(
+    ItemTouchHelper.UP or ItemTouchHelper.DOWN,
+    ItemTouchHelper.LEFT or ItemTouchHelper.RIGHT
+) {
 
     companion object {
         private const val SWIPE_THRESHOLD = 0.3f
@@ -19,24 +22,60 @@ class ShopSwipeHelper : ItemTouchHelper.SimpleCallback(0, ItemTouchHelper.LEFT o
     private var shopIdProvider: ((Int) -> Long?)? = null
     private var expandedShopIdProvider: (() -> Long?)? = null
     private var onExpandedShopChanged: ((Long?) -> Unit)? = null
+    private var reorderEnabledProvider: (() -> Boolean)? = null
+    private var onMoveItem: ((Int, Int) -> Boolean)? = null
+    private var onDragStarted: ((Int) -> Unit)? = null
+    private var onDragFinished: (() -> Unit)? = null
+    private var dragging = false
 
     fun bindState(
         shopIdProvider: (Int) -> Long?,
         expandedShopIdProvider: () -> Long?,
-        onExpandedShopChanged: (Long?) -> Unit
+        onExpandedShopChanged: (Long?) -> Unit,
+        reorderEnabledProvider: () -> Boolean,
+        onMoveItem: (Int, Int) -> Boolean,
+        onDragStarted: (Int) -> Unit,
+        onDragFinished: () -> Unit
     ) {
         this.shopIdProvider = shopIdProvider
         this.expandedShopIdProvider = expandedShopIdProvider
         this.onExpandedShopChanged = onExpandedShopChanged
+        this.reorderEnabledProvider = reorderEnabledProvider
+        this.onMoveItem = onMoveItem
+        this.onDragStarted = onDragStarted
+        this.onDragFinished = onDragFinished
     }
+
+    override fun getMovementFlags(recyclerView: RecyclerView, viewHolder: RecyclerView.ViewHolder): Int {
+        return if (isReorderEnabled()) {
+            makeMovementFlags(ItemTouchHelper.UP or ItemTouchHelper.DOWN, 0)
+        } else {
+            makeMovementFlags(0, ItemTouchHelper.LEFT or ItemTouchHelper.RIGHT)
+        }
+    }
+
+    override fun isLongPressDragEnabled(): Boolean = false
 
     override fun onMove(
         recyclerView: RecyclerView,
         viewHolder: RecyclerView.ViewHolder,
         target: RecyclerView.ViewHolder
-    ): Boolean = false
+    ): Boolean {
+        if (!isReorderEnabled()) {
+            return false
+        }
+        val from = viewHolder.bindingAdapterPosition
+        val to = target.bindingAdapterPosition
+        if (from == RecyclerView.NO_POSITION || to == RecyclerView.NO_POSITION) {
+            return false
+        }
+        return onMoveItem?.invoke(from, to) == true
+    }
 
     override fun onSwiped(viewHolder: RecyclerView.ViewHolder, direction: Int) {
+        if (isReorderEnabled()) {
+            return
+        }
         when (direction) {
             ItemTouchHelper.LEFT -> expandItem(viewHolder)
             ItemTouchHelper.RIGHT -> {
@@ -51,6 +90,19 @@ class ShopSwipeHelper : ItemTouchHelper.SimpleCallback(0, ItemTouchHelper.LEFT o
 
     override fun getSwipeThreshold(viewHolder: RecyclerView.ViewHolder): Float = SWIPE_THRESHOLD
 
+    override fun onSelectedChanged(viewHolder: RecyclerView.ViewHolder?, actionState: Int) {
+        super.onSelectedChanged(viewHolder, actionState)
+        if (actionState == ItemTouchHelper.ACTION_STATE_DRAG && viewHolder != null) {
+            dragging = true
+            val position = viewHolder.bindingAdapterPosition.takeIf { it != RecyclerView.NO_POSITION }
+                ?: viewHolder.absoluteAdapterPosition.takeIf { it != RecyclerView.NO_POSITION }
+                ?: RecyclerView.NO_POSITION
+            if (position != RecyclerView.NO_POSITION) {
+                onDragStarted?.invoke(position)
+            }
+        }
+    }
+
     override fun onChildDraw(
         c: android.graphics.Canvas,
         recyclerView: RecyclerView,
@@ -60,7 +112,9 @@ class ShopSwipeHelper : ItemTouchHelper.SimpleCallback(0, ItemTouchHelper.LEFT o
         actionState: Int,
         isCurrentlyActive: Boolean
     ) {
-        if (actionState == ItemTouchHelper.ACTION_STATE_SWIPE) {
+        if (actionState == ItemTouchHelper.ACTION_STATE_DRAG) {
+            super.onChildDraw(c, recyclerView, viewHolder, dX, dY, actionState, isCurrentlyActive)
+        } else if (actionState == ItemTouchHelper.ACTION_STATE_SWIPE) {
             val cardContainer = getCardContainer(viewHolder) ?: return
             val position = viewHolder.bindingAdapterPosition.takeIf { it != RecyclerView.NO_POSITION }
                 ?: viewHolder.absoluteAdapterPosition.takeIf { it != RecyclerView.NO_POSITION }
@@ -76,6 +130,12 @@ class ShopSwipeHelper : ItemTouchHelper.SimpleCallback(0, ItemTouchHelper.LEFT o
     }
 
     override fun clearView(recyclerView: RecyclerView, viewHolder: RecyclerView.ViewHolder) {
+        if (dragging || isReorderEnabled()) {
+            dragging = false
+            super.clearView(recyclerView, viewHolder)
+            onDragFinished?.invoke()
+            return
+        }
         val cardContainer = getCardContainer(viewHolder) ?: return
         val actionWidth = getActionWidth(recyclerView)
         if (cardContainer.translationX <= -actionWidth * SWIPE_THRESHOLD) {
@@ -155,6 +215,8 @@ class ShopSwipeHelper : ItemTouchHelper.SimpleCallback(0, ItemTouchHelper.LEFT o
     fun resetExpandedPosition() {
         expandedPosition = RecyclerView.NO_POSITION
     }
+
+    private fun isReorderEnabled(): Boolean = reorderEnabledProvider?.invoke() == true
 
     private fun collapseOtherItem(recyclerView: RecyclerView, currentPosition: Int) {
         if (expandedPosition == RecyclerView.NO_POSITION || expandedPosition == currentPosition) return
