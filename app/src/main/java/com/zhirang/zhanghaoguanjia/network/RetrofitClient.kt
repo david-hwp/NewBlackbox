@@ -1,6 +1,8 @@
 package com.zhirang.zhanghaoguanjia.network
 
 import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.Response
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
@@ -32,6 +34,10 @@ object RetrofitClient {
         .build()
 
     val apiService: ApiService = retrofit.create(ApiService::class.java)
+
+    fun execute(request: Request): Response {
+        return okHttpClient.newCall(request).execute()
+    }
 
     fun resolveUrl(url: String): String {
         if (url.startsWith("http://") || url.startsWith("https://")) {

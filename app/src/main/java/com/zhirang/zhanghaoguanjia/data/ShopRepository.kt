@@ -2,9 +2,11 @@ package com.zhirang.zhanghaoguanjia.data
 
 import com.zhirang.zhanghaoguanjia.bean.dto.*
 import com.zhirang.zhanghaoguanjia.network.ApiService
+import com.zhirang.zhanghaoguanjia.network.RetrofitClient
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
+import okhttp3.Request
 import okhttp3.RequestBody.Companion.asRequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.File
@@ -60,25 +62,30 @@ class ShopRepository(api: ApiService) : BaseRepository(api) {
         }
 
     suspend fun downloadLoginState(id: Long): Result<LoginStateDownload?> = try {
-        val response = api.downloadShopLoginState(id)
-        when {
-            response.code() == 204 -> Result.success(null)
-            response.isSuccessful -> {
-                val bytes = response.body()?.bytes()
-                if (bytes == null || bytes.isEmpty()) {
-                    Result.success(null)
-                } else {
-                    Result.success(
-                        LoginStateDownload(
-                            profile = response.headers()["X-Login-State-Profile"]?.takeIf { it.isNotBlank() },
-                            sha256 = response.headers()["X-Login-State-Sha256"]?.takeIf { it.isNotBlank() },
-                            bytes = bytes
+        val request = Request.Builder()
+            .url(RetrofitClient.resolveUrl("shops/$id/login-state"))
+            .get()
+            .build()
+        RetrofitClient.execute(request).use { response ->
+            when {
+                response.code == 204 -> Result.success(null)
+                response.isSuccessful -> {
+                    val bytes = response.body?.bytes()
+                    if (bytes == null || bytes.isEmpty()) {
+                        Result.success(null)
+                    } else {
+                        Result.success(
+                            LoginStateDownload(
+                                profile = response.header("X-Login-State-Profile")?.takeIf { it.isNotBlank() },
+                                sha256 = response.header("X-Login-State-Sha256")?.takeIf { it.isNotBlank() },
+                                bytes = bytes
+                            )
                         )
-                    )
+                    }
                 }
+                response.code == 401 -> Result.failure(Exception("未登录"))
+                else -> Result.failure(Exception("下载登录态失败: ${response.code}"))
             }
-            response.code() == 401 -> Result.failure(Exception("未登录"))
-            else -> Result.failure(Exception("下载登录态失败: ${response.code()}"))
         }
     } catch (e: Exception) {
         Result.failure(e)
