@@ -171,7 +171,7 @@
 **上下文文档**: [.planning/phases/10.1-compute-reclaim/10.1-CONTEXT.md](.planning/phases/10.1-compute-reclaim/10.1-CONTEXT.md)
 **调研文档**: [.planning/phases/10.1-compute-reclaim/10.1-RESEARCH.md](.planning/phases/10.1-compute-reclaim/10.1-RESEARCH.md)
 
-## Phase 11: 渠道推广完整体系 📋 已规划
+## Phase 11: 渠道推广完整体系 ✅ 已完成 (2026-06-14)
 
 **目标**: 将现有 `apkChannel` 注册标识升级为完整渠道推广体系，支持不同渠道拥有独立 APK 发布、用户注册、公告、主 APK 升级和用户算力隔离，同时由超级管理员统一管理渠道、渠道管理员和渠道总算力池。
 
@@ -191,6 +191,8 @@
 **计划文档**: [.planning/phases/11-channel-promotion-system/11-PLAN.md](.planning/phases/11-channel-promotion-system/11-PLAN.md)
 **上下文文档**: [.planning/phases/11-channel-promotion-system/11-CONTEXT.md](.planning/phases/11-channel-promotion-system/11-CONTEXT.md)
 **调研文档**: [.planning/phases/11-channel-promotion-system/11-RESEARCH.md](.planning/phases/11-channel-promotion-system/11-RESEARCH.md)
+
+**完成总结**: Phase 11 渠道推广体系已完成本地验收；`phase11-checked` 分支额外完成 Android 15 WebView 兼容最小化复验。Pixel 9 / Android 15 上 JD 登录 WebView 能进入登录页，DongCore WebView 网络探测和系统 WebView sandbox 启动正常；短信验证码触发链路在手机号输入正确后进入倒计时，但 5 秒内仍未出现真实滑动验证码组件，后续问题应继续聚焦验证码业务 WebView 渲染链路。
 
 ## Phase 12: 美团差评与顾客信息采集固化 📋 已规划
 
