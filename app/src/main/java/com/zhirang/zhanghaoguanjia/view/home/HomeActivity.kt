@@ -153,6 +153,7 @@ class HomeActivity : AppCompatActivity() {
         private const val SHOP_RECOGNITION_AFTER_CLICK_DELAY_MS = 10_000L
         private const val PREF_SUBSCRIPTION_GIFT_PROMPT = "subscription_gift_prompt"
         private const val KEY_PENDING_GIFT_PHONE = "pending_gift_phone"
+        private const val KEY_PENDING_GIFT_USER_ID = "pending_gift_user_id"
         private const val KEY_SHOWN_GIFT_USER_PREFIX = "shown_gift_user_"
         private const val TICKER_SCROLL_SPEED_PX_PER_SECOND = 28f
         private const val TICKER_MIN_CYCLE_MS = 8_000L
@@ -961,6 +962,7 @@ class HomeActivity : AppCompatActivity() {
                 prefs.edit()
                     .putBoolean(shownKey, true)
                     .remove(KEY_PENDING_GIFT_PHONE)
+                    .remove(KEY_PENDING_GIFT_USER_ID)
                     .apply()
                 loadAnnouncementForOpenOnce()
             }
@@ -968,6 +970,7 @@ class HomeActivity : AppCompatActivity() {
                 prefs.edit()
                     .putBoolean(shownKey, true)
                     .remove(KEY_PENDING_GIFT_PHONE)
+                    .remove(KEY_PENDING_GIFT_USER_ID)
                     .apply()
                 loadAnnouncementForOpenOnce()
             }
@@ -986,12 +989,21 @@ class HomeActivity : AppCompatActivity() {
         val user = TokenManager.getInstance().getUser()
         val prefs = getSharedPreferences(PREF_SUBSCRIPTION_GIFT_PROMPT, Context.MODE_PRIVATE)
         val pendingPhone = prefs.getString(KEY_PENDING_GIFT_PHONE, null)?.takeIf { it.isNotBlank() }
-        if (user == null || pendingPhone == null || pendingPhone != user.phone) {
+        val pendingUserId = prefs.getLong(KEY_PENDING_GIFT_USER_ID, -1L).takeIf { it > 0L }
+        if (user == null) {
+            return false
+        }
+        val phoneMatches = pendingPhone != null && pendingPhone == user.phone
+        val userMatches = pendingUserId != null && pendingUserId == user.id
+        if (!phoneMatches && !userMatches) {
             return false
         }
         val shownKey = KEY_SHOWN_GIFT_USER_PREFIX + user.id
         if (prefs.getBoolean(shownKey, false) || isFinishing || isDestroyed) {
-            prefs.edit().remove(KEY_PENDING_GIFT_PHONE).apply()
+            prefs.edit()
+                .remove(KEY_PENDING_GIFT_PHONE)
+                .remove(KEY_PENDING_GIFT_USER_ID)
+                .apply()
             return false
         }
         return true

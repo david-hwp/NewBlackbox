@@ -28,6 +28,9 @@ class LoginActivity : AppCompatActivity() {
 
     companion object {
         private val PHONE_PATTERN = Regex("^1[3-9]\\d{9}$")
+        private const val PREF_SUBSCRIPTION_GIFT_PROMPT = "subscription_gift_prompt"
+        private const val KEY_PENDING_GIFT_PHONE = "pending_gift_phone"
+        private const val KEY_PENDING_GIFT_USER_ID = "pending_gift_user_id"
 
         fun start(context: Context) {
             context.startActivity(Intent(context, LoginActivity::class.java))
@@ -157,7 +160,8 @@ class LoginActivity : AppCompatActivity() {
     private fun observeViewModel() {
         viewModel.loginResultLiveData.observe(this) { result ->
             result?.fold(
-                onSuccess = {
+                onSuccess = { user ->
+                    markRegistrationGiftPromptUserIfNeeded(user.id)
                     HomeActivity.start(this)
                     finish()
                 },
@@ -182,10 +186,11 @@ class LoginActivity : AppCompatActivity() {
                     val phone = registerBinding?.etRegisterPhone?.text?.toString()?.trim().orEmpty()
                     if (phone.isNotBlank()) {
                         binding.etPhone.setText(phone)
-                        getSharedPreferences("subscription_gift_prompt", Context.MODE_PRIVATE)
+                        getSharedPreferences(PREF_SUBSCRIPTION_GIFT_PROMPT, Context.MODE_PRIVATE)
                             .edit()
-                            .putString("pending_gift_phone", phone)
-                            .apply()
+                            .putString(KEY_PENDING_GIFT_PHONE, phone)
+                            .remove(KEY_PENDING_GIFT_USER_ID)
+                            .commit()
                     }
                     binding.etPassword.text?.clear()
                     registerDialog?.dismiss()
@@ -199,5 +204,17 @@ class LoginActivity : AppCompatActivity() {
         viewModel.errorLiveData.observe(this) { errorMessage ->
             Toast.makeText(this, errorMessage, Toast.LENGTH_SHORT).show()
         }
+    }
+
+    private fun markRegistrationGiftPromptUserIfNeeded(userId: Long) {
+        val loginPhone = binding.etPhone.text?.toString()?.trim().orEmpty()
+        val prefs = getSharedPreferences(PREF_SUBSCRIPTION_GIFT_PROMPT, Context.MODE_PRIVATE)
+        val pendingPhone = prefs.getString(KEY_PENDING_GIFT_PHONE, null)?.trim().orEmpty()
+        if (loginPhone.isBlank() || pendingPhone != loginPhone) {
+            return
+        }
+        prefs.edit()
+            .putLong(KEY_PENDING_GIFT_USER_ID, userId)
+            .commit()
     }
 }
