@@ -5,8 +5,8 @@ type: plan
 status: completed
 created_at: "2026-06-09T15:45:00+08:00"
 updated_at: "2026-06-10T00:00:00+08:00"
-completed_at: "2026-06-10T10:15:00+08:00"
-branch: dev
+completed_at: "2026-06-14T22:33:46+08:00"
+branch: phase11-checked
 waves: 3
 depends_on:
   - 10-engine-permission-center
@@ -418,6 +418,22 @@ Completed and verified locally only, per Phase 11 constraint.
   - Main packages remain installed separately under `com.zhirang.zhanghaoguanjia*`.
 - Local database evidence shows user, compute, transaction log, announcement, app version, and engine version data isolated by `channel_id`.
 - No production deployment or server mutation was performed for Phase 11.
+
+2026-06-14 `phase11-checked` closeout:
+
+- Current checked branch: `phase11-checked`.
+- The Android 15 WebView compatibility delta was reduced to four engine-side files:
+  - `Bcore/src/main/cpp/IO.cpp`
+  - `Bcore/src/main/java/top/niunaijun/blackbox/app/BActivityThread.java`
+  - `Bcore/src/main/java/top/niunaijun/blackbox/core/IOCore.java`
+  - `Bcore/src/main/java/top/niunaijun/blackbox/fake/service/IActivityManagerProxy.java`
+- Build verification passed with `JAVA_HOME=$(/usr/libexec/java_home -v 21) ./gradlew :Bcore:assembleDebug --no-daemon`; output engine APK was `Bcore/build/outputs/apk/debug/FxEngine_1.2.12-release_debug.apk`.
+- Pixel 9 AVD verification used `emulator-5554`, `ro.boot.qemu.avd_name=Pixel_9_Fail`, Android 15 / SDK 35.
+- Engine install succeeded with `adb -s emulator-5554 install -r -d Bcore/build/outputs/apk/debug/FxEngine_1.2.12-release_debug.apk`.
+- JD clone launched through `com.zhirang.zhanghaoguanjia.debug.LAUNCH_CLONE` into `com.jd.mrd.jingming.login.LoginFusionActivity`.
+- WebView evidence showed prepared Android 15 WebView data/cache directories, successful DongCore WebView network probe, and a launched `com.android.webview:sandboxed_process0`.
+- SMS-code trigger was revalidated with `13265710803` entered in the correct `com.jd.mrd.jingming:id/jd_phone_et` field. Within the required 5-second window, the real sliding captcha component did not appear; the page showed JD loading and then the resend countdown. This confirms the remaining issue is not the earlier input-coordinate mistake.
+- Evidence artifacts were captured under `e2e/logs/phase11_checked_pixel9_rerun2/` and remain local test artifacts, not committed source.
 
 </completion_verification>
 

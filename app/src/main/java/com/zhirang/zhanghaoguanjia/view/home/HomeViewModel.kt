@@ -162,6 +162,16 @@ class HomeViewModel : ViewModel() {
         }
     }
 
+    suspend fun getAppParametersForPrompt(): Map<String, String> {
+        _appParametersLiveData.value?.let { return it }
+        if (!isLoggedIn()) {
+            return emptyMap()
+        }
+        return systemParameterRepository.getAppParameters()
+            .onSuccess { parameters -> _appParametersLiveData.value = parameters }
+            .getOrDefault(emptyMap())
+    }
+
     fun loadAdvancedFeatures() {
         viewModelScope.launch {
             advancedFeatureRepository.getAppAdvancedFeatures().onSuccess { features ->

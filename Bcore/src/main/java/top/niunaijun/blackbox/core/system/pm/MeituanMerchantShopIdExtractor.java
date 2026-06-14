@@ -17,7 +17,10 @@ public class MeituanMerchantShopIdExtractor extends JsonSnippetShopIdExtractor {
                         "shared_prefs/com.sankuai.meituan.merchant_preferences.xml"
                 },
                 new String[]{
+                        "mt_shop_id",
+                        "dp_shop_id",
                         "shopId",
+                        "shop_id",
                         "poiId",
                         "poi_id",
                         "merchantId",
@@ -25,7 +28,12 @@ public class MeituanMerchantShopIdExtractor extends JsonSnippetShopIdExtractor {
                         "id"
                 },
                 new String[]{
+                        "shop_name",
+                        "showName",
+                        "show_name",
                         "shopName",
+                        "branchName",
+                        "branch_name",
                         "poiName",
                         "poi_name",
                         "merchantName",

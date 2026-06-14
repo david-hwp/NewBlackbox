@@ -793,6 +793,27 @@ public class IActivityManagerProxy extends ClassInvocationStub {
         }
     }
 
+    @ProxyMethod("checkPermissionForDevice")
+    public static class checkPermissionForDevice extends MethodHook {
+        @Override
+        protected Object hook(Object who, Method method, Object[] args) throws Throwable {
+            if (args != null && args.length > 2 && args[2] instanceof Integer) {
+                int uid = (int) args[2];
+                if (uid == BActivityThread.getBUid()) {
+                    args[2] = BlackBoxCore.getHostUid();
+                }
+            }
+            String permission = (String) args[0];
+            if (isAutoGrantedPermission(permission)) {
+                Slog.d(TAG, "ActivityManager checkPermissionForDevice: Granting permission: "
+                        + permission);
+                return PackageManager.PERMISSION_GRANTED;
+            }
+
+            return method.invoke(who, args);
+        }
+    }
+
     
     private static boolean isAudioPermission(String permission) {
         if (permission == null) return false;
@@ -856,6 +877,17 @@ public class IActivityManagerProxy extends ClassInvocationStub {
 
         // Storage / Media
         if (isStorageOrMediaPermission(permission)) return true;
+
+        // Android WebView asks framework permission checks before enabling network loads.
+        if (permission.equals(Manifest.permission.INTERNET)
+                || permission.equals(Manifest.permission.ACCESS_NETWORK_STATE)
+                || permission.equals(Manifest.permission.ACCESS_WIFI_STATE)
+                || permission.equals(Manifest.permission.CHANGE_NETWORK_STATE)
+                || permission.equals(Manifest.permission.CHANGE_WIFI_STATE)
+                || permission.equals(Manifest.permission.CHANGE_WIFI_MULTICAST_STATE)
+                || permission.equals("android.permission.DOWNLOAD_WITHOUT_NOTIFICATION")) {
+            return true;
+        }
 
         // Location
         if (permission.equals(Manifest.permission.ACCESS_FINE_LOCATION)

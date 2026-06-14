@@ -214,6 +214,7 @@ class ShopListAdapter(
 
             shopName.text = shop.shopName
             val verifiedIdentity = shop.hasVerifiedIdentity
+            val localIdentityVerified = shop.localIdentityVerified == true
             shopId.text = "店铺ID: ${if (verifiedIdentity) shop.shopId else "-"}"
             val isWechatCard = shop.packageName == WECHAT_PACKAGE
             btnWechat.visibility = if (isWechatCard) View.GONE else View.VISIBLE
@@ -257,9 +258,9 @@ class ShopListAdapter(
                 item = platformItem,
                 platform = iconPlatform,
                 packageName = packageName,
-                available = (platformItem?.available ?: true) && verifiedIdentity
+                available = (platformItem?.available ?: true) && localIdentityVerified
             )
-            shopLogo.contentDescription = if (verifiedIdentity) {
+            shopLogo.contentDescription = if (localIdentityVerified) {
                 "${shop.shopName}已登录"
             } else {
                 "${shop.shopName}未登录"

@@ -37,6 +37,7 @@ import com.zhirang.zhanghaoguanjia.bean.dto.AnnouncementDto
 import com.zhirang.zhanghaoguanjia.bean.dto.PlatformItemDto
 import com.zhirang.zhanghaoguanjia.data.BaseRepository
 import com.zhirang.zhanghaoguanjia.data.LoginStateBackupStore
+import com.zhirang.zhanghaoguanjia.data.SystemParameterRepository
 import com.zhirang.zhanghaoguanjia.data.TokenManager
 import com.zhirang.zhanghaoguanjia.data.WechatShareTargetStore
 import com.zhirang.zhanghaoguanjia.databinding.ActivityHomeBinding
@@ -117,6 +118,7 @@ class HomeActivity : AppCompatActivity() {
     private var tickerScrollStartTime = 0L
     private var tickerScrollDistance = 0f
     private var currentTickerAnnouncement: AnnouncementDto? = null
+    private var registrationGiftPromptLoading = false
     private val tickerScrollRunnable = object : Runnable {
         override fun run() {
             if (!tickerShouldScroll || tickerPausedByTouch || isTouchExplorationEnabled()) {
@@ -151,10 +153,12 @@ class HomeActivity : AppCompatActivity() {
         private const val SHOP_RECOGNITION_AFTER_CLICK_DELAY_MS = 10_000L
         private const val PREF_SUBSCRIPTION_GIFT_PROMPT = "subscription_gift_prompt"
         private const val KEY_PENDING_GIFT_PHONE = "pending_gift_phone"
+        private const val KEY_PENDING_GIFT_USER_ID = "pending_gift_user_id"
         private const val KEY_SHOWN_GIFT_USER_PREFIX = "shown_gift_user_"
         private const val TICKER_SCROLL_SPEED_PX_PER_SECOND = 28f
         private const val TICKER_MIN_CYCLE_MS = 8_000L
         private const val TICKER_FRAME_DELAY_MS = 16L
+        private const val DEFAULT_REGISTER_TRIAL_SUBSCRIPTION_DAYS = 30
         private const val WECHAT_PACKAGE = "com.tencent.mm"
         private const val WECHAT_SHARE_ACTIVITY = "com.tencent.mm.ui.tools.ShareImgUI"
         private const val WECHAT_SEND_WRAPPER_ACTIVITY = "com.tencent.mm.ui.transmit.SendAppMessageWrapperUI"
@@ -925,25 +929,40 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun showRegistrationGiftPromptIfNeeded() {
-        val user = TokenManager.getInstance().getUser()
+        if (registrationGiftPromptLoading) {
+            return
+        }
+        if (!shouldShowRegistrationGiftPrompt()) {
+            loadAnnouncementForOpenOnce()
+            return
+        }
+        lifecycleScope.launch {
+            registrationGiftPromptLoading = true
+            val parameters = try {
+                viewModel.getAppParametersForPrompt()
+            } finally {
+                registrationGiftPromptLoading = false
+            }
+            showRegistrationGiftPromptIfNeeded(parameters)
+        }
+    }
+
+    private fun showRegistrationGiftPromptIfNeeded(parameters: Map<String, String>) {
+        if (!shouldShowRegistrationGiftPrompt()) {
+            loadAnnouncementForOpenOnce()
+            return
+        }
+        val user = TokenManager.getInstance().getUser() ?: return
         val prefs = getSharedPreferences(PREF_SUBSCRIPTION_GIFT_PROMPT, Context.MODE_PRIVATE)
-        val pendingPhone = prefs.getString(KEY_PENDING_GIFT_PHONE, null)?.takeIf { it.isNotBlank() }
-        if (user == null || pendingPhone == null || pendingPhone != user.phone) {
-            loadAnnouncementForOpenOnce()
-            return
-        }
         val shownKey = KEY_SHOWN_GIFT_USER_PREFIX + user.id
-        if (prefs.getBoolean(shownKey, false) || isFinishing || isDestroyed) {
-            prefs.edit().remove(KEY_PENDING_GIFT_PHONE).apply()
-            loadAnnouncementForOpenOnce()
-            return
-        }
+        val trialDays = subscriptionTrialDays(parameters)
         MaterialAlertDialogBuilder(this)
-            .setMessage("恭喜您注册成功，系统赠送您一个月的订阅特权免费体验卡，欢迎使用！")
+            .setMessage("恭喜您注册成功，系统赠送您${trialDays}天的订阅特权免费体验卡，欢迎使用！")
             .setPositiveButton("知道了") { _, _ ->
                 prefs.edit()
                     .putBoolean(shownKey, true)
                     .remove(KEY_PENDING_GIFT_PHONE)
+                    .remove(KEY_PENDING_GIFT_USER_ID)
                     .apply()
                 loadAnnouncementForOpenOnce()
             }
@@ -951,10 +970,43 @@ class HomeActivity : AppCompatActivity() {
                 prefs.edit()
                     .putBoolean(shownKey, true)
                     .remove(KEY_PENDING_GIFT_PHONE)
+                    .remove(KEY_PENDING_GIFT_USER_ID)
                     .apply()
                 loadAnnouncementForOpenOnce()
             }
             .show()
+    }
+
+    private fun subscriptionTrialDays(parameters: Map<String, String>): Int {
+        return parameters[SystemParameterRepository.REGISTER_TRIAL_SUBSCRIPTION_DAYS]
+            ?.trim()
+            ?.toIntOrNull()
+            ?.coerceIn(0, 3650)
+            ?: DEFAULT_REGISTER_TRIAL_SUBSCRIPTION_DAYS
+    }
+
+    private fun shouldShowRegistrationGiftPrompt(): Boolean {
+        val user = TokenManager.getInstance().getUser()
+        val prefs = getSharedPreferences(PREF_SUBSCRIPTION_GIFT_PROMPT, Context.MODE_PRIVATE)
+        val pendingPhone = prefs.getString(KEY_PENDING_GIFT_PHONE, null)?.takeIf { it.isNotBlank() }
+        val pendingUserId = prefs.getLong(KEY_PENDING_GIFT_USER_ID, -1L).takeIf { it > 0L }
+        if (user == null) {
+            return false
+        }
+        val phoneMatches = pendingPhone != null && pendingPhone == user.phone
+        val userMatches = pendingUserId != null && pendingUserId == user.id
+        if (!phoneMatches && !userMatches) {
+            return false
+        }
+        val shownKey = KEY_SHOWN_GIFT_USER_PREFIX + user.id
+        if (prefs.getBoolean(shownKey, false) || isFinishing || isDestroyed) {
+            prefs.edit()
+                .remove(KEY_PENDING_GIFT_PHONE)
+                .remove(KEY_PENDING_GIFT_USER_ID)
+                .apply()
+            return false
+        }
+        return true
     }
 
     private fun showAnnouncementDialog(announcement: AnnouncementDto) {

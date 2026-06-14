@@ -66,6 +66,7 @@ import top.niunaijun.blackbox.core.CrashHandler;
 import top.niunaijun.blackbox.core.IBActivityThread;
 import top.niunaijun.blackbox.core.IOCore;
 import top.niunaijun.blackbox.core.NativeCore;
+import top.niunaijun.blackbox.core.env.BEnvironment;
 import top.niunaijun.blackbox.core.env.VirtualRuntime;
 import top.niunaijun.blackbox.core.system.user.BUserHandle;
 import top.niunaijun.blackbox.entity.AppConfig;
@@ -82,6 +83,7 @@ import top.niunaijun.blackbox.utils.SafeContextWrapper;
 import top.niunaijun.blackbox.utils.GlobalContextWrapper;
 import top.niunaijun.blackbox.utils.Slog;
 import top.niunaijun.blackbox.utils.ByteDanceProcessCompat;
+import top.niunaijun.blackbox.utils.FileUtils;
 import top.niunaijun.blackbox.utils.compat.ActivityManagerCompat;
 import top.niunaijun.blackbox.utils.compat.BuildCompat;
 import top.niunaijun.blackbox.utils.compat.ContextCompat;
@@ -91,6 +93,7 @@ import top.niunaijun.blackbox.core.system.JarManager;
 
 public class BActivityThread extends IBActivityThread.Stub {
     public static final String TAG = "BActivityThread";
+    private static final String JD_PACKAGE = "com.jd.mrd.jingming";
 
     private static BActivityThread sBActivityThread;
     private AppBindData mBoundApplication;
@@ -426,7 +429,17 @@ public class BActivityThread extends IBActivityThread.Stub {
             }
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            WebView.setDataDirectorySuffix(getUserId() + ":" + packageName + ":" + processName);
+            String suffix = buildWebViewDataDirectorySuffix(packageName, processName);
+            prepareWebViewDirectories(packageName, processName, suffix);
+            try {
+                WebView.setDataDirectorySuffix(suffix);
+            } catch (IllegalStateException e) {
+                Slog.w(TAG, "WebView data directory suffix already initialized for "
+                        + packageName + "/" + processName + ": " + e.getMessage());
+            } catch (Throwable e) {
+                Slog.w(TAG, "Set WebView data directory suffix failed for "
+                        + packageName + "/" + processName + ": " + e.getMessage());
+            }
         }
 
         VirtualRuntime.setupRuntime(processName, applicationInfo);
@@ -552,6 +565,239 @@ public class BActivityThread extends IBActivityThread.Stub {
             
         } catch (Exception e) {
             Slog.e(TAG, "Error initializing JAR environment", e);
+        }
+    }
+
+    private String buildWebViewDataDirectorySuffix(String packageName, String processName) {
+        return sanitizeWebViewSuffix("u" + getUserId() + "_" + packageName + "_" + processName);
+    }
+
+    private boolean isJdPackage(String packageName) {
+        return JD_PACKAGE.equals(packageName);
+    }
+
+    private String sanitizeWebViewSuffix(String value) {
+        if (TextUtils.isEmpty(value)) {
+            return "blackbox";
+        }
+        StringBuilder builder = new StringBuilder(value.length());
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
+            if ((c >= 'a' && c <= 'z')
+                    || (c >= 'A' && c <= 'Z')
+                    || (c >= '0' && c <= '9')
+                    || c == '.'
+                    || c == '_'
+                    || c == '-') {
+                builder.append(c);
+            } else {
+                builder.append('_');
+            }
+        }
+        return builder.length() == 0 ? "blackbox" : builder.toString();
+    }
+
+    private void prepareWebViewDirectories(String packageName, String processName, String suffix) {
+        try {
+            File dataDir = BEnvironment.getDataDir(packageName, getUserId());
+            File cacheDir = BEnvironment.getDataCacheDir(packageName, getUserId());
+            prepareChromiumProfileDirectories(
+                    new File(dataDir, "app_webview_" + suffix),
+                    new File(cacheDir, "webview_" + suffix));
+
+            File hostDataDir = new File(BlackBoxCore.getContext().getApplicationInfo().dataDir);
+            File hostCacheDir = BlackBoxCore.getContext().getCacheDir();
+            prepareChromiumProfileDirectories(
+                    new File(hostDataDir, "app_webview_" + suffix),
+                    new File(hostCacheDir, "webview_" + suffix));
+            prepareChromiumCacheDirectories(new File(hostCacheDir, "org.chromium.android_webview"));
+
+            if (isJdPackage(packageName)) {
+                prepareJdD6WebViewDirectories(dataDir, cacheDir, processName);
+            }
+            Slog.d(TAG, "Prepared WebView directories for " + packageName + ": suffix=" + suffix
+                    + ", virtualData=" + new File(dataDir, "app_webview_" + suffix).getAbsolutePath()
+                    + ", hostData=" + new File(hostDataDir, "app_webview_" + suffix).getAbsolutePath()
+                    + ", hostCache=" + new File(hostCacheDir, "webview_" + suffix).getAbsolutePath());
+        } catch (Throwable e) {
+            Slog.w(TAG, "Failed to prepare WebView directories for " + packageName + ": " + e.getMessage());
+        }
+    }
+
+    private void prepareJdD6WebViewDirectories(File dataDir, File cacheDir, String processName) {
+        File d6DataDir = new File(dataDir, "app_webview_d6");
+        File d6CacheDir = new File(cacheDir, "WebView_d6");
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM
+                && JD_PACKAGE.equals(processName)) {
+            FileUtils.deleteDir(d6DataDir);
+            FileUtils.deleteDir(d6CacheDir);
+            FileUtils.deleteDir(new File(cacheDir, "org.chromium.android_webview_d6"));
+            Slog.d(TAG, "Cleaned JD D6 WebView profile/cache for Android15 main process");
+        } else {
+            cleanupChromiumMigrationConflicts(d6DataDir);
+            FileUtils.deleteDir(new File(cacheDir, "org.chromium.android_webview_d6"));
+        }
+        FileUtils.mkdirs(d6DataDir);
+        FileUtils.mkdirs(new File(d6DataDir, "Default"));
+        FileUtils.mkdirs(d6CacheDir);
+        Slog.d(TAG, "Prepared JD D6 WebView directories");
+    }
+
+    private void prepareChromiumProfileDirectories(File webViewDataDir, File webViewCacheDir) {
+        cleanupChromiumFileDirectoryConflicts(webViewDataDir);
+        prepareChromiumDataDirectories(webViewDataDir);
+        prepareChromiumCacheDirectories(webViewCacheDir);
+    }
+
+    private void cleanupChromiumFileDirectoryConflicts(File webViewDataDir) {
+        deleteIfDirectory(new File(webViewDataDir, "Default/AggregationService"));
+        deleteIfDirectory(new File(webViewDataDir, "Default/Conversions"));
+        cleanupChromiumMigrationConflicts(webViewDataDir);
+    }
+
+    private void cleanupChromiumMigrationConflicts(File webViewDataDir) {
+        if (webViewDataDir == null || !webViewDataDir.exists()) {
+            return;
+        }
+        String[] migrationDirs = new String[]{
+                "Default/blob_storage.partial-migration",
+                "Default/File System.partial-migration",
+                "Default/GPUCache.partial-migration",
+                "Default/IndexedDB.partial-migration",
+                "Default/Local Storage.partial-migration",
+                "Default/Service Worker.partial-migration",
+                "Default/Session Storage.partial-migration",
+                "Default/shared_proto_db.partial-migration",
+                "Default/VideoDecodeStats.partial-migration",
+                "blob_storage.partial-migration",
+                "File System.partial-migration",
+                "GPUCache.partial-migration",
+                "IndexedDB.partial-migration",
+                "Local Storage.partial-migration",
+                "Service Worker.partial-migration",
+                "Session Storage.partial-migration",
+                "shared_proto_db.partial-migration",
+                "VideoDecodeStats.partial-migration"
+        };
+        for (String relativePath : migrationDirs) {
+            FileUtils.deleteDir(new File(webViewDataDir, relativePath));
+        }
+    }
+
+    private void deleteIfDirectory(File file) {
+        if (file != null && file.isDirectory()) {
+            FileUtils.deleteDir(file);
+        }
+    }
+
+    private void prepareChromiumDataDirectories(File webViewDataDir) {
+        FileUtils.mkdirs(webViewDataDir);
+        String[] dataDirectories = new String[]{
+                "Default",
+                "Default/blob_storage",
+                "Default/Cache",
+                "Default/Code Cache",
+                "Default/Code Cache/js",
+                "Default/Code Cache/wasm",
+                "Default/databases",
+                "Default/File System",
+                "Default/GPUCache",
+                "Default/IndexedDB",
+                "Default/Local Storage",
+                "Default/Local Storage/leveldb",
+                "Default/PersistentOriginTrials",
+                "Default/Service Worker",
+                "Default/Service Worker/CacheStorage",
+                "Default/Service Worker/Database",
+                "Default/Session Storage",
+                "Default/shared_proto_db",
+                "Default/shared_proto_db/metadata",
+                "Default/Shared Dictionary",
+                "Default/Shared Dictionary/cache",
+                "Default/Shared Dictionary/cache/index-dir",
+                "Default/Shared Dictionary/db",
+                "BrowserMetrics",
+                "blob_storage",
+                "File System",
+                "GPUCache",
+                "IndexedDB",
+                "Local Storage",
+                "Local Storage/leveldb",
+                "PersistentOriginTrials",
+                "Service Worker",
+                "Service Worker/CacheStorage",
+                "Service Worker/Database",
+                "Session Storage",
+                "shared_proto_db",
+                "shared_proto_db/metadata",
+                "Shared Dictionary",
+                "Shared Dictionary/cache",
+                "Shared Dictionary/cache/index-dir",
+                "Shared Dictionary/db",
+                "VideoDecodeStats"
+        };
+        for (String relativePath : dataDirectories) {
+            FileUtils.mkdirs(new File(webViewDataDir, relativePath));
+        }
+        ensureChromiumProfileFiles(webViewDataDir);
+    }
+
+    private void prepareChromiumCacheDirectories(File webViewCacheDir) {
+        FileUtils.mkdirs(webViewCacheDir);
+        String[] cacheDirectories = new String[]{
+                "Default",
+                "Default/HTTP Cache",
+                "Default/HTTP Cache/Code Cache",
+                "Default/HTTP Cache/Code Cache/js",
+                "Default/HTTP Cache/Code Cache/wasm",
+                "Default/HTTP Cache/Code Cache/webui_js",
+                "Default/HTTP Cache/Cache_Data",
+                "Default/GPUCache",
+                "Default/Code Cache",
+                "Default/Code Cache/js",
+                "Default/Code Cache/wasm",
+                "Crash Reports",
+                "Crashpad",
+                "Crashpad/new",
+                "Crashpad/pending",
+                "Crashpad/completed",
+                "Crashpad/attachments",
+                "SafeBrowsing"
+        };
+        for (String relativePath : cacheDirectories) {
+            FileUtils.mkdirs(new File(webViewCacheDir, relativePath));
+        }
+    }
+
+    private void ensureChromiumProfileFiles(File webViewDataDir) {
+        if (webViewDataDir == null) {
+            return;
+        }
+        ensureEmptyFile(new File(webViewDataDir, "webview_data.lock"));
+        ensureEmptyFile(new File(webViewDataDir, "Default/Cookies"));
+        ensureEmptyFile(new File(webViewDataDir, "Default/Cookies-journal"));
+        ensureEmptyFile(new File(webViewDataDir, "Default/shared_proto_db/LOCK"));
+        ensureEmptyFile(new File(webViewDataDir, "Default/shared_proto_db/metadata/LOCK"));
+        ensureEmptyFile(new File(webViewDataDir, "Default/Local Storage/leveldb/LOCK"));
+        ensureEmptyFile(new File(webViewDataDir, "Default/PersistentOriginTrials/LOCK"));
+        ensureEmptyFile(new File(webViewDataDir, "Default/Session Storage/LOCK"));
+    }
+
+    private void ensureEmptyFile(File file) {
+        try {
+            if (file == null || file.exists()) {
+                return;
+            }
+            File parent = file.getParentFile();
+            if (parent != null) {
+                FileUtils.mkdirs(parent);
+            }
+            if (!file.createNewFile() && !file.exists()) {
+                Slog.w(TAG, "Unable to create Chromium profile file: " + file);
+            }
+        } catch (Throwable e) {
+            Slog.w(TAG, "Failed to create Chromium profile file "
+                    + file + ": " + e.getMessage());
         }
     }
     
