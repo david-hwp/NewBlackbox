@@ -360,6 +360,206 @@ class ShopAuthorizationSheetFragment : DialogFragment() {
                     window.XpraClient.prototype._screen_resized = function() {};
                     window.XpraClient.__duodianStableResize = true;
                 }
+                function eventSource(event) {
+                    var activeId = window.__duodianActivePointerId;
+                    if (event.changedTouches && event.changedTouches.length) {
+                        if (activeId !== undefined && activeId !== null) {
+                            for (var i = 0; i < event.changedTouches.length; i++) {
+                                if (event.changedTouches[i].identifier === activeId) {
+                                    return event.changedTouches[i];
+                                }
+                            }
+                        }
+                        return event.changedTouches[0];
+                    }
+                    if (event.touches && event.touches.length) {
+                        if (activeId !== undefined && activeId !== null) {
+                            for (var j = 0; j < event.touches.length; j++) {
+                                if (event.touches[j].identifier === activeId) {
+                                    return event.touches[j];
+                                }
+                            }
+                        }
+                        return event.touches[0];
+                    }
+                    return event;
+                }
+                function eventButton(event) {
+                    if (event.__duodianButton) {
+                        return event.__duodianButton;
+                    }
+                    if ('which' in event && event.which) {
+                        return Math.max(0, event.which);
+                    }
+                    if ('button' in event) {
+                        return Math.max(0, event.button) + 1;
+                    }
+                    return 1;
+                }
+                function canvasFromTarget(target) {
+                    var node = target;
+                    while (node && node !== document) {
+                        if (node.tagName && node.tagName.toLowerCase() === 'canvas') {
+                            return node;
+                        }
+                        node = node.parentNode;
+                    }
+                    return null;
+                }
+                function xpraWindowFromCanvas(canvas) {
+                    if (!canvas || !window.client || !window.client.id_to_window) {
+                        return null;
+                    }
+                    var windows = window.client.id_to_window;
+                    for (var id in windows) {
+                        if (Object.prototype.hasOwnProperty.call(windows, id) && windows[id] && windows[id].canvas === canvas) {
+                            return windows[id];
+                        }
+                    }
+                    return null;
+                }
+                function remotePoint(event, xpraWindow) {
+                    var source = eventSource(event);
+                    var canvas = xpraWindow && xpraWindow.canvas ? xpraWindow.canvas : canvasFromTarget(event.target);
+                    if (!canvas) {
+                        canvas = document.querySelector('div.window canvas');
+                    }
+                    if (!canvas || !source) {
+                        return null;
+                    }
+                    var rect = canvas.getBoundingClientRect();
+                    if (!rect.width || !rect.height) {
+                        return null;
+                    }
+                    var targetWindow = xpraWindow || xpraWindowFromCanvas(canvas);
+                    var localWidth = (targetWindow && targetWindow.w) || canvas.width || rect.width;
+                    var localHeight = (targetWindow && targetWindow.h) || canvas.height || rect.height;
+                    var localX = (source.clientX - rect.left) * (localWidth / rect.width);
+                    var localY = (source.clientY - rect.top) * (localHeight / rect.height);
+                    localX = Math.max(0, Math.min(localWidth, localX));
+                    localY = Math.max(0, Math.min(localHeight, localY));
+                    var remoteX = localX + ((targetWindow && targetWindow.x) || 0);
+                    var remoteY = localY + ((targetWindow && targetWindow.y) || 0);
+                    if (!isFinite(remoteX) || !isFinite(remoteY)) {
+                        return null;
+                    }
+                    return {
+                        x: remoteX,
+                        y: remoteY,
+                        localX: localX,
+                        localY: localY,
+                        button: eventButton(event),
+                        canvas: canvas,
+                        xpraWindow: targetWindow
+                    };
+                }
+                function patchXpraPointerMapping() {
+                    if (!window.XpraClient || window.XpraClient.__duodianPointerMapping) {
+                        return;
+                    }
+                    var originalGetMouse = window.XpraClient.prototype.getMouse;
+                    window.XpraClient.prototype.getMouse = function(event, xpraWindow) {
+                        var mapped = remotePoint(event, xpraWindow);
+                        if (mapped) {
+                            this.last_mouse_x = mapped.x;
+                            this.last_mouse_y = mapped.y;
+                            return {x: mapped.x, y: mapped.y, button: mapped.button};
+                        }
+                        return originalGetMouse.call(this, event, xpraWindow);
+                    };
+                    window.XpraClient.__duodianPointerMapping = true;
+                }
+                function syntheticMouseEvent(event, button) {
+                    var source = eventSource(event);
+                    if (!source) {
+                        return null;
+                    }
+                    return {
+                        clientX: source.clientX,
+                        clientY: source.clientY,
+                        which: button,
+                        button: button - 1,
+                        ctrlKey: !!event.ctrlKey,
+                        altKey: !!event.altKey,
+                        shiftKey: !!event.shiftKey,
+                        metaKey: !!event.metaKey,
+                        target: event.target,
+                        __duodianButton: button,
+                        preventDefault: function() {},
+                        stopPropagation: function() {}
+                    };
+                }
+                function stopRemoteTouch(event) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    if (event.stopImmediatePropagation) {
+                        event.stopImmediatePropagation();
+                    }
+                }
+                function handlePointerTouch(event) {
+                    if (event.pointerType !== 'touch' || !window.client || !window.client.connected) {
+                        return;
+                    }
+                    var canvas = canvasFromTarget(event.target);
+                    if (event.type !== 'pointerdown' && window.__duodianActiveXpraWindow) {
+                        canvas = window.__duodianActiveXpraWindow.canvas;
+                    }
+                    var xpraWindow = xpraWindowFromCanvas(canvas);
+                    if (!xpraWindow && event.type !== 'pointerdown') {
+                        xpraWindow = window.__duodianActiveXpraWindow;
+                    }
+                    if (!xpraWindow) {
+                        return;
+                    }
+                    event.__duodianButton = 1;
+                    if (event.type === 'pointerdown') {
+                        window.__duodianActivePointerId = event.pointerId;
+                        window.__duodianActiveXpraWindow = xpraWindow;
+                        setKeyboardEnabled(isLoginInputPoint(eventPoint(event)));
+                        window.client.do_window_mouse_click(event, xpraWindow, true);
+                    } else if (event.type === 'pointermove') {
+                        window.client.do_window_mouse_move(event, xpraWindow);
+                    } else {
+                        window.client.do_window_mouse_click(event, xpraWindow, false);
+                        window.__duodianActivePointerId = null;
+                        window.__duodianActiveXpraWindow = null;
+                    }
+                    stopRemoteTouch(event);
+                }
+                function handleLegacyTouch(event) {
+                    if (window.PointerEvent || !window.client || !window.client.connected) {
+                        return;
+                    }
+                    var canvas = canvasFromTarget(event.target);
+                    if (event.type !== 'touchstart' && window.__duodianActiveXpraWindow) {
+                        canvas = window.__duodianActiveXpraWindow.canvas;
+                    }
+                    var xpraWindow = xpraWindowFromCanvas(canvas);
+                    if (!xpraWindow && event.type !== 'touchstart') {
+                        xpraWindow = window.__duodianActiveXpraWindow;
+                    }
+                    if (!xpraWindow) {
+                        return;
+                    }
+                    var synthetic = syntheticMouseEvent(event, 1);
+                    if (!synthetic) {
+                        return;
+                    }
+                    if (event.type === 'touchstart') {
+                        window.__duodianActivePointerId = event.changedTouches && event.changedTouches.length ? event.changedTouches[0].identifier : null;
+                        window.__duodianActiveXpraWindow = xpraWindow;
+                        setKeyboardEnabled(isLoginInputPoint(eventPoint(event)));
+                        window.client.do_window_mouse_click(synthetic, xpraWindow, true);
+                    } else if (event.type === 'touchmove') {
+                        window.client.do_window_mouse_move(synthetic, xpraWindow);
+                    } else {
+                        window.client.do_window_mouse_click(synthetic, xpraWindow, false);
+                        window.__duodianActivePointerId = null;
+                        window.__duodianActiveXpraWindow = null;
+                    }
+                    stopRemoteTouch(event);
+                }
+                patchXpraPointerMapping();
                 function setKeyboardEnabled(enabled) {
                     var pasteboard = document.getElementById('pasteboard');
                     if (enabled) {
@@ -382,18 +582,11 @@ class ShopAuthorizationSheetFragment : DialogFragment() {
                     }
                 }
                 function eventPoint(event) {
-                    var source = event.touches && event.touches.length ? event.touches[0] : event;
-                    var canvas = document.querySelector('div.window canvas');
-                    if (!canvas || !source) {
+                    var point = remotePoint(event, window.__duodianActiveXpraWindow);
+                    if (!point) {
                         return null;
                     }
-                    var rect = canvas.getBoundingClientRect();
-                    if (!rect.width || !rect.height) {
-                        return null;
-                    }
-                    var x = (source.clientX - rect.left) * ((canvas.width || rect.width) / rect.width);
-                    var y = (source.clientY - rect.top) * ((canvas.height || rect.height) / rect.height);
-                    return {x: x, y: y};
+                    return {x: point.localX, y: point.localY};
                 }
                 function isLoginInputPoint(point) {
                     if (!point) {
@@ -424,6 +617,14 @@ class ShopAuthorizationSheetFragment : DialogFragment() {
                     window.__duodianXpraKeyboardGate = true;
                     document.addEventListener('touchstart', handleRemoteTouch, true);
                     document.addEventListener('mousedown', handleRemoteTouch, true);
+                    document.addEventListener('pointerdown', handlePointerTouch, true);
+                    document.addEventListener('pointermove', handlePointerTouch, true);
+                    document.addEventListener('pointerup', handlePointerTouch, true);
+                    document.addEventListener('pointercancel', handlePointerTouch, true);
+                    document.addEventListener('touchstart', handleLegacyTouch, true);
+                    document.addEventListener('touchmove', handleLegacyTouch, true);
+                    document.addEventListener('touchend', handleLegacyTouch, true);
+                    document.addEventListener('touchcancel', handleLegacyTouch, true);
                     setKeyboardEnabled(false);
                     window.__duodianKeyboardGateTimer = window.setInterval(enforceKeyboardGate, 500);
                 }
@@ -438,7 +639,10 @@ class ShopAuthorizationSheetFragment : DialogFragment() {
                 }
                 pinWindow();
                 if (!window.__duodianXpraPinTimer) {
-                    window.__duodianXpraPinTimer = window.setInterval(pinWindow, 1000);
+                    window.__duodianXpraPinTimer = window.setInterval(function() {
+                        pinWindow();
+                        patchXpraPointerMapping();
+                    }, 1000);
                 }
             })();
         """.trimIndent()
