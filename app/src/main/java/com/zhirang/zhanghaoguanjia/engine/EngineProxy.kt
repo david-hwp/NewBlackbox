@@ -1,8 +1,10 @@
 package com.zhirang.zhanghaoguanjia.engine
 
+import android.content.Context
 import android.content.pm.ApplicationInfo
 import android.os.RemoteException
 import android.util.Log
+import com.zhirang.zhanghaoguanjia.data.WechatShareTargetStore
 import com.zhirang.zhanghaoguanjia.data.TokenManager
 import com.zhirang.zhanghaoguanjia.network.RetrofitClient
 import top.niunaijun.blackbox.core.system.am.IBActivityManagerService
@@ -11,8 +13,11 @@ import top.niunaijun.blackbox.core.system.pm.IBPackageManagerService
 import top.niunaijun.blackbox.core.system.user.BUserInfo
 import top.niunaijun.blackbox.core.system.user.IBUserManagerService
 import top.niunaijun.blackbox.engine.IBlackBoxEngine
+import top.niunaijun.blackbox.engine.IWechatShareCaptureCallback
 import top.niunaijun.blackbox.entity.pm.InstallResult
 import top.niunaijun.blackbox.entity.pm.ShopInfo
+import top.niunaijun.blackbox.entity.pm.WechatShareTarget
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * EngineProxy is a static proxy for all IBlackBoxEngine AIDL calls.
@@ -26,6 +31,7 @@ object EngineProxy {
     private var mEngine: IBlackBoxEngine? = null
 
     private val serviceAvailableCallbacks = mutableListOf<() -> Unit>()
+    private val wechatShareCallbacks = ConcurrentHashMap<String, IWechatShareCaptureCallback>()
 
     fun init(engine: IBlackBoxEngine) {
         mEngine = engine
@@ -115,6 +121,92 @@ object EngineProxy {
         } catch (e: RemoteException) {
             markRemoteFailure("launchApk($packageName, user=$userId)", e)
             false
+        }
+    }
+
+    fun startActivityAsUser(intent: android.content.Intent, userId: Int): Boolean {
+        if (!isConnected()) {
+            Log.w(TAG, "startActivityAsUser: Engine not connected")
+            return false
+        }
+        return try {
+            mEngine!!.startActivityAsUser(intent, userId)
+        } catch (e: RemoteException) {
+            markRemoteFailure("startActivityAsUser($intent, user=$userId)", e)
+            false
+        }
+    }
+
+    fun startWechatShareCapture(
+        context: Context,
+        systemShopId: Long,
+        packageName: String,
+        userId: Int,
+        timeoutMs: Long = 30_000L,
+        onResolved: (WechatShareTarget) -> Unit = {},
+        onTimeout: (String, Int) -> Unit = { _, _ -> },
+        onCancelled: (String, Int) -> Unit = { _, _ -> },
+        onError: (String, Int, String) -> Unit = { _, _, _ -> }
+    ): Boolean {
+        if (!isConnected()) {
+            Log.w(TAG, "startWechatShareCapture: Engine not connected")
+            return false
+        }
+        val appContext = context.applicationContext
+        val key = "$packageName#$userId"
+        val callback = object : IWechatShareCaptureCallback.Stub() {
+            override fun onShareTargetResolved(target: WechatShareTarget?) {
+                wechatShareCallbacks.remove(key)
+                if (target == null) {
+                    onError(packageName, userId, "empty target")
+                    return
+                }
+                WechatShareTargetStore.save(appContext, systemShopId, target)
+                onResolved(target)
+            }
+
+            override fun onShareTargetTimeout(packageName: String?, userId: Int) {
+                wechatShareCallbacks.remove(key)
+                onTimeout(packageName.orEmpty(), userId)
+            }
+
+            override fun onShareTargetCancelled(packageName: String?, userId: Int) {
+                wechatShareCallbacks.remove(key)
+                onCancelled(packageName.orEmpty(), userId)
+            }
+
+            override fun onShareTargetError(packageName: String?, userId: Int, message: String?) {
+                wechatShareCallbacks.remove(key)
+                onError(packageName.orEmpty(), userId, message.orEmpty())
+            }
+        }
+        wechatShareCallbacks[key] = callback
+        return try {
+            val started = mEngine!!.startWechatShareCapture(packageName, userId, callback, timeoutMs)
+            if (!started) {
+                wechatShareCallbacks.remove(key)
+            }
+            started
+        } catch (e: RemoteException) {
+            wechatShareCallbacks.remove(key)
+            markRemoteFailure("startWechatShareCapture($packageName, user=$userId)", e)
+            false
+        }
+    }
+
+    fun cancelWechatShareCapture(packageName: String, userId: Int) {
+        val key = "$packageName#$userId"
+        if (!isConnected()) {
+            wechatShareCallbacks.remove(key)
+            Log.w(TAG, "cancelWechatShareCapture: Engine not connected")
+            return
+        }
+        try {
+            mEngine!!.cancelWechatShareCapture(packageName, userId)
+        } catch (e: RemoteException) {
+            markRemoteFailure("cancelWechatShareCapture($packageName, user=$userId)", e)
+        } finally {
+            wechatShareCallbacks.remove(key)
         }
     }
 

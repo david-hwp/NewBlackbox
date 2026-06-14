@@ -19,6 +19,7 @@ import top.niunaijun.blackbox.fake.provider.FileProviderHandler;
 import top.niunaijun.blackbox.utils.ComponentUtils;
 import top.niunaijun.blackbox.utils.MethodParameterUtils;
 import top.niunaijun.blackbox.utils.Slog;
+import top.niunaijun.blackbox.utils.WechatShareProbe;
 import top.niunaijun.blackbox.utils.compat.BuildCompat;
 import top.niunaijun.blackbox.utils.compat.StartActivityCompat;
 
@@ -36,6 +37,7 @@ public class ActivityManagerCommonProxy {
             Intent intent = getIntent(args);
             Slog.d(TAG, "Hook in : " + intent);
             assert intent != null;
+            WechatShareProbe.logIntent("common-startActivity/raw", intent, BActivityThread.getUserId());
             
             
             if (intent.getParcelableExtra("_B_|_target_") != null) {
@@ -99,6 +101,7 @@ public class ActivityManagerCommonProxy {
 
             intent.setExtrasClassLoader(who.getClass().getClassLoader());
             intent.setComponent(new ComponentName(resolveInfo.activityInfo.packageName, resolveInfo.activityInfo.name));
+            WechatShareProbe.logIntent("common-startActivity/resolved", intent, BActivityThread.getUserId());
             BlackBoxCore.getBActivityManager().startActivityAms(BActivityThread.getUserId(),
                     StartActivityCompat.getIntent(args),
                     StartActivityCompat.getResolvedType(args),

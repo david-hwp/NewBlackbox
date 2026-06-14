@@ -15,6 +15,8 @@ import com.zhirang.zhanghaoguanjia.util.PlatformRegistry
 class ShopListAdapter(
     private val onItemClick: (Int, Shop) -> Unit,
     private val onEditClick: (Int, Shop) -> Unit,
+    private val onWechatClick: (Int, Shop) -> Unit,
+    private val onQuickShareClick: (Int, Shop) -> Unit,
     private val onAutoRenewClick: (Int, Shop) -> Unit,
     private val onDeleteClick: (Int, Shop) -> Unit,
     private val onRepairClick: (Int, Shop) -> Unit
@@ -64,6 +66,10 @@ class ShopListAdapter(
         setExpandedShopId(null)
     }
 
+    fun refreshShop(shopId: Long) {
+        notifyShopChanged(shopId)
+    }
+
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
         val view = LayoutInflater.from(parent.context)
             .inflate(R.layout.item_shop_card, parent, false)
@@ -83,6 +89,10 @@ class ShopListAdapter(
         private val shopName: TextView = itemView.findViewById(R.id.shopName)
         private val newTag: TextView = itemView.findViewById(R.id.newTag)
         private val shopId: TextView = itemView.findViewById(R.id.shopId)
+        private val shopRemark: TextView = itemView.findViewById(R.id.shopRemark)
+        private val shopFeatureBar: View = itemView.findViewById(R.id.shopFeatureBar)
+        private val btnQuickShare: View = itemView.findViewById(R.id.btnQuickShare)
+        private val btnWechat: View = itemView.findViewById(R.id.btnWechat)
         private val daysContainer: View = itemView.findViewById(R.id.daysContainer)
         private val remainingDaysBadge: TextView = itemView.findViewById(R.id.remainingDaysBadge)
         private val autoRenewTriangle: View = itemView.findViewById(R.id.autoRenewTriangle)
@@ -103,6 +113,17 @@ class ShopListAdapter(
             val verifiedIdentity = shop.hasVerifiedIdentity
             newTag.visibility = if (shop.isNew) View.VISIBLE else View.GONE
             shopId.text = "店铺ID: ${if (verifiedIdentity) shop.shopId else "-"}"
+            val isWechatCard = shop.packageName == WECHAT_PACKAGE
+            btnWechat.visibility = if (isWechatCard) View.GONE else View.VISIBLE
+            shopFeatureBar.visibility = if (isWechatCard) View.GONE else View.VISIBLE
+            val remark = shop.remark?.trim().orEmpty()
+            if (remark.isNotEmpty()) {
+                shopRemark.text = "备注: $remark"
+                shopRemark.visibility = View.VISIBLE
+            } else {
+                shopRemark.text = ""
+                shopRemark.visibility = View.GONE
+            }
 
             // 剩余天数显示（带颜色逻辑）
             daysContainer.visibility = if (showRemainingDays) View.VISIBLE else View.GONE
@@ -151,6 +172,18 @@ class ShopListAdapter(
                     onEditClick(pos, shops[pos])
                 }
             }
+            btnWechat.setOnClickListener {
+                val pos = bindingAdapterPosition
+                if (pos != RecyclerView.NO_POSITION) {
+                    onWechatClick(pos, shops[pos])
+                }
+            }
+            btnQuickShare.setOnClickListener {
+                val pos = bindingAdapterPosition
+                if (pos != RecyclerView.NO_POSITION) {
+                    onQuickShareClick(pos, shops[pos])
+                }
+            }
             btnAutoRenew?.setOnClickListener {
                 val pos = bindingAdapterPosition
                 if (pos != RecyclerView.NO_POSITION) {
@@ -181,5 +214,9 @@ class ShopListAdapter(
 
     private fun repairActionWidthPx(view: View): Float {
         return 96f * view.resources.displayMetrics.density
+    }
+
+    private companion object {
+        const val WECHAT_PACKAGE = "com.tencent.mm"
     }
 }

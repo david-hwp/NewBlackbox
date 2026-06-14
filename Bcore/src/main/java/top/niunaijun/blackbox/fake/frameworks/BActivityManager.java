@@ -463,6 +463,19 @@ public class BActivityManager extends BlackManager<IBActivityManagerService> {
         return -1;
     }
 
+    public void dispatchWechatShareTarget(String packageName, int userId, String receiverId, String stage, String component) {
+        try {
+            IBActivityManagerService service = getService();
+            if (service != null) {
+                service.dispatchWechatShareTarget(packageName, userId, receiverId, stage, component);
+            }
+        } catch (RemoteException e) {
+            Slog.e(TAG, "RemoteException in dispatchWechatShareTarget", e);
+        } catch (Exception e) {
+            Slog.e(TAG, "Unexpected error in dispatchWechatShareTarget", e);
+        }
+    }
+
     public int killAllOtherProcesses(String keepPackageName, int userId) {
         Slog.d(TAG, "killAllOtherProcesses client: keep=" + keepPackageName + " userId=" + userId);
         try {

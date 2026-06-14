@@ -160,6 +160,10 @@ public class ShopService {
         if (shop.getExpireAt() != null) {
             existing.setExpireAt(shop.getExpireAt());
         }
+        existing.setWechatReceiverId(shop.getWechatReceiverId());
+        existing.setWechatReceiverName(shop.getWechatReceiverName());
+        existing.setWechatReceiverType(shop.getWechatReceiverType());
+        existing.setRemark(shop.getRemark());
         ShopExpiration.applyRemainingDays(existing);
         return shopRepository.save(existing);
     }

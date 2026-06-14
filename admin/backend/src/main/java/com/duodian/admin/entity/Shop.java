@@ -100,6 +100,18 @@ public class Shop {
     @Column(name = "login_state_artifact_created_at")
     private LocalDateTime loginStateArtifactCreatedAt;
 
+    @Column(name = "wechat_receiver_id", length = 128)
+    private String wechatReceiverId;
+
+    @Column(name = "wechat_receiver_name", length = 128)
+    private String wechatReceiverName;
+
+    @Column(name = "wechat_receiver_type", length = 32)
+    private String wechatReceiverType;
+
+    @Column(name = "remark", length = 512)
+    private String remark;
+
     @Column(nullable = false, columnDefinition = "TINYINT DEFAULT 0")
     private Byte deleted = 0;
 
@@ -229,6 +241,26 @@ public class Shop {
     public LocalDateTime getLoginStateArtifactCreatedAt() { return loginStateArtifactCreatedAt; }
     public void setLoginStateArtifactCreatedAt(LocalDateTime loginStateArtifactCreatedAt) { this.loginStateArtifactCreatedAt = loginStateArtifactCreatedAt; }
 
+    public String getWechatReceiverId() { return wechatReceiverId; }
+    public void setWechatReceiverId(String wechatReceiverId) {
+        this.wechatReceiverId = normalizeNullable(wechatReceiverId);
+    }
+
+    public String getWechatReceiverName() { return wechatReceiverName; }
+    public void setWechatReceiverName(String wechatReceiverName) {
+        this.wechatReceiverName = normalizeNullable(wechatReceiverName);
+    }
+
+    public String getWechatReceiverType() { return wechatReceiverType; }
+    public void setWechatReceiverType(String wechatReceiverType) {
+        this.wechatReceiverType = normalizeNullable(wechatReceiverType);
+    }
+
+    public String getRemark() { return remark; }
+    public void setRemark(String remark) {
+        this.remark = normalizeNullable(remark);
+    }
+
     public Byte getDeleted() { return deleted; }
     public void setDeleted(Byte deleted) { this.deleted = deleted == null ? 0 : deleted; }
 
@@ -237,4 +269,8 @@ public class Shop {
 
     public LocalDateTime getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
+
+    private String normalizeNullable(String value) {
+        return (value == null || value.isBlank()) ? null : value.trim();
+    }
 }

@@ -18,7 +18,11 @@ data class ShopDto(
     val hasLoginState: Boolean? = null,
     val loginStateProfile: String? = null,
     val loginStateSize: Long? = null,
-    val loginStateSha256: String? = null
+    val loginStateSha256: String? = null,
+    val wechatReceiverId: String? = null,
+    val wechatReceiverName: String? = null,
+    val wechatReceiverType: String? = null,
+    val remark: String? = null
 ) {
 
     fun toShop(): Shop = Shop(
@@ -35,6 +39,10 @@ data class ShopDto(
         loginStateProfile = loginStateProfile,
         loginStateSize = loginStateSize,
         loginStateSha256 = loginStateSha256,
+        wechatReceiverId = wechatReceiverId,
+        wechatReceiverName = wechatReceiverName,
+        wechatReceiverType = wechatReceiverType,
+        remark = remark,
         identityVerified = identityVerified == true,
         isNew = shopId.startsWith(TEMP_SHOP_ID_PREFIX)
     )

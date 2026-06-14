@@ -101,13 +101,28 @@
 
                         <TextView
                             android:id="@+id/shopId"
-                            android:layout_width="wrap_content"
+                            android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="2dp"
                             android:fontFamily="monospace"
+                            android:ellipsize="end"
+                            android:maxLines="1"
                             android:textColor="@color/muted"
                             android:textSize="11sp"
                             tools:text="M123456" />
+
+                        <TextView
+                            android:id="@+id/shopRemark"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="3dp"
+                            android:ellipsize="end"
+                            android:maxLines="2"
+                            android:textColor="@color/muted"
+                            android:textSize="11sp"
+                            android:visibility="gone"
+                            tools:text="备注: 每天日报发给贺伟平"
+                            tools:visibility="visible" />
 
                     </LinearLayout>
 
@@ -164,6 +179,325 @@
             </FrameLayout>
 
         </androidx.cardview.widget.CardView>
+
+        <FrameLayout
+            android:id="@+id/shopFeatureBar"
+            android:layout_width="match_parent"
+            android:layout_height="82dp"
+            android:background="@color/surface"
+            android:visibility="gone"
+            tools:visibility="visible">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:orientation="vertical">
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1px"
+                    android:background="@color/border" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="0dp"
+                    android:layout_weight="1"
+                    android:gravity="center"
+                    android:orientation="horizontal"
+                    android:paddingHorizontal="4dp"
+                    android:paddingVertical="5dp">
+
+                <LinearLayout
+                    android:id="@+id/btnQuickShare"
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_marginHorizontal="2dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_wechat_action"
+                    android:gravity="center"
+                    android:minHeight="60dp"
+                    android:orientation="vertical"
+                    android:paddingHorizontal="2dp"
+                    android:visibility="gone">
+
+                    <ImageView
+                        android:layout_width="18dp"
+                        android:layout_height="18dp"
+                        android:contentDescription="分享"
+                        android:src="@drawable/ic_share" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:ellipsize="end"
+                        android:gravity="center"
+                        android:includeFontPadding="false"
+                        android:maxLines="1"
+                        android:text="分享"
+                        android:textColor="@color/white"
+                        android:textSize="10sp"
+                        android:textStyle="bold" />
+
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_marginHorizontal="2dp"
+                    android:layout_weight="1"
+                    android:gravity="center"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:ellipsize="end"
+                        android:gravity="center"
+                        android:includeFontPadding="false"
+                        android:maxLines="2"
+                        android:text="差评定位"
+                        android:textColor="@color/fg_2"
+                        android:textSize="10sp" />
+
+                    <androidx.appcompat.widget.SwitchCompat
+                        android:layout_width="44dp"
+                        android:layout_height="24dp"
+                        android:layout_marginTop="2dp"
+                        android:clickable="false"
+                        android:enabled="false"
+                        android:scaleX="0.72"
+                        android:scaleY="0.72" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:ellipsize="end"
+                        android:gravity="center"
+                        android:includeFontPadding="false"
+                        android:maxLines="1"
+                        android:text="-"
+                        android:textColor="@color/meta"
+                        android:textSize="9sp" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:ellipsize="end"
+                        android:gravity="center"
+                        android:includeFontPadding="false"
+                        android:maxLines="1"
+                        android:text="-"
+                        android:textColor="@color/meta"
+                        android:textSize="9sp" />
+
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_marginHorizontal="2dp"
+                    android:layout_weight="1"
+                    android:gravity="center"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:ellipsize="end"
+                        android:gravity="center"
+                        android:includeFontPadding="false"
+                        android:maxLines="2"
+                        android:text="经营日报"
+                        android:textColor="@color/fg_2"
+                        android:textSize="10sp" />
+
+                    <androidx.appcompat.widget.SwitchCompat
+                        android:layout_width="44dp"
+                        android:layout_height="24dp"
+                        android:layout_marginTop="2dp"
+                        android:clickable="false"
+                        android:enabled="false"
+                        android:scaleX="0.72"
+                        android:scaleY="0.72" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center"
+                        android:includeFontPadding="false"
+                        android:maxLines="1"
+                        android:text="-"
+                        android:textColor="@color/meta"
+                        android:textSize="9sp" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center"
+                        android:includeFontPadding="false"
+                        android:maxLines="1"
+                        android:text="-"
+                        android:textColor="@color/meta"
+                        android:textSize="9sp" />
+
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_marginHorizontal="2dp"
+                    android:layout_weight="1"
+                    android:gravity="center"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:ellipsize="end"
+                        android:gravity="center"
+                        android:includeFontPadding="false"
+                        android:maxLines="2"
+                        android:text="外呼好评"
+                        android:textColor="@color/fg_2"
+                        android:textSize="10sp" />
+
+                    <androidx.appcompat.widget.SwitchCompat
+                        android:layout_width="44dp"
+                        android:layout_height="24dp"
+                        android:layout_marginTop="2dp"
+                        android:clickable="false"
+                        android:enabled="false"
+                        android:scaleX="0.72"
+                        android:scaleY="0.72" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center"
+                        android:includeFontPadding="false"
+                        android:maxLines="1"
+                        android:text="-"
+                        android:textColor="@color/meta"
+                        android:textSize="9sp" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center"
+                        android:includeFontPadding="false"
+                        android:maxLines="1"
+                        android:text="-"
+                        android:textColor="@color/meta"
+                        android:textSize="9sp" />
+
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_marginHorizontal="2dp"
+                    android:layout_weight="1"
+                    android:gravity="center"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:ellipsize="end"
+                        android:gravity="center"
+                        android:includeFontPadding="false"
+                        android:maxLines="2"
+                        android:text="评价申诉"
+                        android:textColor="@color/fg_2"
+                        android:textSize="10sp" />
+
+                    <androidx.appcompat.widget.SwitchCompat
+                        android:layout_width="44dp"
+                        android:layout_height="24dp"
+                        android:layout_marginTop="2dp"
+                        android:clickable="false"
+                        android:enabled="false"
+                        android:scaleX="0.72"
+                        android:scaleY="0.72" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center"
+                        android:includeFontPadding="false"
+                        android:maxLines="1"
+                        android:text="-"
+                        android:textColor="@color/meta"
+                        android:textSize="9sp" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center"
+                        android:includeFontPadding="false"
+                        android:maxLines="1"
+                        android:text="-"
+                        android:textColor="@color/meta"
+                        android:textSize="9sp" />
+
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_marginHorizontal="2dp"
+                    android:layout_weight="1"
+                    android:gravity="center"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:ellipsize="end"
+                        android:gravity="center"
+                        android:includeFontPadding="false"
+                        android:maxLines="2"
+                        android:text="私域吸粉"
+                        android:textColor="@color/fg_2"
+                        android:textSize="10sp" />
+
+                    <androidx.appcompat.widget.SwitchCompat
+                        android:layout_width="44dp"
+                        android:layout_height="24dp"
+                        android:layout_marginTop="2dp"
+                        android:clickable="false"
+                        android:enabled="false"
+                        android:scaleX="0.72"
+                        android:scaleY="0.72" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center"
+                        android:includeFontPadding="false"
+                        android:maxLines="1"
+                        android:text="-"
+                        android:textColor="@color/meta"
+                        android:textSize="9sp" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center"
+                        android:includeFontPadding="false"
+                        android:maxLines="1"
+                        android:text="-"
+                        android:textColor="@color/meta"
+                        android:textSize="9sp" />
+
+                </LinearLayout>
+
+                </LinearLayout>
+
+            </LinearLayout>
+
+        </FrameLayout>
 
         <include
             android:id="@+id/swipeActions"

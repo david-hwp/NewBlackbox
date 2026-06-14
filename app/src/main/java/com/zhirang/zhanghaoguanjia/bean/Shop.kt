@@ -14,6 +14,10 @@ data class Shop(
     val loginStateProfile: String? = null,
     val loginStateSize: Long? = null,
     val loginStateSha256: String? = null,
+    val wechatReceiverId: String? = null,
+    val wechatReceiverName: String? = null,
+    val wechatReceiverType: String? = null,
+    val remark: String? = null,
     val identityVerified: Boolean = false,
     val localIdentityVerified: Boolean? = null,
     val icon: Any? = null,  // 占位，后续接入真实图标

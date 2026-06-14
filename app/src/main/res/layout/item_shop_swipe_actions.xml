@@ -51,6 +51,37 @@
             android:background="@color/border" />
 
         <LinearLayout
+            android:id="@+id/btnWechat"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="@drawable/bg_shop_action_item"
+            android:gravity="center"
+            android:minHeight="43dp"
+            android:orientation="horizontal"
+            android:paddingHorizontal="8dp">
+
+            <ImageView
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:src="@drawable/ic_wechat" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="4dp"
+                android:text="微信分享"
+                android:textColor="@color/muted"
+                android:textSize="11sp" />
+
+        </LinearLayout>
+
+        <View
+            android:layout_width="1px"
+            android:layout_height="18dp"
+            android:background="@color/border" />
+
+        <LinearLayout
             android:id="@+id/btnAutoRenew"
             android:layout_width="0dp"
             android:layout_height="match_parent"

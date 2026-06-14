@@ -14,6 +14,7 @@ import android.os.Bundle;
 import top.niunaijun.blackbox.entity.am.RunningAppProcessInfo;
 import top.niunaijun.blackbox.entity.am.PendingResultData;
 import top.niunaijun.blackbox.entity.am.RunningServiceInfo;
+import top.niunaijun.blackbox.engine.IWechatShareCaptureCallback;
 
 // Declare any non-default types here with import statements
 
@@ -59,6 +60,9 @@ interface IBActivityManagerService {
     void getIntentSender(in IBinder target, String packageName, int uid, int userId);
     String getPackageForIntentSender(in IBinder target, int userId);
     int getUidForIntentSender(in IBinder target, int userId);
+    boolean startWechatShareCapture(String packageName, int userId, IWechatShareCaptureCallback callback, long timeoutMs);
+    void cancelWechatShareCapture(String packageName, int userId);
+    void dispatchWechatShareTarget(String packageName, int userId, String receiverId, String stage, String component);
 
     int killAllOtherProcesses(String keepPackageName, int userId);
     int killAllOtherProcessesGlobal(String keepPackageName, int userId);

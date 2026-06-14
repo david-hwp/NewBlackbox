@@ -206,7 +206,18 @@ public class BActivityThread extends IBActivityThread.Stub {
 
     public Service createService(ServiceInfo serviceInfo, IBinder token) {
         if (!BActivityThread.currentActivityThread().isInit()) {
-            BActivityThread.currentActivityThread().bindApplication(serviceInfo.packageName, serviceInfo.processName);
+            if (!BActivityThread.currentActivityThread().bindApplication(serviceInfo.packageName, serviceInfo.processName)) {
+                Slog.w(TAG, "Skipping service because bindApplication failed: " + serviceInfo.name
+                        + " package=" + serviceInfo.packageName
+                        + " process=" + serviceInfo.processName);
+                return null;
+            }
+        }
+        if (mBoundApplication == null || mBoundApplication.info == null) {
+            Slog.w(TAG, "Skipping service because application is not bound: " + serviceInfo.name
+                    + " package=" + serviceInfo.packageName
+                    + " process=" + serviceInfo.processName);
+            return null;
         }
         ClassLoader classLoader = BRLoadedApk.get(mBoundApplication.info).getClassLoader();
         Service service;
@@ -261,7 +272,18 @@ public class BActivityThread extends IBActivityThread.Stub {
 
     public JobService createJobService(ServiceInfo serviceInfo) {
         if (!BActivityThread.currentActivityThread().isInit()) {
-            BActivityThread.currentActivityThread().bindApplication(serviceInfo.packageName, serviceInfo.processName);
+            if (!BActivityThread.currentActivityThread().bindApplication(serviceInfo.packageName, serviceInfo.processName)) {
+                Slog.w(TAG, "Skipping JobService because bindApplication failed: " + serviceInfo.name
+                        + " package=" + serviceInfo.packageName
+                        + " process=" + serviceInfo.processName);
+                return null;
+            }
+        }
+        if (mBoundApplication == null || mBoundApplication.info == null) {
+            Slog.w(TAG, "Skipping JobService because application is not bound: " + serviceInfo.name
+                    + " package=" + serviceInfo.packageName
+                    + " process=" + serviceInfo.processName);
+            return null;
         }
         ClassLoader classLoader = BRLoadedApk.get(mBoundApplication.info).getClassLoader();
         JobService service;
@@ -315,20 +337,18 @@ public class BActivityThread extends IBActivityThread.Stub {
         }
     }
 
-    public void bindApplication(final String packageName, final String processName) {
+    public boolean bindApplication(final String packageName, final String processName) {
         if (Looper.myLooper() != Looper.getMainLooper()) {
             final ConditionVariable conditionVariable = new ConditionVariable();
+            final boolean[] result = new boolean[]{false};
             BlackBoxCore.get().getHandler().post(() -> {
-                
-                Object bindData = createBindApplicationData(packageName, processName);
-                handleBindApplication(packageName, processName);
+                result[0] = handleBindApplication(packageName, processName);
                 conditionVariable.open();
             });
             conditionVariable.block();
+            return result[0];
         } else {
-            
-            Object bindData = createBindApplicationData(packageName, processName);
-            handleBindApplication(packageName, processName);
+            return handleBindApplication(packageName, processName);
         }
     }
     
@@ -337,6 +357,15 @@ public class BActivityThread extends IBActivityThread.Stub {
         try {
             
             PackageInfo packageInfo = BlackBoxCore.getBPackageManager().getPackageInfo(packageName, PackageManager.GET_PROVIDERS, getUserId());
+            if (packageInfo == null || packageInfo.applicationInfo == null) {
+                Slog.w(TAG, "Missing PackageInfo while creating bind data package=" + packageName
+                        + " process=" + processName
+                        + " user=" + getUserId());
+                return new Object() {
+                    public ApplicationInfo getInfo() { return null; }
+                    public List<ProviderInfo> getProviders() { return new ArrayList<>(); }
+                };
+            }
             ApplicationInfo applicationInfo = packageInfo.applicationInfo;
             
             
@@ -357,15 +386,21 @@ public class BActivityThread extends IBActivityThread.Stub {
         }
     }
 
-    public synchronized void handleBindApplication(String packageName, String processName) {
+    public synchronized boolean handleBindApplication(String packageName, String processName) {
         if (isInit())
-            return;
+            return true;
         try {
             CrashHandler.create();
         } catch (Throwable ignored) {
         }
 
         PackageInfo packageInfo = BlackBoxCore.getBPackageManager().getPackageInfo(packageName, PackageManager.GET_PROVIDERS, BActivityThread.getUserId());
+        if (packageInfo == null || packageInfo.applicationInfo == null) {
+            Slog.w(TAG, "Missing PackageInfo while binding application package=" + packageName
+                    + " process=" + processName
+                    + " user=" + BActivityThread.getUserId());
+            return false;
+        }
         ApplicationInfo applicationInfo = packageInfo.applicationInfo;
         if (packageInfo.providers == null) {
             packageInfo.providers = new ProviderInfo[]{};
@@ -481,6 +516,7 @@ public class BActivityThread extends IBActivityThread.Stub {
             onAfterApplicationOnCreate(packageName, processName, application);
 
             HookManager.get().checkEnv(HCallbackProxy.class);
+            return true;
         } catch (Exception e) {
             Slog.e(TAG, "Critical error in handleBindApplication", e);
             throw new RuntimeException("Unable to makeApplication", e);

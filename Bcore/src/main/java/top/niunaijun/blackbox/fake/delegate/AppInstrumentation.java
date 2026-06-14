@@ -25,6 +25,7 @@ import top.niunaijun.blackbox.utils.ByteDanceProcessCompat;
 import top.niunaijun.blackbox.utils.compat.ActivityCompat;
 import top.niunaijun.blackbox.utils.compat.ActivityManagerCompat;
 import top.niunaijun.blackbox.utils.compat.ContextCompat;
+import top.niunaijun.blackbox.utils.WechatShareProbe;
 
 public final class AppInstrumentation extends BaseInstrumentationDelegate implements IInjectHook {
 
@@ -104,6 +105,7 @@ public final class AppInstrumentation extends BaseInstrumentationDelegate implem
 
     private void checkActivity(Activity activity) {
         Log.d(TAG, "callActivityOnCreate: " + activity.getClass().getName());
+        WechatShareProbe.logActivityIntent("activity-onCreate", activity.getClass().getName(), activity.getIntent());
         HackAppUtils.enableQQLogOutput(activity.getPackageName(), activity.getClassLoader());
         checkHCallback();
         HookManager.get().checkEnv(IActivityClientProxy.class);
@@ -144,6 +146,7 @@ public final class AppInstrumentation extends BaseInstrumentationDelegate implem
     @Override
     public void callActivityOnResume(Activity activity) {
         ActivityCompat.fix(activity);
+        WechatShareProbe.scheduleActivityTextDump(activity, "activity-onResume");
         super.callActivityOnResume(activity);
     }
 

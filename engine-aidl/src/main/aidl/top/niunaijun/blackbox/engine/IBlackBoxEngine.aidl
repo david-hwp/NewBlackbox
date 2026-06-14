@@ -6,11 +6,13 @@ import top.niunaijun.blackbox.core.system.location.IBLocationManagerService;
 import top.niunaijun.blackbox.core.system.user.IBUserManagerService;
 import top.niunaijun.blackbox.entity.pm.InstallResult;
 import top.niunaijun.blackbox.entity.pm.ShopInfo;
+import top.niunaijun.blackbox.entity.pm.WechatShareTarget;
 import top.niunaijun.blackbox.core.system.user.BUserInfo;
 import top.niunaijun.blackbox.entity.AppConfig;
 import top.niunaijun.blackbox.entity.location.BLocation;
 import top.niunaijun.blackbox.entity.location.BLocationConfig;
 import top.niunaijun.blackbox.engine.LaunchPreparationResult;
+import top.niunaijun.blackbox.engine.IWechatShareCaptureCallback;
 import android.content.pm.ApplicationInfo;
 import android.content.Intent;
 
@@ -69,4 +71,7 @@ interface IBlackBoxEngine {
     boolean restoreLoginState(String packageName, int userId, String profileId, in byte[] artifact);
     String defaultLoginStateProfile(String packageName);
     String migrateCloneDataToScopedStorage();
+    boolean startActivityAsUser(in Intent intent, int userId);
+    boolean startWechatShareCapture(String packageName, int userId, IWechatShareCaptureCallback callback, long timeoutMs);
+    void cancelWechatShareCapture(String packageName, int userId);
 }

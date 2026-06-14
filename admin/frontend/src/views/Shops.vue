@@ -38,6 +38,17 @@
         <el-table-column prop="id" label="ID" width="60" />
         <el-table-column prop="shopName" label="店铺名称" />
         <el-table-column prop="shopId" label="店铺ID" />
+        <el-table-column label="微信接收方" min-width="180">
+          <template #default="{ row }">
+            <div v-if="row.wechatReceiverName || row.wechatReceiverId">
+              <div>{{ row.wechatReceiverName || '-' }}</div>
+              <el-text v-if="row.wechatReceiverId" class="mono receiver-id" truncated>{{ row.wechatReceiverId }}</el-text>
+              <el-tag v-if="row.wechatReceiverType" size="small" type="info">{{ formatReceiverType(row.wechatReceiverType) }}</el-tag>
+            </div>
+            <span v-else>-</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="remark" label="备注" min-width="180" show-overflow-tooltip />
         <el-table-column prop="cloneInstanceId" label="唯一标识" min-width="220">
           <template #default="{ row }">
             <el-text v-if="row.cloneInstanceId" class="mono" truncated>{{ row.cloneInstanceId }}</el-text>
@@ -114,6 +125,21 @@
         <el-form-item v-if="isEdit" label="唯一标识">
           <el-input v-model="form.cloneInstanceId" disabled placeholder="由APK创建分身后自动上报" />
         </el-form-item>
+        <el-form-item label="微信接收ID">
+          <el-input v-model="form.wechatReceiverId" clearable placeholder="微信接收方唯一ID" />
+        </el-form-item>
+        <el-form-item label="微信接收名">
+          <el-input v-model="form.wechatReceiverName" clearable placeholder="微信联系人或群聊名称" />
+        </el-form-item>
+        <el-form-item label="接收方类型">
+          <el-select v-model="form.wechatReceiverType" clearable placeholder="请选择" style="width: 100%">
+            <el-option label="个人微信" value="CONTACT" />
+            <el-option label="群聊" value="GROUP" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="备注">
+          <el-input v-model="form.remark" type="textarea" :rows="3" maxlength="512" show-word-limit placeholder="展示在APP店铺卡片店铺ID下方" />
+        </el-form-item>
         <el-form-item label="剩余天数">
           <el-input-number v-model="form.remainingDays" :min="0" style="width: 100%" />
         </el-form-item>
@@ -162,7 +188,11 @@ const form = ref({
   remainingDays: 0,
   autoRenew: false,
   packageName: '',
-  cloneInstanceId: ''
+  cloneInstanceId: '',
+  wechatReceiverId: '',
+  wechatReceiverName: '',
+  wechatReceiverType: '',
+  remark: ''
 })
 
 const rules = {
@@ -245,9 +275,30 @@ const getDaysType = (days) => {
   return 'success'
 }
 
+const formatReceiverType = (type) => {
+  const normalized = String(type || '').toUpperCase()
+  if (normalized === 'CONTACT') return '个人微信'
+  if (normalized === 'GROUP') return '群聊'
+  return type || '-'
+}
+
 const showAddDialog = () => {
   isEdit.value = false
-  form.value = { shopName: '', shopId: '', userId: '', platform: '', platformName: '', remainingDays: 0, autoRenew: false, packageName: '', cloneInstanceId: '' }
+  form.value = {
+    shopName: '',
+    shopId: '',
+    userId: '',
+    platform: '',
+    platformName: '',
+    remainingDays: 0,
+    autoRenew: false,
+    packageName: '',
+    cloneInstanceId: '',
+    wechatReceiverId: '',
+    wechatReceiverName: '',
+    wechatReceiverType: '',
+    remark: ''
+  }
   dialogVisible.value = true
 }
 
@@ -320,5 +371,11 @@ onMounted(() => {
 .mono {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
   max-width: 210px;
+}
+
+.receiver-id {
+  display: block;
+  max-width: 150px;
+  margin: 2px 0;
 }
 </style>

@@ -10,6 +10,7 @@ import android.content.pm.ResolveInfo;
 import android.os.Binder;
 import android.os.Bundle;
 import android.os.IBinder;
+import android.os.Process;
 import android.os.RemoteException;
 
 import java.util.ArrayList;
@@ -29,6 +30,8 @@ import top.niunaijun.blackbox.entity.am.PendingResultDataHelper;
 import top.niunaijun.blackbox.entity.am.ReceiverData;
 import top.niunaijun.blackbox.entity.am.RunningAppProcessInfo;
 import top.niunaijun.blackbox.entity.am.RunningServiceInfo;
+import top.niunaijun.blackbox.engine.IWechatShareCaptureCallback;
+import top.niunaijun.blackbox.engine.WechatShareCaptureManager;
 import top.niunaijun.blackbox.utils.Slog;
 
 import static android.content.pm.PackageManager.GET_META_DATA;
@@ -269,6 +272,24 @@ public class BActivityManagerService extends IBActivityManagerService.Stub imple
             }
         }
         return -1;
+    }
+
+    @Override
+    public boolean startWechatShareCapture(String packageName, int userId, IWechatShareCaptureCallback callback, long timeoutMs) {
+        Slog.d(TAG, "startWechatShareCapture pid=" + Process.myPid() + " package=" + packageName + " userId=" + userId);
+        return WechatShareCaptureManager.INSTANCE.start(packageName, userId, callback, timeoutMs);
+    }
+
+    @Override
+    public void cancelWechatShareCapture(String packageName, int userId) {
+        Slog.d(TAG, "cancelWechatShareCapture pid=" + Process.myPid() + " package=" + packageName + " userId=" + userId);
+        WechatShareCaptureManager.INSTANCE.cancel(packageName, userId);
+    }
+
+    @Override
+    public void dispatchWechatShareTarget(String packageName, int userId, String receiverId, String stage, String component) {
+        Slog.d(TAG, "dispatchWechatShareTarget pid=" + Process.myPid() + " package=" + packageName + " userId=" + userId + " receiverId=" + receiverId);
+        WechatShareTargetDispatcher.dispatch(packageName, userId, receiverId, stage, component);
     }
 
     @Override

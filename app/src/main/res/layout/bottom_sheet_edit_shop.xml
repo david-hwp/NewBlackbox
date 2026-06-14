@@ -87,6 +87,33 @@
             android:checked="false" />
     </LinearLayout>
 
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:text="备注"
+        android:textColor="@color/duodian_text_primary"
+        android:textSize="14sp"
+        android:textStyle="bold" />
+
+    <EditText
+        android:id="@+id/etRemark"
+        android:layout_width="match_parent"
+        android:layout_height="92dp"
+        android:layout_marginTop="8dp"
+        android:background="@drawable/bg_input_field"
+        android:gravity="top|start"
+        android:hint="填写店铺备注"
+        android:inputType="textMultiLine|textCapSentences"
+        android:maxLength="512"
+        android:maxLines="4"
+        android:minLines="3"
+        android:paddingHorizontal="16dp"
+        android:paddingVertical="12dp"
+        android:textColor="@color/duodian_text_primary"
+        android:textColorHint="@color/duodian_text_hint"
+        android:textSize="15sp" />
+
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"

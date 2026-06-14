@@ -35,6 +35,10 @@ public class ShopResponse {
     private String loginStateSha256;
     private LocalDateTime loginStateUpdatedAt;
     private LocalDateTime loginStateArtifactCreatedAt;
+    private String wechatReceiverId;
+    private String wechatReceiverName;
+    private String wechatReceiverType;
+    private String remark;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -68,6 +72,10 @@ public class ShopResponse {
         response.setLoginStateSha256(shop.getLoginStateSha256());
         response.setLoginStateUpdatedAt(shop.getLoginStateUpdatedAt());
         response.setLoginStateArtifactCreatedAt(shop.getLoginStateArtifactCreatedAt());
+        response.setWechatReceiverId(shop.getWechatReceiverId());
+        response.setWechatReceiverName(shop.getWechatReceiverName());
+        response.setWechatReceiverType(shop.getWechatReceiverType());
+        response.setRemark(shop.getRemark());
         response.setCreatedAt(shop.getCreatedAt());
         response.setUpdatedAt(shop.getUpdatedAt());
         return response;
@@ -156,6 +164,18 @@ public class ShopResponse {
 
     public LocalDateTime getLoginStateArtifactCreatedAt() { return loginStateArtifactCreatedAt; }
     public void setLoginStateArtifactCreatedAt(LocalDateTime loginStateArtifactCreatedAt) { this.loginStateArtifactCreatedAt = loginStateArtifactCreatedAt; }
+
+    public String getWechatReceiverId() { return wechatReceiverId; }
+    public void setWechatReceiverId(String wechatReceiverId) { this.wechatReceiverId = wechatReceiverId; }
+
+    public String getWechatReceiverName() { return wechatReceiverName; }
+    public void setWechatReceiverName(String wechatReceiverName) { this.wechatReceiverName = wechatReceiverName; }
+
+    public String getWechatReceiverType() { return wechatReceiverType; }
+    public void setWechatReceiverType(String wechatReceiverType) { this.wechatReceiverType = wechatReceiverType; }
+
+    public String getRemark() { return remark; }
+    public void setRemark(String remark) { this.remark = remark; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }

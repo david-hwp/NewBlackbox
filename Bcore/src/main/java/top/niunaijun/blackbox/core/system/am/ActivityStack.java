@@ -40,6 +40,7 @@ import top.niunaijun.blackbox.proxy.ProxyManifest;
 import top.niunaijun.blackbox.proxy.record.ProxyActivityRecord;
 import top.niunaijun.blackbox.utils.ComponentUtils;
 import top.niunaijun.blackbox.utils.Slog;
+import top.niunaijun.blackbox.utils.WechatShareProbe;
 import top.niunaijun.blackbox.utils.compat.ActivityManagerCompat;
 
 import static android.content.pm.PackageManager.GET_ACTIVITIES;
@@ -118,6 +119,7 @@ public class ActivityStack {
             return 0;
         }
         Log.d(TAG, "startActivityLocked : " + resolveInfo.activityInfo);
+        WechatShareProbe.logIntent("activity-stack/startActivityLocked", intent, userId);
         ActivityInfo activityInfo = resolveInfo.activityInfo;
 
         ActivityRecord sourceRecord = findActivityRecordByToken(userId, resultTo);
@@ -376,6 +378,7 @@ public class ActivityStack {
             }
         }
         ProxyActivityRecord.saveStub(shadow, intent, target.mActivityInfo, target.mActivityRecord, target.mUserId);
+        WechatShareProbe.logIntent("activity-stack/saveStub", intent, userId);
         return shadow;
     }
 

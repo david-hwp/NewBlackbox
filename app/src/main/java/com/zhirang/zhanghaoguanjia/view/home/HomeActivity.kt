@@ -38,6 +38,7 @@ import com.zhirang.zhanghaoguanjia.bean.dto.PlatformItemDto
 import com.zhirang.zhanghaoguanjia.data.BaseRepository
 import com.zhirang.zhanghaoguanjia.data.LoginStateBackupStore
 import com.zhirang.zhanghaoguanjia.data.TokenManager
+import com.zhirang.zhanghaoguanjia.data.WechatShareTargetStore
 import com.zhirang.zhanghaoguanjia.databinding.ActivityHomeBinding
 import com.zhirang.zhanghaoguanjia.engine.EnginePermissionCenter
 import com.zhirang.zhanghaoguanjia.engine.EngineInstaller
@@ -152,6 +153,10 @@ class HomeActivity : AppCompatActivity() {
         private const val TICKER_SCROLL_SPEED_PX_PER_SECOND = 28f
         private const val TICKER_MIN_CYCLE_MS = 8_000L
         private const val TICKER_FRAME_DELAY_MS = 16L
+        private const val WECHAT_PACKAGE = "com.tencent.mm"
+        private const val WECHAT_SHARE_ACTIVITY = "com.tencent.mm.ui.tools.ShareImgUI"
+        private const val WECHAT_SEND_WRAPPER_ACTIVITY = "com.tencent.mm.ui.transmit.SendAppMessageWrapperUI"
+        private const val WECHAT_SHARE_TEXT = "测试从店铺管家分享到分身微信"
         private var sessionAnnouncementsRequested = false
         private val sessionShownAnnouncementIds = mutableSetOf<Long>()
 
@@ -400,6 +405,12 @@ class HomeActivity : AppCompatActivity() {
             },
             onEditClick = { _, shop ->
                 showEditShopSheet(shop)
+            },
+            onWechatClick = { _, shop ->
+                openWechatShareForShop(shop)
+            },
+            onQuickShareClick = { _, shop ->
+                quickShareToBoundWechat(shop)
             },
             onAutoRenewClick = { _, shop ->
                 handleAutoRenewClick(shop)
@@ -1047,6 +1058,196 @@ class HomeActivity : AppCompatActivity() {
             return
         }
         openPlatformForShop(shop)
+    }
+
+    private fun openWechatShareForShop(shop: Shop) {
+        if (!viewModel.hasActiveSubscription() && shop.remainingDays <= 0) {
+            toast("店铺已到期，请先续期后再使用微信")
+            return
+        }
+        val wechatShop = findWechatToolShop()
+        if (wechatShop == null) {
+            toast("请先添加并登录微信店铺")
+            return
+        }
+        if (!beginShopOperation("打开微信", "正在加载微信数据，请稍后…")) {
+            return
+        }
+        val requiredPermissions = EnginePermissionCenter.platformRequiredPermissions(this, WECHAT_PACKAGE)
+        if (!EnginePermissionCenter.hasEnginePermissions(this, requiredPermissions)) {
+            requestEnginePlatformPermission(wechatShop, null, WECHAT_PACKAGE)
+            return
+        }
+        ensureEngineReady(onUnavailable = { finishShopOperation() }) {
+            prepareShopEnvironment(
+                shop = wechatShop,
+                showProgress = true,
+                launchAfterReady = false
+            ) { prepared ->
+                if (prepared == null) {
+                    finishShopOperation()
+                    toast("微信环境准备失败，请重试")
+                    return@prepareShopEnvironment
+                }
+                launchWechatShare(targetShop = shop, preparedWechat = prepared)
+            }
+        }
+    }
+
+    private fun quickShareToBoundWechat(shop: Shop) {
+        if (!viewModel.hasActiveSubscription() && shop.remainingDays <= 0) {
+            toast("店铺已到期，请先续期后再使用分享")
+            return
+        }
+        val target = WechatShareTargetStore.readTarget(this, shop.id)
+        if (target == null || target.receiverId.isBlank()) {
+            toast("请先点击微信绑定接收方")
+            return
+        }
+        if (resolveShopPackageName(shop) == WECHAT_PACKAGE) {
+            toast("微信店铺无需绑定自己")
+            return
+        }
+        val wechatShop = findWechatToolShop()
+        if (wechatShop == null) {
+            toast("请先添加并登录微信店铺")
+            return
+        }
+        if (!beginShopOperation("分享", "正在加载微信数据，请稍后…")) {
+            return
+        }
+        val requiredPermissions = EnginePermissionCenter.platformRequiredPermissions(this, WECHAT_PACKAGE)
+        if (!EnginePermissionCenter.hasEnginePermissions(this, requiredPermissions)) {
+            requestEnginePlatformPermission(wechatShop, null, WECHAT_PACKAGE)
+            return
+        }
+        ensureEngineReady(onUnavailable = { finishShopOperation() }) {
+            prepareShopEnvironment(
+                shop = wechatShop,
+                showProgress = true,
+                launchAfterReady = false
+            ) { prepared ->
+                if (prepared == null) {
+                    finishShopOperation()
+                    toast("微信环境准备失败，请重试")
+                    return@prepareShopEnvironment
+                }
+                launchBoundWechatShare(shop, prepared, target)
+            }
+        }
+    }
+
+    private fun findWechatToolShop(): Shop? {
+        return viewModel.getAllShops()
+            .filter { resolveShopPackageName(it) == WECHAT_PACKAGE }
+            .sortedWith(
+                compareByDescending<Shop> { it.hasVerifiedIdentity }
+                    .thenByDescending { it.localVirtualUserId != null }
+                    .thenByDescending { it.hasLoginState }
+            )
+            .firstOrNull()
+    }
+
+    private fun launchWechatShare(targetShop: Shop, preparedWechat: PreparedShopEnvironment) {
+        updateShopProgress("正在打开微信分享…")
+        lifecycleScope.launch(Dispatchers.IO) {
+            val captureStarted = EngineProxy.startWechatShareCapture(
+                context = applicationContext,
+                systemShopId = targetShop.id,
+                packageName = WECHAT_PACKAGE,
+                userId = preparedWechat.userId,
+                timeoutMs = 30_000L,
+                onResolved = { target ->
+                    Log.d(TAG, "WeChat share target resolved: $target")
+                    runOnUiThread {
+                        shopAdapter.refreshShop(targetShop.id)
+                    }
+                },
+                onTimeout = { packageName, userId ->
+                    Log.w(TAG, "WeChat share target timeout package=$packageName userId=$userId")
+                    runOnUiThread {
+                        toast("未获取到微信接收方，请确认微信已登录并完成选择")
+                    }
+                },
+                onCancelled = { packageName, userId ->
+                    Log.d(TAG, "WeChat share target cancelled package=$packageName userId=$userId")
+                },
+                onError = { packageName, userId, message ->
+                    Log.w(TAG, "WeChat share target error package=$packageName userId=$userId message=$message")
+                    runOnUiThread {
+                        toast("微信接收方获取失败，请重试")
+                    }
+                }
+            )
+            val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                component = ComponentName(WECHAT_PACKAGE, WECHAT_SHARE_ACTIVITY)
+                addCategory(Intent.CATEGORY_DEFAULT)
+                putExtra(Intent.EXTRA_TEXT, WECHAT_SHARE_TEXT)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            Log.d(TAG, "Launching WeChat share in clone user=${preparedWechat.userId} intent=$shareIntent")
+            val started = EngineProxy.startActivityAsUser(shareIntent, preparedWechat.userId)
+            if (!started && captureStarted) {
+                EngineProxy.cancelWechatShareCapture(WECHAT_PACKAGE, preparedWechat.userId)
+            }
+            withContext(Dispatchers.Main) {
+                finishShopOperation()
+                if (!started) {
+                    toast("微信分享打开失败，请重试")
+                }
+            }
+        }
+    }
+
+    private fun launchBoundWechatShare(
+        targetShop: Shop,
+        preparedWechat: PreparedShopEnvironment,
+        target: WechatShareTargetStore.Target
+    ) {
+        updateShopProgress("正在打开微信发送页…")
+        lifecycleScope.launch(Dispatchers.IO) {
+            val sendIntent = buildWechatBoundShareIntent(target)
+            Log.d(
+                TAG,
+                "Launching bound WeChat share shop=${targetShop.id} user=${preparedWechat.userId} receiver=${target.receiverId} intent=$sendIntent"
+            )
+            val started = EngineProxy.startActivityAsUser(sendIntent, preparedWechat.userId)
+            withContext(Dispatchers.Main) {
+                finishShopOperation()
+                if (started) {
+                    toast("已打开微信发送页")
+                } else {
+                    toast("微信一键分享打开失败，请重试")
+                }
+            }
+        }
+    }
+
+    private fun buildWechatBoundShareIntent(target: WechatShareTargetStore.Target): Intent {
+        return Intent().apply {
+            component = ComponentName(WECHAT_PACKAGE, WECHAT_SEND_WRAPPER_ACTIVITY)
+            type = "text/plain"
+            addCategory(Intent.CATEGORY_DEFAULT)
+            putExtra(Intent.EXTRA_TEXT, WECHAT_SHARE_TEXT)
+            putExtra("Select_Conv_User", target.receiverId)
+            putExtra("_wxtextobject_text", WECHAT_SHARE_TEXT)
+            putExtra("_wxobject_description", WECHAT_SHARE_TEXT)
+            putExtra("_wxapi_sendmessagetowx_req_media_type", 1)
+            putExtra("_wxapi_sendmessagetowx_req_scene", 0)
+            putExtra("_wxapi_command_type", 2)
+            putExtra("_wxobject_identifier_", "com.tencent.mm.sdk.openapi.WXTextObject")
+            putExtra("_mmessage_appPackage", packageName)
+            putExtra("_mmessage_sdkVersion", 638058496)
+            putExtra("SendAppMessageWrapper_AppId", "")
+            putExtra("SendAppMessageWrapper_Scene", 0)
+            putExtra("Retr_Msg_Type", 2)
+            putExtra("Retr_Msg_content", WECHAT_SHARE_TEXT)
+            putExtra("Retr_Msg_thumb_path", "")
+            putExtra("Ksnsupload_type", 0)
+            putExtra("need_result", false)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
     }
 
     private fun renewExpiredShopBeforeOpen(shop: Shop) {
@@ -2459,9 +2660,9 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun showEditShopSheet(shop: Shop) {
-        val sheet = EditShopSheetFragment.newInstance(shop.shopName, shop.shopId, shop.autoRenew)
-        sheet.setOnSaveListener { _, _, autoRenew ->
-            viewModel.updateShop(shop, autoRenew = autoRenew)
+        val sheet = EditShopSheetFragment.newInstance(shop.shopName, shop.shopId, shop.autoRenew, shop.remark)
+        sheet.setOnSaveListener { _, _, autoRenew, remark ->
+            viewModel.updateShop(shop, autoRenew = autoRenew, remark = remark)
         }
         sheet.show(supportFragmentManager, "EditShop")
     }

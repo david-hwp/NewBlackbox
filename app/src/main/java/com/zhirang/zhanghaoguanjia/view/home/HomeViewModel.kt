@@ -499,7 +499,8 @@ class HomeViewModel : ViewModel() {
 
     fun updateShop(
         shop: Shop,
-        autoRenew: Boolean = shop.autoRenew
+        autoRenew: Boolean = shop.autoRenew,
+        remark: String? = shop.remark
     ) {
         if (!isLoggedIn()) {
             _loadErrorLiveData.value = "请先登录后再更新店铺"
@@ -516,7 +517,11 @@ class HomeViewModel : ViewModel() {
                 autoRenew = autoRenew,
                 packageName = shop.packageName,
                 cloneInstanceId = shop.cloneInstanceId,
-                localVirtualUserId = shop.localVirtualUserId
+                localVirtualUserId = shop.localVirtualUserId,
+                wechatReceiverId = shop.wechatReceiverId,
+                wechatReceiverName = shop.wechatReceiverName,
+                wechatReceiverType = shop.wechatReceiverType,
+                remark = remark
             )
             val result = shopRepository.updateShop(shop.id, request)
             result.fold(

@@ -115,6 +115,25 @@ class BlackBoxEngineService : Service() {
             return BlackBoxCore.get().peekLaunchIntent(pkg, userId)
         }
 
+        override fun startActivityAsUser(intent: android.content.Intent?, userId: Int): Boolean {
+            val targetIntent = intent ?: return false
+            val pkg = targetIntent.`package`
+                ?: targetIntent.component?.packageName
+                ?: return false
+            if (!isLegacyLaunchAuthorized(pkg, userId)) {
+                Slog.w(TAG, "startActivityAsUser blocked package=$pkg userId=$userId")
+                return false
+            }
+            return try {
+                targetIntent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                BlackBoxCore.get().startActivity(targetIntent, userId)
+                true
+            } catch (e: Exception) {
+                Slog.e(TAG, "startActivityAsUser failed package=$pkg userId=$userId", e)
+                false
+            }
+        }
+
         override fun installPackageAsUser(path: String?, userId: Int): InstallResult {
             return if (path != null) {
                 try {
@@ -246,6 +265,23 @@ class BlackBoxEngineService : Service() {
 
         override fun migrateCloneDataToScopedStorage(): String {
             return CloneInstanceStore.migrateAllScoped().toString()
+        }
+
+        override fun startWechatShareCapture(
+            packageName: String?,
+            userId: Int,
+            callback: IWechatShareCaptureCallback?,
+            timeoutMs: Long
+        ): Boolean {
+            val binder = BlackBoxCore.get().getService(ServiceManager.ACTIVITY_MANAGER)
+            val ams = top.niunaijun.blackbox.core.system.am.IBActivityManagerService.Stub.asInterface(binder)
+            return ams?.startWechatShareCapture(packageName, userId, callback, timeoutMs) ?: false
+        }
+
+        override fun cancelWechatShareCapture(packageName: String?, userId: Int) {
+            val binder = BlackBoxCore.get().getService(ServiceManager.ACTIVITY_MANAGER)
+            val ams = top.niunaijun.blackbox.core.system.am.IBActivityManagerService.Stub.asInterface(binder)
+            ams?.cancelWechatShareCapture(packageName, userId)
         }
 
         private fun isLegacyLaunchAuthorized(packageName: String, userId: Int): Boolean {
