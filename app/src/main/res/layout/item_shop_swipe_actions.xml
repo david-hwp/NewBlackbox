@@ -46,6 +46,7 @@
         </LinearLayout>
 
         <View
+            android:id="@+id/dividerBeforeAutoRenew"
             android:layout_width="1px"
             android:layout_height="18dp"
             android:background="@color/border" />
@@ -102,13 +103,14 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="4dp"
-                android:text="自动续时"
+                android:text="店铺自动续时"
                 android:textColor="@color/muted"
                 android:textSize="11sp" />
 
         </LinearLayout>
 
         <View
+            android:id="@+id/dividerAfterAutoRenew"
             android:layout_width="1px"
             android:layout_height="18dp"
             android:background="@color/border" />

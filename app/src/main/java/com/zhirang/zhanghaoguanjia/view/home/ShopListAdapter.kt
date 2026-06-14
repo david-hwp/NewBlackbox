@@ -192,7 +192,9 @@ class ShopListAdapter(
         private val autoRenewTriangle: View = itemView.findViewById(R.id.autoRenewTriangle)
 
         private val btnEdit: View? = itemView.findViewById(R.id.btnEdit)
+        private val dividerBeforeAutoRenew: View? = itemView.findViewById(R.id.dividerBeforeAutoRenew)
         private val btnAutoRenew: View? = itemView.findViewById(R.id.btnAutoRenew)
+        private val dividerAfterAutoRenew: View? = itemView.findViewById(R.id.dividerAfterAutoRenew)
         private val btnDelete: View? = itemView.findViewById(R.id.btnDelete)
         private val swipeRepairAction: View? = itemView.findViewById(R.id.swipeRepairAction)
         private val btnRepair: View? = itemView.findViewById(R.id.btnRepair)
@@ -235,6 +237,9 @@ class ShopListAdapter(
             // 自动续时三角标
             autoRenewTriangle.visibility =
                 if (showAutoRenewControls && shop.autoRenew) View.VISIBLE else View.GONE
+            dividerBeforeAutoRenew?.visibility = if (showAutoRenewControls) View.VISIBLE else View.GONE
+            btnAutoRenew?.visibility = if (showAutoRenewControls) View.VISIBLE else View.GONE
+            dividerAfterAutoRenew?.visibility = if (showAutoRenewControls) View.VISIBLE else View.GONE
 
             val packageName = shop.packageName?.takeIf { it.isNotBlank() }
             val platformItem = PlatformRegistry.preferredPlatformForPackage(packageName)
