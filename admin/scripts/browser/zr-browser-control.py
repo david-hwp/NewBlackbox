@@ -33,6 +33,24 @@ def append_trace(trace_file: str, payload: dict) -> None:
         handle.write(json.dumps(payload, ensure_ascii=False, separators=(",", ":")) + "\n")
 
 
+def parse_json_payload(output: str) -> dict | None:
+    output = (output or "").strip()
+    if not output:
+        return None
+    try:
+        return json.loads(output)
+    except json.JSONDecodeError:
+        pass
+    start = output.find("{")
+    end = output.rfind("}")
+    if start < 0 or end <= start:
+        return None
+    try:
+        return json.loads(output[start:end + 1])
+    except json.JSONDecodeError:
+        return None
+
+
 def clamp_int(value: str, fallback: int, minimum: int, maximum: int) -> int:
     try:
         parsed = int(value)
@@ -118,6 +136,7 @@ class BrowserControlHandler(BaseHTTPRequestHandler):
                 "ZR_WINDOW_WIDTH": str(width),
                 "ZR_WINDOW_HEIGHT": str(height),
                 "ZR_BROWSER_SCALE": str(scale),
+                "ZR_DEBUG_PORT": str(self.server.debug_port),
                 "ZR_SKIP_CONTROL": "1",
             }
         )
@@ -148,6 +167,10 @@ class BrowserControlHandler(BaseHTTPRequestHandler):
             return
 
         ok = completed.returncode == 0
+        alignment = self.align_login_form(env, phone, shop_id, profile_dir, width, height, scale) if ok else {
+            "ok": False,
+            "reason": "browser_start_failed",
+        }
         append_trace(
             self.server.trace_file,
             {
@@ -159,6 +182,7 @@ class BrowserControlHandler(BaseHTTPRequestHandler):
                 "width": width,
                 "height": height,
                 "scale": scale,
+                "alignment": alignment,
             },
         )
         self.respond_json(
@@ -169,10 +193,72 @@ class BrowserControlHandler(BaseHTTPRequestHandler):
                 "width": width,
                 "height": height,
                 "scale": scale,
+                "alignment": alignment,
                 "returnCode": completed.returncode,
                 "output": completed.stdout[-2000:],
             },
         )
+
+    def align_login_form(
+        self,
+        env: dict,
+        phone: str,
+        shop_id: str,
+        profile_dir: str,
+        width: int,
+        height: int,
+        scale: float,
+    ) -> dict:
+        aligner = getattr(self.server, "aligner_script", "")
+        if not aligner or not os.path.exists(aligner):
+            return {"ok": False, "reason": "aligner_missing"}
+        append_trace(
+            self.server.trace_file,
+            {
+                "event": "login_align_requested",
+                "phone": phone,
+                "shopId": shop_id,
+                "profileDir": profile_dir,
+                "width": width,
+                "height": height,
+                "scale": scale,
+            },
+        )
+        try:
+            completed = subprocess.run(
+                [aligner],
+                env=env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                timeout=18,
+                check=False,
+            )
+        except subprocess.TimeoutExpired:
+            append_trace(
+                self.server.trace_file,
+                {
+                    "event": "login_align_failed",
+                    "phone": phone,
+                    "shopId": shop_id,
+                    "profileDir": profile_dir,
+                    "reason": "timeout",
+                },
+            )
+            return {"ok": False, "reason": "timeout"}
+        payload = parse_json_payload(completed.stdout)
+        if payload is None:
+            payload = {
+                "ok": False,
+                "alignment": {
+                    "reason": "invalid_aligner_output",
+                    "returnCode": completed.returncode,
+                    "output": completed.stdout[-2000:],
+                },
+            }
+        alignment = payload.get("alignment", payload)
+        alignment.setdefault("returnCode", completed.returncode)
+        return alignment
 
     def ensure_display_size(self, width: int, height: int) -> bool:
         if self.server.current_width == width and self.server.current_height == height:
@@ -258,10 +344,12 @@ def main() -> None:
     server.start_script = os.path.join(args.base_dir, "start-zr.sh")
     server.display_script = os.path.join(args.base_dir, "start-zr-display.sh")
     server.browser_script = os.path.join(args.base_dir, "start-zr-browser.sh")
+    server.aligner_script = os.path.join(args.base_dir, "zr-login-align.js")
     server.display_id = args.display_id
     server.window_width = args.window_width
     server.window_height = args.window_height
     server.browser_scale = args.browser_scale
+    server.debug_port = 14502
     server.current_width = args.window_width
     server.current_height = args.window_height
     os.makedirs(server.profile_root, exist_ok=True)

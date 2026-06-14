@@ -11,6 +11,7 @@ SHOP_ID=${ZR_SHOP_ID:-unknown-shop}
 WINDOW_WIDTH=${ZR_WINDOW_WIDTH:-360}
 WINDOW_HEIGHT=${ZR_WINDOW_HEIGHT:-520}
 BROWSER_SCALE=${ZR_BROWSER_SCALE:-1.25}
+DEBUG_PORT=${ZR_DEBUG_PORT:-14502}
 mkdir -p "$LOG_DIR" "$PROFILE_ROOT"
 
 safe_segment() {
@@ -52,6 +53,8 @@ nohup "$CHROME" \
   --no-sandbox \
   --disable-dev-shm-usage \
   --disable-gpu \
+  --remote-debugging-address=127.0.0.1 \
+  --remote-debugging-port="$DEBUG_PORT" \
   --force-device-scale-factor="$BROWSER_SCALE" \
   --window-size="$WINDOW_WIDTH,$WINDOW_HEIGHT" \
   --window-position=0,0 \
