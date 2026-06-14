@@ -264,6 +264,42 @@ Ele.me conclusion: the default profile is E-min, a selected shared-pref allowlis
 
 After code implementation, the validation was repeated through the real app/backend flow with both devices on `1.2.13-phase13`.
 
+## 2026-06-14 Additional Platform Shop-Identity Fix
+
+OPPO real-device investigation covered two Wave 6 platforms whose login state had not uploaded because shop-identity extraction returned null before the upload gate.
+
+### Taobao Flash Retail - 花果山水果
+
+- Package: `com.baidu.lbs.xinlingshou`.
+- OPPO active virtual user observed: `5`.
+- Trigger log before fix: `triggerShopIdExtract completed for com.baidu.lbs.xinlingshou, userId=5, found=false`.
+- Real identity source: `shared_prefs/settings.xml`.
+- Evidence fields:
+  - `SP_SHOP_ID=1343115377`.
+  - `shop_info` XML string contains `shopId=1343115377` and `shopName=花果山水果`.
+  - `key_shop_user_info` also contains `merchantId=1343115377`, `merchantName=花果山水果`, and `loginMerchantName=花果山水果`.
+- Root cause: the file stores JSON as XML-escaped text (`&quot;...&quot;`). The generic extractor parsed small JSON snippets first, then ran fallback regex on the original escaped content; the fallback did not see normal quote-delimited `shopId/shopName` pairs.
+- Fix: normalize/unescape file content before JSON candidate and fallback regex extraction.
+
+### Meituan Merchant - 启程台球厅
+
+- Package: `com.sankuai.meituan.merchant`.
+- OPPO active virtual user observed: `27`.
+- Real identity source: `files/cips/common/shop_info/kv`.
+- Evidence fields:
+  - `dp_shop_id=1018925781348473`.
+  - `mt_shop_id=1018925781348473`.
+  - `shop_name=启程台球厅`.
+- Related cache source: `files/cips/common/jsbridge_storage/kv` contains `KDB_DZ_HOMEPAGE_CACHE_TopBar_270066998_1018925781348473` with `shopName=启程台球厅`.
+- Root cause: the CIPS files are key/value records with binary separators and snake_case keys, not JSON. The old extractor only knew JSON-like `shopId/shopName` names and colon/equals delimiters.
+- Fix: add same-file nearby key/value fallback to the generic extractor and include `mt_shop_id`, `dp_shop_id`, `shop_name`, `showName` in the Meituan Merchant extractor.
+
+Validation:
+
+- Unit coverage added for both real formats in `JsonSnippetShopIdExtractorTest`.
+- `JAVA_HOME=$(/usr/libexec/java_home -v 21) ./gradlew :Bcore:testDebugUnitTest --tests 'top.niunaijun.blackbox.core.system.pm.JsonSnippetShopIdExtractorTest' --tests 'top.niunaijun.blackbox.core.system.pm.EleNaposShopIdExtractorTest' --no-daemon` passed.
+- OPPO was upgraded with the rebuilt main APK and engine APK. User verification accepted the wave on 2026-06-14.
+
 ### Scoped Migration
 
 On Xiaomi, the first launch after installing the new app and engine started `EngineCloneDataMigrationActivity`. The engine log reported a successful migration and the target cards existed under account-scoped paths:

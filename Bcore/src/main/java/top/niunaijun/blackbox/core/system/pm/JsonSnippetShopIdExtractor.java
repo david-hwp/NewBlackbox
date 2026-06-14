@@ -20,6 +20,7 @@ abstract class JsonSnippetShopIdExtractor implements ShopIdExtractor {
 
     private static final int MAX_FILE_BYTES = 512 * 1024;
     private static final Pattern JSON_OBJECT_PATTERN = Pattern.compile("\\{[^{}]{0,24000}\\}");
+    private static final int NEARBY_WINDOW_CHARS = 256;
 
     private final String targetPackage;
     private final String platform;
@@ -61,21 +62,31 @@ abstract class JsonSnippetShopIdExtractor implements ShopIdExtractor {
         return null;
     }
 
-    private ShopInfo extractFromFile(File file, String source) {
+    ShopInfo extractFromFile(File file, String source) {
         String content = readSmallTextFile(file);
         if (content == null || content.isEmpty()) {
             return null;
         }
-        for (String candidate : jsonCandidates(content)) {
+        String normalizedContent = unescape(content);
+        for (String candidate : jsonCandidates(normalizedContent)) {
             ShopInfo info = extractFromJson(candidate, source);
             if (info != null) {
                 return info;
             }
         }
-        String id = normalizeId(regexValue(content, idKeys));
-        String name = normalizeName(regexValue(content, nameKeys));
+        String id = normalizeId(regexValue(normalizedContent, idKeys));
+        String name = normalizeName(regexValue(normalizedContent, nameKeys));
+        if (id == null || name == null) {
+            Pair nearbyPair = nearbyValuePair(normalizedContent);
+            if (id == null) {
+                id = normalizeId(nearbyPair.id);
+            }
+            if (name == null) {
+                name = normalizeName(nearbyPair.name);
+            }
+        }
         if (id != null && name != null) {
-            Slog.d(tag, "Extracted verified shop identity from " + source);
+            logExtracted(source);
             return new ShopInfo(id, name, platform);
         }
         return null;
@@ -89,10 +100,18 @@ abstract class JsonSnippetShopIdExtractor implements ShopIdExtractor {
             if (id == null || name == null) {
                 return null;
             }
-            Slog.d(tag, "Extracted verified shop identity from " + source);
+            logExtracted(source);
             return new ShopInfo(id, name, platform);
         } catch (Exception ignored) {
             return null;
+        }
+    }
+
+    private void logExtracted(String source) {
+        try {
+            Slog.d(tag, "Extracted verified shop identity from " + source);
+        } catch (RuntimeException ignored) {
+            // Local JVM tests use Android stubs where Log.println throws.
         }
     }
 
@@ -166,6 +185,86 @@ abstract class JsonSnippetShopIdExtractor implements ShopIdExtractor {
         return null;
     }
 
+    private Pair nearbyValuePair(String content) {
+        Pair pair = new Pair();
+        for (String key : idKeys) {
+            Matcher matcher = Pattern.compile("(?is)" + Pattern.quote(key)).matcher(content);
+            while (matcher.find()) {
+                int start = Math.max(0, matcher.start() - NEARBY_WINDOW_CHARS);
+                int end = Math.min(content.length(), matcher.end() + NEARBY_WINDOW_CHARS);
+                String window = content.substring(start, end);
+                String id = normalizeId(regexValue(window, idKeys));
+                if (id == null) {
+                    id = normalizeId(valueAfterKey(window, key, true));
+                }
+                if (id == null) {
+                    continue;
+                }
+                String name = normalizeName(regexValue(window, nameKeys));
+                if (name == null) {
+                    name = normalizeName(firstValueAfterAnyKey(window, nameKeys, false));
+                }
+                if (name != null) {
+                    pair.id = id;
+                    pair.name = name;
+                    return pair;
+                }
+            }
+        }
+        return pair;
+    }
+
+    private String firstValueAfterAnyKey(String content, String[] keys, boolean numericOnly) {
+        for (String key : keys) {
+            String value = valueAfterKey(content, key, numericOnly);
+            if (value != null) {
+                return value;
+            }
+        }
+        return null;
+    }
+
+    private String valueAfterKey(String content, String key, boolean numericOnly) {
+        if (content == null || key == null) {
+            return null;
+        }
+        Matcher keyMatcher = Pattern.compile("(?is)" + Pattern.quote(key)).matcher(content);
+        while (keyMatcher.find()) {
+            int end = Math.min(content.length(), keyMatcher.end() + 180);
+            String tail = content.substring(keyMatcher.end(), end);
+            Matcher valueMatcher = Pattern.compile(numericOnly
+                    ? "\\d{5,20}"
+                    : "[\\p{L}\\p{N}（）()_\\-·]{2,80}").matcher(tail);
+            while (valueMatcher.find()) {
+                String candidate = normalizeText(valueMatcher.group());
+                if (candidate == null || containsConfiguredKey(candidate)) {
+                    continue;
+                }
+                if (!numericOnly && candidate.endsWith("s")
+                        && valueMatcher.end() < tail.length()
+                        && Character.isISOControl(tail.charAt(valueMatcher.end()))) {
+                    candidate = normalizeText(candidate.substring(0, candidate.length() - 1));
+                }
+                return candidate;
+            }
+        }
+        return null;
+    }
+
+    private boolean containsConfiguredKey(String value) {
+        for (String key : idKeys) {
+            if (value.contains(key)) {
+                return true;
+            }
+        }
+        for (String key : nameKeys) {
+            if (value.contains(key)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private String readSmallTextFile(File file) {
         if (file == null || !file.isFile() || file.length() <= 0 || file.length() > MAX_FILE_BYTES) {
             return null;
@@ -229,5 +328,10 @@ abstract class JsonSnippetShopIdExtractor implements ShopIdExtractor {
                 .replace("\\\"", "\"")
                 .replace("\\u003d", "=")
                 .replace("\\u0026", "&");
+    }
+
+    private static class Pair {
+        String id;
+        String name;
     }
 }

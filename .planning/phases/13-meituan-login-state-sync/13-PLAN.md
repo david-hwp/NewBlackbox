@@ -251,6 +251,14 @@ Wave 6 closeout on 2026-06-13:
 | 携程商家版 | `com.Hotel.EBooking` | `ctrip-ebooking-prefs-mmkv-e-min` | Completed. |
 | 抖音来客 | `com.bytedance.ls.merchant` | none accepted | Legacy item. Do not mark supported. |
 
+Wave 6 shop-identity closeout on 2026-06-14:
+
+- OPPO 验收已通过：淘宝闪购零售版“花果山水果”和美团经营宝“启程台球厅”均能由引擎提取真实店铺 ID/名称，主 APP 后续可继续触发登录态上传。
+- 淘宝闪购零售版失败原因：`shared_prefs/settings.xml` 中的 `shop_info` 是 XML 转义后的内嵌 JSON，旧版通用提取器在 JSON 片段失败后用未反转义原文跑后备正则，导致 `&quot;shopId&quot;` / `&quot;shopName&quot;` 匹配不到。
+- 美团经营宝失败原因：真实店铺信息在 `files/cips/common/shop_info/kv`，格式是 CIPS key/value 二进制分隔，字段为 `dp_shop_id` / `mt_shop_id` / `shop_name`，旧版规则只覆盖 JSON 风格的 `shopId` / `shopName`。
+- 修复范围：`JsonSnippetShopIdExtractor` 对白名单文件先反转义再解析，并增加同文件邻近 key/value 回退解析；`MeituanMerchantShopIdExtractor` 补充 `mt_shop_id`、`dp_shop_id`、`shop_name`、`showName` 等实际字段。
+- 回归要求：登录态上传仍必须由已验证店铺身份触发，不能用平台账号 ID、空店名或用户输入的店铺名替代。
+
 ### Legacy Item: Douyin Laike Clone Login-State Restore
 
 Target clone investigated:

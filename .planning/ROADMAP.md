@@ -229,6 +229,7 @@
 - 后续引擎导出上传必须按 Phase 13 标准文档的 package-specific profile 生成逻辑包，并在恢复时映射到目标卡片当前 `localVirtualUserId`，不能硬编码 OPPO source user 或 ADB 测试 user 路径。
 - Wave 5 增加可信店铺身份约束：店铺 ID/名称只能由引擎从目标平台数据文件或接口提取后上报；未验证身份的店铺卡片 logo 保持灰色，验证成功并由后台返回 `identityVerified=true` 后才显示彩色。
 - Wave 6 已关闭：淘宝闪购零售版 `com.baidu.lbs.xinlingshou`、美团经营宝 `com.sankuai.meituan.merchant`、携程商家版 `com.Hotel.EBooking` 已按各自最小 profile 标记为完成；抖音来客 `com.bytedance.ls.merchant` 的 `CLN1-15200837196-com.bytedance.ls.merchant-N1-U25-R672c8b60` 分身即使释放完整 OPPO card 包仍跳手机登录页，作为遗留事项记录，不纳入已支持平台。
+- 2026-06-14 追加完成 Wave 6 店铺身份提取修复：淘宝闪购零售版“花果山水果”从 XML 转义 `shop_info` 提取；美团经营宝“启程台球厅”从 CIPS `shop_info/kv` 的 `dp_shop_id`/`mt_shop_id`/`shop_name` 提取。OPPO 验收通过，登录态上传门槛仍保持“真实店铺 ID + 真实店铺名称”。
 
 **计划文档**: [.planning/phases/13-meituan-login-state-sync/13-PLAN.md](.planning/phases/13-meituan-login-state-sync/13-PLAN.md)
 **标准文档**: [.planning/phases/13-meituan-login-state-sync/13-STANDARD.md](.planning/phases/13-meituan-login-state-sync/13-STANDARD.md)
