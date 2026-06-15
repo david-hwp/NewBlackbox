@@ -1,5 +1,11 @@
 # Phase 19: Xpra 店铺授权窗口 MVP
 
+**Status:** Wave 2 Completed
+
+**Last completed wave:** Wave 2 - 登录表单自动定位与视口对齐
+
+**Completed on:** 2026-06-15
+
 ## 目标
 
 在不改动现有“私域吸粉”高级功能入口的前提下，为店铺卡片增加独立的“授权登录该店铺”入口。用户点击后，主 APK 打开名为“店铺授权”的弹窗，弹窗内实时显示服务端虚拟桌面的授权登录窗口，先用平台配置的授权地址验证服务器画面流式传输和基础交互可行性。
@@ -70,6 +76,10 @@ Ubuntu 主源已切到阿里云 `mirrors.aliyun.com/ubuntu`，Docker apt 源已�
 - 2026-06-15：后台支持平台表新增 `authorization_url`，后台页面显示和编辑“授权地址”；后端启动初始化器会为既有数据库补列。
 
 ## Wave 2: 登录表单自动定位与视口对齐
+
+**Status:** Completed
+
+**Completed on:** 2026-06-15
 
 ### 背景
 

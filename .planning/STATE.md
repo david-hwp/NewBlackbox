@@ -2,8 +2,8 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: phase11-channel-promotion-system
-status: Phase 19 in progress
-last_updated: "2026-06-15T02:15:00+08:00"
+status: Phase 19 Wave 2 completed
+last_updated: "2026-06-15T16:25:00+08:00"
 progress:
   total_phases: 11
   completed_phases: 10
@@ -13,6 +13,14 @@ progress:
 ---
 
 ## Recent Changes
+
+### 2026-06-15: Phase 19 Wave 2 completed
+
+- Completed the Xpra remote login form auto-alignment wave.
+- Server-side Chromium now detects the visible login form region for JD, Ele.me, and Meituan authorization pages, keeps the platform authorization URL hidden from the APP, and returns `alignment` diagnostics through `/open`.
+- Fixed the JD false-positive alignment case where only the top logo was visible: the aligner now preserves document width, recomputes selected controls after wrapper layout, and requires account/password/login controls to be inside the final `visibleBox`.
+- Verified `/open` for JD, Ele.me, and Meituan against `100.99.88.6:14501`; all returned `alignment.ok=true` and `selectedControlsVisible=true`.
+- Canonical completion record: `.planning/phases/19-xpra-shop-authorization/19-PLAN.md`.
 
 ### 2026-06-15: Phase 19 Xpra shop authorization MVP started
 
