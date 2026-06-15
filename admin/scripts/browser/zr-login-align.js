@@ -472,8 +472,11 @@ function alignmentScript(args) {
     document.documentElement.style.overflow = "hidden";
     document.body.style.overflow = "hidden";
     document.body.style.margin = "0";
-    document.body.style.width = `${viewport.width}px`;
-    document.body.style.height = `${viewport.height}px`;
+    document.documentElement.style.width = `${documentWidth}px`;
+    document.documentElement.style.minWidth = `${documentWidth}px`;
+    document.body.style.width = `${documentWidth}px`;
+    document.body.style.minWidth = `${documentWidth}px`;
+    document.body.style.minHeight = `${documentHeight}px`;
     wrapper.style.position = "absolute";
     wrapper.style.left = "0";
     wrapper.style.top = "0";
@@ -505,6 +508,12 @@ function alignmentScript(args) {
         rect.right <= viewport.width + 2 &&
         rect.bottom <= viewport.height + 2,
     };
+  }
+
+  function refreshItem(item) {
+    const rect = visibleRect(item.el);
+    if (!rect) return null;
+    return { ...item, rect };
   }
 
   const selector = [
@@ -560,40 +569,60 @@ function alignmentScript(args) {
     };
   }
 
-  const rawBox = unionRect(selected);
-  const panel = findLoginPanel(selected, rawBox);
-  const contentBox = relevantContentBox(panel, selected, rawBox);
+  const wrapper = ensureWrapper();
+  window.scrollTo(0, 0);
+  wrapper.style.transform = "";
+
+  const layoutSelected = selected.map(refreshItem).filter(Boolean);
+  if (layoutSelected.length < selected.length) {
+    return {
+      ok: false,
+      reason: "selected_elements_hidden_after_layout",
+      selected: selected.map((item) => serializeItem(item)),
+      viewport,
+      page: {
+        url: location.href,
+        title: document.title,
+        scrollWidth: document.documentElement.scrollWidth,
+        scrollHeight: document.documentElement.scrollHeight,
+      },
+    };
+  }
+
+  const rawBox = unionRect(layoutSelected);
+  const panel = findLoginPanel(layoutSelected, rawBox);
+  const contentBox = relevantContentBox(panel, layoutSelected, rawBox);
   const target = expandDocumentBox(contentBox, 16, 18);
+  const controlTarget = expandDocumentBox(boxFromViewportBox(rawBox), 32, 24);
+  const alignedTarget = unionBoxes([target, controlTarget]);
   const fitMaxWidth = Math.max(1, viewport.width * args.maxPanelWidthRatio);
   const fitMaxHeight = Math.max(1, viewport.height * args.maxPanelHeightRatio);
   const scale = Math.min(
     1,
-    fitMaxWidth / Math.max(1, target.width),
-    fitMaxHeight / Math.max(1, target.height),
+    fitMaxWidth / Math.max(1, alignedTarget.width),
+    fitMaxHeight / Math.max(1, alignedTarget.height),
   );
-  const fittedWidth = target.width * scale;
-  const fittedHeight = target.height * scale;
+  const fittedWidth = alignedTarget.width * scale;
+  const fittedHeight = alignedTarget.height * scale;
   const fitMarginX = Math.max(12, Math.round((viewport.width - fittedWidth) / 2));
   const fitMarginY = Math.max(18, Math.round((viewport.height - fittedHeight) * 0.28));
-  const wrapper = ensureWrapper();
-  window.scrollTo(0, 0);
-  wrapper.style.transform = `translate(${fitMarginX}px, ${fitMarginY}px) scale(${scale}) translate(${-target.left}px, ${-target.top}px)`;
+  wrapper.style.transform = `translate(${fitMarginX}px, ${fitMarginY}px) scale(${scale}) translate(${-alignedTarget.left}px, ${-alignedTarget.top}px)`;
   const strategy = scale < 0.999 ? "panel-fit-transform" : "panel-transform";
-  const offsetX = target.left;
-  const offsetY = target.top;
+  const offsetX = alignedTarget.left;
+  const offsetY = alignedTarget.top;
   const finalVisibleBox = {
     x: fitMarginX,
     y: fitMarginY,
-    w: target.width * scale,
-    h: target.height * scale,
+    w: alignedTarget.width * scale,
+    h: alignedTarget.height * scale,
     left: fitMarginX,
     top: fitMarginY,
-    right: fitMarginX + target.width * scale,
-    bottom: fitMarginY + target.height * scale,
+    right: fitMarginX + alignedTarget.width * scale,
+    bottom: fitMarginY + alignedTarget.height * scale,
   };
 
   window.__zrLoginAligned = true;
-  const finalSelected = selected.map((item) => serializeItem(item, item.el.getBoundingClientRect()));
+  const finalSelected = layoutSelected.map((item) => serializeItem(item, item.el.getBoundingClientRect()));
   const visibleBoxVisible =
     finalVisibleBox.left >= -2 &&
     finalVisibleBox.top >= -2 &&
@@ -606,10 +635,11 @@ function alignmentScript(args) {
       item.rect.x + item.rect.w <= finalVisibleBox.x + finalVisibleBox.w + 2 &&
       item.rect.y + item.rect.h <= finalVisibleBox.y + finalVisibleBox.h + 2)
   ));
-  const allSelectedVisible = visibleBoxVisible;
+  const allSelectedVisible = visibleBoxVisible && selectedControlsVisible;
 
   return {
-    ok: true,
+    ok: allSelectedVisible,
+    reason: allSelectedVisible ? "" : "selected_controls_not_visible",
     strategy,
     offsetX: Math.round(offsetX),
     offsetY: Math.round(offsetY),
@@ -622,18 +652,18 @@ function alignmentScript(args) {
     },
     visibleBox: {
       leftTop: {
-        x: Math.round(target.left),
-        y: Math.round(target.top),
+        x: Math.round(alignedTarget.left),
+        y: Math.round(alignedTarget.top),
       },
       rightBottom: {
-        x: Math.round(target.right),
-        y: Math.round(target.bottom),
+        x: Math.round(alignedTarget.right),
+        y: Math.round(alignedTarget.bottom),
       },
       document: {
-        x: Math.round(target.left),
-        y: Math.round(target.top),
-        w: Math.round(target.width),
-        h: Math.round(target.height),
+        x: Math.round(alignedTarget.left),
+        y: Math.round(alignedTarget.top),
+        w: Math.round(alignedTarget.width),
+        h: Math.round(alignedTarget.height),
       },
       viewport: {
         x: Math.round(finalVisibleBox.x),

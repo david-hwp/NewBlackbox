@@ -154,10 +154,11 @@ Wave 1 已证明 Xpra 远端浏览器可以在 APP 弹窗内显示并交互，�
 - 2026-06-15：`start-zr-browser.sh` 增加本地 `127.0.0.1:14502` remote debugging；`zr-browser-control.py` 在 `/open` 启动 Chrome 后执行对齐脚本，并在响应和 `~/data/logs/browser-trace.jsonl` 中写入 `alignment`。
 - 2026-06-15：`admin/scripts/browser/` 已同步到 `root@aliyun:~/data`，`~/data/start-zr.sh` 重启后确认 `14500`、`14501`、`59019` 监听正常，`/health` 返回 `{"ok": true}`。
 - 2026-06-15：服务端直接调用 `/open` 验证三平台均通过：
-  - 京东秒送 `https://store.jddj.com/base/login`：`alignment.ok=true`，`strategy=panel-fit-transform`，`visibleBox.leftTop=(0,82)`、`visibleBox.rightBottom=(346,540)`，最终 viewport 区域约 `259x343`。
-  - 饿了么 `https://melody.shop.ele.me/login`：`alignment.ok=true`，`strategy=panel-fit-transform`，`visibleBox.leftTop=(464,0)`、`visibleBox.rightBottom=(990,438)`，最终 viewport 区域约 `259x216`。
-  - 美团 `https://waimaie.meituan.com/new_fe/login_gw#/login`：`alignment.ok=true`，`strategy=panel-fit-transform`，`visibleBox.leftTop=(184,142)`、`visibleBox.rightBottom=(616,649)`，最终 viewport 区域约 `259x304`。
+  - 京东秒送 `https://store.jddj.com/base/login`：`alignment.ok=true`，`strategy=panel-fit-transform`，`visibleBox.leftTop=(403,40)`、`visibleBox.rightBottom=(797,516)`，最终 viewport 区域约 `259x313`，`selectedControlsVisible=true`。
+  - 饿了么 `https://melody.shop.ele.me/login`：`alignment.ok=true`，`strategy=panel-fit-transform`，`visibleBox.leftTop=(464,0)`、`visibleBox.rightBottom=(990,438)`，最终 viewport 区域约 `259x216`，`selectedControlsVisible=true`。
+  - 美团 `https://waimaie.meituan.com/new_fe/login_gw#/login`：`alignment.ok=true`，`strategy=panel-fit-transform`，`visibleBox.leftTop=(184,142)`、`visibleBox.rightBottom=(616,649)`，最终 viewport 区域约 `259x304`，`selectedControlsVisible=true`。
 - 2026-06-15：根据真机反馈，旧版只围绕账号/密码/登录按钮的最小包围盒会裁掉“账号登录/验证码登录”tab，且登录框局部放大比例不自然。已改为整体登录框有效区域识别，并将默认显示比例收敛到 WebView 宽度 `72%`、高度 `66%`，保留 tab、输入框、按钮和协议区。
+- 2026-06-15：根据京东真机反馈，修复只显示顶部 logo、无输入框和登录按钮时仍被误判成功的问题。对齐脚本现在保留页面原始文档宽度，注入 wrapper 后重新读取候选控件位置，并要求账号/密码/登录按钮全部落在最终 `visibleBox` 内，否则 `alignment.ok=false`。
 - 2026-06-15：为店铺卡片“授权登录该店铺”增加 `contentDescription` 和 `importantForAccessibility`，不改变视觉 UI，只用于 ADB/UIAutomator 精确定位授权入口，避免自动化误点店铺打开或删除区域。
 - 2026-06-15：小米真机 `3ca26684` 安装 `1.2.18-beta`，网络配置为 `API=http://100.99.88.2:8006/api/`、`ZR stream=http://100.99.88.6:14500/`、`ZR control=http://100.99.88.6:14501/`。自动化验证美团、饿了么、京东三平台均触发 `/open`，服务器 trace 返回 `alignment.ok=true` 且 `allSelectedVisible=true`。
 - 2026-06-15：OPPO 真机 `55J7JJWKTWKNHYZL` 已安装 `1.2.18-beta`。该设备未安装 Tailscale、无 `100.99.88.0/24` 路由，不能直接访问 `100.99.88.2` 或 `100.99.88.6`；验证时在 `172.20.0.13` 启动临时 TCP 转发到 `100.99.88.6:14500/14501`，并安装仅用于 OPPO 验证的 `172.20.0.13` 地址包。
