@@ -2830,8 +2830,15 @@ class HomeActivity : AppCompatActivity() {
             shop.remark,
             showAutoRenew = showAutoRenew
         )
-        sheet.setOnSaveListener { _, _, autoRenew, remark ->
-            viewModel.updateShop(shop, autoRenew = autoRenew, remark = remark)
+        sheet.setOnSaveListener { shopName, shopId, autoRenew, remark ->
+            viewModel.updateShop(
+                shop.copy(
+                    shopName = shopName,
+                    shopId = shopId
+                ),
+                autoRenew = autoRenew,
+                remark = remark
+            )
         }
         sheet.show(supportFragmentManager, "EditShop")
     }

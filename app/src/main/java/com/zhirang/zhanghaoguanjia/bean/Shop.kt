@@ -25,12 +25,15 @@ data class Shop(
     val icon: Any? = null,  // 占位，后续接入真实图标
     val isNew: Boolean = false
 ) {
-    val hasVerifiedIdentity: Boolean
-        get() = (localIdentityVerified ?: identityVerified)
-                && shopId.isNotBlank()
+    val hasDisplayableShopId: Boolean
+        get() = shopId.isNotBlank()
                 && shopId != "-"
                 && !shopId.startsWith("NEW-")
                 && !shopId.startsWith("phase13-")
+
+    val hasVerifiedIdentity: Boolean
+        get() = (localIdentityVerified ?: identityVerified)
+                && hasDisplayableShopId
                 && shopName.isNotBlank()
                 && !shopName.startsWith("新增店铺-[")
                 && !shopName.startsWith("NEW-")

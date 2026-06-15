@@ -215,9 +215,8 @@ class ShopListAdapter(
             applyReorderVisualState(shop)
 
             shopName.text = shop.shopName
-            val verifiedIdentity = shop.hasVerifiedIdentity
             val localIdentityVerified = shop.localIdentityVerified == true
-            shopId.text = "店铺ID: ${if (verifiedIdentity) shop.shopId else "-"}"
+            shopId.text = "店铺ID: ${if (shop.hasDisplayableShopId) shop.shopId else "-"}"
             val isWechatCard = shop.packageName == WECHAT_PACKAGE
             btnWechat.visibility = if (isWechatCard) View.GONE else View.VISIBLE
             shopFeatureBar.visibility = if (isWechatCard) View.GONE else View.VISIBLE

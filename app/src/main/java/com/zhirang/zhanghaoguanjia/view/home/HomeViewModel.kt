@@ -578,9 +578,22 @@ class HomeViewModel : ViewModel() {
             )
             val result = shopRepository.updateShop(shop.id, request)
             result.fold(
-                onSuccess = {
+                onSuccess = { updatedShopDto ->
+                    val currentUserId = getCurrentUserId()
+                    val updatedShop = LocalShopIdentityStore.apply(currentUserId, updatedShopDto.toShop())
+                    val hasExistingShop = allShops.any { it.id == updatedShop.id }
+                    allShops = sortShops(
+                        if (hasExistingShop) {
+                            allShops.map { current ->
+                                if (current.id == updatedShop.id) updatedShop else current
+                            }
+                        } else {
+                            allShops + updatedShop
+                        }
+                    )
+                    _shopsLiveData.value = allShops
+                    updatePlatformShopCounts()
                     _operationMessageLiveData.value = "保存成功"
-                    loadShops()
                 },
                 onFailure = { e ->
                     _loadErrorLiveData.value = e.message
