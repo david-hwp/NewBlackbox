@@ -97,6 +97,10 @@ CREATE TABLE IF NOT EXISTS shops (
     login_state_blob LONGBLOB COMMENT '登录态压缩包',
     login_state_updated_at DATETIME COMMENT '登录态更新时间',
     login_state_artifact_created_at DATETIME COMMENT '登录态文件创建/导出时间',
+    shop_authorization_status VARCHAR(32) NOT NULL DEFAULT 'UNAUTHORIZED' COMMENT '店铺授权状态: UNAUTHORIZED/AUTHORIZING/AUTHORIZED/FAILED/UNKNOWN',
+    shop_authorization_checked_at DATETIME COMMENT '店铺授权状态检测时间',
+    shop_authorization_signals TEXT COMMENT '店铺授权状态检测信号摘要',
+    shop_authorization_url VARCHAR(1024) COMMENT '店铺级远程授权管理地址',
     wechat_receiver_id VARCHAR(128) COMMENT '微信接收方ID',
     wechat_receiver_name VARCHAR(128) COMMENT '微信接收方名称',
     wechat_receiver_type VARCHAR(32) COMMENT '微信接收方类型: CONTACT/GROUP',
@@ -109,6 +113,7 @@ CREATE TABLE IF NOT EXISTS shops (
     INDEX idx_shop_card_sort (user_id, package_name, platform, card_sort_order),
     INDEX idx_platform (platform),
     INDEX idx_deleted (deleted),
+    INDEX idx_shop_authorization_status (shop_authorization_status),
     INDEX idx_clone_instance_id (clone_instance_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='店铺表';
 

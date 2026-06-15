@@ -230,6 +230,7 @@ class ShopListAdapter(
                 shopRemark.text = ""
                 shopRemark.visibility = View.GONE
             }
+            bindShopAuthorizationStatus(shop)
 
             // 剩余天数显示（带颜色逻辑）
             daysContainer.visibility = if (showRemainingDays) View.VISIBLE else View.GONE
@@ -311,7 +312,7 @@ class ShopListAdapter(
                 }
             }
             tvShopAuthorizationLogin.setOnClickListener {
-                if (reorderMode) return@setOnClickListener
+                if (reorderMode || shop.isShopAuthorized) return@setOnClickListener
                 val pos = bindingAdapterPosition
                 if (pos != RecyclerView.NO_POSITION) {
                     onShopAuthorizationClick(pos, shops[pos])
@@ -351,6 +352,37 @@ class ShopListAdapter(
                 val pos = bindingAdapterPosition
                 if (pos != RecyclerView.NO_POSITION) {
                     onAdvancedFeatureClick(pos, shops[pos], featureType)
+                }
+            }
+        }
+
+        private fun bindShopAuthorizationStatus(shop: Shop) {
+            val context = itemView.context
+            val status = shop.shopAuthorizationStatus.uppercase()
+            when (status) {
+                "AUTHORIZED" -> {
+                    tvShopAuthorizationLogin.text = context.getString(R.string.shop_authorization_authorized)
+                    tvShopAuthorizationLogin.setTextColor(ContextCompat.getColor(context, R.color.muted))
+                    tvShopAuthorizationLogin.isEnabled = false
+                    tvShopAuthorizationLogin.isClickable = false
+                    tvShopAuthorizationLogin.isFocusable = false
+                    tvShopAuthorizationLogin.alpha = 0.72f
+                }
+                "FAILED" -> {
+                    tvShopAuthorizationLogin.text = context.getString(R.string.shop_authorization_retry)
+                    tvShopAuthorizationLogin.setTextColor(ContextCompat.getColor(context, R.color.danger))
+                    tvShopAuthorizationLogin.isEnabled = true
+                    tvShopAuthorizationLogin.isClickable = true
+                    tvShopAuthorizationLogin.isFocusable = true
+                    tvShopAuthorizationLogin.alpha = 1f
+                }
+                else -> {
+                    tvShopAuthorizationLogin.text = context.getString(R.string.shop_authorization_login)
+                    tvShopAuthorizationLogin.setTextColor(ContextCompat.getColor(context, R.color.duodian_primary))
+                    tvShopAuthorizationLogin.isEnabled = true
+                    tvShopAuthorizationLogin.isClickable = true
+                    tvShopAuthorizationLogin.isFocusable = true
+                    tvShopAuthorizationLogin.alpha = 1f
                 }
             }
         }

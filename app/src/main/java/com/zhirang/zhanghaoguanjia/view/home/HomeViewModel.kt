@@ -741,6 +741,24 @@ class HomeViewModel : ViewModel() {
         return result.isSuccess
     }
 
+    fun refreshShopAuthorization(shopId: Long) {
+        if (!isLoggedIn() || shopId <= 0) {
+            Log.d(TAG, "skip shop authorization probe shop=$shopId loggedIn=${isLoggedIn()}")
+            return
+        }
+        Log.d(TAG, "probe shop authorization requested shop=$shopId")
+        viewModelScope.launch {
+            val result = shopRepository.probeShopAuthorization(shopId)
+            result.onSuccess {
+                Log.d(TAG, "probe shop authorization finished shop=$shopId status=${it.status}")
+            }
+            result.onFailure { e ->
+                Log.w(TAG, "probe shop authorization failed shop=$shopId: ${e.message}")
+            }
+            loadShops()
+        }
+    }
+
     fun deleteShop(shop: Shop, showMessage: Boolean = true) {
         if (!isLoggedIn()) {
             _loadErrorLiveData.value = "请先登录后再删除店铺"

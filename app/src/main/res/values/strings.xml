@@ -120,6 +120,8 @@
     <string name="shop_feature_review_appeal">评价申诉</string>
     <string name="shop_feature_private_traffic">私域吸粉</string>
     <string name="shop_authorization_login">授权登录该店铺</string>
+    <string name="shop_authorization_authorized">已授权</string>
+    <string name="shop_authorization_retry">授权失败，重新授权</string>
     <string name="shop_authorization_title">店铺授权</string>
     <string name="shop_authorization_loading">正在连接授权窗口…</string>
     <string name="shop_authorization_load_failed">授权窗口加载失败，请确认内网服务器已启动</string>

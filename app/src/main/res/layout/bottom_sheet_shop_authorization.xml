@@ -32,16 +32,33 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:fadeScrollbars="false"
-            android:overScrollMode="never" />
+            android:overScrollMode="never"
+            android:visibility="invisible" />
 
-        <TextView
-            android:id="@+id/tvShopAuthorizationStatus"
+        <LinearLayout
+            android:id="@+id/layoutShopAuthorizationLoading"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:gravity="center"
-            android:padding="24dp"
-            android:text="@string/shop_authorization_loading"
-            android:textColor="@color/duodian_text_secondary"
-            android:textSize="14sp" />
+            android:orientation="vertical"
+            android:padding="24dp">
+
+            <ProgressBar
+                android:id="@+id/progressShopAuthorization"
+                style="?android:attr/progressBarStyleSmall"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:indeterminate="true" />
+
+            <TextView
+                android:id="@+id/tvShopAuthorizationStatus"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:gravity="center"
+                android:text="@string/shop_authorization_loading"
+                android:textColor="@color/duodian_text_secondary"
+                android:textSize="14sp" />
+        </LinearLayout>
     </FrameLayout>
 </LinearLayout>

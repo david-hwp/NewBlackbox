@@ -1,6 +1,7 @@
 package com.zhirang.zhanghaoguanjia.view.dialog
 
 import android.annotation.SuppressLint
+import android.content.DialogInterface
 import android.app.Dialog
 import android.graphics.Color
 import android.graphics.Bitmap
@@ -30,11 +31,14 @@ import kotlinx.coroutines.withContext
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
+import org.json.JSONObject
 import kotlin.math.roundToInt
 
 class ShopAuthorizationSheetFragment : DialogFragment() {
     private var _binding: BottomSheetShopAuthorizationBinding? = null
     private val binding get() = _binding!!
+    var onAuthorizationWindowClosed: (() -> Unit)? = null
+    private var authorizationCloseNotified = false
 
     companion object {
         private const val ARG_TITLE = "title"
@@ -47,7 +51,7 @@ class ShopAuthorizationSheetFragment : DialogFragment() {
         private const val TAG = "ShopAuthSheet"
         private const val DIALOG_WIDTH_RATIO = 0.92f
         private const val DIALOG_HEIGHT_RATIO = 0.67f
-        private const val REMOTE_BROWSER_SCALE = 1.25f
+        private const val MAX_REMOTE_RENDER_SCALE = 2.0f
 
         fun newInstance(
             title: String,
@@ -139,24 +143,19 @@ class ShopAuthorizationSheetFragment : DialogFragment() {
             setInitialScale(100)
             setOnTouchListener { webView, event ->
                 if (event.actionMasked == MotionEvent.ACTION_DOWN) {
-                    if (isKeyboardRegion(event.x, event.y, webView.width, webView.height)) {
-                        webView.requestFocus()
-                        inputMethodManager()?.showSoftInput(webView, InputMethodManager.SHOW_IMPLICIT)
-                    } else {
-                        inputMethodManager()?.hideSoftInputFromWindow(webView.windowToken, 0)
-                    }
+                    webView.requestFocus()
+                    inputMethodManager()?.hideSoftInputFromWindow(webView.windowToken, 0)
                 }
                 false
             }
             webViewClient = object : WebViewClient() {
                 override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
-                    binding.tvShopAuthorizationStatus.visibility = View.VISIBLE
-                    binding.tvShopAuthorizationStatus.text =
-                        getString(R.string.shop_authorization_loading)
+                    showLoading()
                 }
 
                 override fun onPageFinished(view: WebView?, url: String?) {
-                    binding.tvShopAuthorizationStatus.visibility = View.GONE
+                    binding.layoutShopAuthorizationLoading.visibility = View.GONE
+                    binding.webShopAuthorization.visibility = View.VISIBLE
                     installXpraStabilizer(view)
                 }
 
@@ -168,9 +167,7 @@ class ShopAuthorizationSheetFragment : DialogFragment() {
                     if (request?.isForMainFrame == false) {
                         return
                     }
-                    binding.tvShopAuthorizationStatus.visibility = View.VISIBLE
-                    binding.tvShopAuthorizationStatus.text =
-                        getString(R.string.shop_authorization_load_failed)
+                    showFailure()
                 }
 
                 override fun onScaleChanged(view: WebView?, oldScale: Float, newScale: Float) {
@@ -200,8 +197,7 @@ class ShopAuthorizationSheetFragment : DialogFragment() {
                     userPhone = userPhone,
                     shopId = shopId,
                     authorizationUrl = authorizationUrl,
-                    viewportWidth = viewport.first,
-                    viewportHeight = viewport.second
+                    viewport = viewport
                 )
             }
         }
@@ -213,27 +209,22 @@ class ShopAuthorizationSheetFragment : DialogFragment() {
         userPhone: String,
         shopId: String,
         authorizationUrl: String,
-        viewportWidth: Int,
-        viewportHeight: Int
+        viewport: RemoteViewport
     ) {
-        binding.tvShopAuthorizationStatus.visibility = View.VISIBLE
-        binding.tvShopAuthorizationStatus.text = getString(R.string.shop_authorization_loading)
+        showLoading()
         viewLifecycleOwner.lifecycleScope.launch {
-            val browserReady = requestRemoteBrowser(
+            val browserOpen = requestRemoteBrowser(
                 controlUrl,
                 userPhone,
                 shopId,
                 authorizationUrl,
-                viewportWidth,
-                viewportHeight
+                viewport
             )
             val currentBinding = _binding ?: return@launch
-            if (browserReady) {
+            if (browserOpen.ok && browserOpen.ready) {
                 currentBinding.webShopAuthorization.loadUrl(toFixedXpraClientUrl(streamUrl))
             } else {
-                currentBinding.tvShopAuthorizationStatus.visibility = View.VISIBLE
-                currentBinding.tvShopAuthorizationStatus.text =
-                    getString(R.string.shop_authorization_load_failed)
+                showFailure()
             }
         }
     }
@@ -243,11 +234,10 @@ class ShopAuthorizationSheetFragment : DialogFragment() {
         userPhone: String,
         shopId: String,
         authorizationUrl: String,
-        viewportWidth: Int,
-        viewportHeight: Int
-    ): Boolean = withContext(Dispatchers.IO) {
+        viewport: RemoteViewport
+    ): RemoteBrowserOpenResult = withContext(Dispatchers.IO) {
         if (controlUrl.isBlank()) {
-            return@withContext true
+            return@withContext RemoteBrowserOpenResult(ok = true, ready = true)
         }
         var connection: HttpURLConnection? = null
         try {
@@ -257,14 +247,13 @@ class ShopAuthorizationSheetFragment : DialogFragment() {
                     userPhone,
                     shopId,
                     authorizationUrl,
-                    viewportWidth,
-                    viewportHeight
+                    viewport
                 )
             ).openConnection()
                 as HttpURLConnection).apply {
                 requestMethod = "GET"
                 connectTimeout = 5_000
-                readTimeout = 25_000
+                readTimeout = 45_000
             }
             val code = connection.responseCode
             val body = if (code in 200..299) {
@@ -277,10 +266,14 @@ class ShopAuthorizationSheetFragment : DialogFragment() {
             if (code !in 200..299) {
                 Log.w(TAG, "remote browser open failed code=$code body=$body")
             }
-            code in 200..299
+            val payload = body.takeIf { it.isNotBlank() }?.let { JSONObject(it) }
+            RemoteBrowserOpenResult(
+                ok = code in 200..299 && (payload?.optBoolean("ok", true) ?: true),
+                ready = payload?.optBoolean("ready", code in 200..299) ?: (code in 200..299)
+            )
         } catch (e: Exception) {
             Log.w(TAG, "remote browser open request failed", e)
-            false
+            RemoteBrowserOpenResult(ok = false, ready = false)
         } finally {
             connection?.disconnect()
         }
@@ -291,8 +284,7 @@ class ShopAuthorizationSheetFragment : DialogFragment() {
         userPhone: String,
         shopId: String,
         authorizationUrl: String,
-        viewportWidth: Int,
-        viewportHeight: Int
+        viewport: RemoteViewport
     ): String {
         val base = controlUrl.trim().trimEnd('/')
         val phone = URLEncoder.encode(userPhone.ifBlank { "unknown-phone" }, "UTF-8")
@@ -302,14 +294,26 @@ class ShopAuthorizationSheetFragment : DialogFragment() {
             ?.let { URLEncoder.encode(it, "UTF-8") }
             ?.let { "&url=$it" }
             .orEmpty()
-        return "$base/open?phone=$phone&shopId=$safeShopId&width=$viewportWidth&height=$viewportHeight&scale=$REMOTE_BROWSER_SCALE$encodedUrl"
+        return "$base/open?phone=$phone&shopId=$safeShopId" +
+            "&width=${viewport.logicalWidth}&height=${viewport.logicalHeight}" +
+            "&renderWidth=${viewport.renderWidth}&renderHeight=${viewport.renderHeight}" +
+            "&renderScale=${viewport.renderScale}&scale=${viewport.renderScale}$encodedUrl"
     }
 
-    private fun remoteViewportSize(webView: WebView): Pair<Int, Int> {
+    private fun remoteViewportSize(webView: WebView): RemoteViewport {
         val density = resources.displayMetrics.density.takeIf { it > 0f } ?: 1f
-        val width = (webView.width / density).roundToInt().coerceIn(360, 640)
-        val height = (webView.height / density).roundToInt().coerceIn(520, 900)
-        return width to height
+        val logicalWidth = (webView.width / density).roundToInt().coerceIn(320, 640)
+        val logicalHeight = (webView.height / density).roundToInt().coerceIn(420, 900)
+        val renderScale = density.coerceIn(1f, MAX_REMOTE_RENDER_SCALE)
+        val renderWidth = (logicalWidth * renderScale).roundToInt().coerceIn(360, 1600)
+        val renderHeight = (logicalHeight * renderScale).roundToInt().coerceIn(520, 1800)
+        return RemoteViewport(
+            logicalWidth = logicalWidth,
+            logicalHeight = logicalHeight,
+            renderWidth = renderWidth,
+            renderHeight = renderHeight,
+            renderScale = renderScale
+        )
     }
 
     private fun toFixedXpraClientUrl(streamUrl: String): String {
@@ -330,6 +334,22 @@ class ShopAuthorizationSheetFragment : DialogFragment() {
 
     private fun inputMethodManager(): InputMethodManager? {
         return context?.getSystemService(InputMethodManager::class.java)
+    }
+
+    private fun showLoading() {
+        val currentBinding = _binding ?: return
+        currentBinding.webShopAuthorization.visibility = View.INVISIBLE
+        currentBinding.progressShopAuthorization.visibility = View.VISIBLE
+        currentBinding.layoutShopAuthorizationLoading.visibility = View.VISIBLE
+        currentBinding.tvShopAuthorizationStatus.text = getString(R.string.shop_authorization_loading)
+    }
+
+    private fun showFailure() {
+        val currentBinding = _binding ?: return
+        currentBinding.webShopAuthorization.visibility = View.INVISIBLE
+        currentBinding.progressShopAuthorization.visibility = View.GONE
+        currentBinding.layoutShopAuthorizationLoading.visibility = View.VISIBLE
+        currentBinding.tvShopAuthorizationStatus.text = getString(R.string.shop_authorization_load_failed)
     }
 
     private fun installXpraStabilizer(view: WebView?) {
@@ -650,6 +670,7 @@ class ShopAuthorizationSheetFragment : DialogFragment() {
     }
 
     override fun onDestroyView() {
+        notifyAuthorizationWindowClosed()
         binding.webShopAuthorization.apply {
             stopLoading()
             loadUrl("about:blank")
@@ -658,4 +679,31 @@ class ShopAuthorizationSheetFragment : DialogFragment() {
         super.onDestroyView()
         _binding = null
     }
+
+    override fun onDismiss(dialog: DialogInterface) {
+        super.onDismiss(dialog)
+        notifyAuthorizationWindowClosed()
+    }
+
+    private fun notifyAuthorizationWindowClosed() {
+        if (authorizationCloseNotified) {
+            return
+        }
+        authorizationCloseNotified = true
+        Log.d(TAG, "authorization window closed")
+        onAuthorizationWindowClosed?.invoke()
+    }
+
+    private data class RemoteViewport(
+        val logicalWidth: Int,
+        val logicalHeight: Int,
+        val renderWidth: Int,
+        val renderHeight: Int,
+        val renderScale: Float
+    )
+
+    private data class RemoteBrowserOpenResult(
+        val ok: Boolean,
+        val ready: Boolean
+    )
 }

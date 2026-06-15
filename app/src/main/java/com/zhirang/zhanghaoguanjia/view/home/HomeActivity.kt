@@ -2863,12 +2863,15 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun showShopAuthorizationSheet(shop: Shop) {
+        if (shop.isShopAuthorized) {
+            return
+        }
         val userPhone = TokenManager.getInstance().getUser()?.phone.orEmpty()
         val authorizationShopId = shop.shopId
             .takeIf { it.isNotBlank() && it != "-" }
             ?: "system-${shop.id}"
         val authorizationUrl = PlatformRegistry.authorizationUrl(shop.platform)
-        ShopAuthorizationSheetFragment
+        val fragment = ShopAuthorizationSheetFragment
             .newInstance(
                 title = getString(R.string.shop_authorization_title),
                 streamUrl = BuildConfig.ZR_STREAM_URL,
@@ -2878,7 +2881,10 @@ class HomeActivity : AppCompatActivity() {
                 shopId = authorizationShopId,
                 authorizationUrl = authorizationUrl
             )
-            .show(supportFragmentManager, "ShopAuthorization")
+        fragment.onAuthorizationWindowClosed = {
+            viewModel.refreshShopAuthorization(shop.id)
+        }
+        fragment.show(supportFragmentManager, "ShopAuthorization")
     }
 
     private fun handleAutoRenewClick(shop: Shop) {

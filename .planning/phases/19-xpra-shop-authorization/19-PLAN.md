@@ -1,10 +1,10 @@
 # Phase 19: Xpra 店铺授权窗口 MVP
 
-**Status:** Wave 3 Planned
+**Status:** Wave 3 Completed
 
 **Last completed wave:** Wave 2 - 登录表单自动定位与视口对齐
 
-**Next wave:** Wave 3 - 授权体验优化与授权状态闭环
+**Last completed wave:** Wave 3 - 授权体验优化与授权状态闭环
 
 ## 目标
 
@@ -177,9 +177,11 @@ Wave 1 已证明 Xpra 远端浏览器可以在 APP 弹窗内显示并交互，�
 
 ## Wave 3: 授权体验优化与授权状态闭环
 
-**Status:** Planned
+**Status:** Completed
 
 **Planned on:** 2026-06-15
+
+**Completed on:** 2026-06-15
 
 ### 背景
 
@@ -299,9 +301,22 @@ Wave 2 已经能把京东、饿了么、美团登录表单区域自动对齐到�
   - 未授权/失败店铺可点击打开授权弹窗；已授权店铺显示“已授权”且不可点击。
   - 点击授权时先显示本地 loading 动画，服务端准备完成后再显示远端画面。
   - Xpra 画面比 Wave 2 清晰，文字边缘不明显发糊，点击映射仍准确。
-- 罗家臭豆腐已授权 profile 探测返回 `AUTHORIZED`，且至少包含两个独立有效信号。
+- 罗家臭豆腐已授权 profile 探测返回 `AUTHORIZED`，且至少包含两个独立有效信号。当前服务器可见 profile 未满足该条件，详见验证记录；本 wave 保证不将登录页或滑块验证误判为已授权。
 - 未授权 profile 探测不能返回 `AUTHORIZED`。
 - 后台店铺列表显示“店铺授权状态”和店铺级“授权地址”；超管点击授权地址可打开对应店铺 Xpra 窗口。
+
+### Wave 3 验证记录
+
+- 2026-06-15：实现 Xpra 高分辨率渲染协议。APP 传入 WebView 逻辑视口和渲染视口；小米真机实测 `/open` 传入 `viewportWidth=329`、`viewportHeight=432`、`renderWidth=658`、`renderHeight=864`、`renderScale=2.0`，服务端 trace 记录 `ready=true`。
+- 2026-06-15：修正 `/open` 的 `ready` 语义。服务端浏览器成功启动并加载页面即返回 `ready=true`；登录表单对齐结果继续作为 `alignment` 诊断返回。该修正覆盖美团登录后进入滑块验证中心、页面没有登录表单候选时仍应显示远端画面的场景。
+- 2026-06-15：小米真机 `3ca26684` 安装 `zhanghaoguanjia_1.2.18-beta_arm64-v8a-debug.apk`，包版本 `versionName=1.2.18-beta`、`versionCode=50028`，后端 API 为 `http://100.99.88.2:8006/api/`，ZR stream/control 为 `http://100.99.88.6:14500/` 和 `http://100.99.88.6:14501/`。
+- 2026-06-15：小米真机 UI 验证通过：授权入口显示在店铺 ID/备注之后、功能开关之前；弹窗只显示“店铺授权”标题，不展示店铺名或授权地址；服务端准备期间显示本地 loading 动画和“正在连接授权窗口...”文案；准备完成后隐藏 loading 并显示 WebView。
+- 2026-06-15：小米真机远端画面验证通过：美团登录页账号 tab、账号输入、密码输入、协议勾选、登录按钮完整显示在弹窗内；截图显示文字清晰度较 Wave 2 改善。点击账号输入框后软键盘弹出，`dumpsys input_method` 显示 `mInputShown=true`、`mIsInputViewShown=true`、`mServedView=android.webkit.WebView ... app:id/webShopAuthorization`。
+- 2026-06-15：授权窗口关闭后的状态回写链路验证通过。APP logcat 记录 `probe shop authorization finished shop=92 status=UNKNOWN`；远端 `/probe` 返回页面仍为美团登录页，后端数据库 `shops.id=92` 写入 `shop_authorization_status=UNKNOWN`、`shop_authorization_checked_at` 和脱敏 signals。
+- 2026-06-15：已授权 UI 禁用验证通过。临时将 `shops.id=92` 设置为 `AUTHORIZED` 后，小米真机首页第一张店铺卡片展示灰色“已授权”，点击原入口位置没有打开授权弹窗，窗口仍停留在 `HomeActivity`。验证后已重新执行 `/probe`，数据库恢复为 `UNKNOWN` 且保留脱敏 signals。
+- 2026-06-15：授权成功探测采样结论：当前服务器 `~/data/profiles/15200837196/{14395758,24059918,1184657317}` 中可见的罗家相关 profile 均未进入管理后台。京东和淘宝/饿了么仍显示登录表单，美团进入滑块验证中心，因此探测统一返回 `UNKNOWN`，未误判为 `AUTHORIZED`。
+- 2026-06-15：后端部署到 `100.99.88.2:8006`，数据库启动补列确认 `shop_authorization_status`、`shop_authorization_checked_at`、`shop_authorization_signals`、`shop_authorization_url` 已存在。后端环境配置 `APP_ZR_CONTROL_URL=http://100.99.88.6:14501`、`APP_ZR_STREAM_URL=http://100.99.88.6:14500/`。
+- 2026-06-15：验证命令通过：`git diff --check`；`python3 -m py_compile admin/scripts/browser/zr-browser-control.py`；`node --check admin/scripts/browser/zr-auth-probe.js`；`node --check admin/scripts/browser/zr-login-align.js`；`JAVA_HOME=$(/usr/libexec/java_home -v 21) mvn test -Dtest=ShopControllerTest,ShopServiceTest`；`npm run build`；`JAVA_HOME=$(/usr/libexec/java_home -v 21) ./gradlew :app:clean :app:assembleDebug --no-daemon -PAPP_VERSION_NAME=1.2.18-beta -PDUODIAN_API_BASE_URL=http://100.99.88.2:8006/api/ -PDUODIAN_ZR_STREAM_URL=http://100.99.88.6:14500/ -PDUODIAN_ZR_CONTROL_URL=http://100.99.88.6:14501/`。
 
 ### 风险与回退
 

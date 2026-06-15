@@ -4,8 +4,8 @@ const path = require("path");
 const Module = require("module");
 
 const DEBUG_PORT = Number(process.env.ZR_DEBUG_PORT || process.argv[2] || 14502);
-const VIEWPORT_WIDTH = Number(process.env.ZR_WINDOW_WIDTH || 360);
-const VIEWPORT_HEIGHT = Number(process.env.ZR_WINDOW_HEIGHT || 520);
+const VIEWPORT_WIDTH = Number(process.env.ZR_VIEWPORT_WIDTH || process.env.ZR_WINDOW_WIDTH || 360);
+const VIEWPORT_HEIGHT = Number(process.env.ZR_VIEWPORT_HEIGHT || process.env.ZR_WINDOW_HEIGHT || 520);
 const TRACE_FILE = process.env.ZR_TRACE_FILE || "";
 const URL_HINT = process.env.ZR_AUTH_URL || "";
 const TIMEOUT_MS = Number(process.env.ZR_ALIGN_TIMEOUT_MS || 10000);

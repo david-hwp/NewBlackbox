@@ -2,8 +2,8 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: phase11-channel-promotion-system
-status: Phase 19 Wave 3 planned
-last_updated: "2026-06-15T16:45:00+08:00"
+status: Phase 19 Wave 3 completed
+last_updated: "2026-06-15T19:05:00+08:00"
 progress:
   total_phases: 11
   completed_phases: 10
@@ -13,6 +13,15 @@ progress:
 ---
 
 ## Recent Changes
+
+### 2026-06-15: Phase 19 Wave 3 completed
+
+- Completed the Xpra authorization experience and state-closure wave.
+- Added high-resolution remote rendering, local loading before stream display, shop-card authorization status, backend/admin authorization fields, shop-level super-admin authorization URL, and profile-based authorization probing with redacted cookie/storage/page signals.
+- Verified on Xiaomi real device `3ca26684`: `1.2.18-beta` installed, authorization entry placement correct, loading state correct, remote Meituan login page displayed clearly, keyboard only appeared after tapping the remote input field, and closing the authorization window triggered backend probe/writeback.
+- Verified the authorized-state UX by temporarily marking shop `92` as `AUTHORIZED`: APP displayed grey “已授权” and tapping did not open the authorization dialog. The shop was restored via `/probe` to `UNKNOWN` with redacted signals after the test.
+- Important finding: current server-side Luo Jia Chou Dou Fu related profiles visible under `~/data/profiles/15200837196/` are not actually authorized; JD/Taobao remain on login forms and Meituan is at slider verification, so the probe correctly returns `UNKNOWN` instead of misclassifying them as `AUTHORIZED`.
+- Canonical completion record: `.planning/phases/19-xpra-shop-authorization/19-PLAN.md`.
 
 ### 2026-06-15: Phase 19 Wave 3 planned
 

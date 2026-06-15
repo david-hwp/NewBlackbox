@@ -106,6 +106,18 @@ public class Shop {
     @Column(name = "login_state_artifact_created_at")
     private LocalDateTime loginStateArtifactCreatedAt;
 
+    @Column(name = "shop_authorization_status", length = 32, nullable = false, columnDefinition = "VARCHAR(32) DEFAULT 'UNAUTHORIZED'")
+    private String shopAuthorizationStatus = "UNAUTHORIZED";
+
+    @Column(name = "shop_authorization_checked_at")
+    private LocalDateTime shopAuthorizationCheckedAt;
+
+    @Column(name = "shop_authorization_signals", columnDefinition = "TEXT")
+    private String shopAuthorizationSignals;
+
+    @Column(name = "shop_authorization_url", length = 1024)
+    private String shopAuthorizationUrl;
+
     @Column(name = "wechat_receiver_id", length = 128)
     private String wechatReceiverId;
 
@@ -253,6 +265,20 @@ public class Shop {
     public LocalDateTime getLoginStateArtifactCreatedAt() { return loginStateArtifactCreatedAt; }
     public void setLoginStateArtifactCreatedAt(LocalDateTime loginStateArtifactCreatedAt) { this.loginStateArtifactCreatedAt = loginStateArtifactCreatedAt; }
 
+    public String getShopAuthorizationStatus() { return normalizeAuthorizationStatus(shopAuthorizationStatus); }
+    public void setShopAuthorizationStatus(String shopAuthorizationStatus) {
+        this.shopAuthorizationStatus = normalizeAuthorizationStatus(shopAuthorizationStatus);
+    }
+
+    public LocalDateTime getShopAuthorizationCheckedAt() { return shopAuthorizationCheckedAt; }
+    public void setShopAuthorizationCheckedAt(LocalDateTime shopAuthorizationCheckedAt) { this.shopAuthorizationCheckedAt = shopAuthorizationCheckedAt; }
+
+    public String getShopAuthorizationSignals() { return shopAuthorizationSignals; }
+    public void setShopAuthorizationSignals(String shopAuthorizationSignals) { this.shopAuthorizationSignals = normalizeNullable(shopAuthorizationSignals); }
+
+    public String getShopAuthorizationUrl() { return shopAuthorizationUrl; }
+    public void setShopAuthorizationUrl(String shopAuthorizationUrl) { this.shopAuthorizationUrl = normalizeNullable(shopAuthorizationUrl); }
+
     public String getWechatReceiverId() { return wechatReceiverId; }
     public void setWechatReceiverId(String wechatReceiverId) {
         this.wechatReceiverId = normalizeNullable(wechatReceiverId);
@@ -284,5 +310,16 @@ public class Shop {
 
     private String normalizeNullable(String value) {
         return (value == null || value.isBlank()) ? null : value.trim();
+    }
+
+    private String normalizeAuthorizationStatus(String value) {
+        if (value == null || value.isBlank()) {
+            return "UNAUTHORIZED";
+        }
+        String normalized = value.trim().toUpperCase();
+        return switch (normalized) {
+            case "AUTHORIZING", "AUTHORIZED", "FAILED", "UNKNOWN" -> normalized;
+            default -> "UNAUTHORIZED";
+        };
     }
 }

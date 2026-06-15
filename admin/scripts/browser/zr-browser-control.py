@@ -12,12 +12,15 @@ DEFAULT_AUTH_URL = "https://store.jddj.com/base/login"
 DEFAULT_WINDOW_WIDTH = 360
 DEFAULT_WINDOW_HEIGHT = 520
 DEFAULT_BROWSER_SCALE = 1.25
+DEFAULT_RENDER_SCALE = 1.0
 MIN_WINDOW_WIDTH = 240
 MIN_WINDOW_HEIGHT = 320
 MAX_WINDOW_WIDTH = 1600
 MAX_WINDOW_HEIGHT = 2400
 MIN_BROWSER_SCALE = 0.8
 MAX_BROWSER_SCALE = 2.0
+MIN_RENDER_SCALE = 1.0
+MAX_RENDER_SCALE = 3.0
 
 
 def safe_segment(value: str, fallback: str) -> str:
@@ -75,6 +78,9 @@ class BrowserControlHandler(BaseHTTPRequestHandler):
         if parsed.path == "/health":
             self.respond_json(200, {"ok": True})
             return
+        if parsed.path == "/probe":
+            self.handle_probe(parse_qs(parsed.query))
+            return
         if parsed.path != "/open":
             self.respond_json(404, {"ok": False, "error": "not_found"})
             return
@@ -83,15 +89,33 @@ class BrowserControlHandler(BaseHTTPRequestHandler):
         phone = safe_segment(query.get("phone", [""])[0], "unknown-phone")
         shop_id = safe_segment(query.get("shopId", [""])[0], "unknown-shop")
         url = query.get("url", [DEFAULT_AUTH_URL])[0].strip() or DEFAULT_AUTH_URL
-        width = clamp_int(
+        viewport_width = clamp_int(
             query.get("width", [str(DEFAULT_WINDOW_WIDTH)])[0],
             DEFAULT_WINDOW_WIDTH,
             MIN_WINDOW_WIDTH,
             MAX_WINDOW_WIDTH,
         )
-        height = clamp_int(
+        viewport_height = clamp_int(
             query.get("height", [str(DEFAULT_WINDOW_HEIGHT)])[0],
             DEFAULT_WINDOW_HEIGHT,
+            MIN_WINDOW_HEIGHT,
+            MAX_WINDOW_HEIGHT,
+        )
+        render_scale = clamp_float(
+            query.get("renderScale", [str(DEFAULT_RENDER_SCALE)])[0],
+            DEFAULT_RENDER_SCALE,
+            MIN_RENDER_SCALE,
+            MAX_RENDER_SCALE,
+        )
+        render_width = clamp_int(
+            query.get("renderWidth", [str(round(viewport_width * render_scale))])[0],
+            round(viewport_width * render_scale),
+            MIN_WINDOW_WIDTH,
+            MAX_WINDOW_WIDTH,
+        )
+        render_height = clamp_int(
+            query.get("renderHeight", [str(round(viewport_height * render_scale))])[0],
+            round(viewport_height * render_scale),
             MIN_WINDOW_HEIGHT,
             MAX_WINDOW_HEIGHT,
         )
@@ -104,7 +128,7 @@ class BrowserControlHandler(BaseHTTPRequestHandler):
 
         profile_dir = os.path.join(self.server.profile_root, phone, shop_id, "chrome")
         os.makedirs(profile_dir, exist_ok=True)
-        if not self.ensure_display_size(width, height):
+        if not self.ensure_display_size(render_width, render_height):
             self.respond_json(500, {"ok": False, "error": "display_resize_failed"})
             return
 
@@ -116,8 +140,13 @@ class BrowserControlHandler(BaseHTTPRequestHandler):
                 "shopId": shop_id,
                 "profileDir": profile_dir,
                 "url": url,
-                "width": width,
-                "height": height,
+                "width": render_width,
+                "height": render_height,
+                "viewportWidth": viewport_width,
+                "viewportHeight": viewport_height,
+                "renderWidth": render_width,
+                "renderHeight": render_height,
+                "renderScale": render_scale,
                 "scale": scale,
                 "client": self.client_address[0],
             },
@@ -133,8 +162,13 @@ class BrowserControlHandler(BaseHTTPRequestHandler):
                 "ZR_BASE_DIR": self.server.base_dir,
                 "ZR_PROFILE_ROOT": self.server.profile_root,
                 "ZR_TRACE_FILE": self.server.trace_file,
-                "ZR_WINDOW_WIDTH": str(width),
-                "ZR_WINDOW_HEIGHT": str(height),
+                "ZR_WINDOW_WIDTH": str(render_width),
+                "ZR_WINDOW_HEIGHT": str(render_height),
+                "ZR_VIEWPORT_WIDTH": str(viewport_width),
+                "ZR_VIEWPORT_HEIGHT": str(viewport_height),
+                "ZR_RENDER_WIDTH": str(render_width),
+                "ZR_RENDER_HEIGHT": str(render_height),
+                "ZR_RENDER_SCALE": str(render_scale),
                 "ZR_BROWSER_SCALE": str(scale),
                 "ZR_DEBUG_PORT": str(self.server.debug_port),
                 "ZR_SKIP_CONTROL": "1",
@@ -158,8 +192,13 @@ class BrowserControlHandler(BaseHTTPRequestHandler):
                     "phone": phone,
                     "shopId": shop_id,
                     "profileDir": profile_dir,
-                    "width": width,
-                    "height": height,
+                    "width": render_width,
+                    "height": render_height,
+                    "viewportWidth": viewport_width,
+                    "viewportHeight": viewport_height,
+                    "renderWidth": render_width,
+                    "renderHeight": render_height,
+                    "renderScale": render_scale,
                     "scale": scale,
                 },
             )
@@ -167,10 +206,21 @@ class BrowserControlHandler(BaseHTTPRequestHandler):
             return
 
         ok = completed.returncode == 0
-        alignment = self.align_login_form(env, phone, shop_id, profile_dir, width, height, scale) if ok else {
+        alignment = self.align_login_form(
+            env,
+            phone,
+            shop_id,
+            profile_dir,
+            viewport_width,
+            viewport_height,
+            render_width,
+            render_height,
+            scale,
+        ) if ok else {
             "ok": False,
             "reason": "browser_start_failed",
         }
+        ready = ok
         append_trace(
             self.server.trace_file,
             {
@@ -179,8 +229,14 @@ class BrowserControlHandler(BaseHTTPRequestHandler):
                 "shopId": shop_id,
                 "profileDir": profile_dir,
                 "returnCode": completed.returncode,
-                "width": width,
-                "height": height,
+                "ready": ready,
+                "width": render_width,
+                "height": render_height,
+                "viewportWidth": viewport_width,
+                "viewportHeight": viewport_height,
+                "renderWidth": render_width,
+                "renderHeight": render_height,
+                "renderScale": render_scale,
                 "scale": scale,
                 "alignment": alignment,
             },
@@ -189,9 +245,15 @@ class BrowserControlHandler(BaseHTTPRequestHandler):
             200 if ok else 500,
             {
                 "ok": ok,
+                "ready": ready,
                 "profileDir": profile_dir,
-                "width": width,
-                "height": height,
+                "width": render_width,
+                "height": render_height,
+                "viewportWidth": viewport_width,
+                "viewportHeight": viewport_height,
+                "renderWidth": render_width,
+                "renderHeight": render_height,
+                "renderScale": render_scale,
                 "scale": scale,
                 "alignment": alignment,
                 "returnCode": completed.returncode,
@@ -199,14 +261,77 @@ class BrowserControlHandler(BaseHTTPRequestHandler):
             },
         )
 
+    def handle_probe(self, query: dict) -> None:
+        phone = safe_segment(query.get("phone", [""])[0], "unknown-phone")
+        shop_id = safe_segment(query.get("shopId", [""])[0], "unknown-shop")
+        url = query.get("url", [DEFAULT_AUTH_URL])[0].strip() or DEFAULT_AUTH_URL
+        profile_dir = os.path.join(self.server.profile_root, phone, shop_id, "chrome")
+        env = os.environ.copy()
+        env.update(
+            {
+                "ZR_AUTH_URL": url,
+                "ZR_PROFILE_DIR": profile_dir,
+                "ZR_TRACE_FILE": self.server.trace_file,
+                "ZR_DEBUG_PORT": str(self.server.debug_port),
+            }
+        )
+        append_trace(
+            self.server.trace_file,
+            {
+                "event": "authorization_probe_requested",
+                "phone": phone,
+                "shopId": shop_id,
+                "profileDir": profile_dir,
+                "url": url,
+                "client": self.client_address[0],
+            },
+        )
+        if not os.path.exists(profile_dir):
+            self.respond_json(
+                200,
+                {
+                    "ok": True,
+                    "status": "UNAUTHORIZED",
+                    "confidence": "HIGH",
+                    "signals": {
+                        "profilePath": profile_dir,
+                        "reason": "profile_missing",
+                    },
+                },
+            )
+            return
+        try:
+            completed = subprocess.run(
+                [self.server.probe_script],
+                env=env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                timeout=25,
+                check=False,
+            )
+        except subprocess.TimeoutExpired:
+            self.respond_json(504, {"ok": False, "status": "FAILED", "error": "probe_timeout"})
+            return
+        payload = parse_json_payload(completed.stdout) or {
+            "ok": False,
+            "status": "FAILED",
+            "error": "invalid_probe_output",
+            "output": completed.stdout[-2000:],
+        }
+        payload.setdefault("returnCode", completed.returncode)
+        self.respond_json(200 if payload.get("ok") else 500, payload)
+
     def align_login_form(
         self,
         env: dict,
         phone: str,
         shop_id: str,
         profile_dir: str,
-        width: int,
-        height: int,
+        viewport_width: int,
+        viewport_height: int,
+        render_width: int,
+        render_height: int,
         scale: float,
     ) -> dict:
         aligner = getattr(self.server, "aligner_script", "")
@@ -219,8 +344,10 @@ class BrowserControlHandler(BaseHTTPRequestHandler):
                 "phone": phone,
                 "shopId": shop_id,
                 "profileDir": profile_dir,
-                "width": width,
-                "height": height,
+                "width": render_width,
+                "height": render_height,
+                "viewportWidth": viewport_width,
+                "viewportHeight": viewport_height,
                 "scale": scale,
             },
         )
@@ -258,6 +385,10 @@ class BrowserControlHandler(BaseHTTPRequestHandler):
             }
         alignment = payload.get("alignment", payload)
         alignment.setdefault("returnCode", completed.returncode)
+        alignment.setdefault("viewportWidth", viewport_width)
+        alignment.setdefault("viewportHeight", viewport_height)
+        alignment.setdefault("renderWidth", render_width)
+        alignment.setdefault("renderHeight", render_height)
         return alignment
 
     def ensure_display_size(self, width: int, height: int) -> bool:
@@ -345,6 +476,7 @@ def main() -> None:
     server.display_script = os.path.join(args.base_dir, "start-zr-display.sh")
     server.browser_script = os.path.join(args.base_dir, "start-zr-browser.sh")
     server.aligner_script = os.path.join(args.base_dir, "zr-login-align.js")
+    server.probe_script = os.path.join(args.base_dir, "zr-auth-probe.js")
     server.display_id = args.display_id
     server.window_width = args.window_width
     server.window_height = args.window_height

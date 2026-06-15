@@ -19,6 +19,7 @@ data class Shop(
     val wechatReceiverName: String? = null,
     val wechatReceiverType: String? = null,
     val remark: String? = null,
+    val shopAuthorizationStatus: String = "UNAUTHORIZED",
     val identityVerified: Boolean = false,
     val localIdentityVerified: Boolean? = null,
     val icon: Any? = null,  // 占位，后续接入真实图标
@@ -36,4 +37,7 @@ data class Shop(
                 && !shopName.startsWith("phase13-")
                 && !shopName.startsWith("User[")
                 && !shopName.startsWith("未知")
+
+    val isShopAuthorized: Boolean
+        get() = shopAuthorizationStatus.equals("AUTHORIZED", ignoreCase = true)
 }

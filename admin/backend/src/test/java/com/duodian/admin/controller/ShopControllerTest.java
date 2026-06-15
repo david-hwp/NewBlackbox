@@ -13,6 +13,7 @@ import com.duodian.admin.controller.dto.ShopResponse;
 import com.duodian.admin.entity.ComputeDeduction;
 import com.duodian.admin.entity.Shop;
 import com.duodian.admin.entity.User;
+import com.duodian.admin.repository.PlatformConfigRepository;
 import com.duodian.admin.service.CloneAuthorizationTokenService;
 import com.duodian.admin.service.ComputeService;
 import com.duodian.admin.service.PermissionService;
@@ -50,9 +51,17 @@ class ShopControllerTest {
     private final UserService userService = mock(UserService.class);
     private final ComputeService computeService = mock(ComputeService.class);
     private final PermissionService permissionService = mock(PermissionService.class);
+    private final PlatformConfigRepository platformConfigRepository = mock(PlatformConfigRepository.class);
     private final CloneAuthorizationTokenService tokenService =
             new CloneAuthorizationTokenService(testCloneAuthProperties());
-    private final ShopController controller = new ShopController(shopService, userService, computeService, tokenService, permissionService);
+    private final ShopController controller = new ShopController(
+            shopService,
+            userService,
+            computeService,
+            tokenService,
+            permissionService,
+            platformConfigRepository
+    );
 
     @AfterEach
     void tearDown() {

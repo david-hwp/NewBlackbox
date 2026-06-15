@@ -39,6 +39,10 @@ public class ShopResponse {
     private String loginStateSha256;
     private LocalDateTime loginStateUpdatedAt;
     private LocalDateTime loginStateArtifactCreatedAt;
+    private String shopAuthorizationStatus;
+    private LocalDateTime shopAuthorizationCheckedAt;
+    private String shopAuthorizationSignals;
+    private String shopAuthorizationUrl;
     private String wechatReceiverId;
     private String wechatReceiverName;
     private String wechatReceiverType;
@@ -47,6 +51,10 @@ public class ShopResponse {
     private LocalDateTime updatedAt;
 
     public static ShopResponse from(Shop shop, User user) {
+        return from(shop, user, false);
+    }
+
+    public static ShopResponse from(Shop shop, User user, boolean includeShopAuthorizationUrl) {
         ShopResponse response = new ShopResponse();
         response.setId(shop.getId());
         response.setUserId(shop.getUserId());
@@ -78,6 +86,10 @@ public class ShopResponse {
         response.setLoginStateSha256(shop.getLoginStateSha256());
         response.setLoginStateUpdatedAt(shop.getLoginStateUpdatedAt());
         response.setLoginStateArtifactCreatedAt(shop.getLoginStateArtifactCreatedAt());
+        response.setShopAuthorizationStatus(shop.getShopAuthorizationStatus());
+        response.setShopAuthorizationCheckedAt(shop.getShopAuthorizationCheckedAt());
+        response.setShopAuthorizationSignals(shop.getShopAuthorizationSignals());
+        response.setShopAuthorizationUrl(includeShopAuthorizationUrl ? shop.getShopAuthorizationUrl() : null);
         response.setWechatReceiverId(shop.getWechatReceiverId());
         response.setWechatReceiverName(shop.getWechatReceiverName());
         response.setWechatReceiverType(shop.getWechatReceiverType());
@@ -182,6 +194,18 @@ public class ShopResponse {
 
     public LocalDateTime getLoginStateArtifactCreatedAt() { return loginStateArtifactCreatedAt; }
     public void setLoginStateArtifactCreatedAt(LocalDateTime loginStateArtifactCreatedAt) { this.loginStateArtifactCreatedAt = loginStateArtifactCreatedAt; }
+
+    public String getShopAuthorizationStatus() { return shopAuthorizationStatus; }
+    public void setShopAuthorizationStatus(String shopAuthorizationStatus) { this.shopAuthorizationStatus = shopAuthorizationStatus; }
+
+    public LocalDateTime getShopAuthorizationCheckedAt() { return shopAuthorizationCheckedAt; }
+    public void setShopAuthorizationCheckedAt(LocalDateTime shopAuthorizationCheckedAt) { this.shopAuthorizationCheckedAt = shopAuthorizationCheckedAt; }
+
+    public String getShopAuthorizationSignals() { return shopAuthorizationSignals; }
+    public void setShopAuthorizationSignals(String shopAuthorizationSignals) { this.shopAuthorizationSignals = shopAuthorizationSignals; }
+
+    public String getShopAuthorizationUrl() { return shopAuthorizationUrl; }
+    public void setShopAuthorizationUrl(String shopAuthorizationUrl) { this.shopAuthorizationUrl = shopAuthorizationUrl; }
 
     public String getWechatReceiverId() { return wechatReceiverId; }
     public void setWechatReceiverId(String wechatReceiverId) { this.wechatReceiverId = wechatReceiverId; }

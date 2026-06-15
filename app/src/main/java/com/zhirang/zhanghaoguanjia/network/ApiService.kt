@@ -83,6 +83,12 @@ interface ApiService {
     @GET("shops/{id}/login-state")
     suspend fun downloadShopLoginState(@Path("id") id: Long): retrofit2.Response<ResponseBody>
 
+    @POST("shops/{id}/authorization/probe")
+    suspend fun probeShopAuthorization(@Path("id") id: Long): ApiResponse<ShopAuthorizationProbeDto>
+
+    @POST("shops/{id}/authorization/failed")
+    suspend fun markShopAuthorizationFailed(@Path("id") id: Long): ApiResponse<ShopAuthorizationProbeDto>
+
     @DELETE("shops/{id}")
     suspend fun deleteShop(@Path("id") id: Long): ApiResponse<Unit>
 

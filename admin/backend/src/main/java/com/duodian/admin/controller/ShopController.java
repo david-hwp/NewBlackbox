@@ -9,12 +9,15 @@ import com.duodian.admin.controller.dto.PendingShopDeductResponse;
 import com.duodian.admin.controller.dto.ShopRenewRequest;
 import com.duodian.admin.controller.dto.ShopRenewResponse;
 import com.duodian.admin.controller.dto.ShopAuthTokenRequest;
+import com.duodian.admin.controller.dto.ShopAuthorizationProbeResponse;
 import com.duodian.admin.controller.dto.ShopOrderRequest;
 import com.duodian.admin.controller.dto.ShopReportRequest;
 import com.duodian.admin.controller.dto.ShopResponse;
 import com.duodian.admin.entity.ComputeDeduction;
+import com.duodian.admin.entity.PlatformConfig;
 import com.duodian.admin.entity.Shop;
 import com.duodian.admin.entity.User;
+import com.duodian.admin.repository.PlatformConfigRepository;
 import com.duodian.admin.service.CloneAuthorizationTokenService;
 import com.duodian.admin.service.ComputeService;
 import com.duodian.admin.service.PermissionService;
@@ -22,6 +25,8 @@ import com.duodian.admin.service.ShopService;
 import com.duodian.admin.service.UserService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -33,14 +38,21 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.net.URI;
+import java.net.URLEncoder;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @RestController
@@ -57,19 +69,31 @@ public class ShopController {
     private final ComputeService computeService;
     private final CloneAuthorizationTokenService cloneAuthorizationTokenService;
     private final PermissionService permissionService;
+    private final PlatformConfigRepository platformConfigRepository;
+    private final HttpClient authorizationHttpClient = HttpClient.newBuilder()
+            .connectTimeout(Duration.ofSeconds(5))
+            .build();
+
+    @Value("${app.zr.control-url:http://100.99.88.6:14501}")
+    private String zrControlUrl = "http://100.99.88.6:14501";
+
+    @Value("${app.zr.stream-url:http://100.99.88.6:14500/}")
+    private String zrStreamUrl = "http://100.99.88.6:14500/";
 
     public ShopController(
             ShopService shopService,
             UserService userService,
             ComputeService computeService,
             CloneAuthorizationTokenService cloneAuthorizationTokenService,
-            PermissionService permissionService
+            PermissionService permissionService,
+            PlatformConfigRepository platformConfigRepository
     ) {
         this.shopService = shopService;
         this.userService = userService;
         this.computeService = computeService;
         this.cloneAuthorizationTokenService = cloneAuthorizationTokenService;
         this.permissionService = permissionService;
+        this.platformConfigRepository = platformConfigRepository;
     }
 
     @GetMapping
@@ -93,6 +117,7 @@ public class ShopController {
             int pageNumber = Math.max(1, page == null ? 1 : page);
             int pageSize = Math.max(1, Math.min(100, size == null ? 10 : size));
             Long effectiveUserId = userId;
+            boolean includeShopAuthorizationUrl = isCurrentUserSuperAdmin();
             Page<ShopResponse> shops = shopService.search(
                             effectiveUserId,
                             effectiveChannelId,
@@ -103,7 +128,11 @@ public class ShopController {
                             normalize(shopName),
                             PageRequest.of(pageNumber - 1, pageSize, Sort.by(Sort.Direction.DESC, "createdAt"))
                     )
-                    .map(shop -> ShopResponse.from(shop, userService.findById(shop.getUserId()).orElse(null)));
+                    .map(shop -> ShopResponse.from(
+                            shop,
+                            userService.findById(shop.getUserId()).orElse(null),
+                            includeShopAuthorizationUrl
+                    ));
             return ApiResponse.success(PagedResponse.from(shops));
         }
 
@@ -119,8 +148,13 @@ public class ShopController {
         } else {
             shops = shopService.findAll();
         }
+        boolean includeShopAuthorizationUrl = isCurrentUserSuperAdmin();
         return ApiResponse.success(shops.stream()
-                .map(shop -> ShopResponse.from(shop, userService.findById(shop.getUserId()).orElse(null)))
+                .map(shop -> ShopResponse.from(
+                        shop,
+                        userService.findById(shop.getUserId()).orElse(null),
+                        includeShopAuthorizationUrl
+                ))
                 .toList());
     }
 
@@ -140,7 +174,11 @@ public class ShopController {
     public ApiResponse<ShopResponse> get(@PathVariable Long id) {
         return shopService.findById(id)
                 .filter(this::canAccessShop)
-                .map(shop -> ApiResponse.success(ShopResponse.from(shop, userService.findById(shop.getUserId()).orElse(null))))
+                .map(shop -> ApiResponse.success(ShopResponse.from(
+                        shop,
+                        userService.findById(shop.getUserId()).orElse(null),
+                        isCurrentUserSuperAdmin()
+                )))
                 .orElse(ApiResponse.error("店铺不存在"));
     }
 
@@ -528,6 +566,94 @@ public class ShopController {
         }
     }
 
+    @GetMapping("/{id}/authorization/open-url")
+    public ApiResponse<Map<String, String>> openShopAuthorizationUrl(@PathVariable Long id) {
+        permissionService.requireSuperAdmin();
+        Shop shop = shopService.findById(id).orElse(null);
+        if (shop == null) {
+            return ApiResponse.error("店铺不存在");
+        }
+        User owner = userService.findById(shop.getUserId()).orElse(null);
+        if (owner == null) {
+            return ApiResponse.error("店铺所属用户不存在");
+        }
+        String authorizationUrl = resolvePlatformAuthorizationUrl(shop);
+        if (authorizationUrl == null) {
+            return ApiResponse.error("平台未配置授权地址");
+        }
+        try {
+            JsonNode payload = requestBrowserControl(
+                    "open",
+                    owner,
+                    shop,
+                    authorizationUrl,
+                    Map.of(
+                            "width", "720",
+                            "height", "900",
+                            "renderWidth", "720",
+                            "renderHeight", "900",
+                            "renderScale", "1",
+                            "scale", "1"
+                    )
+            );
+            if (!payload.path("ok").asBoolean(false)) {
+                return ApiResponse.error("远程授权窗口启动失败");
+            }
+            String streamUrl = fixedXpraClientUrl(zrStreamUrl);
+            Shop saved = shopService.updateShopAuthorizationUrl(id, streamUrl);
+            return ApiResponse.success(Map.of(
+                    "url", streamUrl,
+                    "shopAuthorizationUrl", firstNonBlank(saved.getShopAuthorizationUrl(), streamUrl),
+                    "status", saved.getShopAuthorizationStatus()
+            ));
+        } catch (Exception e) {
+            return ApiResponse.error("远程授权窗口启动失败");
+        }
+    }
+
+    @PostMapping("/{id}/authorization/probe")
+    public ApiResponse<ShopAuthorizationProbeResponse> probeShopAuthorization(@PathVariable Long id) {
+        Shop shop = shopService.findById(id)
+                .filter(this::canAccessShop)
+                .orElse(null);
+        if (shop == null) {
+            return ApiResponse.error("店铺不存在");
+        }
+        User owner = userService.findById(shop.getUserId()).orElse(null);
+        if (owner == null) {
+            return ApiResponse.error("店铺所属用户不存在");
+        }
+        String authorizationUrl = resolvePlatformAuthorizationUrl(shop);
+        if (authorizationUrl == null) {
+            return saveAuthorizationProbeResult(id, "FAILED", "HIGH", errorSignals("missing_authorization_url"));
+        }
+        try {
+            JsonNode payload = requestBrowserControl("probe", owner, shop, authorizationUrl, Map.of());
+            String status = normalizeAuthorizationStatus(payload.path("status").asText("UNKNOWN"));
+            if (!payload.path("ok").asBoolean(false) && !"UNAUTHORIZED".equals(status)) {
+                status = "FAILED";
+            }
+            String confidence = normalizeProbeConfidence(payload.path("confidence").asText("LOW"));
+            String signals = payload.has("signals")
+                    ? OBJECT_MAPPER.writeValueAsString(payload.get("signals"))
+                    : errorSignals("probe_without_signals");
+            return saveAuthorizationProbeResult(id, status, confidence, signals);
+        } catch (Exception e) {
+            return saveAuthorizationProbeResult(id, "FAILED", "LOW", errorSignals("probe_request_failed"));
+        }
+    }
+
+    @PostMapping("/{id}/authorization/failed")
+    public ApiResponse<ShopAuthorizationProbeResponse> markShopAuthorizationFailed(@PathVariable Long id) {
+        Shop shop = shopService.findById(id)
+                .filter(this::canAccessShop)
+                .orElse(null);
+        if (shop == null) {
+            return ApiResponse.error("店铺不存在");
+        }
+        return saveAuthorizationProbeResult(id, "FAILED", "HIGH", errorSignals("client_reported_failed"));
+    }
+
     @GetMapping("/{id}/login-state")
     public ResponseEntity<byte[]> downloadLoginState(@PathVariable Long id) {
         Shop shop = shopService.findById(id)
@@ -565,6 +691,14 @@ public class ShopController {
     private boolean isCurrentUserAdmin() {
         User currentUser = getCurrentUser();
         return isAdmin(currentUser);
+    }
+
+    private boolean isCurrentUserSuperAdmin() {
+        try {
+            return permissionService.currentPrincipal().isSuperAdmin();
+        } catch (RuntimeException e) {
+            return false;
+        }
     }
 
     private boolean isAdmin(User user) {
@@ -652,6 +786,155 @@ public class ShopController {
         } catch (Exception ignored) {
         }
         return LocalDateTime.now();
+    }
+
+    private ApiResponse<ShopAuthorizationProbeResponse> saveAuthorizationProbeResult(
+            Long shopId,
+            String status,
+            String confidence,
+            String signals
+    ) {
+        LocalDateTime checkedAt = LocalDateTime.now();
+        Shop saved = shopService.updateShopAuthorizationStatus(shopId, status, signals, checkedAt);
+        return ApiResponse.success(new ShopAuthorizationProbeResponse(
+                saved.getShopAuthorizationStatus(),
+                confidence,
+                saved.getShopAuthorizationCheckedAt(),
+                saved.getShopAuthorizationSignals()
+        ));
+    }
+
+    private JsonNode requestBrowserControl(
+            String action,
+            User owner,
+            Shop shop,
+            String authorizationUrl,
+            Map<String, String> extraParams
+    ) throws Exception {
+        String base = normalize(zrControlUrl);
+        if (base == null) {
+            throw new IllegalStateException("ZR control url is empty");
+        }
+        StringBuilder builder = new StringBuilder(base.replaceAll("/+$", ""))
+                .append("/")
+                .append(action)
+                .append("?phone=")
+                .append(urlEncode(firstNonBlank(owner.getPhone(), "unknown-phone")))
+                .append("&shopId=")
+                .append(urlEncode(authorizationProfileShopId(shop)))
+                .append("&url=")
+                .append(urlEncode(authorizationUrl));
+        for (Map.Entry<String, String> entry : extraParams.entrySet()) {
+            builder.append("&")
+                    .append(urlEncode(entry.getKey()))
+                    .append("=")
+                    .append(urlEncode(entry.getValue()));
+        }
+        HttpRequest request = HttpRequest.newBuilder(URI.create(builder.toString()))
+                .timeout(Duration.ofSeconds("open".equals(action) ? 35 : 30))
+                .GET()
+                .build();
+        HttpResponse<String> response = authorizationHttpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        JsonNode payload;
+        try {
+            payload = OBJECT_MAPPER.readTree(response.body());
+        } catch (Exception e) {
+            ObjectNode node = OBJECT_MAPPER.createObjectNode();
+            node.put("ok", false);
+            node.put("status", "FAILED");
+            node.put("error", "invalid_browser_control_response");
+            return node;
+        }
+        if (response.statusCode() < 200 || response.statusCode() >= 300) {
+            if (payload instanceof ObjectNode objectNode) {
+                objectNode.put("ok", false);
+            } else {
+                ObjectNode node = OBJECT_MAPPER.createObjectNode();
+                node.put("ok", false);
+                node.put("status", "FAILED");
+                node.put("error", "browser_control_http_" + response.statusCode());
+                return node;
+            }
+        }
+        return payload;
+    }
+
+    private String resolvePlatformAuthorizationUrl(Shop shop) {
+        String platform = normalize(shop.getPlatform());
+        if (platform != null) {
+            Optional<String> platformUrl = platformConfigRepository
+                    .findByPlatformIdAndDeleted(platform, (byte) 0)
+                    .map(PlatformConfig::getAuthorizationUrl)
+                    .map(this::normalize);
+            if (platformUrl.isPresent()) {
+                return platformUrl.get();
+            }
+        }
+        String packageName = normalize(shop.getPackageName());
+        if (packageName != null) {
+            return platformConfigRepository.findByDeletedOrderBySortOrderAscIdAsc((byte) 0).stream()
+                    .filter(config -> packageName.equals(normalize(config.getPackageName())))
+                    .map(PlatformConfig::getAuthorizationUrl)
+                    .map(this::normalize)
+                    .filter(value -> value != null)
+                    .findFirst()
+                    .orElse(null);
+        }
+        return null;
+    }
+
+    private String authorizationProfileShopId(Shop shop) {
+        String shopId = normalize(shop.getShopId());
+        if (shopId != null
+                && !"-".equals(shopId)
+                && !shopId.startsWith("NEW-")
+                && !shopId.startsWith("phase13-")) {
+            return shopId;
+        }
+        return "system-" + shop.getId();
+    }
+
+    private String normalizeAuthorizationStatus(String status) {
+        String normalized = normalize(status);
+        if (normalized == null) {
+            return "UNAUTHORIZED";
+        }
+        return switch (normalized.toUpperCase()) {
+            case "AUTHORIZING", "AUTHORIZED", "FAILED", "UNKNOWN", "UNAUTHORIZED" -> normalized.toUpperCase();
+            default -> "UNKNOWN";
+        };
+    }
+
+    private String normalizeProbeConfidence(String confidence) {
+        String normalized = normalize(confidence);
+        if (normalized == null) {
+            return "LOW";
+        }
+        return switch (normalized.toUpperCase()) {
+            case "HIGH", "MEDIUM", "LOW" -> normalized.toUpperCase();
+            default -> "LOW";
+        };
+    }
+
+    private String fixedXpraClientUrl(String streamUrl) {
+        String base = firstNonBlank(streamUrl, "http://100.99.88.6:14500/");
+        String separator = base.contains("?") ? "&" : "?";
+        return base + separator + "autohide=true&touchaction=scroll&sound=false&video=false"
+                + "&clipboard=false&printing=false&file_transfer=false";
+    }
+
+    private String errorSignals(String reason) {
+        ObjectNode node = OBJECT_MAPPER.createObjectNode();
+        node.put("reason", reason);
+        try {
+            return OBJECT_MAPPER.writeValueAsString(node);
+        } catch (Exception e) {
+            return "{\"reason\":\"" + reason + "\"}";
+        }
+    }
+
+    private String urlEncode(String value) {
+        return URLEncoder.encode(value == null ? "" : value, StandardCharsets.UTF_8);
     }
 
     private boolean isAllowedLoginStateProfile(String packageName, String profile) {

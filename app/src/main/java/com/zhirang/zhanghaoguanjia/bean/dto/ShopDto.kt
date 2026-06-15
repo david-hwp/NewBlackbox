@@ -23,7 +23,9 @@ data class ShopDto(
     val wechatReceiverId: String? = null,
     val wechatReceiverName: String? = null,
     val wechatReceiverType: String? = null,
-    val remark: String? = null
+    val remark: String? = null,
+    val shopAuthorizationStatus: String? = null,
+    val shopAuthorizationCheckedAt: String? = null
 ) {
 
     fun toShop(): Shop = Shop(
@@ -45,6 +47,7 @@ data class ShopDto(
         wechatReceiverName = wechatReceiverName,
         wechatReceiverType = wechatReceiverType,
         remark = remark,
+        shopAuthorizationStatus = shopAuthorizationStatus?.takeIf { it.isNotBlank() } ?: "UNAUTHORIZED",
         identityVerified = identityVerified == true,
         isNew = shopId.startsWith(TEMP_SHOP_ID_PREFIX)
     )

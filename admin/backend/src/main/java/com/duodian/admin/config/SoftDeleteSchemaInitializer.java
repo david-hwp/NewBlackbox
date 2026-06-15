@@ -59,6 +59,7 @@ public class SoftDeleteSchemaInitializer implements CommandLineRunner {
         migrateLegacyAdminRole();
         ensureCloneColumns();
         ensureShopLoginStateColumns();
+        ensureShopAuthorizationColumns();
         ensureShopCardSortColumn();
         ensurePlatformAuthorizationUrlColumn();
         ensureDefaultSystemParameters();
@@ -310,6 +311,29 @@ public class SoftDeleteSchemaInitializer implements CommandLineRunner {
     private void ensureShopLoginStateColumns() throws Exception {
         if (!hasColumn("shops", "login_state_artifact_created_at")) {
             jdbcTemplate.execute("ALTER TABLE shops ADD COLUMN login_state_artifact_created_at DATETIME");
+        }
+    }
+
+    private void ensureShopAuthorizationColumns() throws Exception {
+        if (!hasColumn("shops", "shop_authorization_status")) {
+            jdbcTemplate.execute("ALTER TABLE shops ADD COLUMN shop_authorization_status VARCHAR(32) NOT NULL DEFAULT 'UNAUTHORIZED'");
+        }
+        if (!hasColumn("shops", "shop_authorization_checked_at")) {
+            jdbcTemplate.execute("ALTER TABLE shops ADD COLUMN shop_authorization_checked_at DATETIME");
+        }
+        if (!hasColumn("shops", "shop_authorization_signals")) {
+            jdbcTemplate.execute("ALTER TABLE shops ADD COLUMN shop_authorization_signals TEXT");
+        }
+        if (!hasColumn("shops", "shop_authorization_url")) {
+            jdbcTemplate.execute("ALTER TABLE shops ADD COLUMN shop_authorization_url VARCHAR(1024)");
+        }
+        jdbcTemplate.execute("""
+                UPDATE shops
+                SET shop_authorization_status = 'UNAUTHORIZED'
+                WHERE shop_authorization_status IS NULL OR shop_authorization_status = ''
+                """);
+        if (!hasIndexQuietly("shops", "idx_shop_authorization_status")) {
+            jdbcTemplate.execute("CREATE INDEX idx_shop_authorization_status ON shops (shop_authorization_status)");
         }
     }
 

@@ -62,6 +62,28 @@
             <el-tag v-else size="small" type="info">未上传</el-tag>
           </template>
         </el-table-column>
+        <el-table-column label="店铺授权状态" min-width="150">
+          <template #default="{ row }">
+            <div class="shop-auth-cell">
+              <el-tag size="small" :type="shopAuthStatusType(row.shopAuthorizationStatus)">
+                {{ shopAuthStatusText(row.shopAuthorizationStatus) }}
+              </el-tag>
+              <el-text v-if="row.shopAuthorizationCheckedAt" class="shop-auth-meta" type="info">
+                {{ formatDateTime(row.shopAuthorizationCheckedAt) }}
+              </el-text>
+            </div>
+          </template>
+        </el-table-column>
+        <el-table-column v-if="isSuperAdmin" label="授权地址" min-width="140">
+          <template #default="{ row }">
+            <el-button type="primary" link :loading="openingShopAuthId === row.id" @click="openShopAuthorization(row)">
+              打开
+            </el-button>
+            <el-button link :loading="probingShopAuthId === row.id" @click="probeShopAuthorization(row)">
+              检测
+            </el-button>
+          </template>
+        </el-table-column>
         <el-table-column label="微信接收方" min-width="180">
           <template #default="{ row }">
             <div v-if="row.wechatReceiverName || row.wechatReceiverId">
@@ -212,6 +234,8 @@ const metadataLoading = ref(false)
 const dialogVisible = ref(false)
 const isEdit = ref(false)
 const formRef = ref()
+const openingShopAuthId = ref(null)
+const probingShopAuthId = ref(null)
 const filters = ref({
   platform: '',
   phone: '',
@@ -360,6 +384,53 @@ const formatLoginStateMeta = (row) => {
   return parts.join(' / ')
 }
 
+const shopAuthStatusText = (status) => {
+  const normalized = String(status || 'UNAUTHORIZED').toUpperCase()
+  if (normalized === 'AUTHORIZED') return '已授权'
+  if (normalized === 'AUTHORIZING') return '授权中'
+  if (normalized === 'FAILED') return '授权失败'
+  if (normalized === 'UNKNOWN') return '待确认'
+  return '未授权'
+}
+
+const shopAuthStatusType = (status) => {
+  const normalized = String(status || 'UNAUTHORIZED').toUpperCase()
+  if (normalized === 'AUTHORIZED') return 'success'
+  if (normalized === 'AUTHORIZING') return 'warning'
+  if (normalized === 'FAILED') return 'danger'
+  if (normalized === 'UNKNOWN') return 'warning'
+  return 'info'
+}
+
+const openShopAuthorization = async (row) => {
+  if (!isSuperAdmin.value || !row?.id || openingShopAuthId.value) return
+  openingShopAuthId.value = row.id
+  try {
+    const result = await request.get(`/shops/${row.id}/authorization/open-url`)
+    const url = result?.url || result?.shopAuthorizationUrl
+    if (!url) {
+      ElMessage.error('未获取到授权地址')
+      return
+    }
+    window.open(url, '_blank', 'noopener,noreferrer')
+    fetchShops()
+  } finally {
+    openingShopAuthId.value = null
+  }
+}
+
+const probeShopAuthorization = async (row) => {
+  if (!row?.id || probingShopAuthId.value) return
+  probingShopAuthId.value = row.id
+  try {
+    await request.post(`/shops/${row.id}/authorization/probe`)
+    ElMessage.success('授权状态已更新')
+    fetchShops()
+  } finally {
+    probingShopAuthId.value = null
+  }
+}
+
 const showAddDialog = () => {
   if (!canMutate.value) return
   isEdit.value = false
@@ -479,6 +550,17 @@ onMounted(() => {
 }
 
 .login-state-meta {
+  font-size: 12px;
+}
+
+.shop-auth-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+}
+
+.shop-auth-meta {
   font-size: 12px;
 }
 </style>

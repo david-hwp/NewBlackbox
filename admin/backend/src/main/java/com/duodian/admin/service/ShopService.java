@@ -294,6 +294,27 @@ public class ShopService {
         return shopRepository.save(existing);
     }
 
+    public Shop updateShopAuthorizationStatus(
+            Long id,
+            String status,
+            String signals,
+            LocalDateTime checkedAt
+    ) {
+        Shop existing = shopRepository.findByIdAndDeleted(id, ACTIVE)
+                .orElseThrow(() -> new RuntimeException("店铺不存在"));
+        existing.setShopAuthorizationStatus(status);
+        existing.setShopAuthorizationSignals(signals);
+        existing.setShopAuthorizationCheckedAt(checkedAt == null ? LocalDateTime.now() : checkedAt);
+        return shopRepository.save(existing);
+    }
+
+    public Shop updateShopAuthorizationUrl(Long id, String authorizationUrl) {
+        Shop existing = shopRepository.findByIdAndDeleted(id, ACTIVE)
+                .orElseThrow(() -> new RuntimeException("店铺不存在"));
+        existing.setShopAuthorizationUrl(authorizationUrl);
+        return shopRepository.save(existing);
+    }
+
     public void delete(Long id) {
         Shop shop = shopRepository.findByIdAndDeleted(id, ACTIVE)
                 .orElseThrow(() -> new RuntimeException("店铺不存在"));

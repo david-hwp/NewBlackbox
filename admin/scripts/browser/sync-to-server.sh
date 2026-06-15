@@ -17,5 +17,6 @@ scp \
   "$SCRIPT_DIR/start-zr-browser.sh" \
   "$SCRIPT_DIR/zr-browser-control.py" \
   "$SCRIPT_DIR/zr-login-align.js" \
+  "$SCRIPT_DIR/zr-auth-probe.js" \
   "$SERVER:$REMOTE_DIR/"
-ssh "$SERVER" "chmod +x $REMOTE_DIR/start-zr.sh $REMOTE_DIR/start-zr-display.sh $REMOTE_DIR/start-zr-browser.sh $REMOTE_DIR/zr-browser-control.py $REMOTE_DIR/zr-login-align.js"
+ssh "$SERVER" "chmod +x $REMOTE_DIR/start-zr.sh $REMOTE_DIR/start-zr-display.sh $REMOTE_DIR/start-zr-browser.sh $REMOTE_DIR/zr-browser-control.py $REMOTE_DIR/zr-login-align.js $REMOTE_DIR/zr-auth-probe.js"
