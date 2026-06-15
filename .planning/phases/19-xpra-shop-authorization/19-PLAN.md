@@ -107,15 +107,16 @@ Wave 1 已证明 Xpra 远端浏览器可以在 APP 弹窗内显示并交互，�
    - 输入框评分优先级：`password` > `tel/text/number/email`，并结合 `placeholder/name/id/class/aria-label` 中的中文和英文关键词。
    - 登录按钮评分优先级：`button[type=submit]`、文本包含“登录”、类名或属性包含 `login`。
 
-2. **表单区域计算**
-   - 优先选择同一可见父容器中的“账号/手机号输入框 + 密码/验证码输入框 + 登录按钮”组合。
+2. **登录框有效区域计算**
+   - 先选择“账号/手机号输入框 + 密码/验证码输入框 + 登录按钮”组合，再沿 DOM ancestor 向上寻找共同登录容器。
+   - 登录容器必须包含登录方式 tab、输入框、登录按钮，以及可见的忘记密码、协议或注册入口等登录框内容。
+   - 计算登录框有效可见内容的两个点：`visibleBox.leftTop` 和 `visibleBox.rightBottom`。这两个点定义要展示到 WebView 内的完整登录区域，而不是只展示输入控件最小包围盒。
    - 如果当前是验证码登录模式，只要能识别手机号输入框、验证码输入框或“获取验证码”按钮，也视为有效表单区域。
-   - 目标区域保留 `24px` 左右边距和 `32px` 上下边距；如果登录按钮接近视口底部，额外上移，避免键盘弹出后完全遮挡。
 
 3. **视口对齐策略**
-   - 先执行原生滚动：`window.scrollTo(targetLeft, targetTop)`。
-   - 滚动后重新读取目标元素位置；如果目标元素仍不在当前 viewport 内，注入 `transform: translate(-targetLeft, -targetTop)` 类的页面平移补丁。
-   - 不使用页面 zoom 作为默认方案，避免再次破坏 Xpra 坐标映射和字体大小。
+   - 使用一次性 CSS transform 将 `visibleBox.leftTop/rightBottom` 定义的登录框区域完整平移并缩放到当前远端窗口内。
+   - 默认把登录框控制在 WebView 宽度约 `72%`、高度约 `66%`，居中偏上显示，避免登录框被放得过大、比例不自然。
+   - 不使用页面 zoom 作为默认方案，避免再次破坏 Xpra 坐标映射和浏览器全局字体比例。
    - 对齐完成后标记 `window.__zrLoginAligned = true`，用户交互开始后不再循环调整。
 
 4. **控制接口与日志**
@@ -153,9 +154,10 @@ Wave 1 已证明 Xpra 远端浏览器可以在 APP 弹窗内显示并交互，�
 - 2026-06-15：`start-zr-browser.sh` 增加本地 `127.0.0.1:14502` remote debugging；`zr-browser-control.py` 在 `/open` 启动 Chrome 后执行对齐脚本，并在响应和 `~/data/logs/browser-trace.jsonl` 中写入 `alignment`。
 - 2026-06-15：`admin/scripts/browser/` 已同步到 `root@aliyun:~/data`，`~/data/start-zr.sh` 重启后确认 `14500`、`14501`、`59019` 监听正常，`/health` 返回 `{"ok": true}`。
 - 2026-06-15：服务端直接调用 `/open` 验证三平台均通过：
-  - 京东秒送 `https://store.jddj.com/base/login`：`alignment.ok=true`，`strategy=scroll`，账号、密码、登录按钮全部 `visibleInViewport=true`。
-  - 饿了么 `https://melody.shop.ele.me/login`：`alignment.ok=true`，`strategy=transform`，账号、密码、登录按钮全部 `visibleInViewport=true`。
-  - 美团 `https://waimaie.meituan.com/new_fe/login_gw#/login`：`alignment.ok=true`，`strategy=scroll`，账号、密码、登录按钮全部 `visibleInViewport=true`。
+  - 京东秒送 `https://store.jddj.com/base/login`：`alignment.ok=true`，`strategy=panel-fit-transform`，`visibleBox.leftTop=(0,82)`、`visibleBox.rightBottom=(346,540)`，最终 viewport 区域约 `259x343`。
+  - 饿了么 `https://melody.shop.ele.me/login`：`alignment.ok=true`，`strategy=panel-fit-transform`，`visibleBox.leftTop=(464,0)`、`visibleBox.rightBottom=(990,438)`，最终 viewport 区域约 `259x216`。
+  - 美团 `https://waimaie.meituan.com/new_fe/login_gw#/login`：`alignment.ok=true`，`strategy=panel-fit-transform`，`visibleBox.leftTop=(184,142)`、`visibleBox.rightBottom=(616,649)`，最终 viewport 区域约 `259x304`。
+- 2026-06-15：根据真机反馈，旧版只围绕账号/密码/登录按钮的最小包围盒会裁掉“账号登录/验证码登录”tab，且登录框局部放大比例不自然。已改为整体登录框有效区域识别，并将默认显示比例收敛到 WebView 宽度 `72%`、高度 `66%`，保留 tab、输入框、按钮和协议区。
 - 2026-06-15：为店铺卡片“授权登录该店铺”增加 `contentDescription` 和 `importantForAccessibility`，不改变视觉 UI，只用于 ADB/UIAutomator 精确定位授权入口，避免自动化误点店铺打开或删除区域。
 - 2026-06-15：小米真机 `3ca26684` 安装 `1.2.18-beta`，网络配置为 `API=http://100.99.88.2:8006/api/`、`ZR stream=http://100.99.88.6:14500/`、`ZR control=http://100.99.88.6:14501/`。自动化验证美团、饿了么、京东三平台均触发 `/open`，服务器 trace 返回 `alignment.ok=true` 且 `allSelectedVisible=true`。
 - 2026-06-15：OPPO 真机 `55J7JJWKTWKNHYZL` 已安装 `1.2.18-beta`。该设备未安装 Tailscale、无 `100.99.88.0/24` 路由，不能直接访问 `100.99.88.2` 或 `100.99.88.6`；验证时在 `172.20.0.13` 启动临时 TCP 转发到 `100.99.88.6:14500/14501`，并安装仅用于 OPPO 验证的 `172.20.0.13` 地址包。

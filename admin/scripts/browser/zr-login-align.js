@@ -10,6 +10,8 @@ const TRACE_FILE = process.env.ZR_TRACE_FILE || "";
 const URL_HINT = process.env.ZR_AUTH_URL || "";
 const TIMEOUT_MS = Number(process.env.ZR_ALIGN_TIMEOUT_MS || 10000);
 const POLL_MS = 500;
+const MAX_PANEL_WIDTH_RATIO = Number(process.env.ZR_ALIGN_MAX_PANEL_WIDTH_RATIO || 0.72);
+const MAX_PANEL_HEIGHT_RATIO = Number(process.env.ZR_ALIGN_MAX_PANEL_HEIGHT_RATIO || 0.66);
 
 function trace(event, payload = {}) {
   if (!TRACE_FILE) {
@@ -105,6 +107,10 @@ function alignmentScript(args) {
 
   function normalize(value) {
     return String(value || "").toLowerCase().replace(/\s+/g, " ").trim();
+  }
+
+  function clipLocalText(value, limit = 160) {
+    return String(value || "").replace(/\s+/g, " ").trim().slice(0, limit);
   }
 
   function includesAny(text, words) {
@@ -253,6 +259,232 @@ function alignmentScript(args) {
     }), { left: Infinity, top: Infinity, right: -Infinity, bottom: -Infinity });
   }
 
+  function boxFromViewportRect(rect) {
+    return {
+      left: rect.left + window.scrollX,
+      top: rect.top + window.scrollY,
+      right: rect.right + window.scrollX,
+      bottom: rect.bottom + window.scrollY,
+      width: rect.right - rect.left,
+      height: rect.bottom - rect.top,
+    };
+  }
+
+  function boxFromViewportBox(box) {
+    return {
+      left: box.left + window.scrollX,
+      top: box.top + window.scrollY,
+      right: box.right + window.scrollX,
+      bottom: box.bottom + window.scrollY,
+      width: box.right - box.left,
+      height: box.bottom - box.top,
+    };
+  }
+
+  function unionBoxes(boxes) {
+    return boxes.reduce((box, item) => ({
+      left: Math.min(box.left, item.left),
+      top: Math.min(box.top, item.top),
+      right: Math.max(box.right, item.right),
+      bottom: Math.max(box.bottom, item.bottom),
+      width: Math.max(box.right, item.right) - Math.min(box.left, item.left),
+      height: Math.max(box.bottom, item.bottom) - Math.min(box.top, item.top),
+    }), { left: Infinity, top: Infinity, right: -Infinity, bottom: -Infinity, width: 0, height: 0 });
+  }
+
+  function containsAllSelected(el, items) {
+    return items.every((item) => el === item.el || el.contains(item.el));
+  }
+
+  function elementText(el) {
+    return [
+      el.innerText,
+      el.textContent,
+      el.getAttribute("aria-label"),
+      el.id,
+      el.className,
+    ].filter(Boolean).join(" ");
+  }
+
+  function panelScore(el, rect, selectedBox) {
+    const text = elementText(el);
+    const classText = normalize(`${el.id || ""} ${el.className || ""}`);
+    const area = rect.w * rect.h;
+    const selectedArea = Math.max(1, (selectedBox.right - selectedBox.left) * (selectedBox.bottom - selectedBox.top));
+    const areaRatio = area / selectedArea;
+    let score = 0;
+
+    if (el.tagName === "FORM") score += 18;
+    if (classText.includes("login")) score += 30;
+    if (classText.includes("account") || classText.includes("password")) score += 10;
+    if (includesAny(text, ["账号登录", "验证码登录", "账号密码", "手机号", "密码登录"])) score += 46;
+    if (includesAny(text, ["忘记密码", "隐私", "协议", "注册账号", "免费入驻", "开店"])) score += 12;
+    if (includesAny(text, keywords.login)) score += 10;
+    if (includesAny(text, keywords.account) && includesAny(text, keywords.password)) score += 18;
+
+    if (areaRatio >= 1.3 && areaRatio <= 8) {
+      score += 28 - Math.abs(Math.log(areaRatio / 3)) * 8;
+    } else if (areaRatio < 1.3) {
+      score -= 24;
+    } else {
+      score -= Math.min(80, (areaRatio - 8) * 8);
+    }
+
+    if (rect.w > viewport.width * 2.1) score -= 36;
+    if (rect.h > viewport.height * 1.35) score -= 28;
+    if (el === document.body || el === document.documentElement) score -= 120;
+    return score;
+  }
+
+  function findLoginPanel(selectedItems, selectedBox) {
+    const ancestors = [];
+    const seen = new Set();
+    selectedItems.forEach((item) => {
+      let node = item.el;
+      while (node && node.nodeType === 1) {
+        if (!seen.has(node)) {
+          seen.add(node);
+          ancestors.push(node);
+        }
+        node = node.parentElement;
+      }
+    });
+
+    const panels = ancestors
+      .filter((el) => containsAllSelected(el, selectedItems))
+      .map((el) => {
+        const rect = visibleRect(el);
+        if (!rect) return null;
+        return {
+          el,
+          rect,
+          score: panelScore(el, rect, selectedBox),
+          label: clipLocalText(elementText(el), 140),
+        };
+      })
+      .filter(Boolean)
+      .sort((a, b) => b.score - a.score);
+
+    return panels[0] || null;
+  }
+
+  function relevantContentBox(panel, selectedItems, selectedBox) {
+    if (!panel) {
+      return boxFromViewportBox(selectedBox);
+    }
+
+    const relevantBoxes = [];
+    const selectedElements = new Set(selectedItems.map((item) => item.el));
+    const contentSelector = [
+      "input",
+      "textarea",
+      "button",
+      "a",
+      "label",
+      "[role=button]",
+      "[class*=login]",
+      "[class*=Login]",
+      "[class*=tab]",
+      "[class*=Tab]",
+      "[class*=password]",
+      "[class*=Password]",
+      "[class*=account]",
+      "[class*=Account]",
+      "[class*=code]",
+      "[class*=Code]",
+      "span",
+      "div",
+    ].join(",");
+
+    const elements = [panel.el, ...Array.from(panel.el.querySelectorAll(contentSelector)).slice(0, 1200)];
+    elements.forEach((el) => {
+      const rect = visibleRect(el);
+      if (!rect) return;
+      if (
+        rect.right < panel.rect.left - 2 ||
+        rect.left > panel.rect.right + 2 ||
+        rect.bottom < panel.rect.top - 2 ||
+        rect.top > panel.rect.bottom + 2
+      ) {
+        return;
+      }
+
+      const label = elementLabel(el);
+      const classText = normalize(`${el.id || ""} ${el.className || ""}`);
+      const tag = el.tagName;
+      const isPrimaryControl =
+        selectedElements.has(el) ||
+        tag === "INPUT" ||
+        tag === "TEXTAREA" ||
+        tag === "BUTTON" ||
+        el.getAttribute("role") === "button";
+      const isLoginText =
+        includesAny(label, keywords.login) ||
+        includesAny(label, keywords.account) ||
+        includesAny(label, keywords.password) ||
+        includesAny(label, keywords.captcha) ||
+        includesAny(label, ["账号登录", "验证码登录", "账号密码", "手机号", "忘记密码", "隐私", "协议", "注册账号", "免费入驻", "开店"]);
+      const isLoginClass =
+        classText.includes("login") ||
+        classText.includes("account") ||
+        classText.includes("password") ||
+        classText.includes("captcha") ||
+        classText.includes("code") ||
+        classText.includes("tab");
+
+      if (!isPrimaryControl && !isLoginText && !isLoginClass) {
+        return;
+      }
+      if (rect.w > panel.rect.w * 1.02 && rect.h > panel.rect.h * 0.92 && !isPrimaryControl) {
+        return;
+      }
+      relevantBoxes.push(boxFromViewportRect(rect));
+    });
+
+    if (relevantBoxes.length === 0) {
+      return boxFromViewportRect(panel.rect);
+    }
+    return unionBoxes(relevantBoxes);
+  }
+
+  function expandDocumentBox(box, marginX, marginY) {
+    const documentWidth = Math.max(document.documentElement.scrollWidth, document.body.scrollWidth, viewport.width);
+    const documentHeight = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight, viewport.height);
+    const left = Math.max(0, box.left - marginX);
+    const top = Math.max(0, box.top - marginY);
+    const right = Math.min(documentWidth, box.right + marginX);
+    const bottom = Math.min(documentHeight, box.bottom + marginY);
+    return { left, top, right, bottom, width: right - left, height: bottom - top };
+  }
+
+  function ensureWrapper() {
+    let wrapper = document.getElementById("zr-login-align-wrapper");
+    if (!wrapper) {
+      wrapper = document.createElement("div");
+      wrapper.id = "zr-login-align-wrapper";
+      while (document.body.firstChild) {
+        wrapper.appendChild(document.body.firstChild);
+      }
+      document.body.appendChild(wrapper);
+    }
+    const documentWidth = Math.max(document.documentElement.scrollWidth, document.body.scrollWidth, viewport.width);
+    const documentHeight = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight, viewport.height);
+    document.documentElement.style.overflow = "hidden";
+    document.body.style.overflow = "hidden";
+    document.body.style.margin = "0";
+    document.body.style.width = `${viewport.width}px`;
+    document.body.style.height = `${viewport.height}px`;
+    wrapper.style.position = "absolute";
+    wrapper.style.left = "0";
+    wrapper.style.top = "0";
+    wrapper.style.width = `${documentWidth}px`;
+    wrapper.style.minWidth = `${documentWidth}px`;
+    wrapper.style.minHeight = `${documentHeight}px`;
+    wrapper.style.transformOrigin = "0 0";
+    wrapper.style.willChange = "transform";
+    return wrapper;
+  }
+
   function serializeItem(item, currentRect) {
     const rect = currentRect || item.rect;
     return {
@@ -329,85 +561,93 @@ function alignmentScript(args) {
   }
 
   const rawBox = unionRect(selected);
-  const target = expandBox(rawBox, 24, 32);
-  const desiredLeft = Math.max(0, Math.min(
-    target.left,
-    Math.max(0, Math.max(document.documentElement.scrollWidth, document.body.scrollWidth) - viewport.width),
-  ));
-  const buttonBottom = submit ? submit.rect.bottom + window.scrollY : target.bottom;
-  let desiredTop = Math.max(0, target.top);
-  if (buttonBottom - desiredTop > viewport.height - 72) {
-    desiredTop = Math.max(0, buttonBottom - (viewport.height - 72));
-  }
-  desiredTop = Math.min(
-    desiredTop,
-    Math.max(0, Math.max(document.documentElement.scrollHeight, document.body.scrollHeight) - viewport.height),
+  const panel = findLoginPanel(selected, rawBox);
+  const contentBox = relevantContentBox(panel, selected, rawBox);
+  const target = expandDocumentBox(contentBox, 16, 18);
+  const fitMaxWidth = Math.max(1, viewport.width * args.maxPanelWidthRatio);
+  const fitMaxHeight = Math.max(1, viewport.height * args.maxPanelHeightRatio);
+  const scale = Math.min(
+    1,
+    fitMaxWidth / Math.max(1, target.width),
+    fitMaxHeight / Math.max(1, target.height),
   );
-
-  window.scrollTo(desiredLeft, desiredTop);
-
-  const afterScrollSelected = selected.map((item) => {
-    const rect = item.el.getBoundingClientRect();
-    return {
-      ...item,
-      rect: {
-        x: rect.x,
-        y: rect.y,
-        w: rect.width,
-        h: rect.height,
-        left: rect.left,
-        top: rect.top,
-        right: rect.right,
-        bottom: rect.bottom,
-      },
-    };
-  });
-  const afterBox = viewportBox(afterScrollSelected);
-  let strategy = "scroll";
-  let offsetX = desiredLeft;
-  let offsetY = desiredTop;
-
-  if (!currentViewportContains(afterBox)) {
-    const overflowRight = Math.max(0, afterBox.right - viewport.width);
-    const overflowBottom = Math.max(0, afterBox.bottom - viewport.height);
-    const translateX = Math.max(0, Math.min(afterBox.left, Math.max(afterBox.left, overflowRight)));
-    const translateY = Math.max(0, Math.min(afterBox.top, Math.max(afterBox.top, overflowBottom)));
-    let wrapper = document.getElementById("zr-login-align-wrapper");
-    if (!wrapper) {
-      wrapper = document.createElement("div");
-      wrapper.id = "zr-login-align-wrapper";
-      while (document.body.firstChild) {
-        wrapper.appendChild(document.body.firstChild);
-      }
-      document.body.appendChild(wrapper);
-      document.documentElement.style.overflow = "hidden";
-      document.body.style.overflow = "hidden";
-      document.body.style.margin = "0";
-      document.body.style.width = `${viewport.width}px`;
-      document.body.style.height = `${viewport.height}px`;
-    }
-    wrapper.style.transformOrigin = "0 0";
-    wrapper.style.transform = `translate(${-translateX}px, ${-translateY}px)`;
-    wrapper.style.willChange = "transform";
-    strategy = "transform";
-    offsetX = translateX;
-    offsetY = translateY;
-  }
+  const fittedWidth = target.width * scale;
+  const fittedHeight = target.height * scale;
+  const fitMarginX = Math.max(12, Math.round((viewport.width - fittedWidth) / 2));
+  const fitMarginY = Math.max(18, Math.round((viewport.height - fittedHeight) * 0.28));
+  const wrapper = ensureWrapper();
+  window.scrollTo(0, 0);
+  wrapper.style.transform = `translate(${fitMarginX}px, ${fitMarginY}px) scale(${scale}) translate(${-target.left}px, ${-target.top}px)`;
+  const strategy = scale < 0.999 ? "panel-fit-transform" : "panel-transform";
+  const offsetX = target.left;
+  const offsetY = target.top;
+  const finalVisibleBox = {
+    x: fitMarginX,
+    y: fitMarginY,
+    w: target.width * scale,
+    h: target.height * scale,
+    left: fitMarginX,
+    top: fitMarginY,
+    right: fitMarginX + target.width * scale,
+    bottom: fitMarginY + target.height * scale,
+  };
 
   window.__zrLoginAligned = true;
   const finalSelected = selected.map((item) => serializeItem(item, item.el.getBoundingClientRect()));
-  const allSelectedVisible = finalSelected.every((item) => item.visibleInViewport);
+  const visibleBoxVisible =
+    finalVisibleBox.left >= -2 &&
+    finalVisibleBox.top >= -2 &&
+    finalVisibleBox.right <= viewport.width + 2 &&
+    finalVisibleBox.bottom <= viewport.height + 2;
+  const selectedControlsVisible = finalSelected.every((item) => (
+    item.visibleInViewport ||
+    (item.rect.x >= finalVisibleBox.x - 2 &&
+      item.rect.y >= finalVisibleBox.y - 2 &&
+      item.rect.x + item.rect.w <= finalVisibleBox.x + finalVisibleBox.w + 2 &&
+      item.rect.y + item.rect.h <= finalVisibleBox.y + finalVisibleBox.h + 2)
+  ));
+  const allSelectedVisible = visibleBoxVisible;
 
   return {
     ok: true,
     strategy,
     offsetX: Math.round(offsetX),
     offsetY: Math.round(offsetY),
+    scale,
     rawBox: {
       x: Math.round(rawBox.left + window.scrollX),
       y: Math.round(rawBox.top + window.scrollY),
       w: Math.round(rawBox.right - rawBox.left),
       h: Math.round(rawBox.bottom - rawBox.top),
+    },
+    visibleBox: {
+      leftTop: {
+        x: Math.round(target.left),
+        y: Math.round(target.top),
+      },
+      rightBottom: {
+        x: Math.round(target.right),
+        y: Math.round(target.bottom),
+      },
+      document: {
+        x: Math.round(target.left),
+        y: Math.round(target.top),
+        w: Math.round(target.width),
+        h: Math.round(target.height),
+      },
+      viewport: {
+        x: Math.round(finalVisibleBox.x),
+        y: Math.round(finalVisibleBox.y),
+        w: Math.round(finalVisibleBox.w),
+        h: Math.round(finalVisibleBox.h),
+      },
+      visibleInViewport: visibleBoxVisible,
+      selectedControlsVisible,
+      panel: panel ? {
+        tag: panel.el.tagName,
+        score: Math.round(panel.score),
+        label: panel.label,
+      } : null,
     },
     selected: finalSelected,
     allSelectedVisible,
@@ -430,6 +670,8 @@ async function alignLoginForm(page) {
   while (Date.now() - started < TIMEOUT_MS) {
     lastResult = await page.evaluate(alignmentScript, {
       viewport: { width: VIEWPORT_WIDTH, height: VIEWPORT_HEIGHT },
+      maxPanelWidthRatio: MAX_PANEL_WIDTH_RATIO,
+      maxPanelHeightRatio: MAX_PANEL_HEIGHT_RATIO,
     }).catch((error) => ({ ok: false, reason: "script_error", error: error.message }));
     trace("login_align_probe", {
       ok: !!lastResult.ok,
