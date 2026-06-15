@@ -2,8 +2,8 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: phase11-channel-promotion-system
-status: Phase 19 Wave 2 completed
-last_updated: "2026-06-15T16:25:00+08:00"
+status: Phase 19 Wave 3 planned
+last_updated: "2026-06-15T16:45:00+08:00"
 progress:
   total_phases: 11
   completed_phases: 10
@@ -13,6 +13,13 @@ progress:
 ---
 
 ## Recent Changes
+
+### 2026-06-15: Phase 19 Wave 3 planned
+
+- Planned Wave 3 for Xpra authorization experience and state closure.
+- Scope covers sharper WebView/Xpra rendering, moving the APP authorization entry below shop remarks, local loading before remote stream display, authorization-success probing based on browser profile evidence, backend/admin/APP authorization status display, and a shop-level authorization URL for super-admin direct access to that shop's Xpra profile.
+- Locked the authorization-success rule away from URL-only checks: first implementation must validate the authorized Luo Jia Chou Dou Fu profile with multiple independent signals such as page state, cookie/storage evidence, and management-console accessibility.
+- Canonical plan document: `.planning/phases/19-xpra-shop-authorization/19-PLAN.md`.
 
 ### 2026-06-15: Phase 19 Wave 2 completed
 
