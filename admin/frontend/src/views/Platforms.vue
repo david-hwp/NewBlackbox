@@ -41,6 +41,7 @@
         <el-table-column prop="name" label="平台名称" min-width="140" />
         <el-table-column prop="id" label="平台标识" min-width="120" />
         <el-table-column prop="packageName" label="应用包名" min-width="240" />
+        <el-table-column prop="authorizationUrl" label="授权地址" min-width="260" show-overflow-tooltip />
         <el-table-column prop="sortOrder" label="排序" width="90" />
         <el-table-column prop="available" label="状态" width="120">
           <template #default="{ row }">
@@ -84,6 +85,9 @@
         </el-form-item>
         <el-form-item label="图标地址">
           <el-input v-model="form.iconUrl" />
+        </el-form-item>
+        <el-form-item label="授权地址">
+          <el-input v-model="form.authorizationUrl" placeholder="该平台登录页，如 https://store.jddj.com/base/login" />
         </el-form-item>
         <el-form-item label="上传图标">
           <el-upload
@@ -136,6 +140,7 @@ const form = ref({
   name: '',
   packageName: '',
   iconUrl: '',
+  authorizationUrl: '',
   available: false,
   sortOrder: 0
 })
@@ -196,6 +201,7 @@ const resetForm = () => {
     name: '',
     packageName: '',
     iconUrl: '',
+    authorizationUrl: '',
     available: false,
     sortOrder: 0
   }

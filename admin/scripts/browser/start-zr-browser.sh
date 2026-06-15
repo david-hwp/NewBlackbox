@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+set -euo pipefail
+DISPLAY_ID=${DISPLAY_ID:-:19}
+URL=${ZR_AUTH_URL:-https://store.jddj.com/base/login}
+BASE_DIR=${ZR_BASE_DIR:-$HOME/data}
+LOG_DIR="$BASE_DIR/logs"
+PROFILE_ROOT=${ZR_PROFILE_ROOT:-$BASE_DIR/profiles}
+TRACE_FILE=${ZR_TRACE_FILE:-$LOG_DIR/browser-trace.jsonl}
+USER_PHONE=${ZR_USER_PHONE:-unknown-phone}
+SHOP_ID=${ZR_SHOP_ID:-unknown-shop}
+WINDOW_WIDTH=${ZR_WINDOW_WIDTH:-360}
+WINDOW_HEIGHT=${ZR_WINDOW_HEIGHT:-520}
+BROWSER_SCALE=${ZR_BROWSER_SCALE:-1.25}
+DEBUG_PORT=${ZR_DEBUG_PORT:-14502}
+mkdir -p "$LOG_DIR" "$PROFILE_ROOT"
+
+safe_segment() {
+  local raw="${1:-unknown}"
+  local safe
+  safe=$(printf '%s' "$raw" | tr -c 'A-Za-z0-9._-' '_')
+  if [ -z "$safe" ]; then
+    safe="unknown"
+  fi
+  printf '%s' "$safe"
+}
+
+SAFE_PHONE=$(safe_segment "$USER_PHONE")
+SAFE_SHOP_ID=$(safe_segment "$SHOP_ID")
+PROFILE_DIR="$PROFILE_ROOT/$SAFE_PHONE/$SAFE_SHOP_ID/chrome"
+mkdir -p "$PROFILE_DIR"
+
+trace() {
+  local event="$1"
+  local extra="${2:-}"
+  local now
+  now=$(date -Iseconds)
+  printf '{"ts":"%s","event":"%s","phone":"%s","shopId":"%s","profileDir":"%s","url":"%s"%s}\n' \
+    "$now" "$event" "$SAFE_PHONE" "$SAFE_SHOP_ID" "$PROFILE_DIR" "$URL" "$extra" >>"$TRACE_FILE"
+}
+
+CHROME=$(find /root/.cache/ms-playwright -path "*/chrome-linux/chrome" -type f | head -1)
+if [ -z "$CHROME" ]; then
+  trace "chromium_missing"
+  echo "Chromium binary not found" >&2
+  exit 1
+fi
+trace "launch_requested"
+pkill -f "chrome-linux/chrome.*--user-data-dir=$PROFILE_ROOT" 2>/dev/null || true
+pkill -f "chrome-linux/chrome.*zr-chrome-profile" 2>/dev/null || true
+pkill -x xmessage 2>/dev/null || true
+export DISPLAY="$DISPLAY_ID"
+nohup "$CHROME" \
+  --no-sandbox \
+  --disable-dev-shm-usage \
+  --disable-gpu \
+  --remote-debugging-address=127.0.0.1 \
+  --remote-debugging-port="$DEBUG_PORT" \
+  --force-device-scale-factor="$BROWSER_SCALE" \
+  --window-size="$WINDOW_WIDTH,$WINDOW_HEIGHT" \
+  --window-position=0,0 \
+  --user-data-dir="$PROFILE_DIR" \
+  --kiosk "$URL" \
+  >"$LOG_DIR/chrome-direct.log" 2>&1 &
+CHROME_PID=$!
+trace "launch_started" ',"pid":'"$CHROME_PID"
+sleep 5
+pkill -x xmessage 2>/dev/null || true
+wmctrl -r "京东秒送商家端 - Chromium" -b add,fullscreen 2>/dev/null || true
+wmctrl -a "京东秒送商家端 - Chromium" 2>/dev/null || true
+xdotool search --onlyvisible --class Chromium windowmove 0 0 windowsize "$WINDOW_WIDTH" "$WINDOW_HEIGHT" windowactivate 2>/dev/null || true
+trace "window_pinned" ',"pid":'"$CHROME_PID"

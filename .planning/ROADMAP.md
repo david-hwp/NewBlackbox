@@ -294,3 +294,18 @@
 **计划文档**: [.planning/phases/16-app/16-PLAN.md](.planning/phases/16-app/16-PLAN.md)
 **上下文文档**: [.planning/phases/16-app/16-CONTEXT.md](.planning/phases/16-app/16-CONTEXT.md)
 **调研文档**: [.planning/phases/16-app/16-RESEARCH.md](.planning/phases/16-app/16-RESEARCH.md)
+
+## Phase 19: Xpra 店铺授权窗口 MVP 🚧 进行中
+
+**目标**: 为店铺卡片增加独立“授权登录该店铺”入口，打开“店铺授权”底部抽屉，通过 Xpra HTML5 显示服务端虚拟桌面中的授权登录页，验证服务器窗口流式显示和输入交互可行性。
+
+**关键交付物**:
+
+- 店铺 ID 下方新增“授权登录该店铺”可点击文字，不改动“私域吸粉”高级功能入口。
+- 新增 `ShopAuthorizationSheetFragment`，约 2/3 高度的可下滑抽屉内 WebView 加载服务端 Xpra HTML5 地址。
+- Aliyun Ubuntu 服务器运行 Xvfb/fluxbox/Chromium/Xpra/VNC，服务端 Chromium 以 `360x520` kiosk 窗口打开京东外卖登录页。
+- 服务端脚本源纳入 `admin/scripts/browser/`；服务器运行根目录为 `~/data`，日志和浏览器 profile 统一放在该目录下。
+- ZR 控制接口 `http://100.99.88.6:14501/` 按用户手机号、店铺 ID 和 APP WebView 实际尺寸启动独立 Chromium profile；Xpra 默认指向 `http://100.99.88.6:14500/`。
+- 构建并安装 `1.2.18-beta` 到小米真机进行 MVP 验证；后端 API 默认指向 `http://100.99.88.2:8006/api/`。
+
+**计划文档**: [.planning/phases/19-xpra-shop-authorization/19-PLAN.md](.planning/phases/19-xpra-shop-authorization/19-PLAN.md)

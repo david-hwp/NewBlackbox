@@ -19,6 +19,7 @@ class ShopListAdapter(
     private val onEditClick: (Int, Shop) -> Unit,
     private val onWechatClick: (Int, Shop) -> Unit,
     private val onQuickShareClick: (Int, Shop) -> Unit,
+    private val onShopAuthorizationClick: (Int, Shop) -> Unit,
     private val onAdvancedFeatureClick: (Int, Shop, AdvancedFeatureType) -> Unit,
     private val onAutoRenewClick: (Int, Shop) -> Unit,
     private val onDeleteClick: (Int, Shop) -> Unit,
@@ -169,6 +170,7 @@ class ShopListAdapter(
         private val shopLogo: ImageView = itemView.findViewById(R.id.shopLogo)
         private val shopName: TextView = itemView.findViewById(R.id.shopName)
         private val shopId: TextView = itemView.findViewById(R.id.shopId)
+        private val tvShopAuthorizationLogin: TextView = itemView.findViewById(R.id.tvShopAuthorizationLogin)
         private val shopRemark: TextView = itemView.findViewById(R.id.shopRemark)
         private val shopFeatureBar: View = itemView.findViewById(R.id.shopFeatureBar)
         private val btnQuickShare: View = itemView.findViewById(R.id.btnQuickShare)
@@ -306,6 +308,13 @@ class ShopListAdapter(
                 val pos = bindingAdapterPosition
                 if (pos != RecyclerView.NO_POSITION) {
                     onQuickShareClick(pos, shops[pos])
+                }
+            }
+            tvShopAuthorizationLogin.setOnClickListener {
+                if (reorderMode) return@setOnClickListener
+                val pos = bindingAdapterPosition
+                if (pos != RecyclerView.NO_POSITION) {
+                    onShopAuthorizationClick(pos, shops[pos])
                 }
             }
             bindAdvancedFeatureClick(btnFeatureBadReviewLocation, AdvancedFeatureType.BAD_REVIEW_LOCATION)

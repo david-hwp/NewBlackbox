@@ -27,6 +27,9 @@ public class PlatformConfig {
     @Column(name = "icon_url", length = 512)
     private String iconUrl;
 
+    @Column(name = "authorization_url", length = 1024)
+    private String authorizationUrl;
+
     @Column(nullable = false)
     private Boolean available = false;
 
@@ -70,6 +73,9 @@ public class PlatformConfig {
 
     public String getIconUrl() { return iconUrl; }
     public void setIconUrl(String iconUrl) { this.iconUrl = normalize(iconUrl); }
+
+    public String getAuthorizationUrl() { return authorizationUrl; }
+    public void setAuthorizationUrl(String authorizationUrl) { this.authorizationUrl = normalize(authorizationUrl); }
 
     public Boolean getAvailable() { return available; }
     public void setAvailable(Boolean available) { this.available = Boolean.TRUE.equals(available); }

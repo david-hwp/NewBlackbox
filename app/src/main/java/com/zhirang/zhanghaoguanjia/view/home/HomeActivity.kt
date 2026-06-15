@@ -30,6 +30,7 @@ import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.zhirang.zhanghaoguanjia.BuildConfig
 import com.zhirang.zhanghaoguanjia.R
 import com.zhirang.zhanghaoguanjia.app.App
 import com.zhirang.zhanghaoguanjia.bean.Shop
@@ -55,6 +56,7 @@ import com.zhirang.zhanghaoguanjia.view.dialog.AdvancedFeatureSheetFragment
 import com.zhirang.zhanghaoguanjia.view.dialog.DeleteShopSheetFragment
 import com.zhirang.zhanghaoguanjia.view.dialog.EditShopSheetFragment
 import com.zhirang.zhanghaoguanjia.view.dialog.EngineUpgradeDialog
+import com.zhirang.zhanghaoguanjia.view.dialog.ShopAuthorizationSheetFragment
 import com.zhirang.zhanghaoguanjia.view.logs.LogsActivity
 import com.zhirang.zhanghaoguanjia.view.login.LoginActivity
 import com.zhirang.zhanghaoguanjia.view.profile.ProfileActivity
@@ -416,6 +418,9 @@ class HomeActivity : AppCompatActivity() {
             },
             onQuickShareClick = { _, shop ->
                 quickShareToBoundWechat(shop)
+            },
+            onShopAuthorizationClick = { _, shop ->
+                showShopAuthorizationSheet(shop)
             },
             onAdvancedFeatureClick = { _, shop, featureType ->
                 handleAdvancedFeatureClick(shop, featureType)
@@ -2855,6 +2860,25 @@ class HomeActivity : AppCompatActivity() {
         AdvancedFeatureSheetFragment
             .newInstance(title, code)
             .show(supportFragmentManager, "AdvancedFeature-$code")
+    }
+
+    private fun showShopAuthorizationSheet(shop: Shop) {
+        val userPhone = TokenManager.getInstance().getUser()?.phone.orEmpty()
+        val authorizationShopId = shop.shopId
+            .takeIf { it.isNotBlank() && it != "-" }
+            ?: "system-${shop.id}"
+        val authorizationUrl = PlatformRegistry.authorizationUrl(shop.platform)
+        ShopAuthorizationSheetFragment
+            .newInstance(
+                title = getString(R.string.shop_authorization_title),
+                streamUrl = BuildConfig.ZR_STREAM_URL,
+                controlUrl = BuildConfig.ZR_CONTROL_URL,
+                shopName = shopDisplayName(shop),
+                userPhone = userPhone,
+                shopId = authorizationShopId,
+                authorizationUrl = authorizationUrl
+            )
+            .show(supportFragmentManager, "ShopAuthorization")
     }
 
     private fun handleAutoRenewClick(shop: Shop) {

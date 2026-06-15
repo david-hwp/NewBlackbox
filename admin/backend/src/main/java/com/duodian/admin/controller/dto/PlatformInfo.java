@@ -6,6 +6,7 @@ public class PlatformInfo {
     private String name;
     private String packageName;
     private String iconUrl;
+    private String authorizationUrl;
     private boolean available;
     private Integer sortOrder;
 
@@ -34,6 +35,9 @@ public class PlatformInfo {
 
     public String getIconUrl() { return iconUrl; }
     public void setIconUrl(String iconUrl) { this.iconUrl = iconUrl; }
+
+    public String getAuthorizationUrl() { return authorizationUrl; }
+    public void setAuthorizationUrl(String authorizationUrl) { this.authorizationUrl = authorizationUrl; }
 
     public boolean isAvailable() { return available; }
     public void setAvailable(boolean available) { this.available = available; }

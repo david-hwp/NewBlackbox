@@ -5,9 +5,17 @@ plugins {
 
 def engineVersionCodeOverride = project.hasProperty("ENGINE_VERSION_CODE")
         ? project.property("ENGINE_VERSION_CODE")
+        : project.hasProperty("APP_VERSION_CODE")
+        ? project.property("APP_VERSION_CODE")
+        : project.hasProperty("DUODIAN_APP_VERSION_CODE")
+        ? project.property("DUODIAN_APP_VERSION_CODE")
         : rootProject.ext.versionCode
 def engineVersionNameOverride = project.hasProperty("ENGINE_VERSION_NAME")
         ? project.property("ENGINE_VERSION_NAME")
+        : project.hasProperty("APP_VERSION_NAME")
+        ? project.property("APP_VERSION_NAME")
+        : project.hasProperty("DUODIAN_APP_VERSION_NAME")
+        ? project.property("DUODIAN_APP_VERSION_NAME")
         : rootProject.ext.versionName
 def duodianStringProperty = { name, defaultValue ->
     (project.findProperty(name) ?: defaultValue).toString()

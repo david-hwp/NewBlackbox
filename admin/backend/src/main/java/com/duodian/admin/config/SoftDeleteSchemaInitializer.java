@@ -60,6 +60,7 @@ public class SoftDeleteSchemaInitializer implements CommandLineRunner {
         ensureCloneColumns();
         ensureShopLoginStateColumns();
         ensureShopCardSortColumn();
+        ensurePlatformAuthorizationUrlColumn();
         ensureDefaultSystemParameters();
         ensureDefaultAdvancedFeatures();
         removeLegacyShopFeatureSystemParameters();
@@ -319,6 +320,12 @@ public class SoftDeleteSchemaInitializer implements CommandLineRunner {
         jdbcTemplate.execute("UPDATE shops SET card_sort_order = 0 WHERE card_sort_order IS NULL");
         if (!hasIndexQuietly("shops", "idx_shop_card_sort")) {
             jdbcTemplate.execute("CREATE INDEX idx_shop_card_sort ON shops (user_id, package_name, platform, card_sort_order)");
+        }
+    }
+
+    private void ensurePlatformAuthorizationUrlColumn() throws Exception {
+        if (!hasColumn("platform_configs", "authorization_url")) {
+            jdbcTemplate.execute("ALTER TABLE platform_configs ADD COLUMN authorization_url VARCHAR(1024)");
         }
     }
 

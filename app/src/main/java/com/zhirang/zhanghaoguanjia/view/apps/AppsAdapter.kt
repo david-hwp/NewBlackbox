@@ -130,6 +130,7 @@ class AppsAdapter : RVHolderFactory() {
                 platform = platform,
                 displayName = item.name,
                 packageName = packageName,
+                authorizationUrl = packagePlatform?.authorizationUrl,
                 iconKey = item.platformIconUrl ?: platform.id,
                 available = item.platformAvailable
             )
