@@ -11,6 +11,8 @@
 /.idea/navEditor.xml
 /.idea/assetWizardSettings.xml
 .DS_Store
+__pycache__/
+*.py[cod]
 *.logcat
 .vscode
 /build
@@ -57,3 +59,4 @@ engine-aidl/build/
 /admin/frontend/.env.local
 /admin/frontend/.env.*.local
 /admin/backups/
+.gstack/

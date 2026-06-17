@@ -3,6 +3,7 @@ package com.duodian.admin.config;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
+import com.duodian.admin.service.SystemParameterService;
 
 import javax.sql.DataSource;
 import java.sql.Connection;
@@ -500,6 +501,8 @@ public class SoftDeleteSchemaInitializer implements CommandLineRunner {
         upsertDefaultParameter(mainChannelId, "话费赠送按钮名称", "app.menu.gift_phone_minutes.label", "话费赠送", "APP 交易中心入口文案");
         upsertDefaultParameter(mainChannelId, "话费取回按钮名称", "app.menu.reclaim_phone_minutes.label", "话费取回", "APP 交易中心入口文案");
         upsertDefaultParameter(mainChannelId, "交易日志按钮名称", "app.menu.transaction_logs.label", "交易日志", "APP 交易中心入口文案");
+        upsertDefaultParameter(mainChannelId, "ZR浏览器流地址", SystemParameterService.APP_ZR_STREAM_URL, "http://47.112.170.106:14500/", "APP 远端授权浏览器默认流地址，控制服务会返回具体会话端口");
+        upsertDefaultParameter(mainChannelId, "ZR浏览器控制地址", SystemParameterService.APP_ZR_CONTROL_URL, "http://47.112.170.106:14501/", "APP 远端授权浏览器控制服务地址");
     }
 
     private void ensureDefaultAdvancedFeatures() {

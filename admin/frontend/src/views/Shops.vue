@@ -222,10 +222,12 @@
 
 <script setup>
 import { computed, ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import request from '../utils/request'
 import { channelFilterParam, formatChannelLabel, useAdminSession } from '../utils/adminSession'
 
+const router = useRouter()
 const shops = ref([])
 const users = ref([])
 const platforms = ref([])
@@ -404,18 +406,10 @@ const shopAuthStatusType = (status) => {
 
 const openShopAuthorization = async (row) => {
   if (!isSuperAdmin.value || !row?.id || openingShopAuthId.value) return
-  openingShopAuthId.value = row.id
-  try {
-    const result = await request.get(`/shops/${row.id}/authorization/open-url`)
-    const url = result?.url || result?.shopAuthorizationUrl
-    if (!url) {
-      ElMessage.error('未获取到授权地址')
-      return
-    }
-    window.open(url, '_blank', 'noopener,noreferrer')
-    fetchShops()
-  } finally {
-    openingShopAuthId.value = null
+  const route = router.resolve({ name: 'ShopAuthorizationWindow', params: { id: row.id } })
+  const opened = window.open(route.href, `shop_authorization_${row.id}`, 'noopener,noreferrer')
+  if (!opened) {
+    ElMessage.error('浏览器已拦截授权窗口，请允许弹窗后重试')
   }
 }
 

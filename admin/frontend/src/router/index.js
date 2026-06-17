@@ -14,6 +14,7 @@ import Channels from '../views/Channels.vue'
 import ReleaseJobs from '../views/ReleaseJobs.vue'
 import SystemParameters from '../views/SystemParameters.vue'
 import AdvancedFeatureOpen from '../views/AdvancedFeatureOpen.vue'
+import ShopAuthorizationWindow from '../views/ShopAuthorizationWindow.vue'
 import { isSuperAdminUser, getAdminUser } from '../utils/adminSession'
 
 const routes = [
@@ -21,6 +22,12 @@ const routes = [
     path: '/login',
     name: 'Login',
     component: Login
+  },
+  {
+    path: '/shop-authorization/:id',
+    name: 'ShopAuthorizationWindow',
+    component: ShopAuthorizationWindow,
+    meta: { title: '店铺授权', superAdminOnly: true }
   },
   {
     path: '/',

@@ -54,6 +54,7 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.LinkedHashMap;
 
 @RestController
 @RequestMapping("/shops")
@@ -74,11 +75,11 @@ public class ShopController {
             .connectTimeout(Duration.ofSeconds(5))
             .build();
 
-    @Value("${app.zr.control-url:http://100.99.88.6:14501}")
-    private String zrControlUrl = "http://100.99.88.6:14501";
+    @Value("${app.zr.control-url:http://47.112.170.106:14501}")
+    private String zrControlUrl = "http://47.112.170.106:14501";
 
-    @Value("${app.zr.stream-url:http://100.99.88.6:14500/}")
-    private String zrStreamUrl = "http://100.99.88.6:14500/";
+    @Value("${app.zr.stream-url:http://47.112.170.106:14500/}")
+    private String zrStreamUrl = "http://47.112.170.106:14500/";
 
     public ShopController(
             ShopService shopService,
@@ -567,7 +568,13 @@ public class ShopController {
     }
 
     @GetMapping("/{id}/authorization/open-url")
-    public ApiResponse<Map<String, String>> openShopAuthorizationUrl(@PathVariable Long id) {
+    public ApiResponse<Map<String, String>> openShopAuthorizationUrl(
+            @PathVariable Long id,
+            @RequestParam(required = false) Integer width,
+            @RequestParam(required = false) Integer height,
+            @RequestParam(required = false) Double renderScale,
+            @RequestParam(required = false) Double scale
+    ) {
         permissionService.requireSuperAdmin();
         Shop shop = shopService.findById(id).orElse(null);
         if (shop == null) {
@@ -582,24 +589,30 @@ public class ShopController {
             return ApiResponse.error("平台未配置授权地址");
         }
         try {
+            int viewportWidth = clampInt(width, 720, 320, 1600);
+            int viewportHeight = clampInt(height, 900, 420, 2400);
+            double effectiveRenderScale = clampDouble(renderScale, 1.0d, 1.0d, 3.0d);
+            double effectiveScale = clampDouble(scale, 1.0d, 0.8d, 2.0d);
+            int renderWidth = clampInt((int) Math.round(viewportWidth * effectiveRenderScale), viewportWidth, 320, 1600);
+            int renderHeight = clampInt((int) Math.round(viewportHeight * effectiveRenderScale), viewportHeight, 420, 2400);
+            Map<String, String> viewportParams = new LinkedHashMap<>();
+            viewportParams.put("width", Integer.toString(viewportWidth));
+            viewportParams.put("height", Integer.toString(viewportHeight));
+            viewportParams.put("renderWidth", Integer.toString(renderWidth));
+            viewportParams.put("renderHeight", Integer.toString(renderHeight));
+            viewportParams.put("renderScale", formatDecimal(effectiveRenderScale));
+            viewportParams.put("scale", formatDecimal(effectiveScale));
             JsonNode payload = requestBrowserControl(
                     "open",
                     owner,
                     shop,
                     authorizationUrl,
-                    Map.of(
-                            "width", "720",
-                            "height", "900",
-                            "renderWidth", "720",
-                            "renderHeight", "900",
-                            "renderScale", "1",
-                            "scale", "1"
-                    )
+                    viewportParams
             );
             if (!payload.path("ok").asBoolean(false)) {
                 return ApiResponse.error("远程授权窗口启动失败");
             }
-            String streamUrl = fixedXpraClientUrl(zrStreamUrl);
+            String streamUrl = fixedXpraClientUrl(firstNonBlank(payload.path("streamUrl").asText(null), zrStreamUrl));
             Shop saved = shopService.updateShopAuthorizationUrl(id, streamUrl);
             return ApiResponse.success(Map.of(
                     "url", streamUrl,
@@ -917,10 +930,30 @@ public class ShopController {
     }
 
     private String fixedXpraClientUrl(String streamUrl) {
-        String base = firstNonBlank(streamUrl, "http://100.99.88.6:14500/");
+        String base = firstNonBlank(streamUrl, "http://47.112.170.106:14500/");
         String separator = base.contains("?") ? "&" : "?";
         return base + separator + "autohide=true&touchaction=scroll&sound=false&video=false"
-                + "&clipboard=false&printing=false&file_transfer=false";
+                + "&clipboard=true&printing=false&file_transfer=false";
+    }
+
+    private int clampInt(Integer value, int fallback, int minimum, int maximum) {
+        int effective = value == null ? fallback : value;
+        return Math.max(minimum, Math.min(maximum, effective));
+    }
+
+    private double clampDouble(Double value, double fallback, double minimum, double maximum) {
+        double effective = value == null ? fallback : value;
+        if (Double.isNaN(effective) || Double.isInfinite(effective)) {
+            effective = fallback;
+        }
+        return Math.max(minimum, Math.min(maximum, effective));
+    }
+
+    private String formatDecimal(double value) {
+        if (Math.rint(value) == value) {
+            return Long.toString(Math.round(value));
+        }
+        return Double.toString(value);
     }
 
     private String errorSignals(String reason) {

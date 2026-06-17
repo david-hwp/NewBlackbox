@@ -38,9 +38,9 @@ android {
         targetSdk rootProject.ext.targetSdkVersion
         versionCode appVersionCodeOverride.toString().toInteger()
         versionName appVersionNameOverride.toString()
-        buildConfigField "String", "API_BASE_URL", duodianBuildConfigString(duodianStringProperty("DUODIAN_API_BASE_URL", "http://100.99.88.2:8006/api/"))
-        buildConfigField "String", "ZR_STREAM_URL", duodianBuildConfigString(duodianStringProperty("DUODIAN_ZR_STREAM_URL", "http://100.99.88.6:14500/"))
-        buildConfigField "String", "ZR_CONTROL_URL", duodianBuildConfigString(duodianStringProperty("DUODIAN_ZR_CONTROL_URL", "http://100.99.88.6:14501/"))
+        buildConfigField "String", "API_BASE_URL", duodianBuildConfigString(duodianStringProperty("DUODIAN_API_BASE_URL", "http://172.20.0.13:8006/api/"))
+        buildConfigField "String", "ZR_STREAM_URL", duodianBuildConfigString(duodianStringProperty("DUODIAN_ZR_STREAM_URL", ""))
+        buildConfigField "String", "ZR_CONTROL_URL", duodianBuildConfigString(duodianStringProperty("DUODIAN_ZR_CONTROL_URL", ""))
         buildConfigField "String", "APK_CHANNEL", duodianBuildConfigString(apkChannel)
         buildConfigField "String", "ENGINE_PACKAGE", duodianBuildConfigString(engineApplicationId)
         manifestPlaceholders = [

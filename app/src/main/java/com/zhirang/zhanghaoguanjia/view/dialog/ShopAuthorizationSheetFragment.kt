@@ -184,7 +184,7 @@ class ShopAuthorizationSheetFragment : DialogFragment() {
         val userPhone = arguments?.getString(ARG_USER_PHONE).orEmpty()
         val shopId = arguments?.getString(ARG_SHOP_ID).orEmpty()
         val authorizationUrl = arguments?.getString(ARG_AUTHORIZATION_URL).orEmpty()
-        if (streamUrl.isBlank()) {
+        if (controlUrl.isBlank() && streamUrl.isBlank()) {
             binding.tvShopAuthorizationStatus.text =
                 getString(R.string.shop_authorization_load_failed)
         } else {
@@ -221,8 +221,11 @@ class ShopAuthorizationSheetFragment : DialogFragment() {
                 viewport
             )
             val currentBinding = _binding ?: return@launch
-            if (browserOpen.ok && browserOpen.ready) {
-                currentBinding.webShopAuthorization.loadUrl(toFixedXpraClientUrl(streamUrl))
+            val resolvedStreamUrl = resolveStreamUrl(streamUrl, browserOpen.streamUrl)
+            if (browserOpen.ok && browserOpen.ready && resolvedStreamUrl.isNotBlank()) {
+                currentBinding.webShopAuthorization.loadUrl(
+                    toFixedXpraClientUrl(resolvedStreamUrl)
+                )
             } else {
                 showFailure()
             }
@@ -269,7 +272,9 @@ class ShopAuthorizationSheetFragment : DialogFragment() {
             val payload = body.takeIf { it.isNotBlank() }?.let { JSONObject(it) }
             RemoteBrowserOpenResult(
                 ok = code in 200..299 && (payload?.optBoolean("ok", true) ?: true),
-                ready = payload?.optBoolean("ready", code in 200..299) ?: (code in 200..299)
+                ready = payload?.optBoolean("ready", code in 200..299) ?: (code in 200..299),
+                streamUrl = payload?.optString("directStreamUrl")?.takeIf { it.isNotBlank() }
+                    ?: payload?.optString("streamUrl")?.takeIf { it.isNotBlank() }
             )
         } catch (e: Exception) {
             Log.w(TAG, "remote browser open request failed", e)
@@ -319,6 +324,22 @@ class ShopAuthorizationSheetFragment : DialogFragment() {
     private fun toFixedXpraClientUrl(streamUrl: String): String {
         val separator = if (streamUrl.contains("?")) "&" else "?"
         return "$streamUrl${separator}autohide=true&touchaction=scroll&sound=false&video=false&clipboard=false&printing=false&file_transfer=false"
+    }
+
+    private fun resolveStreamUrl(defaultStreamUrl: String, sessionStreamUrl: String?): String {
+        val sessionUrl = sessionStreamUrl?.takeIf { it.isNotBlank() } ?: return defaultStreamUrl
+        if (sessionUrl.startsWith("http://") || sessionUrl.startsWith("https://")) {
+            return sessionUrl
+        }
+        if (defaultStreamUrl.isBlank()) {
+            return sessionUrl
+        }
+        return try {
+            val base = URL(defaultStreamUrl)
+            URL(base, sessionUrl).toString()
+        } catch (e: Exception) {
+            defaultStreamUrl
+        }
     }
 
     private fun isKeyboardRegion(x: Float, y: Float, width: Int, height: Int): Boolean {
@@ -704,6 +725,7 @@ class ShopAuthorizationSheetFragment : DialogFragment() {
 
     private data class RemoteBrowserOpenResult(
         val ok: Boolean,
-        val ready: Boolean
+        val ready: Boolean,
+        val streamUrl: String? = null
     )
 }

@@ -420,7 +420,7 @@ class HomeActivity : AppCompatActivity() {
                 quickShareToBoundWechat(shop)
             },
             onShopAuthorizationClick = { _, shop ->
-                showShopAuthorizationSheet(shop)
+                openShopAuthorizationSheet(shop)
             },
             onAdvancedFeatureClick = { _, shop, featureType ->
                 handleAdvancedFeatureClick(shop, featureType)
@@ -2869,7 +2869,14 @@ class HomeActivity : AppCompatActivity() {
             .show(supportFragmentManager, "AdvancedFeature-$code")
     }
 
-    private fun showShopAuthorizationSheet(shop: Shop) {
+    private fun openShopAuthorizationSheet(shop: Shop) {
+        lifecycleScope.launch {
+            val appParameters = viewModel.refreshAppParametersForShopAuthorization()
+            showShopAuthorizationSheet(shop, appParameters)
+        }
+    }
+
+    private fun showShopAuthorizationSheet(shop: Shop, appParameters: Map<String, String>) {
         if (shop.isShopAuthorized) {
             return
         }
@@ -2878,11 +2885,17 @@ class HomeActivity : AppCompatActivity() {
             .takeIf { it.isNotBlank() && it != "-" }
             ?: "system-${shop.id}"
         val authorizationUrl = PlatformRegistry.authorizationUrl(shop.platform)
+        val streamUrl = appParameters[SystemParameterRepository.APP_ZR_STREAM_URL]
+            ?.takeIf { it.isNotBlank() }
+            ?: BuildConfig.ZR_STREAM_URL
+        val controlUrl = appParameters[SystemParameterRepository.APP_ZR_CONTROL_URL]
+            ?.takeIf { it.isNotBlank() }
+            ?: BuildConfig.ZR_CONTROL_URL
         val fragment = ShopAuthorizationSheetFragment
             .newInstance(
                 title = getString(R.string.shop_authorization_title),
-                streamUrl = BuildConfig.ZR_STREAM_URL,
-                controlUrl = BuildConfig.ZR_CONTROL_URL,
+                streamUrl = streamUrl,
+                controlUrl = controlUrl,
                 shopName = shopDisplayName(shop),
                 userPhone = userPhone,
                 shopId = authorizationShopId,

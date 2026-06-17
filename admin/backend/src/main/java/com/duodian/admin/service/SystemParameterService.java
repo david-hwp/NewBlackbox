@@ -21,6 +21,8 @@ public class SystemParameterService {
     public static final String APP_MENU_GIFT_PHONE_MINUTES_LABEL = "app.menu.gift_phone_minutes.label";
     public static final String APP_MENU_RECLAIM_PHONE_MINUTES_LABEL = "app.menu.reclaim_phone_minutes.label";
     public static final String APP_MENU_TRANSACTION_LOGS_LABEL = "app.menu.transaction_logs.label";
+    public static final String APP_ZR_STREAM_URL = "app.zr.stream_url";
+    public static final String APP_ZR_CONTROL_URL = "app.zr.control_url";
 
     private static final byte ACTIVE = 0;
     private static final byte DELETED = 1;

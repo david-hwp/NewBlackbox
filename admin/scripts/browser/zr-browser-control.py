@@ -1,12 +1,17 @@
 #!/usr/bin/env python3
 import argparse
+import hashlib
 import json
 import os
 import re
+import socket
 import subprocess
+import threading
 import time
+from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
+from urllib.request import urlopen
 
 DEFAULT_AUTH_URL = "https://store.jddj.com/base/login"
 DEFAULT_WINDOW_WIDTH = 360
@@ -21,6 +26,11 @@ MIN_BROWSER_SCALE = 0.8
 MAX_BROWSER_SCALE = 2.0
 MIN_RENDER_SCALE = 1.0
 MAX_RENDER_SCALE = 3.0
+SESSION_SLOT_COUNT = 400
+DISPLAY_BASE = 90
+XPRA_PORT_BASE = 15000
+VNC_PORT_BASE = 16000
+DEBUG_PORT_BASE = 17000
 
 
 def safe_segment(value: str, fallback: str) -> str:
@@ -70,6 +80,112 @@ def clamp_float(value: str, fallback: float, minimum: float, maximum: float) -> 
     return max(minimum, min(maximum, parsed))
 
 
+def stable_slot(phone: str, shop_id: str) -> int:
+    digest = hashlib.sha256(f"{phone}/{shop_id}".encode("utf-8")).hexdigest()
+    return int(digest[:8], 16) % SESSION_SLOT_COUNT
+
+
+def port_available(port: int) -> bool:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.settimeout(0.2)
+        return sock.connect_ex(("127.0.0.1", port)) != 0
+
+
+def load_slot_registry(path: str) -> dict[str, int]:
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            raw = json.load(handle)
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return {}
+    if not isinstance(raw, dict):
+        return {}
+    registry: dict[str, int] = {}
+    for session_id, slot in raw.items():
+        try:
+            parsed_slot = int(slot)
+        except (TypeError, ValueError):
+            continue
+        if 0 <= parsed_slot < SESSION_SLOT_COUNT:
+            registry[str(session_id)] = parsed_slot
+    return registry
+
+
+def save_slot_registry(path: str, registry: dict[str, int]) -> None:
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    tmp_path = f"{path}.tmp"
+    with open(tmp_path, "w", encoding="utf-8") as handle:
+        json.dump(registry, handle, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    os.replace(tmp_path, path)
+
+
+def load_session_registry(path: str) -> dict:
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            raw = json.load(handle)
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return {}
+    return raw if isinstance(raw, dict) else {}
+
+
+def save_session_registry(path: str, registry: dict) -> None:
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    tmp_path = f"{path}.tmp"
+    with open(tmp_path, "w", encoding="utf-8") as handle:
+        json.dump(registry, handle, ensure_ascii=False, sort_keys=True, indent=2)
+    os.replace(tmp_path, path)
+
+
+def debug_port_alive(debug_port: int) -> bool:
+    try:
+        with urlopen(f"http://127.0.0.1:{debug_port}/json/version", timeout=1.5) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+            return bool(payload.get("webSocketDebuggerUrl"))
+    except Exception:
+        return False
+
+
+def xpra_stream_alive(xpra_port: int, timeout: float = 1.5) -> bool:
+    try:
+        with urlopen(f"http://127.0.0.1:{xpra_port}/", timeout=timeout) as response:
+            return response.status == 200
+    except Exception:
+        return False
+
+
+def active_chrome_matches_profile(profile_dir: str, debug_port: int) -> bool:
+    try:
+        completed = subprocess.run(
+            ["ps", "-eo", "args="],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            timeout=2,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    user_data_arg = f"--user-data-dir={profile_dir}"
+    debug_arg = f"--remote-debugging-port={debug_port}"
+    return any(
+        "chrome-linux/chrome" in line
+        and user_data_arg in line
+        and debug_arg in line
+        for line in completed.stdout.splitlines()
+    )
+
+
+@dataclass
+class BrowserSession:
+    phone: str
+    shop_id: str
+    session_id: str
+    display_id: str
+    xpra_port: int
+    vnc_port: int
+    debug_port: int
+    profile_dir: str
+
+
 class BrowserControlHandler(BaseHTTPRequestHandler):
     server_version = "ZRBrowserControl/1.0"
 
@@ -88,6 +204,7 @@ class BrowserControlHandler(BaseHTTPRequestHandler):
         query = parse_qs(parsed.query)
         phone = safe_segment(query.get("phone", [""])[0], "unknown-phone")
         shop_id = safe_segment(query.get("shopId", [""])[0], "unknown-shop")
+        session = self.browser_session(phone, shop_id)
         url = query.get("url", [DEFAULT_AUTH_URL])[0].strip() or DEFAULT_AUTH_URL
         viewport_width = clamp_int(
             query.get("width", [str(DEFAULT_WINDOW_WIDTH)])[0],
@@ -126,72 +243,81 @@ class BrowserControlHandler(BaseHTTPRequestHandler):
             MAX_BROWSER_SCALE,
         )
 
-        profile_dir = os.path.join(self.server.profile_root, phone, shop_id, "chrome")
-        os.makedirs(profile_dir, exist_ok=True)
-        if not self.ensure_display_size(render_width, render_height):
-            self.respond_json(500, {"ok": False, "error": "display_resize_failed"})
-            return
+        with self.session_lock(session):
+            os.makedirs(session.profile_dir, exist_ok=True)
+            if not self.ensure_display_size(session, render_width, render_height):
+                self.respond_json(500, {"ok": False, "error": "display_resize_failed"})
+                return
+            reused = self.session_browser_alive(session)
+            if reused:
+                self.pin_existing_window(session, render_width, render_height)
+                stream_ready = self.wait_for_stream(session)
+                if not stream_ready:
+                    self.respond_json(502, {"ok": False, "ready": False, "error": "stream_not_ready"})
+                    return
+                self.record_session(
+                    session,
+                    url,
+                    render_width,
+                    render_height,
+                    viewport_width,
+                    viewport_height,
+                    render_scale,
+                    scale,
+                    "reused",
+                )
+                append_trace(
+                    self.server.trace_file,
+                    {
+                        "event": "open_reused",
+                        "phone": phone,
+                        "shopId": shop_id,
+                        "sessionId": session.session_id,
+                        "displayId": session.display_id,
+                        "xpraPort": session.xpra_port,
+                        "debugPort": session.debug_port,
+                        "profileDir": session.profile_dir,
+                        "url": url,
+                        "width": render_width,
+                        "height": render_height,
+                        "viewportWidth": viewport_width,
+                        "viewportHeight": viewport_height,
+                        "renderScale": render_scale,
+                        "scale": scale,
+                        "client": self.client_address[0],
+                    },
+                )
+                self.respond_json(
+                    200,
+                    self.open_response(
+                        True,
+                        True,
+                        session,
+                        render_width,
+                        render_height,
+                        viewport_width,
+                        viewport_height,
+                        render_scale,
+                        scale,
+                        {"ok": True, "reason": "reused"},
+                        0,
+                        "reused_existing_browser",
+                    ),
+                )
+                return
 
-        append_trace(
-            self.server.trace_file,
-            {
-                "event": "open_request",
-                "phone": phone,
-                "shopId": shop_id,
-                "profileDir": profile_dir,
-                "url": url,
-                "width": render_width,
-                "height": render_height,
-                "viewportWidth": viewport_width,
-                "viewportHeight": viewport_height,
-                "renderWidth": render_width,
-                "renderHeight": render_height,
-                "renderScale": render_scale,
-                "scale": scale,
-                "client": self.client_address[0],
-            },
-        )
-
-        env = os.environ.copy()
-        env.update(
-            {
-                "DISPLAY_ID": self.server.display_id,
-                "ZR_USER_PHONE": phone,
-                "ZR_SHOP_ID": shop_id,
-                "ZR_AUTH_URL": url,
-                "ZR_BASE_DIR": self.server.base_dir,
-                "ZR_PROFILE_ROOT": self.server.profile_root,
-                "ZR_TRACE_FILE": self.server.trace_file,
-                "ZR_WINDOW_WIDTH": str(render_width),
-                "ZR_WINDOW_HEIGHT": str(render_height),
-                "ZR_VIEWPORT_WIDTH": str(viewport_width),
-                "ZR_VIEWPORT_HEIGHT": str(viewport_height),
-                "ZR_RENDER_WIDTH": str(render_width),
-                "ZR_RENDER_HEIGHT": str(render_height),
-                "ZR_RENDER_SCALE": str(render_scale),
-                "ZR_BROWSER_SCALE": str(scale),
-                "ZR_DEBUG_PORT": str(self.server.debug_port),
-                "ZR_SKIP_CONTROL": "1",
-            }
-        )
-        try:
-            completed = subprocess.run(
-                [self.server.browser_script],
-                env=env,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                timeout=20,
-                check=False,
-            )
-        except subprocess.TimeoutExpired:
             append_trace(
                 self.server.trace_file,
                 {
-                    "event": "open_timeout",
+                    "event": "open_request",
                     "phone": phone,
                     "shopId": shop_id,
-                    "profileDir": profile_dir,
+                    "sessionId": session.session_id,
+                    "displayId": session.display_id,
+                    "xpraPort": session.xpra_port,
+                    "debugPort": session.debug_port,
+                    "profileDir": session.profile_dir,
+                    "url": url,
                     "width": render_width,
                     "height": render_height,
                     "viewportWidth": viewport_width,
@@ -200,79 +326,149 @@ class BrowserControlHandler(BaseHTTPRequestHandler):
                     "renderHeight": render_height,
                     "renderScale": render_scale,
                     "scale": scale,
+                    "client": self.client_address[0],
                 },
             )
-            self.respond_json(504, {"ok": False, "error": "browser_start_timeout"})
-            return
 
-        ok = completed.returncode == 0
-        alignment = self.align_login_form(
-            env,
-            phone,
-            shop_id,
-            profile_dir,
-            viewport_width,
-            viewport_height,
-            render_width,
-            render_height,
-            scale,
-        ) if ok else {
-            "ok": False,
-            "reason": "browser_start_failed",
-        }
-        ready = ok
-        append_trace(
-            self.server.trace_file,
-            {
-                "event": "open_finished",
-                "phone": phone,
-                "shopId": shop_id,
-                "profileDir": profile_dir,
-                "returnCode": completed.returncode,
-                "ready": ready,
-                "width": render_width,
-                "height": render_height,
-                "viewportWidth": viewport_width,
-                "viewportHeight": viewport_height,
-                "renderWidth": render_width,
-                "renderHeight": render_height,
-                "renderScale": render_scale,
-                "scale": scale,
-                "alignment": alignment,
-            },
-        )
-        self.respond_json(
-            200 if ok else 500,
-            {
-                "ok": ok,
-                "ready": ready,
-                "profileDir": profile_dir,
-                "width": render_width,
-                "height": render_height,
-                "viewportWidth": viewport_width,
-                "viewportHeight": viewport_height,
-                "renderWidth": render_width,
-                "renderHeight": render_height,
-                "renderScale": render_scale,
-                "scale": scale,
-                "alignment": alignment,
-                "returnCode": completed.returncode,
-                "output": completed.stdout[-2000:],
-            },
-        )
+            env = os.environ.copy()
+            env.update(
+                {
+                    "DISPLAY_ID": session.display_id,
+                    "ZR_SESSION_ID": session.session_id,
+                    "ZR_USER_PHONE": phone,
+                    "ZR_SHOP_ID": shop_id,
+                    "ZR_AUTH_URL": url,
+                    "ZR_BASE_DIR": self.server.base_dir,
+                    "ZR_PROFILE_ROOT": self.server.profile_root,
+                    "ZR_TRACE_FILE": self.server.trace_file,
+                    "ZR_WINDOW_WIDTH": str(render_width),
+                    "ZR_WINDOW_HEIGHT": str(render_height),
+                    "ZR_VIEWPORT_WIDTH": str(viewport_width),
+                    "ZR_VIEWPORT_HEIGHT": str(viewport_height),
+                    "ZR_RENDER_WIDTH": str(render_width),
+                    "ZR_RENDER_HEIGHT": str(render_height),
+                    "ZR_RENDER_SCALE": str(render_scale),
+                    "ZR_BROWSER_SCALE": str(scale),
+                    "ZR_DEBUG_PORT": str(session.debug_port),
+                    "ZR_SKIP_CONTROL": "1",
+                }
+            )
+            try:
+                completed = subprocess.run(
+                    [self.server.browser_script],
+                    env=env,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    timeout=20,
+                    check=False,
+                )
+            except subprocess.TimeoutExpired:
+                append_trace(
+                    self.server.trace_file,
+                    {
+                        "event": "open_timeout",
+                        "phone": phone,
+                        "shopId": shop_id,
+                        "sessionId": session.session_id,
+                        "profileDir": session.profile_dir,
+                        "width": render_width,
+                        "height": render_height,
+                        "viewportWidth": viewport_width,
+                        "viewportHeight": viewport_height,
+                        "renderWidth": render_width,
+                        "renderHeight": render_height,
+                        "renderScale": render_scale,
+                        "scale": scale,
+                    },
+                )
+                self.respond_json(504, {"ok": False, "error": "browser_start_timeout"})
+                return
+
+            ok = completed.returncode == 0
+            stream_ready = self.wait_for_stream(session) if ok else False
+            if ok:
+                self.record_session(
+                    session,
+                    url,
+                    render_width,
+                    render_height,
+                    viewport_width,
+                    viewport_height,
+                    render_scale,
+                    scale,
+                    "started",
+                )
+            alignment = self.align_login_form(
+                env,
+                phone,
+                shop_id,
+                session.profile_dir,
+                viewport_width,
+                viewport_height,
+                render_width,
+                render_height,
+                scale,
+            ) if ok else {
+                "ok": False,
+                "reason": "browser_start_failed",
+            }
+            ready = ok and stream_ready
+            append_trace(
+                self.server.trace_file,
+                {
+                    "event": "open_finished",
+                    "phone": phone,
+                    "shopId": shop_id,
+                    "sessionId": session.session_id,
+                    "displayId": session.display_id,
+                    "xpraPort": session.xpra_port,
+                    "debugPort": session.debug_port,
+                    "profileDir": session.profile_dir,
+                    "returnCode": completed.returncode,
+                    "ready": ready,
+                    "streamReady": stream_ready,
+                    "width": render_width,
+                    "height": render_height,
+                    "viewportWidth": viewport_width,
+                    "viewportHeight": viewport_height,
+                    "renderWidth": render_width,
+                    "renderHeight": render_height,
+                    "renderScale": render_scale,
+                    "scale": scale,
+                    "alignment": alignment,
+                },
+            )
+            self.respond_json(
+                200 if ready else 502,
+                self.open_response(
+                    ready,
+                    ready,
+                    session,
+                    render_width,
+                    render_height,
+                    viewport_width,
+                    viewport_height,
+                    render_scale,
+                    scale,
+                    alignment,
+                    completed.returncode,
+                    completed.stdout[-2000:],
+                ),
+            )
 
     def handle_probe(self, query: dict) -> None:
         phone = safe_segment(query.get("phone", [""])[0], "unknown-phone")
         shop_id = safe_segment(query.get("shopId", [""])[0], "unknown-shop")
+        session = self.browser_session(phone, shop_id)
         url = query.get("url", [DEFAULT_AUTH_URL])[0].strip() or DEFAULT_AUTH_URL
-        profile_dir = os.path.join(self.server.profile_root, phone, shop_id, "chrome")
         env = os.environ.copy()
         env.update(
             {
                 "ZR_AUTH_URL": url,
-                "ZR_PROFILE_DIR": profile_dir,
+                "ZR_PROFILE_DIR": session.profile_dir,
                 "ZR_TRACE_FILE": self.server.trace_file,
-                "ZR_DEBUG_PORT": str(self.server.debug_port),
+                "ZR_DEBUG_PORT": str(session.debug_port),
             }
         )
         append_trace(
@@ -281,12 +477,15 @@ class BrowserControlHandler(BaseHTTPRequestHandler):
                 "event": "authorization_probe_requested",
                 "phone": phone,
                 "shopId": shop_id,
-                "profileDir": profile_dir,
+                "sessionId": session.session_id,
+                "displayId": session.display_id,
+                "debugPort": session.debug_port,
+                "profileDir": session.profile_dir,
                 "url": url,
                 "client": self.client_address[0],
             },
         )
-        if not os.path.exists(profile_dir):
+        if not os.path.exists(session.profile_dir):
             self.respond_json(
                 200,
                 {
@@ -294,7 +493,11 @@ class BrowserControlHandler(BaseHTTPRequestHandler):
                     "status": "UNAUTHORIZED",
                     "confidence": "HIGH",
                     "signals": {
-                        "profilePath": profile_dir,
+                        "sessionId": session.session_id,
+                        "displayId": session.display_id,
+                        "streamPort": session.xpra_port,
+                        "debugPort": session.debug_port,
+                        "profilePath": session.profile_dir,
                         "reason": "profile_missing",
                     },
                 },
@@ -319,6 +522,15 @@ class BrowserControlHandler(BaseHTTPRequestHandler):
             "error": "invalid_probe_output",
             "output": completed.stdout[-2000:],
         }
+        signals = payload.get("signals")
+        if not isinstance(signals, dict):
+            signals = {}
+            payload["signals"] = signals
+        signals["sessionId"] = session.session_id
+        signals["displayId"] = session.display_id
+        signals["streamPort"] = session.xpra_port
+        signals["debugPort"] = session.debug_port
+        signals["profilePath"] = session.profile_dir
         payload.setdefault("returnCode", completed.returncode)
         self.respond_json(200 if payload.get("ok") else 500, payload)
 
@@ -391,15 +603,188 @@ class BrowserControlHandler(BaseHTTPRequestHandler):
         alignment.setdefault("renderHeight", render_height)
         return alignment
 
-    def ensure_display_size(self, width: int, height: int) -> bool:
-        if self.server.current_width == width and self.server.current_height == height:
+    def browser_session(self, phone: str, shop_id: str) -> BrowserSession:
+        session_id = f"{phone}_{shop_id}"
+        profile_dir = os.path.join(self.server.profile_root, phone, shop_id, "chrome")
+        with self.server.locks_guard:
+            slot = self.server.session_slots.get(session_id)
+            if slot is None:
+                start_slot = stable_slot(phone, shop_id)
+                slot = start_slot
+                for offset in range(SESSION_SLOT_COUNT):
+                    candidate = (start_slot + offset) % SESSION_SLOT_COUNT
+                    owner = self.server.slot_owners.get(candidate)
+                    xpra_port = XPRA_PORT_BASE + candidate
+                    debug_port = DEBUG_PORT_BASE + candidate
+                    ports_free = port_available(xpra_port) and port_available(debug_port)
+                    ports_owned_by_profile = active_chrome_matches_profile(profile_dir, debug_port)
+                    if owner in (None, session_id) and (owner == session_id or ports_free or ports_owned_by_profile):
+                        slot = candidate
+                        self.server.session_slots[session_id] = slot
+                        self.server.slot_owners[slot] = session_id
+                        save_slot_registry(self.server.session_slot_file, self.server.session_slots)
+                        break
+                else:
+                    self.server.session_slots[session_id] = slot
+                    self.server.slot_owners[slot] = session_id
+                    save_slot_registry(self.server.session_slot_file, self.server.session_slots)
+        return BrowserSession(
+            phone=phone,
+            shop_id=shop_id,
+            session_id=session_id,
+            display_id=f":{DISPLAY_BASE + slot}",
+            xpra_port=XPRA_PORT_BASE + slot,
+            vnc_port=VNC_PORT_BASE + slot,
+            debug_port=DEBUG_PORT_BASE + slot,
+            profile_dir=profile_dir,
+        )
+
+    def session_lock(self, session: BrowserSession):
+        with self.server.locks_guard:
+            lock = self.server.session_locks.get(session.session_id)
+            if lock is None:
+                lock = threading.Lock()
+                self.server.session_locks[session.session_id] = lock
+            return lock
+
+    def session_browser_alive(self, session: BrowserSession) -> bool:
+        return (
+            debug_port_alive(session.debug_port)
+            and active_chrome_matches_profile(session.profile_dir, session.debug_port)
+            and xpra_stream_alive(session.xpra_port)
+        )
+
+    def pin_existing_window(self, session: BrowserSession, width: int, height: int) -> None:
+        env = os.environ.copy()
+        env["DISPLAY"] = session.display_id
+        subprocess.run(
+            ["xdotool", "search", "--onlyvisible", "--class", "Chromium", "windowmove", "0", "0",
+             "windowsize", str(width), str(height), "windowactivate"],
+            env=env,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=3,
+            check=False,
+        )
+
+    def record_session(
+        self,
+        session: BrowserSession,
+        url: str,
+        render_width: int,
+        render_height: int,
+        viewport_width: int,
+        viewport_height: int,
+        render_scale: float,
+        scale: float,
+        state: str,
+    ) -> None:
+        with self.server.locks_guard:
+            registry = self.server.session_registry
+            registry[session.session_id] = {
+                "phone": session.phone,
+                "shopId": session.shop_id,
+                "sessionId": session.session_id,
+                "profileDir": session.profile_dir,
+                "displayId": session.display_id,
+                "streamPort": session.xpra_port,
+                "vncPort": session.vnc_port,
+                "debugPort": session.debug_port,
+                "url": url,
+                "width": render_width,
+                "height": render_height,
+                "viewportWidth": viewport_width,
+                "viewportHeight": viewport_height,
+                "renderScale": render_scale,
+                "scale": scale,
+                "state": state,
+                "updatedAt": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+            }
+            save_session_registry(self.server.session_registry_file, registry)
+
+    def open_response(
+        self,
+        ok: bool,
+        ready: bool,
+        session: BrowserSession,
+        render_width: int,
+        render_height: int,
+        viewport_width: int,
+        viewport_height: int,
+        render_scale: float,
+        scale: float,
+        alignment: dict,
+        return_code: int,
+        output: str,
+    ) -> dict:
+        return {
+            "ok": ok,
+            "ready": ready,
+            "profileDir": session.profile_dir,
+            "streamPort": session.xpra_port,
+            "streamPath": f"/zr-stream/{session.xpra_port}/",
+            "streamUrl": f"/zr-stream/{session.xpra_port}/",
+            "directStreamUrl": f"http://47.112.170.106:{session.xpra_port}/",
+            "displayId": session.display_id,
+            "debugPort": session.debug_port,
+            "width": render_width,
+            "height": render_height,
+            "viewportWidth": viewport_width,
+            "viewportHeight": viewport_height,
+            "renderWidth": render_width,
+            "renderHeight": render_height,
+            "renderScale": render_scale,
+            "scale": scale,
+            "alignment": alignment,
+            "returnCode": return_code,
+            "output": output,
+        }
+
+    def wait_for_stream(self, session: BrowserSession, attempts: int = 8) -> bool:
+        for attempt in range(1, attempts + 1):
+            if xpra_stream_alive(session.xpra_port):
+                append_trace(
+                    self.server.trace_file,
+                    {
+                        "event": "stream_ready",
+                        "phone": session.phone,
+                        "shopId": session.shop_id,
+                        "sessionId": session.session_id,
+                        "xpraPort": session.xpra_port,
+                        "attempt": attempt,
+                    },
+                )
+                return True
+            time.sleep(0.5)
+        append_trace(
+            self.server.trace_file,
+            {
+                "event": "stream_not_ready",
+                "phone": session.phone,
+                "shopId": session.shop_id,
+                "sessionId": session.session_id,
+                "xpraPort": session.xpra_port,
+                "attempts": attempts,
+            },
+        )
+        return False
+
+    def ensure_display_size(self, session: BrowserSession, width: int, height: int) -> bool:
+        current_size = self.server.session_sizes.get(session.session_id)
+        if current_size == (width, height) and xpra_stream_alive(session.xpra_port):
             return True
         append_trace(
             self.server.trace_file,
             {
                 "event": "display_resize_requested",
-                "fromWidth": self.server.current_width,
-                "fromHeight": self.server.current_height,
+                "phone": session.phone,
+                "shopId": session.shop_id,
+                "sessionId": session.session_id,
+                "displayId": session.display_id,
+                "xpraPort": session.xpra_port,
+                "vncPort": session.vnc_port,
+                "fromWidth": current_size[0] if current_size else None,
+                "fromHeight": current_size[1] if current_size else None,
                 "width": width,
                 "height": height,
             },
@@ -408,6 +793,10 @@ class BrowserControlHandler(BaseHTTPRequestHandler):
         env.update(
             {
                 "ZR_BASE_DIR": self.server.base_dir,
+                "ZR_SESSION_ID": session.session_id,
+                "DISPLAY_ID": session.display_id,
+                "ZR_XPRA_PORT": str(session.xpra_port),
+                "ZR_VNC_PORT": str(session.vnc_port),
                 "ZR_WINDOW_WIDTH": str(width),
                 "ZR_WINDOW_HEIGHT": str(height),
             }
@@ -425,7 +814,14 @@ class BrowserControlHandler(BaseHTTPRequestHandler):
         except subprocess.TimeoutExpired:
             append_trace(
                 self.server.trace_file,
-                {"event": "display_resize_timeout", "width": width, "height": height},
+                {
+                    "event": "display_resize_timeout",
+                    "phone": session.phone,
+                    "shopId": session.shop_id,
+                    "sessionId": session.session_id,
+                    "width": width,
+                    "height": height,
+                },
             )
             return False
         ok = completed.returncode == 0
@@ -433,6 +829,12 @@ class BrowserControlHandler(BaseHTTPRequestHandler):
             self.server.trace_file,
             {
                 "event": "display_resize_finished",
+                "phone": session.phone,
+                "shopId": session.shop_id,
+                "sessionId": session.session_id,
+                "displayId": session.display_id,
+                "xpraPort": session.xpra_port,
+                "vncPort": session.vnc_port,
                 "width": width,
                 "height": height,
                 "returnCode": completed.returncode,
@@ -440,8 +842,7 @@ class BrowserControlHandler(BaseHTTPRequestHandler):
             },
         )
         if ok:
-            self.server.current_width = width
-            self.server.current_height = height
+            self.server.session_sizes[session.session_id] = (width, height)
         return ok
 
     def respond_json(self, status: int, payload: dict) -> None:
@@ -472,6 +873,8 @@ def main() -> None:
     server.base_dir = args.base_dir
     server.profile_root = os.path.join(args.base_dir, "profiles")
     server.trace_file = os.path.join(args.base_dir, "logs", "browser-trace.jsonl")
+    server.session_slot_file = os.path.join(args.base_dir, "sessions", "slots.json")
+    server.session_registry_file = os.path.join(args.base_dir, "sessions", "registry.json")
     server.start_script = os.path.join(args.base_dir, "start-zr.sh")
     server.display_script = os.path.join(args.base_dir, "start-zr-display.sh")
     server.browser_script = os.path.join(args.base_dir, "start-zr-browser.sh")
@@ -481,9 +884,12 @@ def main() -> None:
     server.window_width = args.window_width
     server.window_height = args.window_height
     server.browser_scale = args.browser_scale
-    server.debug_port = 14502
-    server.current_width = args.window_width
-    server.current_height = args.window_height
+    server.session_sizes = {}
+    server.session_locks = {}
+    server.session_slots = load_slot_registry(server.session_slot_file)
+    server.slot_owners = {slot: session_id for session_id, slot in server.session_slots.items()}
+    server.session_registry = load_session_registry(server.session_registry_file)
+    server.locks_guard = threading.Lock()
     os.makedirs(server.profile_root, exist_ok=True)
     append_trace(server.trace_file, {"event": "control_started", "host": args.host, "port": args.port})
     server.serve_forever()

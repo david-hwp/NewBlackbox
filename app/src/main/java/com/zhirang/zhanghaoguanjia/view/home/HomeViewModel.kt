@@ -162,6 +162,12 @@ class HomeViewModel : ViewModel() {
         }
     }
 
+    suspend fun refreshAppParametersForShopAuthorization(): Map<String, String> {
+        return systemParameterRepository.getAppParameters()
+            .onSuccess { parameters -> _appParametersLiveData.value = parameters }
+            .getOrDefault(_appParametersLiveData.value.orEmpty())
+    }
+
     suspend fun getAppParametersForPrompt(): Map<String, String> {
         _appParametersLiveData.value?.let { return it }
         if (!isLoggedIn()) {
