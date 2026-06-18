@@ -20,7 +20,7 @@
 
 ## Wave 3: 验证
 
-- Android 编译：`JAVA_HOME=$(/usr/libexec/java_home -v 21) ANDROID_HOME=/opt/homebrew/share/android-commandlinetools ANDROID_NDK_HOME=/opt/homebrew/share/android-commandlinetools/ndk/29.0.13846066 ./gradlew :app:compileDebugKotlin`
+- Android 编译：`export ANDROID_SDK_ROOT="${ANDROID_SDK_ROOT:-$HOME/Library/Android/sdk}"; JAVA_HOME=$(/usr/libexec/java_home -v 21) ANDROID_HOME="$ANDROID_SDK_ROOT" ANDROID_NDK_HOME="$ANDROID_SDK_ROOT/ndk/29.0.13846066" ./gradlew :app:compileDebugKotlin`
 - 后台前端构建：`npm run build` in `admin/frontend`
 - 服务端测试：优先运行公告相关测试；如没有专门测试，运行后端单测 smoke。
 

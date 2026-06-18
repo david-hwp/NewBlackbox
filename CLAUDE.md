@@ -47,6 +47,8 @@ Use this checklist for every public release.
 
 ```bash
 export JAVA_HOME=$(/usr/libexec/java_home -v 21)
+export ANDROID_SDK_ROOT="${ANDROID_SDK_ROOT:-$HOME/Library/Android/sdk}"
+export ANDROID_HOME="$ANDROID_SDK_ROOT"
 
 # 1. Pick a monotonically increasing versionCode in root build.gradle.
 # Check the server first so app/engine versionCode is higher than active engine_versions.
@@ -55,12 +57,12 @@ export JAVA_HOME=$(/usr/libexec/java_home -v 21)
 ./gradlew :app:assembleRelease --no-daemon
 
 # 3. Verify app and engine package metadata.
-AAPT=/opt/homebrew/share/android-commandlinetools/build-tools/35.0.0/aapt
+AAPT="$ANDROID_SDK_ROOT/build-tools/35.0.0/aapt"
 $AAPT dump badging app/build/outputs/apk/release/zhanghaoguanjia_${VERSION_NAME}_universal-release.apk | sed -n '1,4p'
 $AAPT dump badging Bcore/build/outputs/apk/release/FxEngine_${VERSION_NAME}_release.apk | sed -n '1,4p'
 
 # 4. Verify both APK signatures. Engine must verify before upload.
-APKSIGNER=/opt/homebrew/share/android-commandlinetools/build-tools/35.0.0/apksigner
+APKSIGNER="$ANDROID_SDK_ROOT/build-tools/35.0.0/apksigner"
 $APKSIGNER verify --verbose --print-certs app/build/outputs/apk/release/zhanghaoguanjia_${VERSION_NAME}_universal-release.apk
 $APKSIGNER verify --verbose --print-certs Bcore/build/outputs/apk/release/FxEngine_${VERSION_NAME}_release.apk
 
@@ -203,7 +205,7 @@ curl -H "Authorization: Bearer $TOKEN" \
 Pixel 8 release smoke test:
 
 ```bash
-ADB=/opt/homebrew/share/android-commandlinetools/platform-tools/adb
+ADB="${ANDROID_SDK_ROOT:-$HOME/Library/Android/sdk}/platform-tools/adb"
 
 # Confirm the emulator. Do not use Pixel 9 for release smoke tests.
 $ADB -s emulator-5554 emu avd name
@@ -240,8 +242,8 @@ Do not use a plain `mysql` session for Chinese text. The server and tables are `
 ### Installing to Device
 
 ```bash
-# Find adb (homebrew: android-commandlinetools)
-ADB="/opt/homebrew/share/android-commandlinetools/platform-tools/adb"
+# Find adb from the Android Studio default SDK location.
+ADB="${ANDROID_SDK_ROOT:-$HOME/Library/Android/sdk}/platform-tools/adb"
 
 # Check connected devices
 $ADB devices
