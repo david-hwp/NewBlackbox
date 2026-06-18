@@ -2,8 +2,8 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: phase11-channel-promotion-system
-status: Phase 19 Wave 3 completed
-last_updated: "2026-06-15T19:05:00+08:00"
+status: Phase 19 Wave 3 completed; development environment migrated to double
+last_updated: "2026-06-18T19:40:13+08:00"
 progress:
   total_phases: 11
   completed_phases: 10
@@ -13,6 +13,17 @@ progress:
 ---
 
 ## Recent Changes
+
+### 2026-06-18: Development environment migrated to double
+
+- Migrated the active development machine to `hwp@double` at `/Users/hwp/Projects/personal/zhirang-zhanghaoguanjia` on branch `dev`; future project work should continue there.
+- Configured Thunderbolt Bridge transfer path with local `10.10.10.1` and double `10.10.10.2`; SSH target is `ssh -o HostKeyAlias=double hwp@10.10.10.2`.
+- Installed Android Studio `2025.3` at `/Applications/Android Studio.app`; Android SDK is fixed to Android Studio's default user SDK path `/Users/hwp/Library/Android/sdk` with `ANDROID_HOME` and `ANDROID_SDK_ROOT` pointing there.
+- Important path rule: do not use the old Homebrew-managed SDK location for SDK work on double; future SDK installs/updates must target `/Users/hwp/Library/Android/sdk`.
+- Added a minimal `/Users/hwp/.zshenv` so direct non-interactive SSH commands also resolve Android SDK tools, Android Studio JBR 21, VS Code CLI, and scrcpy without sourcing shell profiles manually.
+- Migrated Android SDK (`36G`) and AVD data (`43G`) to `/Users/hwp/.android/avd`; rewrote AVD and Android Studio SDK path references away from `/Users/heweiping` and Homebrew SDK paths.
+- Verified `adb`, `sdkmanager`, `emulator`, `avdmanager`, Gradle wrapper, Android Studio JBR 21, and `Pixel_8` emulator launch; emulator log confirmed system image resolution under `/Users/hwp/Library/Android/sdk` and `adb devices` saw `emulator-5554`.
+- Synced VS Code extensions including `karthikaradhya.vscode-scrcpy@1.1.1`; installed `scrcpy 4.0` at `/Users/hwp/.local/bin/scrcpy`.
 
 ### 2026-06-15: Phase 19 Wave 3 completed
 

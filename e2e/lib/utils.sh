@@ -16,12 +16,14 @@ REPORT_FILE="$SCRIPT_DIR/report_${TIMESTAMP}.md"
 find_adb() {
     if command -v adb &>/dev/null; then
         echo "adb"
-    elif [[ -x "/opt/homebrew/share/android-commandlinetools/platform-tools/adb" ]]; then
-        echo "/opt/homebrew/share/android-commandlinetools/platform-tools/adb"
-    elif [[ -x "/Applications/wechatwebdevtools.app/Contents/Resources/bin/adb-macos/adb" ]]; then
-        echo "/Applications/wechatwebdevtools.app/Contents/Resources/bin/adb-macos/adb"
+    elif [[ -n "${ANDROID_SDK_ROOT:-}" && -x "$ANDROID_SDK_ROOT/platform-tools/adb" ]]; then
+        echo "$ANDROID_SDK_ROOT/platform-tools/adb"
+    elif [[ -n "${ANDROID_HOME:-}" && -x "$ANDROID_HOME/platform-tools/adb" ]]; then
+        echo "$ANDROID_HOME/platform-tools/adb"
     elif [[ -x "$HOME/Library/Android/sdk/platform-tools/adb" ]]; then
         echo "$HOME/Library/Android/sdk/platform-tools/adb"
+    elif [[ -x "/Applications/wechatwebdevtools.app/Contents/Resources/bin/adb-macos/adb" ]]; then
+        echo "/Applications/wechatwebdevtools.app/Contents/Resources/bin/adb-macos/adb"
     else
         echo "adb"
     fi

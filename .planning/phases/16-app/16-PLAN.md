@@ -174,8 +174,8 @@ Make the Main App the business owner of shop login-state metadata, upload orches
 
 ```bash
 JAVA_HOME=$(/usr/libexec/java_home -v 21) \
-ANDROID_HOME=/opt/homebrew/share/android-commandlinetools \
-ANDROID_NDK_HOME=/opt/homebrew/share/android-commandlinetools/ndk/29.0.13846066 \
+ANDROID_HOME="${ANDROID_SDK_ROOT:-$HOME/Library/Android/sdk}" \
+ANDROID_NDK_HOME="${ANDROID_SDK_ROOT:-$HOME/Library/Android/sdk}/ndk/29.0.13846066" \
 ./gradlew :app:compileDebugKotlin
 ```
 
@@ -205,7 +205,7 @@ JAVA_HOME=$(/usr/libexec/java_home -v 21) mvn -Dtest=ShopControllerTest,ShopServ
 ## Completion Verification
 
 - Android compile passed with JDK 21:
-  `JAVA_HOME=$(/usr/libexec/java_home -v 21) ANDROID_HOME=/opt/homebrew/share/android-commandlinetools ANDROID_NDK_HOME=/opt/homebrew/share/android-commandlinetools/ndk/29.0.13846066 ./gradlew :app:compileDebugKotlin`
+  `JAVA_HOME=$(/usr/libexec/java_home -v 21) ANDROID_HOME="${ANDROID_SDK_ROOT:-$HOME/Library/Android/sdk}" ANDROID_NDK_HOME="${ANDROID_SDK_ROOT:-$HOME/Library/Android/sdk}/ndk/29.0.13846066" ./gradlew :app:compileDebugKotlin`
 - Backend focused tests passed with JDK 21:
   `cd admin/backend && JAVA_HOME=$(/usr/libexec/java_home -v 21) mvn -Dtest=ShopControllerTest,ShopServiceTest test`
 - Built and installed debug APK `1.2.14-beta` to Xiaomi MIX 2S `3ca26684`; MIUI installer updated engine from `1.2.13-phase13` to `1.2.14-beta` at `2026-06-13 12:03:23`.

@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ADB="${ADB:-/opt/homebrew/share/android-commandlinetools/platform-tools/adb}"
+SDK_ROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-$HOME/Library/Android/sdk}}"
+ADB="${ADB:-$SDK_ROOT/platform-tools/adb}"
 XIAOMI="${XIAOMI:-3ca26684}"
 OPPO="${OPPO:-55J7JJWKTWKNHYZL}"
 
