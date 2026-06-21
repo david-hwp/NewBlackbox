@@ -53,6 +53,7 @@ public class SoftDeleteSchemaInitializer implements CommandLineRunner {
         ensureUserApkChannelColumn();
         ensureUserSubscriptionColumns();
         ensureUserPhoneMinutesColumn();
+        ensureUserLegacyEngineMigrationColumns();
         ensureChannelColumns();
         ensurePackageVersionIdentityColumns();
         backfillMainChannel();
@@ -169,6 +170,20 @@ public class SoftDeleteSchemaInitializer implements CommandLineRunner {
         }
         jdbcTemplate.execute("UPDATE users SET phone_minutes_balance = 0 WHERE phone_minutes_balance IS NULL");
         jdbcTemplate.execute("ALTER TABLE users MODIFY COLUMN phone_minutes_balance INT NOT NULL DEFAULT 0");
+    }
+
+    private void ensureUserLegacyEngineMigrationColumns() throws Exception {
+        if (!hasColumn("users", "legacy_engine_migrated")) {
+            jdbcTemplate.execute("ALTER TABLE users ADD COLUMN legacy_engine_migrated TINYINT NOT NULL DEFAULT 0");
+        }
+        if (!hasColumn("users", "legacy_engine_migrated_at")) {
+            jdbcTemplate.execute("ALTER TABLE users ADD COLUMN legacy_engine_migrated_at DATETIME");
+        }
+        jdbcTemplate.execute("UPDATE users SET legacy_engine_migrated = 0 WHERE legacy_engine_migrated IS NULL");
+        jdbcTemplate.execute("ALTER TABLE users MODIFY COLUMN legacy_engine_migrated TINYINT NOT NULL DEFAULT 0");
+        if (!hasIndexQuietly("users", "idx_users_legacy_engine_migrated")) {
+            jdbcTemplate.execute("CREATE INDEX idx_users_legacy_engine_migrated ON users (legacy_engine_migrated)");
+        }
     }
 
     private void ensureChannelColumns() throws Exception {

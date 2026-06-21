@@ -97,6 +97,37 @@ object CloneInstanceStore {
         }
     }
 
+    fun bindCloneUserForImport(cloneInstanceId: String?, packageName: String?, serverUserId: Long, userId: Int): Boolean {
+        val cloneId = normalize(cloneInstanceId) ?: return false
+        val pkg = normalize(packageName) ?: return false
+        return synchronized(lock) {
+            try {
+                bindCloneUserLocked(cloneId, pkg, serverUserId, userId)
+            } catch (e: Exception) {
+                Slog.w(TAG, "bindCloneUserForImport failed clone=$cloneId package=$pkg userId=$userId", e)
+                false
+            }
+        }
+    }
+
+    fun hasPackageUserConflict(
+        cloneInstanceId: String?,
+        packageName: String?,
+        serverUserId: Long,
+        userId: Int
+    ): Boolean {
+        val cloneId = normalize(cloneInstanceId) ?: return true
+        val pkg = normalize(packageName) ?: return true
+        return synchronized(lock) {
+            findConflictingPackageUserMapping(
+                readMapping(),
+                mappingKey(cloneId, pkg, serverUserId),
+                pkg,
+                userId
+            ) != null
+        }
+    }
+
     fun writeAuthorization(
         cloneInstanceId: String?,
         packageName: String?,

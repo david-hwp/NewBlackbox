@@ -1,10 +1,12 @@
 package com.zhirang.zhanghaoguanjia.view.home
 
+import android.Manifest
 import android.content.BroadcastReceiver
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -24,6 +26,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.result.ActivityResultLauncher
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.ItemTouchHelper
@@ -47,6 +50,8 @@ import com.zhirang.zhanghaoguanjia.engine.EngineInstaller
 import com.zhirang.zhanghaoguanjia.engine.EngineProxy
 import com.zhirang.zhanghaoguanjia.engine.EngineUpgradeManager
 import com.zhirang.zhanghaoguanjia.engine.EngineVersionChecker
+import com.zhirang.zhanghaoguanjia.engine.LegacyEngineMigrationCoordinator
+import com.zhirang.zhanghaoguanjia.engine.LegacyEngineMigrationForegroundService
 import com.zhirang.zhanghaoguanjia.bean.Platform
 import com.zhirang.zhanghaoguanjia.util.AvatarImageLoader
 import com.zhirang.zhanghaoguanjia.util.inflate
@@ -63,9 +68,12 @@ import com.zhirang.zhanghaoguanjia.view.profile.ProfileActivity
 import com.zhirang.zhanghaoguanjia.view.splash.EngineInstallActivity
 import com.zhirang.zhanghaoguanjia.update.AppUpdateManager
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
 import org.json.JSONObject
+import java.io.File
 import java.security.MessageDigest
 
 class HomeActivity : AppCompatActivity() {
@@ -98,6 +106,8 @@ class HomeActivity : AppCompatActivity() {
     private var shownAnnouncementId: Long? = null
     private var engineUpgradeCheckInFlight = false
     private var cloneDataMigrationInFlight = false
+    private var legacyEngineMigrationInFlight = false
+    private var legacyEngineMigrationRetryScheduled = false
     private var authReceiverRegistered = false
     private var shopProgressDialog: AlertDialog? = null
     private var shopProgressMessageView: TextView? = null
@@ -137,8 +147,15 @@ class HomeActivity : AppCompatActivity() {
     private var pendingEnginePermissionFreshToken: String? = null
     private var pendingEnginePermissionPackage: String? = null
     private var pendingEnginePermissionBaseline = false
+    private lateinit var legacyEngineMigrationCoordinator: LegacyEngineMigrationCoordinator
     private lateinit var enginePermissionLauncher: ActivityResultLauncher<Intent>
     private lateinit var cloneDataMigrationLauncher: ActivityResultLauncher<Intent>
+    private lateinit var legacyEngineImportLauncher: ActivityResultLauncher<Intent>
+    private lateinit var legacyMigrationHostStoragePermissionLauncher: ActivityResultLauncher<Array<String>>
+    private var pendingLegacyMigrationServerUserId: Long = 0L
+    private var pendingLegacyMigrationPayloads: List<LegacyEngineMigrationCoordinator.CloneShopPayload> = emptyList()
+    private var pendingLegacyMigrationHostStoragePermissionShops: List<Shop> = emptyList()
+    private var legacyExportInProgress = false
     private lateinit var shopSwipeHelper: ShopSwipeHelper
     private lateinit var shopItemTouchHelper: ItemTouchHelper
     private var pendingShopOrderSubmit = false
@@ -161,6 +178,8 @@ class HomeActivity : AppCompatActivity() {
         private const val TICKER_MIN_CYCLE_MS = 8_000L
         private const val TICKER_FRAME_DELAY_MS = 16L
         private const val DEFAULT_REGISTER_TRIAL_SUBSCRIPTION_DAYS = 30
+        private const val LEGACY_MAIN_PACKAGE = "com.zhirang.zhanghaoguanjia"
+        private const val LEGACY_ENGINE_EXPORT_REQUEST_CODE = 40_001
         private const val WECHAT_PACKAGE = "com.tencent.mm"
         private const val WECHAT_SHARE_ACTIVITY = "com.tencent.mm.ui.tools.ShareImgUI"
         private const val WECHAT_SEND_WRAPPER_ACTIVITY = "com.tencent.mm.ui.transmit.SendAppMessageWrapperUI"
@@ -180,8 +199,11 @@ class HomeActivity : AppCompatActivity() {
         setTheme(R.style.Theme_Duodian)
         setContentView(viewBinding.root)
 
+        legacyEngineMigrationCoordinator = LegacyEngineMigrationCoordinator(this)
         initEnginePermissionLauncher()
         initCloneDataMigrationLauncher()
+        initLegacyEngineImportLauncher()
+        initLegacyMigrationHostStoragePermissionLauncher()
         initViewModel()
         initPlatformSidebar()
         initShopList()
@@ -256,6 +278,16 @@ class HomeActivity : AppCompatActivity() {
         }
     }
 
+    @Deprecated("Deprecated in Android framework; used here to control the exact requestCode.")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        if (requestCode == LEGACY_ENGINE_EXPORT_REQUEST_CODE) {
+            legacyExportInProgress = false
+            Log.i(TAG, "Legacy engine export activity returned result=$resultCode")
+            return
+        }
+        super.onActivityResult(requestCode, resultCode, data)
+    }
+
     private fun initViewModel() {
         viewModel = ViewModelProvider(this)[HomeViewModel::class.java]
     }
@@ -299,9 +331,37 @@ class HomeActivity : AppCompatActivity() {
         }
     }
 
+    private fun initLegacyEngineImportLauncher() {
+        legacyEngineImportLauncher = registerForActivityResult(
+            ActivityResultContracts.StartActivityForResult()
+        ) { result ->
+            finalizeLegacyEngineMigration(result.resultCode == RESULT_OK, result.data)
+        }
+    }
+
+    private fun initLegacyMigrationHostStoragePermissionLauncher() {
+        legacyMigrationHostStoragePermissionLauncher = registerForActivityResult(
+            ActivityResultContracts.RequestMultiplePermissions()
+        ) { result ->
+            val shops = pendingLegacyMigrationHostStoragePermissionShops
+            pendingLegacyMigrationHostStoragePermissionShops = emptyList()
+            if (result.values.all { it }) {
+                Log.i(TAG, "Host storage permission granted for legacy engine migration")
+                maybeRunLegacyEngineMigration(shops)
+            } else {
+                Log.i(TAG, "Host storage permission denied for legacy engine migration result=$result")
+                toast("未授权读取历史店铺数据，暂时无法迁移分身数据")
+            }
+        }
+    }
+
     private fun maybeRequestBaselineEnginePermissions() {
         handler.post {
             if (!TokenManager.getInstance().isLoggedIn()) {
+                return@post
+            }
+            if (hasCurrentLegacyEngineMigrationWork()) {
+                Log.i(TAG, "Defer baseline engine permissions while legacy engine migration is pending")
                 return@post
             }
             if (pendingEnginePermissionBaseline || pendingEnginePermissionShop != null) {
@@ -322,6 +382,10 @@ class HomeActivity : AppCompatActivity() {
 
     private fun maybeRunCloneDataMigration() {
         if (cloneDataMigrationInFlight || !TokenManager.getInstance().isLoggedIn()) {
+            return
+        }
+        if (hasCurrentLegacyEngineMigrationWork()) {
+            Log.i(TAG, "Defer scoped clone data migration while legacy engine migration is pending")
             return
         }
         if (!EngineProxy.isConnected()) {
@@ -385,6 +449,642 @@ class HomeActivity : AppCompatActivity() {
                     toast("分身数据迁移失败，请重启后重试")
                 }
             }
+        }
+    }
+
+    private fun maybeRunLegacyEngineMigration(shops: List<Shop>) {
+        if (legacyEngineMigrationInFlight || !TokenManager.getInstance().isLoggedIn()) {
+            return
+        }
+        if (BuildConfig.APPLICATION_ID == LEGACY_MAIN_PACKAGE) {
+            return
+        }
+        val user = TokenManager.getInstance().getUser() ?: return
+        val serverUserId = user.id
+        if (serverUserId <= 0L) {
+            return
+        }
+        if (user.legacyEngineMigrated) {
+            Log.i(TAG, "Skip legacy engine migration: server state already completed user=$serverUserId")
+            TokenManager.getInstance().saveLegacyEngineMigrationState(
+                serverUserId,
+                TokenManager.LEGACY_ENGINE_MIGRATION_SUCCESS
+            )
+            TokenManager.getInstance().clearLegacyEngineMigrationPending(serverUserId)
+            TokenManager.getInstance().clearLegacyEngineMigrationAfterLogin(serverUserId)
+            return
+        }
+        val currentState = TokenManager.getInstance().getLegacyEngineMigrationState(serverUserId)
+        if (currentState == TokenManager.LEGACY_ENGINE_MIGRATION_SUCCESS ||
+            currentState == TokenManager.LEGACY_ENGINE_MIGRATION_UNSUPPORTED
+        ) {
+            Log.i(TAG, "Skip legacy engine migration: local state=$currentState user=$serverUserId")
+            TokenManager.getInstance().clearLegacyEngineMigrationAfterLogin(serverUserId)
+            return
+        }
+        val hasPending = TokenManager.getInstance().getLegacyEngineMigrationPending(serverUserId) != null
+        val hasAfterLoginTrigger = TokenManager.getInstance().hasLegacyEngineMigrationAfterLogin(serverUserId)
+        if (shopOperationInProgress && (hasPending || hasAfterLoginTrigger)) {
+            Log.i(TAG, "Defer legacy engine migration: shop operation is busy user=$serverUserId")
+            scheduleLegacyEngineMigrationRetry(shops)
+            return
+        }
+        if ((hasPending || hasAfterLoginTrigger) && !ensureLegacyMigrationHostStoragePermissions(shops)) {
+            return
+        }
+        if (resumePendingLegacyEngineMigration(serverUserId, shops)) {
+            return
+        }
+        if (!hasAfterLoginTrigger) {
+            Log.i(TAG, "Skip legacy engine migration: waiting for first login trigger user=$serverUserId state=$currentState")
+            return
+        }
+        val payloads = legacyEngineMigrationCoordinator.buildShopPayloads(shops)
+        if (payloads.isEmpty()) {
+            Log.i(TAG, "Skip legacy engine migration: no importable shops user=$serverUserId shops=${shops.size}")
+            if (shops.isNotEmpty() || user.shopCount == 0) {
+                TokenManager.getInstance().consumeLegacyEngineMigrationAfterLogin(serverUserId)
+                markLegacyEngineMigrationUnsupported(serverUserId)
+            }
+            return
+        }
+        if (!legacyEngineMigrationCoordinator.isLegacyEngineAvailable()) {
+            Log.i(TAG, "Skip legacy engine migration: legacy engine unavailable user=$serverUserId")
+            TokenManager.getInstance().consumeLegacyEngineMigrationAfterLogin(serverUserId)
+            markLegacyEngineMigrationUnsupported(serverUserId)
+            return
+        }
+        if (!isNewEngineReadyForLegacyMigration()) {
+            return
+        }
+        Log.i(
+            TAG,
+            "Start legacy engine migration user=$serverUserId shops=${payloads.size} scoped=${payloads.count { it.localVirtualUserId != null }}"
+        )
+        if (!beginShopOperation("迁移分身数据", "正在导出历史店铺数据，请稍候…")) {
+            scheduleLegacyEngineMigrationRetry(shops)
+            return
+        }
+        startLegacyEngineMigrationForegroundService()
+        legacyEngineMigrationInFlight = true
+        pendingLegacyMigrationServerUserId = serverUserId
+        pendingLegacyMigrationPayloads = payloads
+        TokenManager.getInstance().consumeLegacyEngineMigrationAfterLogin(serverUserId)
+        savePendingLegacyEngineMigration(serverUserId, payloads, legacyExportPayloads(payloads))
+        TokenManager.getInstance().saveLegacyEngineMigrationState(
+            serverUserId,
+            TokenManager.LEGACY_ENGINE_MIGRATION_IN_PROGRESS
+        )
+        lifecycleScope.launch {
+            val exports = exportLegacyCloneData(payloads)
+            if (exports.isNullOrEmpty()) {
+                return@launch
+            }
+            updateShopProgress("正在导入历史店铺数据…")
+            val importLaunched = launchLegacyEngineImportActivity(exports, serverUserId, payloads)
+            if (!importLaunched) {
+                markLegacyEngineMigrationFailed("无法启动新引擎导入")
+            }
+        }
+    }
+
+    private fun resumePendingLegacyEngineMigration(serverUserId: Long, shops: List<Shop>): Boolean {
+        val pending = readPendingLegacyEngineMigration(serverUserId) ?: return false
+        val currentPayloads = legacyEngineMigrationCoordinator.buildShopPayloads(shops)
+        val payloads = pending.payloads.ifEmpty { currentPayloads }
+        if (payloads.isEmpty()) {
+            TokenManager.getInstance().clearLegacyEngineMigrationPending(serverUserId)
+            return false
+        }
+        if (!legacyEngineMigrationCoordinator.isLegacyEngineAvailable() || !isNewEngineReadyForLegacyMigration()) {
+            return false
+        }
+        Log.i(TAG, "Resume legacy engine migration user=$serverUserId payloads=${payloads.size}")
+        legacyEngineMigrationInFlight = true
+        pendingLegacyMigrationServerUserId = serverUserId
+        pendingLegacyMigrationPayloads = payloads
+        if (!beginShopOperation("迁移分身数据", "正在恢复历史店铺数据迁移…")) {
+            resetLegacyMigrationInFlight()
+            scheduleLegacyEngineMigrationRetry(shops)
+            return true
+        }
+        startLegacyEngineMigrationForegroundService()
+        lifecycleScope.launch {
+            val exports = waitForPendingLegacyExports(pending, payloads)
+            if (exports.isNullOrEmpty()) {
+                return@launch
+            }
+            updateShopProgress("正在导入历史店铺数据…")
+            if (!launchLegacyEngineImportActivity(exports, serverUserId, payloads)) {
+                markLegacyEngineMigrationFailed("无法启动新引擎导入")
+            }
+        }
+        return true
+    }
+
+    private suspend fun exportLegacyCloneData(
+        payloads: List<LegacyEngineMigrationCoordinator.CloneShopPayload>
+    ): List<LegacyEngineMigrationCoordinator.LegacyExportZip>? {
+        val exportPayloads = legacyExportPayloads(payloads)
+        Log.i(
+            TAG,
+            "Legacy engine export mode=${if (exportPayloads.any { it == null }) "full" else "scoped"} count=${exportPayloads.size}"
+        )
+        val exports = mutableListOf<LegacyEngineMigrationCoordinator.LegacyExportZip>()
+        exportPayloads.forEachIndexed { index, payload ->
+            val label = payload?.packageName?.let { packageName ->
+                "正在导出历史店铺数据 ${index + 1}/${exportPayloads.size}：$packageName"
+            } ?: "正在导出历史店铺数据，请稍候…"
+            updateShopProgress(label)
+            val exportStartedAt = System.currentTimeMillis()
+            val launched = launchLegacyEngineExportActivity(payload)
+            if (!launched) {
+                markLegacyEngineMigrationFailed("无法启动旧引擎导出")
+                return null
+            }
+            val exportResult = legacyEngineMigrationCoordinator.waitForLatestExportResult(exportStartedAt, payload)
+            if (!waitForLegacyEngineExportActivityToFinish()) {
+                markLegacyEngineMigrationFailed("无法返回主应用继续迁移")
+                return null
+            }
+            val zip = when (exportResult) {
+                is LegacyEngineMigrationCoordinator.LegacyExportWaitResult.Ready -> exportResult.zip
+                is LegacyEngineMigrationCoordinator.LegacyExportWaitResult.Failed -> {
+                    Log.w(TAG, "Skip legacy engine export payload=${payload?.cloneInstanceId}: ${exportResult.reason}")
+                    return@forEachIndexed
+                }
+                LegacyEngineMigrationCoordinator.LegacyExportWaitResult.Timeout -> {
+                    markLegacyEngineMigrationFailed("旧引擎导出超时")
+                    return null
+                }
+            }
+            Log.i(TAG, "Legacy engine export completed file=${zip.name} bytes=${zip.length()} payload=${payload?.cloneInstanceId}")
+            updatePendingLegacyEngineExport(payload, zip)
+            exports += LegacyEngineMigrationCoordinator.LegacyExportZip(zip, payload)
+        }
+        if (exports.isEmpty()) {
+            markLegacyEngineMigrationFailed("没有可迁移的历史店铺数据")
+            return null
+        }
+        return exports
+    }
+
+    private suspend fun waitForPendingLegacyExports(
+        pending: PendingLegacyMigration,
+        payloads: List<LegacyEngineMigrationCoordinator.CloneShopPayload>
+    ): List<LegacyEngineMigrationCoordinator.LegacyExportZip>? {
+        val exportPayloads = legacyExportPayloads(payloads)
+        val savedExportsByKey = pending.exports.associateBy { legacyPayloadKey(it.payload) }
+        val exports = mutableListOf<LegacyEngineMigrationCoordinator.LegacyExportZip>()
+        exportPayloads.forEachIndexed { index, payload ->
+            val label = payload?.packageName?.let { packageName ->
+                "正在恢复历史店铺数据 ${index + 1}/${exportPayloads.size}：$packageName"
+            } ?: "正在恢复历史店铺数据，请稍候…"
+            updateShopProgress(label)
+            val saved = savedExportsByKey[legacyPayloadKey(payload)]?.zip?.takeIf { isUsableLegacyExport(it) }
+            val existingZip = saved ?: legacyEngineMigrationCoordinator.findExistingExportZip(payload, pending.startedAtMillis)
+            val zip = if (existingZip != null) {
+                existingZip
+            } else {
+                val exportLabel = payload?.packageName?.let { packageName ->
+                    "正在继续导出历史店铺数据 ${index + 1}/${exportPayloads.size}：$packageName"
+                } ?: "正在继续导出历史店铺数据，请稍候…"
+                updateShopProgress(exportLabel)
+                val exportStartedAt = System.currentTimeMillis()
+                val launched = launchLegacyEngineExportActivity(payload)
+                if (!launched) {
+                    markLegacyEngineMigrationFailed("无法启动旧引擎导出")
+                    return null
+                }
+                when (val exportResult = legacyEngineMigrationCoordinator.waitForLatestExportResult(exportStartedAt, payload)) {
+                    is LegacyEngineMigrationCoordinator.LegacyExportWaitResult.Ready -> {
+                        exportResult.zip
+                    }
+                    is LegacyEngineMigrationCoordinator.LegacyExportWaitResult.Failed -> {
+                        if (!waitForLegacyEngineExportActivityToFinish()) {
+                            markLegacyEngineMigrationFailed("无法返回主应用继续迁移")
+                            return null
+                        }
+                        Log.w(TAG, "Skip legacy engine pending export payload=${payload?.cloneInstanceId}: ${exportResult.reason}")
+                        return@forEachIndexed
+                    }
+                    LegacyEngineMigrationCoordinator.LegacyExportWaitResult.Timeout -> {
+                        if (!waitForLegacyEngineExportActivityToFinish()) {
+                            markLegacyEngineMigrationFailed("无法返回主应用继续迁移")
+                            return null
+                        }
+                        markLegacyEngineMigrationFailed("旧引擎导出超时")
+                        return null
+                    }
+                }
+            }
+            if (!waitForLegacyEngineExportActivityToFinish()) {
+                markLegacyEngineMigrationFailed("无法返回主应用继续迁移")
+                return null
+            }
+            Log.i(TAG, "Legacy engine pending export ready file=${zip.name} bytes=${zip.length()} payload=${payload?.cloneInstanceId}")
+            updatePendingLegacyEngineExport(payload, zip)
+            exports += LegacyEngineMigrationCoordinator.LegacyExportZip(zip, payload)
+        }
+        if (exports.isEmpty()) {
+            markLegacyEngineMigrationFailed("没有可迁移的历史店铺数据")
+            return null
+        }
+        return exports
+    }
+
+    private fun legacyExportPayloads(
+        payloads: List<LegacyEngineMigrationCoordinator.CloneShopPayload>
+    ): List<LegacyEngineMigrationCoordinator.CloneShopPayload?> {
+        return payloads
+    }
+
+    private fun launchLegacyEngineExportActivity(
+        payload: LegacyEngineMigrationCoordinator.CloneShopPayload?
+    ): Boolean {
+        return try {
+            legacyExportInProgress = true
+            startActivityForResult(
+                legacyEngineMigrationCoordinator.buildExportIntent(payload),
+                LEGACY_ENGINE_EXPORT_REQUEST_CODE
+            )
+            true
+        } catch (e: Exception) {
+            legacyExportInProgress = false
+            Log.w(TAG, "Failed to launch legacy engine export activity", e)
+            false
+        }
+    }
+
+    private suspend fun waitForLegacyEngineExportActivityToFinish(): Boolean {
+        if (!legacyExportInProgress) {
+            return true
+        }
+        runCatching {
+            finishActivity(LEGACY_ENGINE_EXPORT_REQUEST_CODE)
+        }.onFailure {
+            Log.w(TAG, "Failed to finish legacy engine export activity", it)
+        }
+        repeat(30) {
+            if (!legacyExportInProgress) {
+                return true
+            }
+            delay(100L)
+        }
+        Log.w(TAG, "Timed out waiting legacy engine export activity to finish")
+        return false
+    }
+
+    private fun launchLegacyEngineImportActivity(
+        exports: List<LegacyEngineMigrationCoordinator.LegacyExportZip>,
+        serverUserId: Long,
+        payloads: List<LegacyEngineMigrationCoordinator.CloneShopPayload>
+    ): Boolean {
+        return try {
+            val intent = legacyEngineMigrationCoordinator.buildImportIntent(exports, serverUserId, payloads)
+            intent.clipData?.let { clipData ->
+                for (index in 0 until clipData.itemCount) {
+                    clipData.getItemAt(index).uri?.let { uri ->
+                        grantUriPermission(
+                            EngineInstaller.ENGINE_PACKAGE,
+                            uri,
+                            Intent.FLAG_GRANT_READ_URI_PERMISSION
+                        )
+                    }
+                }
+            }
+            legacyEngineImportLauncher.launch(intent)
+            true
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to launch legacy engine import activity", e)
+            false
+        }
+    }
+
+    private fun finalizeLegacyEngineMigration(success: Boolean, data: Intent?) {
+        val serverUserId = pendingLegacyMigrationServerUserId
+        val resultText = data?.getStringExtra("result").orEmpty()
+        lifecycleScope.launch {
+            val importSucceeded = success || runCatching {
+                resultText.isNotBlank() && JSONObject(resultText).optBoolean("ok", false)
+            }.getOrDefault(false)
+            if (importSucceeded) {
+                updateShopProgress("正在保存迁移状态…")
+                if (serverUserId > 0L) {
+                    TokenManager.getInstance().saveLegacyEngineMigrationState(
+                        serverUserId,
+                        TokenManager.LEGACY_ENGINE_MIGRATION_SUCCESS
+                    )
+                    TokenManager.getInstance().clearLegacyEngineMigrationPending(serverUserId)
+                }
+                val saved = viewModel.markLegacyEngineMigrationComplete()
+                if (!saved) {
+                    Log.w(TAG, "legacy engine migration imported successfully but server marker was not saved")
+                }
+                resetLegacyMigrationInFlight()
+                finishShopOperation()
+                stopLegacyEngineMigrationForegroundService()
+                viewModel.refreshUserInfoFromServer()
+                viewModel.loadShops()
+                return@launch
+            }
+            Log.w(TAG, "legacy engine migration import failed success=$success result=$resultText")
+            markLegacyEngineMigrationFailed("历史店铺数据导入失败")
+        }
+    }
+
+    private fun isNewEngineReadyForLegacyMigration(): Boolean {
+        val installedVersion = EngineInstaller.getInstalledEngineVersion(this)
+        if (installedVersion <= 0) {
+            Log.i(
+                TAG,
+                "Skip legacy engine migration until new engine is installed: installed=$installedVersion"
+            )
+            return false
+        }
+        return try {
+            packageManager.getActivityInfo(
+                ComponentName(
+                    EngineInstaller.ENGINE_PACKAGE,
+                    "top.niunaijun.blackbox.engine.EngineCloneDataImportActivity"
+                ),
+                0
+            )
+            true
+        } catch (e: Exception) {
+            Log.i(TAG, "Skip legacy engine migration: import activity is unavailable", e)
+            false
+        }
+    }
+
+    private fun markLegacyEngineMigrationUnsupported(serverUserId: Long) {
+        TokenManager.getInstance().saveLegacyEngineMigrationState(
+            serverUserId,
+            TokenManager.LEGACY_ENGINE_MIGRATION_UNSUPPORTED
+        )
+    }
+
+    private fun markLegacyEngineMigrationFailed(message: String) {
+        val serverUserId = pendingLegacyMigrationServerUserId
+        if (serverUserId > 0L) {
+            TokenManager.getInstance().saveLegacyEngineMigrationState(
+                serverUserId,
+                TokenManager.LEGACY_ENGINE_MIGRATION_FAILED
+            )
+            TokenManager.getInstance().clearLegacyEngineMigrationPending(serverUserId)
+        }
+        resetLegacyMigrationInFlight()
+        finishShopOperation()
+        stopLegacyEngineMigrationForegroundService()
+        toast(message)
+    }
+
+    private data class PendingLegacyMigration(
+        val startedAtMillis: Long,
+        val payloads: List<LegacyEngineMigrationCoordinator.CloneShopPayload>,
+        val exportPayloads: List<LegacyEngineMigrationCoordinator.CloneShopPayload?>,
+        val exports: List<PendingLegacyExport>
+    )
+
+    private data class PendingLegacyExport(
+        val payload: LegacyEngineMigrationCoordinator.CloneShopPayload?,
+        val zip: File
+    )
+
+    private fun savePendingLegacyEngineMigration(
+        serverUserId: Long,
+        payloads: List<LegacyEngineMigrationCoordinator.CloneShopPayload>,
+        exportPayloads: List<LegacyEngineMigrationCoordinator.CloneShopPayload?>
+    ) {
+        val pendingJson = JSONObject()
+            .put("startedAtMillis", System.currentTimeMillis())
+            .put("payloads", legacyPayloadsJson(payloads))
+            .put("exportPayloads", legacyPayloadsJson(exportPayloads))
+            .put("exports", JSONArray())
+            .toString()
+        TokenManager.getInstance().saveLegacyEngineMigrationPending(serverUserId, pendingJson)
+    }
+
+    private fun updatePendingLegacyEngineExport(
+        payload: LegacyEngineMigrationCoordinator.CloneShopPayload?,
+        zip: File
+    ) {
+        val serverUserId = pendingLegacyMigrationServerUserId
+        if (serverUserId <= 0L) {
+            return
+        }
+        val existing = TokenManager.getInstance().getLegacyEngineMigrationPending(serverUserId)
+            ?.let { runCatching { JSONObject(it) }.getOrNull() }
+            ?: return
+        val exports = existing.optJSONArray("exports") ?: JSONArray()
+        val nextExports = JSONArray()
+        val key = legacyPayloadKey(payload)
+        for (index in 0 until exports.length()) {
+            val item = exports.optJSONObject(index) ?: continue
+            if (legacyPayloadKeyFromJson(item) != key) {
+                nextExports.put(item)
+            }
+        }
+        nextExports.put(legacyExportJson(payload, zip))
+        existing.put("exports", nextExports)
+        TokenManager.getInstance().saveLegacyEngineMigrationPending(serverUserId, existing.toString())
+    }
+
+    private fun readPendingLegacyEngineMigration(serverUserId: Long): PendingLegacyMigration? {
+        val json = TokenManager.getInstance().getLegacyEngineMigrationPending(serverUserId) ?: return null
+        return runCatching {
+            val root = JSONObject(json)
+            val startedAtMillis = root.optLong("startedAtMillis", 0L)
+            val payloads = readLegacyPayloadsJson(root.optJSONArray("payloads") ?: JSONArray(), includeNull = false)
+                .filterNotNull()
+            val exportPayloads = readLegacyPayloadsJson(
+                root.optJSONArray("exportPayloads") ?: JSONArray(),
+                includeNull = true
+            )
+            val exports = readPendingLegacyExports(root.optJSONArray("exports") ?: JSONArray())
+            PendingLegacyMigration(startedAtMillis, payloads, exportPayloads, exports)
+        }.getOrNull()
+    }
+
+    private fun readPendingLegacyExports(exportArray: JSONArray): List<PendingLegacyExport> {
+        val exports = mutableListOf<PendingLegacyExport>()
+        for (index in 0 until exportArray.length()) {
+            val item = exportArray.optJSONObject(index) ?: continue
+            val zipPath = item.optString("zipPath").takeIf { it.isNotBlank() } ?: continue
+            val payload = if (item.optBoolean("full", false)) {
+                null
+            } else {
+                parseLegacyPayloadJson(item) ?: continue
+            }
+            exports += PendingLegacyExport(payload, File(zipPath))
+        }
+        return exports
+    }
+
+    private fun legacyPayloadsJson(payloads: List<LegacyEngineMigrationCoordinator.CloneShopPayload?>): JSONArray {
+        val array = JSONArray()
+        payloads.forEach { payload ->
+            if (payload == null) {
+                array.put(JSONObject().put("full", true))
+            } else {
+                val item = JSONObject()
+                    .put("cloneInstanceId", payload.cloneInstanceId)
+                    .put("packageName", payload.packageName)
+                payload.localVirtualUserId?.let { item.put("localVirtualUserId", it) }
+                array.put(item)
+            }
+        }
+        return array
+    }
+
+    private fun readLegacyPayloadsJson(
+        payloadArray: JSONArray,
+        includeNull: Boolean
+    ): List<LegacyEngineMigrationCoordinator.CloneShopPayload?> {
+        val payloads = mutableListOf<LegacyEngineMigrationCoordinator.CloneShopPayload?>()
+        for (index in 0 until payloadArray.length()) {
+            val item = payloadArray.optJSONObject(index) ?: continue
+            if (item.optBoolean("full", false)) {
+                if (includeNull) {
+                    payloads += null
+                }
+                continue
+            }
+            payloads += parseLegacyPayloadJson(item) ?: continue
+        }
+        return payloads
+    }
+
+    private fun parseLegacyPayloadJson(item: JSONObject): LegacyEngineMigrationCoordinator.CloneShopPayload? {
+        val cloneInstanceId = item.optString("cloneInstanceId").takeIf { it.isNotBlank() } ?: return null
+        val packageName = item.optString("packageName").takeIf { it.isNotBlank() } ?: return null
+        val localVirtualUserId = item.takeIf { it.has("localVirtualUserId") && !it.isNull("localVirtualUserId") }
+            ?.optInt("localVirtualUserId")
+            ?.takeIf { it >= 0 }
+        return LegacyEngineMigrationCoordinator.CloneShopPayload(
+            cloneInstanceId = cloneInstanceId,
+            packageName = packageName,
+            localVirtualUserId = localVirtualUserId
+        )
+    }
+
+    private fun legacyExportJson(
+        payload: LegacyEngineMigrationCoordinator.CloneShopPayload?,
+        zip: File
+    ): JSONObject {
+        val json = JSONObject().put("zipPath", zip.absolutePath)
+        if (payload == null) {
+            json.put("full", true)
+        } else {
+            json
+                .put("cloneInstanceId", payload.cloneInstanceId)
+                .put("packageName", payload.packageName)
+            payload.localVirtualUserId?.let { json.put("localVirtualUserId", it) }
+        }
+        return json
+    }
+
+    private fun legacyPayloadKey(payload: LegacyEngineMigrationCoordinator.CloneShopPayload?): String {
+        return payload?.let {
+            "${it.packageName}|${it.cloneInstanceId}|${it.localVirtualUserId ?: -1}"
+        } ?: "__full__"
+    }
+
+    private fun legacyPayloadKeyFromJson(item: JSONObject): String {
+        if (item.optBoolean("full", false)) {
+            return "__full__"
+        }
+        val userId = if (item.has("localVirtualUserId") && !item.isNull("localVirtualUserId")) {
+            item.optInt("localVirtualUserId", -1)
+        } else {
+            -1
+        }
+        return "${item.optString("packageName")}|${item.optString("cloneInstanceId")}|$userId"
+    }
+
+    private fun isUsableLegacyExport(zip: File): Boolean {
+        return zip.isFile && zip.length() > 0L
+    }
+
+    private fun resetLegacyMigrationInFlight() {
+        legacyEngineMigrationInFlight = false
+        pendingLegacyMigrationServerUserId = 0L
+        pendingLegacyMigrationPayloads = emptyList()
+    }
+
+    private fun hasCurrentLegacyEngineMigrationWork(): Boolean {
+        if (BuildConfig.APPLICATION_ID == LEGACY_MAIN_PACKAGE) {
+            return false
+        }
+        val user = TokenManager.getInstance().getUser() ?: return false
+        val serverUserId = user.id
+        if (serverUserId <= 0L || user.legacyEngineMigrated) {
+            return false
+        }
+        val state = TokenManager.getInstance().getLegacyEngineMigrationState(serverUserId)
+        if (state == TokenManager.LEGACY_ENGINE_MIGRATION_SUCCESS ||
+            state == TokenManager.LEGACY_ENGINE_MIGRATION_UNSUPPORTED
+        ) {
+            return false
+        }
+        return TokenManager.getInstance().getLegacyEngineMigrationPending(serverUserId) != null ||
+            TokenManager.getInstance().hasLegacyEngineMigrationAfterLogin(serverUserId)
+    }
+
+    private fun ensureLegacyMigrationHostStoragePermissions(shops: List<Shop>): Boolean {
+        val missing = legacyMigrationHostStoragePermissions()
+            .filter {
+                ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
+            }
+        if (missing.isEmpty()) {
+            return true
+        }
+        if (pendingLegacyMigrationHostStoragePermissionShops.isNotEmpty()) {
+            return false
+        }
+        Log.i(TAG, "Request host storage permission for legacy engine migration missing=$missing")
+        pendingLegacyMigrationHostStoragePermissionShops = shops
+        legacyMigrationHostStoragePermissionLauncher.launch(missing.toTypedArray())
+        return false
+    }
+
+    private fun legacyMigrationHostStoragePermissions(): List<String> {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+            return emptyList()
+        }
+        if (Build.VERSION.SDK_INT > Build.VERSION_CODES.Q) {
+            return emptyList()
+        }
+        return listOf(
+            Manifest.permission.READ_EXTERNAL_STORAGE,
+            Manifest.permission.WRITE_EXTERNAL_STORAGE
+        )
+    }
+
+    private fun scheduleLegacyEngineMigrationRetry(shops: List<Shop>) {
+        if (legacyEngineMigrationRetryScheduled) {
+            return
+        }
+        legacyEngineMigrationRetryScheduled = true
+        handler.postDelayed({
+            legacyEngineMigrationRetryScheduled = false
+            maybeRunLegacyEngineMigration(shops)
+        }, 1_000L)
+    }
+
+    private fun startLegacyEngineMigrationForegroundService() {
+        runCatching {
+            LegacyEngineMigrationForegroundService.start(this)
+        }.onFailure {
+            Log.w(TAG, "Failed to start legacy engine migration foreground service", it)
+        }
+    }
+
+    private fun stopLegacyEngineMigrationForegroundService() {
+        runCatching {
+            LegacyEngineMigrationForegroundService.stop(this)
+        }.onFailure {
+            Log.w(TAG, "Failed to stop legacy engine migration foreground service", it)
         }
     }
 
@@ -630,8 +1330,9 @@ class HomeActivity : AppCompatActivity() {
             viewBinding.tvHeaderAdminTag.visibility = if (isAdmin) View.VISIBLE else View.GONE
         }
 
-        viewModel.shopsLiveData.observe(this) {
+        viewModel.shopsLiveData.observe(this) { shops ->
             viewBinding.swipeRefreshShops.isRefreshing = false
+            maybeRunLegacyEngineMigration(shops)
             updateShopList()
             scrollToPendingNewShopIfNeeded()
             pendingPlatformEnvironmentPackage?.let { packageName ->
@@ -3037,9 +3738,17 @@ class HomeActivity : AppCompatActivity() {
         if (engineUpgradeCheckInFlight) {
             return
         }
+        if (shouldDeferEngineUpgradeForLegacyMigration()) {
+            Log.i(TAG, "Skip engine upgrade check while legacy engine migration is running")
+            return
+        }
         engineUpgradeCheckInFlight = true
         lifecycleScope.launch {
             try {
+                if (shouldDeferEngineUpgradeForLegacyMigration()) {
+                    Log.i(TAG, "Skip engine upgrade check while legacy engine migration is running")
+                    return@launch
+                }
                 val upgradeInfo = withContext(Dispatchers.IO) {
                     EngineVersionChecker.checkForUpgrade(this@HomeActivity, force)
                 } ?: return@launch
@@ -3063,6 +3772,28 @@ class HomeActivity : AppCompatActivity() {
                 engineUpgradeCheckInFlight = false
             }
         }
+    }
+
+    private fun shouldDeferEngineUpgradeForLegacyMigration(): Boolean {
+        if (BuildConfig.APPLICATION_ID == LEGACY_MAIN_PACKAGE) {
+            return false
+        }
+        if (legacyEngineMigrationInFlight || pendingLegacyMigrationServerUserId > 0L) {
+            return true
+        }
+        val user = TokenManager.getInstance().getUser() ?: return false
+        val serverUserId = user.id
+        if (serverUserId <= 0L || user.legacyEngineMigrated) {
+            return false
+        }
+        val state = TokenManager.getInstance().getLegacyEngineMigrationState(serverUserId)
+        if (state == TokenManager.LEGACY_ENGINE_MIGRATION_SUCCESS ||
+            state == TokenManager.LEGACY_ENGINE_MIGRATION_UNSUPPORTED
+        ) {
+            return false
+        }
+        return TokenManager.getInstance().getLegacyEngineMigrationPending(serverUserId) != null ||
+            TokenManager.getInstance().hasLegacyEngineMigrationAfterLogin(serverUserId)
     }
 
     private fun showEngineUpgradeDialog(upgradeInfo: EngineVersionChecker.UpgradeInfo) {

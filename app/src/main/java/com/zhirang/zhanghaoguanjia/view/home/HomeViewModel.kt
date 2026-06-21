@@ -261,6 +261,23 @@ class HomeViewModel : ViewModel() {
         }
     }
 
+    suspend fun markLegacyEngineMigrationComplete(): Boolean {
+        if (!isLoggedIn()) {
+            return false
+        }
+        val result = userRepository.completeLegacyEngineMigration()
+        result.fold(
+            onSuccess = { user ->
+                tokenManager.saveUser(user)
+                refreshUserInfo()
+            },
+            onFailure = { error ->
+                Log.w(TAG, "mark legacy engine migration complete failed: ${error.message}")
+            }
+        )
+        return result.isSuccess
+    }
+
     fun loadShops() {
         if (!isLoggedIn()) {
             allShops = emptyList()

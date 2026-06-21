@@ -1,6 +1,7 @@
 package com.duodian.admin.entity;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
@@ -73,6 +74,14 @@ public class User {
 
     @Column(name = "last_login_at")
     private LocalDateTime lastLoginAt;
+
+    @Column(name = "legacy_engine_migrated", nullable = false, columnDefinition = "TINYINT DEFAULT 0")
+    @JsonProperty(access = JsonProperty.Access.READ_ONLY)
+    private Boolean legacyEngineMigrated = false;
+
+    @Column(name = "legacy_engine_migrated_at")
+    @JsonProperty(access = JsonProperty.Access.READ_ONLY)
+    private LocalDateTime legacyEngineMigratedAt;
 
     @Column(nullable = false, columnDefinition = "TINYINT DEFAULT 0")
     private Byte deleted = 0;
@@ -163,6 +172,16 @@ public class User {
 
     public LocalDateTime getLastLoginAt() { return lastLoginAt; }
     public void setLastLoginAt(LocalDateTime lastLoginAt) { this.lastLoginAt = lastLoginAt; }
+
+    public Boolean getLegacyEngineMigrated() { return Boolean.TRUE.equals(legacyEngineMigrated); }
+    public void setLegacyEngineMigrated(Boolean legacyEngineMigrated) {
+        this.legacyEngineMigrated = Boolean.TRUE.equals(legacyEngineMigrated);
+    }
+
+    public LocalDateTime getLegacyEngineMigratedAt() { return legacyEngineMigratedAt; }
+    public void setLegacyEngineMigratedAt(LocalDateTime legacyEngineMigratedAt) {
+        this.legacyEngineMigratedAt = legacyEngineMigratedAt;
+    }
 
     public Byte getDeleted() { return deleted; }
     public void setDeleted(Byte deleted) { this.deleted = deleted == null ? 0 : deleted; }

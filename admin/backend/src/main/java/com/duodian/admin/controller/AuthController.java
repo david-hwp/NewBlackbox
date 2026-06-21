@@ -113,4 +113,17 @@ public class AuthController {
             return ApiResponse.error(e.getMessage());
         }
     }
+
+    @PostMapping("/legacy-engine-migration/complete")
+    public ApiResponse<User> completeLegacyEngineMigration() {
+        Long userId = AuthContext.getUserId();
+        if (userId == null) {
+            return ApiResponse.error(401, "未登录");
+        }
+        try {
+            return ApiResponse.success(userService.markLegacyEngineMigrated(userId));
+        } catch (RuntimeException e) {
+            return ApiResponse.error(e.getMessage());
+        }
+    }
 }

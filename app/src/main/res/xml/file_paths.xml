@@ -14,6 +14,10 @@
     <cache-path
         name="app_update_cache"
         path="app-update/" />
+    <!-- Legacy engine export directory used for one-time package-name migration. -->
+    <external-path
+        name="legacy_engine_clone_export"
+        path="Android/data/com.zhirang.zhanghaoguanjia.engine/files/clone-export/" />
     <!-- External files directory -->
     <external-files-path
         name="external_files"

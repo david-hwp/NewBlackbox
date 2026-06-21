@@ -220,6 +220,15 @@ public class UserService {
                 .orElse(false);
     }
 
+    @Transactional
+    public User markLegacyEngineMigrated(Long userId) {
+        User user = userRepository.findByIdAndDeleted(userId, ACTIVE)
+                .orElseThrow(() -> new RuntimeException("用户不存在"));
+        user.setLegacyEngineMigrated(true);
+        user.setLegacyEngineMigratedAt(LocalDateTime.now());
+        return userRepository.save(withCurrentStats(user));
+    }
+
     private void createAdminComputeAdjustmentLog(User user, int delta) {
         if (user == null || user.getId() == null || delta == 0) {
             return;

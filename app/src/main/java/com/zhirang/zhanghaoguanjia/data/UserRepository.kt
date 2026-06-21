@@ -24,6 +24,9 @@ class UserRepository(api: ApiService) : BaseRepository(api) {
     suspend fun getMe(): Result<UserDto> =
         safeApiCall { api.getMe() }
 
+    suspend fun completeLegacyEngineMigration(): Result<UserDto> =
+        safeApiCall { api.completeLegacyEngineMigration() }
+
     suspend fun updateUsername(username: String, avatarUrl: String? = null): Result<UserDto> =
         safeApiCall { api.updateUsername(UpdateUsernameRequest(username, avatarUrl)) }
 

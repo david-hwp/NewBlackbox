@@ -567,6 +567,13 @@
             android:theme="@style/BTheme" />
 
         <activity
+            android:name=".engine.EngineCloneDataImportActivity"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:permission="${applicationId}.permission.BIND_ENGINE"
+            android:theme="@style/BTheme" />
+
+        <activity
             android:name=".engine.EngineCloneDataExportActivity"
             android:enabled="true"
             android:excludeFromRecents="true"

@@ -12,6 +12,7 @@
     
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.REORDER_TASKS" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="29" />
@@ -73,6 +74,9 @@
         tools:targetApi="n">
         <activity
             android:name=".view.fake.FollowMyLocationOverlay"
+            android:exported="false" />
+        <service
+            android:name=".engine.LegacyEngineMigrationForegroundService"
             android:exported="false" />
         <activity android:name=".view.setting.SettingActivity" />
         <activity android:name=".view.gms.GmsManagerActivity" />

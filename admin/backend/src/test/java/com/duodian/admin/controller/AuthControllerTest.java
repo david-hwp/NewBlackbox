@@ -1,7 +1,9 @@
 package com.duodian.admin.controller;
 
 import com.duodian.admin.config.JwtUtil;
+import com.duodian.admin.config.AuthContext;
 import com.duodian.admin.controller.dto.ApiResponse;
+import com.duodian.admin.controller.dto.LoginRequest;
 import com.duodian.admin.controller.dto.RegisterRequest;
 import com.duodian.admin.entity.Channel;
 import com.duodian.admin.entity.User;
@@ -25,6 +27,67 @@ class AuthControllerTest {
     private final ChannelScopeService channelScopeService = mock(ChannelScopeService.class);
     private final SystemParameterService systemParameterService = mock(SystemParameterService.class);
     private final AuthController controller = new AuthController(userService, jwtUtil, channelScopeService, systemParameterService);
+
+    @Test
+    void loginReturnsLegacyEngineMigrationStateForApp() {
+        LoginRequest request = new LoginRequest();
+        request.setPhone("13800138000");
+        request.setPassword("123456");
+        request.setApkChannel("main");
+        Channel main = new Channel();
+        main.setId(1L);
+        main.setCode("main");
+        main.setName("默认渠道");
+        main.setStatus("ACTIVE");
+        User user = new User();
+        user.setId(8L);
+        user.setPhone(request.getPhone());
+        user.setUsername("测试用户");
+        user.setRole("USER");
+        user.setChannelId(1L);
+        user.setApkChannel("main");
+        user.setLegacyEngineMigrated(true);
+        when(channelScopeService.resolveAppChannel(any(), any())).thenReturn(main);
+        when(userService.login(request.getPhone(), request.getPassword(), 1L)).thenReturn(user);
+        when(jwtUtil.generateToken(8L, request.getPhone(), "USER", 1L, "main")).thenReturn("token");
+
+        ApiResponse<java.util.Map<String, Object>> response = controller.login(request, null);
+
+        assertThat(response.getCode()).isEqualTo(200);
+        assertThat(response.getData()).containsEntry("token", "token");
+        assertThat((User) response.getData().get("user"))
+                .extracting(User::getLegacyEngineMigrated)
+                .isEqualTo(true);
+    }
+
+    @Test
+    void completeLegacyEngineMigrationMarksCurrentUser() {
+        AuthContext.setUserId(8L);
+        User migrated = new User();
+        migrated.setId(8L);
+        migrated.setLegacyEngineMigrated(true);
+        when(userService.markLegacyEngineMigrated(8L)).thenReturn(migrated);
+
+        try {
+            ApiResponse<User> response = controller.completeLegacyEngineMigration();
+
+            assertThat(response.getCode()).isEqualTo(200);
+            assertThat(response.getData().getLegacyEngineMigrated()).isTrue();
+            verify(userService).markLegacyEngineMigrated(8L);
+        } finally {
+            AuthContext.clear();
+        }
+    }
+
+    @Test
+    void completeLegacyEngineMigrationRequiresLogin() {
+        AuthContext.clear();
+
+        ApiResponse<User> response = controller.completeLegacyEngineMigration();
+
+        assertThat(response.getCode()).isEqualTo(401);
+        verify(userService, never()).markLegacyEngineMigrated(any());
+    }
 
     @Test
     void registerGiftsNonTransferableComputeSubscriptionAndDoesNotLogin() {

@@ -19,6 +19,7 @@ data class UserDto(
     val subscriptionExpiresAt: String? = null,
     val subscriptionUpdatedAt: String? = null,
     val subscriptionActive: Boolean? = null,
+    val legacyEngineMigrated: Boolean = false,
     val token: String? = null
 ) {
     val normalizedApkChannel: String

@@ -17,6 +17,9 @@ interface ApiService {
     @GET("auth/me")
     suspend fun getMe(): ApiResponse<UserDto>
 
+    @POST("auth/legacy-engine-migration/complete")
+    suspend fun completeLegacyEngineMigration(): ApiResponse<UserDto>
+
     @GET("platforms")
     suspend fun getPlatforms(): ApiResponse<List<PlatformDto>>
 
