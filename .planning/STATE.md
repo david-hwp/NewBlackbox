@@ -1,9 +1,9 @@
 ---
 gsd_state_version: 1.0
 milestone: v1.3
-milestone_name: phase11-channel-promotion-system
+milestone_name: milestone
 status: Phase 19 Wave 3 completed; development environment migrated to double
-last_updated: "2026-06-18T19:40:13+08:00"
+last_updated: "2026-06-21T18:49:14.077Z"
 progress:
   total_phases: 11
   completed_phases: 10
@@ -13,6 +13,17 @@ progress:
 ---
 
 ## Recent Changes
+
+### 2026-06-22: Phase 20 new package migration release added
+
+- Added Phase 20 for publishing the new package-name release APK and migrating existing old-engine clone data after the user logs in to the new package.
+- Locked the product constraint that the migration must be rootless and ordinary-user invisible: the old engine must export its own private data through `EngineCloneDataExportActivity`, and the new engine must import it into its own data root.
+- Locked the timing constraint that the new package has no local user data on first install, so migration starts only after successful login and current-user shop data is available.
+- Locked one-shot semantics: both local main-app state and a hidden server-side `users` field must record whether that server user has already migrated old-engine data so later logins do not re-run the old-engine migration.
+
+### Roadmap Evolution
+
+- Phase 20 added: 新包名无感迁移发布
 
 ### 2026-06-18: Development environment migrated to double
 

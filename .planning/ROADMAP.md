@@ -309,3 +309,23 @@
 - 构建并安装 `1.2.18-beta` 到小米真机进行 MVP 验证；后端 API 默认指向 `http://100.99.88.2:8006/api/`。
 
 **计划文档**: [.planning/phases/19-xpra-shop-authorization/19-PLAN.md](.planning/phases/19-xpra-shop-authorization/19-PLAN.md)
+
+### Phase 20: 新包名无感迁移发布
+
+**目标**: 使用新包名发布 release APK，让旧包名用户安装并登录新包后自动迁移旧 engine 分身数据到新 engine。迁移必须无 root、无 Magisk、普通用户无感；由于新包首次安装没有本地用户信息，迁移只能在第一次登录成功并拉取当前用户店铺后触发，且同一服务器用户只允许执行一次旧引擎迁移。
+
+**关键交付物**:
+
+- 新主包/新引擎使用 `com.zhirang.zhanghaoguanjia.new` / `com.zhirang.zhanghaoguanjia.new.engine` 打 release 包并连接内网环境。
+- 新主包登录成功后读取本地迁移状态和服务端 `legacyEngineMigrated` 状态；只有当前用户未迁移时弹出阻塞式“正在迁移数据”进度框。
+- 新主包检测旧 engine 是否存在并能 resolve `EngineCloneDataExportActivity`；存在时拉起旧 engine 自导出，轮询旧 engine `clone-export` 目录，等待 `.tmp` 变成稳定 `.zip`，不依赖旧 manifest。
+- 新 engine 新增 rootless 导入入口，支持 Zip64，按当前登录用户和服务端店铺/cloneInstance 精确导入旧 engine 中属于该用户的分身数据、clone mapping、clone auth 和外部数据。
+- 服务端 `users` 增加不在管理后台展示的迁移完成字段，登录响应和 `/auth/me` 返回该字段；迁移成功后由新主包调用内部 API 标记完成。
+- 本地 TokenManager/SharedPreferences 记录每个服务器用户的旧引擎迁移结果；同一用户后续登录不再触发旧 engine 数据迁移。
+- 小米真机验证完整安装、登录、导出、导入、新引擎打开旧店铺、二次登录不重复迁移。
+
+**验证**: 小米 MIX 2S 安装新包名 release APK 后，使用二公子账号登录，APP 弹出迁移进度并调用旧 engine 导出 Activity，生成并导入旧分身数据到新 engine；迁移完成后新引擎能打开该用户旧店铺且不串到其他账号店铺；退出重登同一用户不会再次迁移；无 root/Magisk 权限参与产品流程。
+
+**计划文档**: [.planning/phases/20-new-package-migration-release/20-PLAN.md](.planning/phases/20-new-package-migration-release/20-PLAN.md)
+**上下文文档**: [.planning/phases/20-new-package-migration-release/20-CONTEXT.md](.planning/phases/20-new-package-migration-release/20-CONTEXT.md)
+**调研文档**: [.planning/phases/20-new-package-migration-release/20-RESEARCH.md](.planning/phases/20-new-package-migration-release/20-RESEARCH.md)
