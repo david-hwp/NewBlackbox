@@ -462,16 +462,23 @@ public class ShopController {
             if (requestedUserId < 0) {
                 return ApiResponse.error("虚拟用户目录号无效");
             }
-            shop.setLocalVirtualUserId(requestedUserId);
         }
         String requestedPackageName = normalize(request != null ? request.getPackageName() : null);
+        String storedPackageName = normalize(shop.getPackageName());
         if (requestedPackageName != null) {
-            shop.setPackageName(requestedPackageName);
+            if (storedPackageName != null && !storedPackageName.equals(requestedPackageName)) {
+                return ApiResponse.error("应用包名与店铺不匹配");
+            }
+            if (storedPackageName == null) {
+                shop.setPackageName(requestedPackageName);
+                storedPackageName = requestedPackageName;
+            }
         }
-        if (shop.getLocalVirtualUserId() == null || shop.getLocalVirtualUserId() < 0) {
+        Integer tokenLocalVirtualUserId = requestedUserId != null ? requestedUserId : shop.getLocalVirtualUserId();
+        if (tokenLocalVirtualUserId == null || tokenLocalVirtualUserId < 0) {
             return ApiResponse.error("店铺缺少虚拟用户目录号，无法授权");
         }
-        if (normalize(shop.getPackageName()) == null) {
+        if (storedPackageName == null) {
             return ApiResponse.error("店铺缺少应用包名，无法授权");
         }
         LocalDateTime now = LocalDateTime.now();
@@ -503,7 +510,7 @@ public class ShopController {
             shop.setAuthorizationJti(randomHex(16));
         }
         Shop saved = shopService.update(shop.getId(), shop);
-        String token = cloneAuthorizationTokenService.signToken(saved, user);
+        String token = cloneAuthorizationTokenService.signToken(saved, user, tokenLocalVirtualUserId);
         return ApiResponse.success(CloneShopCreateResponse.from(
                 saved,
                 user,

@@ -49,6 +49,11 @@
 - 授权控制接口：`http://100.99.88.6:14501/`
 - 说明：小米真机已启用 Tailscale；后端服务器沿用原 `8006` 端口，只将 IP 从 `172.20.0.13` 切到 Tailscale IP `100.99.88.2`。
 
+### 测试账号
+
+- 后台管理登录：`15200837196` / `123456`（普通用户角色，昵称“二公子”）
+- 该账号主要用于 APP 端店铺授权流程验证；后台店铺列表按权限过滤，普通用户角色下可能看不到全部店铺。
+
 ### 源与安装结论
 
 Ubuntu 主源已切到阿里云 `mirrors.aliyun.com/ubuntu`，Docker apt 源已切到 `mirrors.aliyun.com/docker-ce`。Docker daemon 也已有镜像加速器。后续慢点主要来自 NodeSource、Tailscale 这类三方 HTTPS 源，或 Playwright 下载 Chromium 的浏览器二进制通道，它们不受 Ubuntu 主 apt 源影响。

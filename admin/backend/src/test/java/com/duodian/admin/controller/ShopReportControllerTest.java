@@ -156,6 +156,29 @@ class ShopReportControllerTest {
         verify(shopService, never()).update(eq(20L), any(Shop.class));
     }
 
+    @Test
+    void reportRejectsMismatchedLocalVirtualUserIdForExistingClone() {
+        AuthContext.setUserId(1L);
+        String cloneInstanceId = cloneIdForCode("server-random");
+        Shop oldShop = shop(10L, "old-shop", "旧店铺", cloneInstanceId);
+        oldShop.setLocalVirtualUserId(3);
+        oldShop.setCloneValidationCode("server-random");
+        oldShop.setCloneValidationHash(sha256(oldShop.getCloneInstanceId() + ":server-random"));
+        ShopReportRequest request = request("new-shop", "新店铺", oldShop.getCloneInstanceId());
+        request.setLocalVirtualUserId(9);
+
+        when(shopService.findByUserIdAndCloneInstanceId(1L, oldShop.getCloneInstanceId())).thenReturn(Optional.of(oldShop));
+
+        ApiResponse<Map<String, Object>> response = controller.report(request);
+
+        assertThat(response.getCode()).isEqualTo(403);
+        assertThat(response.getMessage()).isEqualTo("虚拟用户目录号校验失败");
+        assertThat(oldShop.getShopId()).isEqualTo("old-shop");
+        assertThat(oldShop.getShopName()).isEqualTo("旧店铺");
+        assertThat(oldShop.getLocalVirtualUserId()).isEqualTo(3);
+        verify(shopService, never()).update(eq(10L), any(Shop.class));
+    }
+
     private ShopReportRequest request(String shopId, String shopName, String cloneInstanceId) {
         ShopReportRequest request = new ShopReportRequest();
         request.setShopId(shopId);
@@ -166,6 +189,7 @@ class ShopReportControllerTest {
         request.setCloneInstanceId(cloneInstanceId);
         request.setRemainingDays(30);
         request.setAutoRenew(false);
+        request.setLocalVirtualUserId(3);
         return request;
     }
 

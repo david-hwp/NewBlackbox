@@ -28,10 +28,11 @@ object CloneInstanceStore {
                             it.optLong("serverUserId", -1L) == serverUserId
                 }?.optInt("localVirtualUserId", -1) ?: -1
                 if (authUserId >= 0 && ensureUserExists(authUserId)) {
-                    root.put(key, mappingValue(cloneId, pkg, serverUserId, authUserId))
-                    writeMapping(root)
-                    ensurePackageDirs(cloneId, pkg, serverUserId, authUserId)
-                    return@synchronized authUserId
+                    return@synchronized if (bindCloneUserLocked(cloneId, pkg, serverUserId, authUserId)) {
+                        authUserId
+                    } else {
+                        -1
+                    }
                 }
 
                 val newUserId = nextUserId() ?: return@synchronized -1
@@ -39,10 +40,11 @@ object CloneInstanceStore {
                 if (created == null && !ensureUserExists(newUserId)) {
                     return@synchronized -1
                 }
-                root.put(key, mappingValue(cloneId, pkg, serverUserId, newUserId))
-                writeMapping(root)
-                ensurePackageDirs(cloneId, pkg, serverUserId, newUserId)
-                newUserId
+                if (bindCloneUserLocked(cloneId, pkg, serverUserId, newUserId)) {
+                    newUserId
+                } else {
+                    -1
+                }
             } catch (e: Exception) {
                 Slog.w(TAG, "ensureCloneUser failed clone=$cloneId package=$pkg serverUserId=$serverUserId", e)
                 -1
@@ -69,10 +71,11 @@ object CloneInstanceStore {
                             it.optLong("serverUserId", -1L) == serverUserId
                 }?.optInt("localVirtualUserId", -1) ?: -1
                 if (authUserId >= 0 && ensureUserExists(authUserId)) {
-                    root.put(mappingKey(cloneId, pkg, serverUserId), mappingValue(cloneId, pkg, serverUserId, authUserId))
-                    writeMapping(root)
-                    ensurePackageDirs(cloneId, pkg, serverUserId, authUserId)
-                    return@synchronized authUserId
+                    return@synchronized if (bindCloneUserLocked(cloneId, pkg, serverUserId, authUserId)) {
+                        authUserId
+                    } else {
+                        -1
+                    }
                 }
                 -1
             } catch (e: Exception) {
@@ -364,11 +367,35 @@ object CloneInstanceStore {
             return false
         }
         val root = readMapping()
-        root.put(mappingKey(cloneInstanceId, packageName, serverUserId), mappingValue(cloneInstanceId, packageName, serverUserId, userId))
+        val key = mappingKey(cloneInstanceId, packageName, serverUserId)
+        findConflictingPackageUserMapping(root, key, packageName, userId)?.let { conflicting ->
+            Slog.w(
+                TAG,
+                "bindCloneUserLocked conflict clone=$cloneInstanceId package=$packageName userId=$userId " +
+                        "existingClone=${conflicting.optString("cloneInstanceId")} " +
+                        "existingServerUserId=${conflicting.optLong("serverUserId", -1L)}"
+            )
+            return false
+        }
+        root.put(key, mappingValue(cloneInstanceId, packageName, serverUserId, userId))
         writeMapping(root)
         // BEnvironment resolves scoped package dirs from clone-instances.json.
         ensurePackageDirs(cloneInstanceId, packageName, serverUserId, userId)
         return true
+    }
+
+    private fun findConflictingPackageUserMapping(
+        root: JSONObject,
+        currentKey: String,
+        packageName: String,
+        userId: Int
+    ): JSONObject? {
+        return root.keys().asSequence()
+            .filter { it != currentKey }
+            .mapNotNull { root.optJSONObject(it) }
+            .firstOrNull {
+                it.optString("packageName") == packageName && it.optInt("userId", -1) == userId
+            }
     }
 
     private fun findMappingByCloneId(cloneInstanceId: String): JSONObject? {

@@ -340,7 +340,7 @@ class ShopControllerTest {
     }
 
     @Test
-    void authTokenBackfillsLegacyShopWithoutDeducting() {
+    void authTokenUsesRequestedUserWithoutBackfillingLegacyShop() {
         AuthContext.setUserId(1L);
         User normalUser = user(1L, "USER");
         normalUser.setComputeBalance(7);
@@ -364,12 +364,32 @@ class ShopControllerTest {
 
         assertThat(response.getCode()).isEqualTo(200);
         assertThat(response.getData().getDeducted()).isFalse();
-        assertThat(legacyShop.getLocalVirtualUserId()).isEqualTo(6);
+        assertThat(legacyShop.getLocalVirtualUserId()).isNull();
         assertThat(legacyShop.getAuthExpireAt()).isAfter(LocalDateTime.now());
         assertThat(legacyShop.getExpireAt()).isEqualTo(legacyShop.getAuthExpireAt());
         assertThat(response.getData().getAuthorizationToken()).contains(".");
         verify(computeService, never()).deductComputeForCloneRenew(any(), any(), any(), any(), any());
         verify(computeService, never()).deductComputeForCloneCreate(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void authTokenRejectsPackageMismatch() {
+        AuthContext.setUserId(1L);
+        Shop existingShop = shop(16L, 1L, "existing");
+        existingShop.setCloneInstanceId("clone-existing");
+        existingShop.setPackageName("com.jd.mrd.jingming");
+        existingShop.setLocalVirtualUserId(3);
+        ShopAuthTokenRequest request = new ShopAuthTokenRequest();
+        request.setLocalVirtualUserId(3);
+        request.setPackageName("me.ele.napos");
+
+        when(shopService.findById(16L)).thenReturn(Optional.of(existingShop));
+
+        ApiResponse<CloneShopCreateResponse> response = controller.issueAuthorizationToken(16L, request);
+
+        assertThat(response.getCode()).isEqualTo(500);
+        assertThat(response.getMessage()).isEqualTo("应用包名与店铺不匹配");
+        verify(shopService, never()).update(eq(16L), any(Shop.class));
     }
 
     @Test

@@ -1714,6 +1714,11 @@ class HomeActivity : AppCompatActivity() {
             retryOpenAfterEngineReconnect(shop)
             return
         }
+        if (shop.cloneInstanceId.isNullOrBlank() && !shop.isNew) {
+            finishShopOperation()
+            toast("店铺缺少店铺标识，请重新添加店铺")
+            return
+        }
 
         updateShopProgress("正在校验店铺环境…")
         var targetUserId = findUserIdForCloneInstance(shop, packageName)
@@ -2582,9 +2587,7 @@ class HomeActivity : AppCompatActivity() {
         }
         lifecycleScope.launch(Dispatchers.IO) {
             allShops.forEach { shop ->
-                val userId = findExistingUserIdForCloneInstance(shop, packageName)
-                    ?: findUserIdForCloneInstance(shop, packageName)
-                    ?: return@forEach
+                val userId = findExistingUserIdForCloneInstance(shop, packageName) ?: return@forEach
                 val shopInfo = EngineProxy.triggerShopIdExtract(packageName, userId)
                 withContext(Dispatchers.Main) {
                     reportDetectedShopInfo(shop, packageName, userId, shopInfo, showFailureToast = false)
@@ -2609,77 +2612,39 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun findUserIdForCloneInstance(shop: Shop, packageName: String): Int? {
-        val users = EngineProxy.getUsers()
-        shop.cloneInstanceId?.takeIf { it.isNotBlank() }?.let { cloneInstanceId ->
-            val currentUserId = viewModel.getCurrentUserId()
-            EngineProxy.findCloneUserId(cloneInstanceId, packageName, currentUserId)?.let {
-                return it
-            }
-            users.firstOrNull {
-                EngineProxy.isCloneAuthorized(cloneInstanceId, packageName, currentUserId, it.id)
-            }?.let {
-                EngineProxy.bindCloneUser(cloneInstanceId, packageName, currentUserId, it.id)
-                return it.id
-            }
-            shop.localVirtualUserId?.takeIf { it >= 0 }?.let { serverUserId ->
-                if (users.any { it.id == serverUserId }) {
-                    EngineProxy.bindCloneUser(cloneInstanceId, packageName, currentUserId, serverUserId)
-                    return serverUserId
-                }
-            }
-            users.firstOrNull { buildLegacyCloneInstanceId(packageName, it.id) == cloneInstanceId }?.let {
-                EngineProxy.bindCloneUser(cloneInstanceId, packageName, currentUserId, it.id)
-                return it.id
-            }
-            EngineProxy.ensureCloneUser(cloneInstanceId, packageName, currentUserId)?.let {
-                return it
-            }
-        }
-        shop.shopId.takeIf {
-            it.isNotBlank() && it != "-" && !it.startsWith("NEW-") && !it.startsWith("phase13-")
-        }?.let { realShopId ->
-            users.firstOrNull { user ->
-                EngineProxy.isInstalled(packageName, user.id) &&
-                        EngineProxy.getShopInfo(packageName, user.id)?.shopId == realShopId
-            }?.let {
-                return it.id
-            }
-        }
-        return users.firstOrNull { EngineProxy.isInstalled(packageName, it.id) }?.id
+        return findUserIdForCloneInstance(shop, packageName, allowCreate = true)
     }
 
     private fun findExistingUserIdForCloneInstance(shop: Shop, packageName: String): Int? {
+        return findUserIdForCloneInstance(shop, packageName, allowCreate = false)
+    }
+
+    private fun findUserIdForCloneInstance(
+        shop: Shop,
+        packageName: String,
+        allowCreate: Boolean
+    ): Int? {
+        val cloneInstanceId = shop.cloneInstanceId?.takeIf { it.isNotBlank() } ?: return null
+        val currentUserId = viewModel.getCurrentUserId()
+        EngineProxy.findCloneUserId(cloneInstanceId, packageName, currentUserId)?.let {
+            return it
+        }
         val users = EngineProxy.getUsers()
-        shop.cloneInstanceId?.takeIf { it.isNotBlank() }?.let { cloneInstanceId ->
-            val currentUserId = viewModel.getCurrentUserId()
-            EngineProxy.findCloneUserId(cloneInstanceId, packageName, currentUserId)?.let {
-                return it
-            }
-            users.firstOrNull {
-                EngineProxy.isCloneAuthorized(cloneInstanceId, packageName, currentUserId, it.id)
-            }?.let {
-                return it.id
-            }
-            shop.localVirtualUserId?.takeIf { it >= 0 }?.let { serverUserId ->
-                if (users.any { it.id == serverUserId }) {
-                    return serverUserId
-                }
-            }
-            users.firstOrNull { buildLegacyCloneInstanceId(packageName, it.id) == cloneInstanceId }?.let {
-                return it.id
-            }
+        users.firstOrNull {
+            EngineProxy.isCloneAuthorized(cloneInstanceId, packageName, currentUserId, it.id)
+        }?.let {
+            EngineProxy.bindCloneUser(cloneInstanceId, packageName, currentUserId, it.id)
+            return it.id
         }
-        shop.shopId.takeIf {
-            it.isNotBlank() && it != "-" && !it.startsWith("NEW-") && !it.startsWith("phase13-")
-        }?.let { realShopId ->
-            users.firstOrNull { user ->
-                EngineProxy.isInstalled(packageName, user.id) &&
-                        EngineProxy.getShopInfo(packageName, user.id)?.shopId == realShopId
-            }?.let {
-                return it.id
-            }
+        users.firstOrNull { buildLegacyCloneInstanceId(packageName, it.id) == cloneInstanceId }?.let {
+            EngineProxy.bindCloneUser(cloneInstanceId, packageName, currentUserId, it.id)
+            return it.id
         }
-        return null
+        return if (allowCreate) {
+            EngineProxy.ensureCloneUser(cloneInstanceId, packageName, currentUserId)
+        } else {
+            null
+        }
     }
 
     private fun beginShopOperation(title: String, message: String): Boolean {
@@ -3049,7 +3014,7 @@ class HomeActivity : AppCompatActivity() {
             return
         }
         ensureEngineReady {
-            val userId = findUserIdForCloneInstance(shop, packageName)
+            val userId = findExistingUserIdForCloneInstance(shop, packageName)
             try {
                 if (userId != null) {
                     EngineProxy.clearClonePackageData(cloneInstanceId, packageName, viewModel.getCurrentUserId(), userId)

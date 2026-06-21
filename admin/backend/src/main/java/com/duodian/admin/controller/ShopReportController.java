@@ -82,6 +82,9 @@ public class ShopReportController {
         if (!validateCloneOwnership(shop, cloneInstanceId)) {
             return ApiResponse.error(403, "店铺标识校验失败");
         }
+        if (!validateLocalVirtualUser(shop, request.getLocalVirtualUserId())) {
+            return ApiResponse.error(403, "虚拟用户目录号校验失败");
+        }
         boolean wasPending = shop.getShopId() != null && shop.getShopId().startsWith("NEW-");
         if (hasVerifiedIdentity) {
             Optional<Shop> duplicate = shopService.findByUserIdAndShopIdAndPackageName(userId, shopId, packageName);
@@ -121,7 +124,20 @@ public class ShopReportController {
         shop.setPackageName(normalize(request.getPackageName()));
         shop.setRemainingDays(request.getRemainingDays());
         shop.setAutoRenew(request.getAutoRenew());
-        shop.setLocalVirtualUserId(request.getLocalVirtualUserId());
+        if (request.getLocalVirtualUserId() != null) {
+            shop.setLocalVirtualUserId(request.getLocalVirtualUserId());
+        }
+    }
+
+    private boolean validateLocalVirtualUser(Shop shop, Integer requestUserId) {
+        if (requestUserId == null) {
+            return true;
+        }
+        if (requestUserId < 0) {
+            return false;
+        }
+        Integer storedUserId = shop.getLocalVirtualUserId();
+        return storedUserId == null || storedUserId.equals(requestUserId);
     }
 
     private void fillUserStats(Map<String, Object> result, Long userId) {

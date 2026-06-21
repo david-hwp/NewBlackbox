@@ -35,13 +35,20 @@ public class CloneAuthorizationTokenService {
     }
 
     public String signToken(Shop shop, User user) {
+        return signToken(shop, user, null);
+    }
+
+    public String signToken(Shop shop, User user, Integer localVirtualUserIdOverride) {
         if (shop.getCloneInstanceId() == null || shop.getCloneInstanceId().isBlank()) {
             throw new IllegalArgumentException("cloneInstanceId is required");
         }
         if (shop.getPackageName() == null || shop.getPackageName().isBlank()) {
             throw new IllegalArgumentException("packageName is required");
         }
-        if (shop.getLocalVirtualUserId() == null || shop.getLocalVirtualUserId() < 0) {
+        Integer localVirtualUserId = localVirtualUserIdOverride != null
+                ? localVirtualUserIdOverride
+                : shop.getLocalVirtualUserId();
+        if (localVirtualUserId == null || localVirtualUserId < 0) {
             throw new IllegalArgumentException("localVirtualUserId is required");
         }
         LocalDateTime authStartAt = shop.getAuthStartAt() != null ? shop.getAuthStartAt() : LocalDateTime.now();
@@ -60,7 +67,7 @@ public class CloneAuthorizationTokenService {
         claims.put("phone", user != null ? user.getPhone() : "");
         claims.put("cloneInstanceId", shop.getCloneInstanceId());
         claims.put("packageName", shop.getPackageName());
-        claims.put("localVirtualUserId", shop.getLocalVirtualUserId());
+        claims.put("localVirtualUserId", localVirtualUserId);
         claims.put("credentialVersion", shop.getCredentialVersion() == null ? 1 : shop.getCredentialVersion());
         claims.put("authStartAt", iat);
         claims.put("authExpireAt", exp);
