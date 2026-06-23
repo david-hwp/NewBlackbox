@@ -329,3 +329,27 @@
 **计划文档**: [.planning/phases/20-new-package-migration-release/20-PLAN.md](.planning/phases/20-new-package-migration-release/20-PLAN.md)
 **上下文文档**: [.planning/phases/20-new-package-migration-release/20-CONTEXT.md](.planning/phases/20-new-package-migration-release/20-CONTEXT.md)
 **调研文档**: [.planning/phases/20-new-package-migration-release/20-RESEARCH.md](.planning/phases/20-new-package-migration-release/20-RESEARCH.md)
+
+### Phase 21: 店铺订单入库与超管查询 📋 已规划
+
+**目标**: 将 Phase 19 爬虫脚本采集到的店铺订单数据入库，订单必须关联后台系统店铺 ID，并在管理后台新增超管专用“店铺订单”查询页面；店铺列表操作列新增超管可见“店铺订单”按钮，点击后跳转订单页并自动带上当前店铺以及当天 00:00 到此刻的订单完成时间筛选。
+
+**Requirements**: PH21-D01, PH21-D02, PH21-D03, PH21-D04, PH21-D05, PH21-D06, PH21-D07, PH21-D08, PH21-D09, PH21-D10, PH21-D11, PH21-D12
+**Depends on:** Phase 19 remote browser/profile chain; Phase 20 current intranet backend/frontend baseline
+**Plans:** 1 plan
+
+**关键交付物**:
+
+- 新增 `shop_orders` 数据表、后端实体/仓储/服务/API，字段尽可能详细覆盖订单身份、状态、金额、顾客、配送、商品、时间和原始业务载荷。
+- 订单入库按后台 `shops.id` 关联店铺，并快照用户、渠道、平台、平台店铺 ID 和店铺名称。
+- 订单采集入库必须按 `shop_id + platform + platform_order_id` 幂等 upsert，重复采集更新已有记录。
+- 更新 `fetch_meituan_orders.py`，在保留本地 JSON 诊断输出的同时，把采集订单批量提交到后端入库接口。
+- 新增超管专用“店铺订单”页面，支持分页、店铺/平台/状态/顾客/订单号等常规筛选，并支持订单完成时间起止范围筛选，精确到分钟。
+- 店铺列表操作列新增超管可见“店铺订单”按钮，保持操作列固定；点击后自动设置系统店铺 ID 和当天 00:00 到当前分钟的完成时间筛选。
+- 使用内网开发测试管理后台和有头浏览器验证超管访问、非超管拦截、筛选和从店铺列表跳转。
+
+**验证**: 后端 `ShopOrderControllerTest`/`ShopOrderServiceTest` 通过，爬虫 parser/submission 测试通过，前端 `npm run build` 通过；在 `http://172.20.0.13:8006` 使用有头浏览器验证超管能从“极点披萨”店铺行进入预筛选订单页。
+
+**计划文档**: [.planning/phases/21-shop-order-ingestion/21-PLAN.md](.planning/phases/21-shop-order-ingestion/21-PLAN.md)
+**上下文文档**: [.planning/phases/21-shop-order-ingestion/21-CONTEXT.md](.planning/phases/21-shop-order-ingestion/21-CONTEXT.md)
+**调研文档**: [.planning/phases/21-shop-order-ingestion/21-RESEARCH.md](.planning/phases/21-shop-order-ingestion/21-RESEARCH.md)

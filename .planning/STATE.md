@@ -2,8 +2,8 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: milestone
-status: Phase 19 Wave 3 completed; development environment migrated to double
-last_updated: "2026-06-21T18:49:14.077Z"
+status: Phase 21 planned; requirements traceability restored
+last_updated: "2026-06-24T02:47:16+08:00"
 progress:
   total_phases: 11
   completed_phases: 10
@@ -13,6 +13,19 @@ progress:
 ---
 
 ## Recent Changes
+
+### 2026-06-24: Phase 21 shop order ingestion planned
+
+- Restored `.planning/REQUIREMENTS.md` for active v1.3 traceability, covering Phase 20 deferred release packaging status and Phase 21 order-ingestion requirements.
+- Added Phase 21 for persisting crawler-collected shop orders into `shop_orders`, associating each row with system `shops.id`, and exposing detailed super-admin-only order search in the management backend.
+- Locked the requirement that the order page and shop-list “店铺订单” action are super-admin-only; non-super-admin route/API access must be rejected.
+- Locked the order completion-time filter to minute precision, with shop-list jumps defaulting to local today 00:00 through the current minute.
+- Locked the environment boundary: implementation/deployment verification targets the intranet admin server `hewp@172.20.0.13`; do not deploy or restart the online `zhirang-dev` app environment without explicit user approval.
+- Canonical plan document: `.planning/phases/21-shop-order-ingestion/21-PLAN.md`.
+
+### Roadmap Evolution
+
+- Phase 21 added: 店铺订单入库与超管查询
 
 ### 2026-06-22: Phase 20 new package migration release added
 
