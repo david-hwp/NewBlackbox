@@ -63,6 +63,19 @@ public class ShopController {
     private static final int DEFAULT_AUTH_DAYS = 30;
     private static final int MAX_LOGIN_STATE_BYTES = 2 * 1024 * 1024;
     private static final int MAX_LOGIN_STATE_MANIFEST_BYTES = 16 * 1024;
+    private static final int MAX_AUTH_VIEWPORT_WIDTH = 3840;
+    private static final int MAX_AUTH_VIEWPORT_HEIGHT = 2160;
+    private static final Map<String, String> PLATFORM_REMOTE_BACKEND_URLS = Map.of(
+            "mtwm", "https://waimaie.meituan.com/"
+    );
+    private static final Map<String, String> PLATFORM_PC_LOGIN_URLS = Map.of(
+            "mtwm", "https://waimaie.meituan.com/new_fe/login_gw#/login",
+            "tbwm", "https://melody.shop.ele.me/login",
+            "jdms", "https://store.jddj.com/base/login",
+            "tbsglsb", "https://nr.ele.me/eleme-nr-bfe-newretail/eb_login",
+            "xiezheng", "https://ebooking.ctrip.com/login",
+            "mtjyb", "https://ecom.meituan.com"
+    );
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     private final ShopService shopService;
@@ -580,7 +593,8 @@ public class ShopController {
             @RequestParam(required = false) Integer width,
             @RequestParam(required = false) Integer height,
             @RequestParam(required = false) Double renderScale,
-            @RequestParam(required = false) Double scale
+            @RequestParam(required = false) Double scale,
+            @RequestParam(required = false) String mode
     ) {
         permissionService.requireSuperAdmin();
         Shop shop = shopService.findById(id).orElse(null);
@@ -596,12 +610,14 @@ public class ShopController {
             return ApiResponse.error("平台未配置授权地址");
         }
         try {
-            int viewportWidth = clampInt(width, 720, 320, 1600);
-            int viewportHeight = clampInt(height, 900, 420, 2400);
+            String openMode = normalizeAuthorizationOpenMode(mode);
+            String targetUrl = resolveAuthorizationTargetUrl(shop, authorizationUrl, openMode);
+            int viewportWidth = clampInt(width, 720, 320, MAX_AUTH_VIEWPORT_WIDTH);
+            int viewportHeight = clampInt(height, 900, 420, MAX_AUTH_VIEWPORT_HEIGHT);
             double effectiveRenderScale = clampDouble(renderScale, 1.0d, 1.0d, 3.0d);
             double effectiveScale = clampDouble(scale, 1.0d, 0.8d, 2.0d);
-            int renderWidth = clampInt((int) Math.round(viewportWidth * effectiveRenderScale), viewportWidth, 320, 1600);
-            int renderHeight = clampInt((int) Math.round(viewportHeight * effectiveRenderScale), viewportHeight, 420, 2400);
+            int renderWidth = clampInt((int) Math.round(viewportWidth * effectiveRenderScale), viewportWidth, 320, MAX_AUTH_VIEWPORT_WIDTH);
+            int renderHeight = clampInt((int) Math.round(viewportHeight * effectiveRenderScale), viewportHeight, 420, MAX_AUTH_VIEWPORT_HEIGHT);
             Map<String, String> viewportParams = new LinkedHashMap<>();
             viewportParams.put("width", Integer.toString(viewportWidth));
             viewportParams.put("height", Integer.toString(viewportHeight));
@@ -609,11 +625,12 @@ public class ShopController {
             viewportParams.put("renderHeight", Integer.toString(renderHeight));
             viewportParams.put("renderScale", formatDecimal(effectiveRenderScale));
             viewportParams.put("scale", formatDecimal(effectiveScale));
+            viewportParams.put("mode", openMode);
             JsonNode payload = requestBrowserControl(
                     "open",
                     owner,
                     shop,
-                    authorizationUrl,
+                    targetUrl,
                     viewportParams
             );
             if (!payload.path("ok").asBoolean(false)) {
@@ -621,11 +638,18 @@ public class ShopController {
             }
             String streamUrl = fixedXpraClientUrl(firstNonBlank(payload.path("streamUrl").asText(null), zrStreamUrl));
             Shop saved = shopService.updateShopAuthorizationUrl(id, streamUrl);
-            return ApiResponse.success(Map.of(
-                    "url", streamUrl,
-                    "shopAuthorizationUrl", firstNonBlank(saved.getShopAuthorizationUrl(), streamUrl),
-                    "status", saved.getShopAuthorizationStatus()
-            ));
+            Map<String, String> response = new LinkedHashMap<>();
+            response.put("url", streamUrl);
+            response.put("shopAuthorizationUrl", firstNonBlank(saved.getShopAuthorizationUrl(), streamUrl));
+            response.put("status", saved.getShopAuthorizationStatus());
+            response.put("shopAuthorizationStatus", saved.getShopAuthorizationStatus());
+            response.put("shopAuthorizationCheckedAt", saved.getShopAuthorizationCheckedAt() == null ? "" : saved.getShopAuthorizationCheckedAt().toString());
+            response.put("mode", openMode);
+            response.put("width", Integer.toString(viewportWidth));
+            response.put("height", Integer.toString(viewportHeight));
+            response.put("renderWidth", Integer.toString(renderWidth));
+            response.put("renderHeight", Integer.toString(renderHeight));
+            return ApiResponse.success(response);
         } catch (Exception e) {
             return ApiResponse.error("远程授权窗口启动失败");
         }
@@ -903,6 +927,16 @@ public class ShopController {
         return null;
     }
 
+    private String resolveAuthorizationTargetUrl(Shop shop, String configuredUrl, String openMode) {
+        String platform = normalize(shop.getPlatform());
+        if ("authorization-login".equals(openMode)) {
+            String loginUrl = platform == null ? null : PLATFORM_PC_LOGIN_URLS.get(platform);
+            return firstNonBlank(loginUrl, configuredUrl);
+        }
+        String remoteBackendUrl = platform == null ? null : PLATFORM_REMOTE_BACKEND_URLS.get(platform);
+        return firstNonBlank(remoteBackendUrl, configuredUrl);
+    }
+
     private String authorizationProfileShopId(Shop shop) {
         String shopId = normalize(shop.getShopId());
         if (shopId != null
@@ -925,6 +959,16 @@ public class ShopController {
         };
     }
 
+    private String normalizeAuthorizationOpenMode(String mode) {
+        String normalized = normalize(mode);
+        if (normalized == null) {
+            return "remote-backend";
+        }
+        return "authorization-login".equalsIgnoreCase(normalized)
+                ? "authorization-login"
+                : "remote-backend";
+    }
+
     private String normalizeProbeConfidence(String confidence) {
         String normalized = normalize(confidence);
         if (normalized == null) {
@@ -939,7 +983,8 @@ public class ShopController {
     private String fixedXpraClientUrl(String streamUrl) {
         String base = firstNonBlank(streamUrl, "http://47.112.170.106:14500/");
         String separator = base.contains("?") ? "&" : "?";
-        return base + separator + "autohide=true&touchaction=scroll&sound=false&video=false"
+        return base + separator + "action=connect&encoding=png&quality=80&resize_display=true"
+                + "&autohide=true&touchaction=scroll&sound=false&video=false"
                 + "&clipboard=true&printing=false&file_transfer=false";
     }
 

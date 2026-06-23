@@ -14,6 +14,7 @@ WINDOW_WIDTH=${ZR_WINDOW_WIDTH:-360}
 WINDOW_HEIGHT=${ZR_WINDOW_HEIGHT:-520}
 BROWSER_SCALE=${ZR_BROWSER_SCALE:-1.25}
 DEBUG_PORT=${ZR_DEBUG_PORT:-14502}
+BROWSER_PROXY=${ZR_BROWSER_PROXY:-}
 mkdir -p "$LOG_DIR" "$PROFILE_ROOT" "$SESSION_LOG_DIR"
 
 safe_segment() {
@@ -40,7 +41,25 @@ trace() {
     "$now" "$event" "$SAFE_PHONE" "$SAFE_SHOP_ID" "$PROFILE_DIR" "$URL" "$extra" >>"$TRACE_FILE"
 }
 
-CHROME=$(find /root/.cache/ms-playwright -path "*/chrome-linux/chrome" -type f | head -1)
+CHROME=""
+for candidate in \
+  "$HOME/.cache/ms-playwright" \
+  /root/.cache/ms-playwright \
+  /usr/bin/chromium \
+  /usr/bin/chromium-browser \
+  /usr/bin/google-chrome \
+  /usr/bin/google-chrome-stable; do
+  if [ -x "$candidate" ] && [ ! -d "$candidate" ]; then
+    CHROME="$candidate"
+    break
+  fi
+  if [ -d "$candidate" ]; then
+    CHROME=$(find "$candidate" -path "*/chrome-linux/chrome" -type f -perm -111 2>/dev/null | head -1 || true)
+    if [ -n "$CHROME" ]; then
+      break
+    fi
+  fi
+done
 if [ -z "$CHROME" ]; then
   trace "chromium_missing"
   echo "Chromium binary not found" >&2
@@ -73,6 +92,7 @@ nohup "$CHROME" \
   --no-sandbox \
   --disable-dev-shm-usage \
   --disable-gpu \
+  ${BROWSER_PROXY:+--proxy-server="$BROWSER_PROXY"} \
   --remote-debugging-address=127.0.0.1 \
   --remote-debugging-port="$DEBUG_PORT" \
   --force-device-scale-factor="$BROWSER_SCALE" \

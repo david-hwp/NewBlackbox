@@ -2,7 +2,7 @@
   <div class="authorization-window">
     <header class="authorization-header">
       <div>
-        <h1>店铺授权</h1>
+        <h1>{{ windowTitle }}</h1>
         <p>{{ shopTitle }}</p>
       </div>
       <div class="header-actions">
@@ -15,13 +15,13 @@
 
     <main ref="frameHost" class="authorization-frame-host">
       <iframe
-        v-if="streamUrl && !preparing && !loadFailed"
+        v-if="streamUrl && !loadFailed"
         :key="streamFrameKey"
         class="authorization-frame"
         :src="streamUrl"
         allow="clipboard-read; clipboard-write"
       />
-      <div v-else class="authorization-state">
+      <div v-if="showState" class="authorization-state" :class="{ overlay: streamUrl && preparing }">
         <el-icon v-if="preparing" class="loading-icon" :size="28"><Loading /></el-icon>
         <h2>{{ stateTitle }}</h2>
         <p>{{ stateDescription }}</p>
@@ -40,6 +40,10 @@ import request from '../utils/request'
 
 const route = useRoute()
 const shopId = computed(() => route.params.id)
+const mode = computed(() => {
+  const value = String(route.query.mode || 'remote-backend')
+  return value === 'authorization-login' ? 'authorization-login' : 'remote-backend'
+})
 const frameHost = ref(null)
 const shop = ref(null)
 const streamUrl = ref('')
@@ -47,6 +51,12 @@ const streamFrameKey = ref(0)
 const preparing = ref(false)
 const loadFailed = ref(false)
 let resizeTimer = null
+let resizeObserver = null
+let firstPrepare = true
+
+const windowTitle = computed(() => {
+  return mode.value === 'authorization-login' ? '店铺授权' : '远程后台'
+})
 
 const shopTitle = computed(() => {
   if (!shop.value) return '正在读取店铺信息'
@@ -55,12 +65,16 @@ const shopTitle = computed(() => {
 
 const stateTitle = computed(() => {
   if (loadFailed.value) return '授权窗口连接失败'
-  return '正在连接授权窗口'
+  return mode.value === 'authorization-login' ? '正在连接授权窗口' : '正在连接远程后台'
 })
 
 const stateDescription = computed(() => {
   if (loadFailed.value) return '远端浏览器没有准备好，请稍后重试。'
   return '正在根据当前浏览器窗口准备远端画面。'
+})
+
+const showState = computed(() => {
+  return loadFailed.value || preparing.value || !streamUrl.value
 })
 
 const statusText = (status) => {
@@ -104,7 +118,10 @@ const prepareRemoteWindow = async () => {
   try {
     await nextTick()
     const result = await request.get(`/shops/${shopId.value}/authorization/open-url`, {
-      params: viewportParams(),
+      params: {
+        ...viewportParams(),
+        mode: mode.value
+      },
       timeout: 45000
     })
     const url = result?.shopAuthorizationUrl || result?.url
@@ -115,6 +132,7 @@ const prepareRemoteWindow = async () => {
     }
     streamUrl.value = normalizeXpraUrl(url)
     streamFrameKey.value += 1
+    firstPrepare = false
     loadShop()
   } catch (error) {
     loadFailed.value = true
@@ -141,10 +159,11 @@ const normalizeXpraUrl = (url) => {
 }
 
 const scheduleResizePrepare = () => {
+  if (!streamUrl.value && !firstPrepare) return
   window.clearTimeout(resizeTimer)
   resizeTimer = window.setTimeout(() => {
     prepareRemoteWindow()
-  }, 500)
+  }, 700)
 }
 
 onMounted(async () => {
@@ -154,11 +173,16 @@ onMounted(async () => {
   }
   prepareRemoteWindow()
   window.addEventListener('resize', scheduleResizePrepare)
+  if (window.ResizeObserver && frameHost.value) {
+    resizeObserver = new ResizeObserver(scheduleResizePrepare)
+    resizeObserver.observe(frameHost.value)
+  }
 })
 
 onBeforeUnmount(() => {
   window.clearTimeout(resizeTimer)
   window.removeEventListener('resize', scheduleResizePrepare)
+  resizeObserver?.disconnect()
 })
 </script>
 
@@ -228,6 +252,11 @@ onBeforeUnmount(() => {
   gap: 10px;
   color: #475569;
   background: #fff;
+}
+
+.authorization-state.overlay {
+  background: rgba(255, 255, 255, 0.82);
+  pointer-events: none;
 }
 
 .authorization-state h2 {

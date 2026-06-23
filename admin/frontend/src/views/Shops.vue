@@ -74,16 +74,6 @@
             </div>
           </template>
         </el-table-column>
-        <el-table-column v-if="isSuperAdmin" label="授权地址" min-width="140">
-          <template #default="{ row }">
-            <el-button type="primary" link :loading="openingShopAuthId === row.id" @click="openShopAuthorization(row)">
-              打开
-            </el-button>
-            <el-button link :loading="probingShopAuthId === row.id" @click="probeShopAuthorization(row)">
-              检测
-            </el-button>
-          </template>
-        </el-table-column>
         <el-table-column label="微信接收方" min-width="180">
           <template #default="{ row }">
             <div v-if="row.wechatReceiverName || row.wechatReceiverId">
@@ -126,8 +116,17 @@
           </template>
         </el-table-column>
         <el-table-column prop="createdAt" label="创建时间" />
-        <el-table-column v-if="canMutate" label="操作" width="180">
+        <el-table-column v-if="canMutate" label="操作" width="230" fixed="right">
           <template #default="{ row }">
+            <el-button
+              v-if="isSuperAdmin"
+              type="success"
+              link
+              :loading="openingShopAuthId === row.id"
+              @click="openRemoteBackend(row)"
+            >
+              远程后台
+            </el-button>
             <el-button type="primary" link @click="showEditDialog(row)">编辑</el-button>
             <el-button type="danger" link @click="handleDelete(row)">删除</el-button>
           </template>
@@ -237,7 +236,6 @@ const dialogVisible = ref(false)
 const isEdit = ref(false)
 const formRef = ref()
 const openingShopAuthId = ref(null)
-const probingShopAuthId = ref(null)
 const filters = ref({
   platform: '',
   phone: '',
@@ -404,24 +402,97 @@ const shopAuthStatusType = (status) => {
   return 'info'
 }
 
-const openShopAuthorization = async (row) => {
-  if (!isSuperAdmin.value || !row?.id || openingShopAuthId.value) return
-  const route = router.resolve({ name: 'ShopAuthorizationWindow', params: { id: row.id } })
-  const opened = window.open(route.href, `shop_authorization_${row.id}`, 'noopener,noreferrer')
-  if (!opened) {
-    ElMessage.error('浏览器已拦截授权窗口，请允许弹窗后重试')
+const popupFeatures = () => {
+  const width = Math.max(1024, Math.round(window.screen?.availWidth || 1440))
+  const height = Math.max(720, Math.round(window.screen?.availHeight || 900))
+  return `popup=yes,left=0,top=0,width=${width},height=${height}`
+}
+
+const remoteRoute = (row, mode) => {
+  return router.resolve({
+    name: 'ShopAuthorizationWindow',
+    params: { id: row.id },
+    query: { mode }
+  }).href
+}
+
+const openPopupShell = (row) => {
+  try {
+    const opened = window.open('', `shop_authorization_${row.id}`, popupFeatures())
+    if (opened) {
+      opened.document.title = '远程后台'
+      opened.document.body.innerHTML = '<div style="font:14px system-ui;padding:24px;color:#334155">正在检测店铺授权状态...</div>'
+      opened.moveTo?.(0, 0)
+      opened.resizeTo?.(window.screen?.availWidth || 1440, window.screen?.availHeight || 900)
+    }
+    return opened
+  } catch (error) {
+    return null
   }
 }
 
-const probeShopAuthorization = async (row) => {
-  if (!row?.id || probingShopAuthId.value) return
-  probingShopAuthId.value = row.id
+const navigatePopup = (opened, url) => {
+  if (opened && !opened.closed) {
+    opened.location.href = url
+    opened.moveTo?.(0, 0)
+    opened.resizeTo?.(window.screen?.availWidth || 1440, window.screen?.availHeight || 900)
+    return true
+  }
+  const fallback = window.open(url, '_blank', popupFeatures())
+  if (!fallback) {
+    ElMessage.error('浏览器已拦截远程后台窗口，请允许弹窗后重试')
+    return false
+  }
+  fallback.moveTo?.(0, 0)
+  fallback.resizeTo?.(window.screen?.availWidth || 1440, window.screen?.availHeight || 900)
+  return true
+}
+
+const closePopup = (opened) => {
+  if (opened && !opened.closed) {
+    opened.close()
+  }
+}
+
+const applyProbeResult = (row, result) => {
+  row.shopAuthorizationStatus = result?.status || 'UNKNOWN'
+  row.shopAuthorizationCheckedAt = result?.checkedAt || row.shopAuthorizationCheckedAt
+  row.shopAuthorizationSignals = result?.signals || row.shopAuthorizationSignals
+}
+
+const openRemoteBackend = async (row) => {
+  if (!isSuperAdmin.value || !row?.id || openingShopAuthId.value) return
+  openingShopAuthId.value = row.id
+  const opened = openPopupShell(row)
   try {
-    await request.post(`/shops/${row.id}/authorization/probe`)
-    ElMessage.success('授权状态已更新')
+    const probe = await request.post(`/shops/${row.id}/authorization/probe`, null, { timeout: 45000 })
+    applyProbeResult(row, probe)
+    if (String(probe?.status || '').toUpperCase() === 'AUTHORIZED') {
+      navigatePopup(opened, remoteRoute(row, 'remote-backend'))
+      fetchShops()
+      return
+    }
+
+    const confirm = await ElMessageBox.confirm(
+      '该店铺未授权，是否进行授权？',
+      '提示',
+      {
+        confirmButtonText: '是',
+        cancelButtonText: '否',
+        type: 'warning'
+      }
+    ).catch((error) => error)
+
+    if (confirm === 'confirm') {
+      navigatePopup(opened, remoteRoute(row, 'authorization-login'))
+    } else {
+      closePopup(opened)
+    }
     fetchShops()
+  } catch (error) {
+    closePopup(opened)
   } finally {
-    probingShopAuthId.value = null
+    openingShopAuthId.value = null
   }
 }
 

@@ -11,6 +11,7 @@ import com.duodian.admin.controller.dto.ShopRenewResponse;
 import com.duodian.admin.controller.dto.ShopAuthTokenRequest;
 import com.duodian.admin.controller.dto.ShopResponse;
 import com.duodian.admin.entity.ComputeDeduction;
+import com.duodian.admin.entity.PlatformConfig;
 import com.duodian.admin.entity.Shop;
 import com.duodian.admin.entity.User;
 import com.duodian.admin.repository.PlatformConfigRepository;
@@ -27,13 +28,17 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.test.util.ReflectionTestUtils;
 
+import com.sun.net.httpserver.HttpServer;
+import java.net.InetSocketAddress;
 import java.security.KeyPairGenerator;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -383,6 +388,7 @@ class ShopControllerTest {
         request.setLocalVirtualUserId(3);
         request.setPackageName("me.ele.napos");
 
+        when(userService.findById(1L)).thenReturn(Optional.of(user(1L, "USER")));
         when(shopService.findById(16L)).thenReturn(Optional.of(existingShop));
 
         ApiResponse<CloneShopCreateResponse> response = controller.issueAuthorizationToken(16L, request);
@@ -608,6 +614,115 @@ class ShopControllerTest {
         assertThat(response.getStatusCode().value()).isEqualTo(200);
         assertThat(response.getHeaders().getFirst("X-Login-State-Profile")).isEqualTo("phase13-ele-e");
         assertThat(response.getBody()).isEqualTo("zip".getBytes());
+    }
+
+    @Test
+    void openAuthorizationUrlAllowsPcViewportAndReturnsFixedXpraParams() throws Exception {
+        AuthContext.setUserId(1L);
+        Shop shop = shop(194L, 1L, "极点披萨");
+        shop.setShopAuthorizationStatus("AUTHORIZED");
+        User owner = user(1L, "USER");
+        PlatformConfig platform = new PlatformConfig();
+        platform.setPlatformId("jd");
+        platform.setAuthorizationUrl("https://example.test/login");
+        AtomicReference<String> requestedQuery = new AtomicReference<>("");
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/open", exchange -> {
+            requestedQuery.set(exchange.getRequestURI().getRawQuery());
+            byte[] body = """
+                    {"ok":true,"streamUrl":"/zr-stream/15318/","ready":true}
+                    """.getBytes();
+            exchange.getResponseHeaders().add("Content-Type", "application/json");
+            exchange.sendResponseHeaders(200, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.close();
+        });
+        server.start();
+        try {
+            ReflectionTestUtils.setField(controller, "zrControlUrl", "http://127.0.0.1:" + server.getAddress().getPort());
+            when(shopService.findById(194L)).thenReturn(Optional.of(shop));
+            when(userService.findById(1L)).thenReturn(Optional.of(owner));
+            when(platformConfigRepository.findByPlatformIdAndDeleted("jd", (byte) 0)).thenReturn(Optional.of(platform));
+            when(shopService.updateShopAuthorizationUrl(eq(194L), any())).thenAnswer(invocation -> {
+                shop.setShopAuthorizationUrl(invocation.getArgument(1));
+                return shop;
+            });
+
+            ApiResponse<java.util.Map<String, String>> response = controller.openShopAuthorizationUrl(
+                    194L,
+                    2560,
+                    1440,
+                    1.0,
+                    1.0,
+                    "remote-backend"
+            );
+
+            assertThat(response.getCode()).isEqualTo(200);
+            assertThat(requestedQuery.get()).contains("width=2560");
+            assertThat(requestedQuery.get()).contains("height=1440");
+            assertThat(requestedQuery.get()).contains("renderWidth=2560");
+            assertThat(requestedQuery.get()).contains("renderHeight=1440");
+            assertThat(requestedQuery.get()).contains("mode=remote-backend");
+            assertThat(response.getData().get("shopAuthorizationUrl"))
+                    .contains("action=connect")
+                    .contains("encoding=png")
+                    .contains("resize_display=true")
+                    .contains("file_transfer=false");
+            assertThat(response.getData().get("mode")).isEqualTo("remote-backend");
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void authorizationLoginModeOpensPlatformPcLoginUrl() throws Exception {
+        AuthContext.setUserId(1L);
+        Shop shop = shop(198L, 1L, "新增店铺");
+        shop.setPlatform("mtwm");
+        User owner = user(1L, "USER");
+        PlatformConfig platform = new PlatformConfig();
+        platform.setPlatformId("mtwm");
+        platform.setAuthorizationUrl("https://waimaie.meituan.com/new_fe/orderbusiness#/order/history");
+        AtomicReference<String> requestedQuery = new AtomicReference<>("");
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/open", exchange -> {
+            requestedQuery.set(exchange.getRequestURI().getRawQuery());
+            byte[] body = """
+                    {"ok":true,"streamUrl":"/zr-stream/15017/","ready":true}
+                    """.getBytes();
+            exchange.getResponseHeaders().add("Content-Type", "application/json");
+            exchange.sendResponseHeaders(200, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.close();
+        });
+        server.start();
+        try {
+            ReflectionTestUtils.setField(controller, "zrControlUrl", "http://127.0.0.1:" + server.getAddress().getPort());
+            when(shopService.findById(198L)).thenReturn(Optional.of(shop));
+            when(userService.findById(1L)).thenReturn(Optional.of(owner));
+            when(platformConfigRepository.findByPlatformIdAndDeleted("mtwm", (byte) 0)).thenReturn(Optional.of(platform));
+            when(shopService.updateShopAuthorizationUrl(eq(198L), any())).thenAnswer(invocation -> {
+                shop.setShopAuthorizationUrl(invocation.getArgument(1));
+                return shop;
+            });
+
+            ApiResponse<java.util.Map<String, String>> response = controller.openShopAuthorizationUrl(
+                    198L,
+                    1440,
+                    900,
+                    1.0,
+                    1.0,
+                    "authorization-login"
+            );
+
+            assertThat(response.getCode()).isEqualTo(200);
+            assertThat(requestedQuery.get()).contains("mode=authorization-login");
+            assertThat(java.net.URLDecoder.decode(requestedQuery.get(), java.nio.charset.StandardCharsets.UTF_8))
+                    .contains("url=https://waimaie.meituan.com/new_fe/login_gw#/login");
+            assertThat(response.getData().get("mode")).isEqualTo("authorization-login");
+        } finally {
+            server.stop(0);
+        }
     }
 
     private User user(Long id, String role) {

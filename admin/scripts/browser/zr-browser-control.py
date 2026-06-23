@@ -20,8 +20,8 @@ DEFAULT_BROWSER_SCALE = 1.25
 DEFAULT_RENDER_SCALE = 1.0
 MIN_WINDOW_WIDTH = 240
 MIN_WINDOW_HEIGHT = 320
-MAX_WINDOW_WIDTH = 1600
-MAX_WINDOW_HEIGHT = 2400
+MAX_WINDOW_WIDTH = 3840
+MAX_WINDOW_HEIGHT = 2160
 MIN_BROWSER_SCALE = 0.8
 MAX_BROWSER_SCALE = 2.0
 MIN_RENDER_SCALE = 1.0
@@ -152,6 +152,29 @@ def xpra_stream_alive(xpra_port: int, timeout: float = 1.5) -> bool:
         return False
 
 
+def current_debug_page_url(debug_port: int) -> str | None:
+    try:
+        with urlopen(f"http://127.0.0.1:{debug_port}/json/list", timeout=1.5) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except Exception:
+        return None
+    if not isinstance(payload, list):
+        return None
+    for page in payload:
+        if not isinstance(page, dict):
+            continue
+        url = str(page.get("url") or "")
+        if url and not url.startswith("about:") and not url.startswith("devtools:"):
+            return url
+    return None
+
+
+def equivalent_page_url(current_url: str | None, target_url: str) -> bool:
+    if not current_url:
+        return False
+    return current_url.rstrip("/") == target_url.rstrip("/")
+
+
 def active_chrome_matches_profile(profile_dir: str, debug_port: int) -> bool:
     try:
         completed = subprocess.run(
@@ -172,6 +195,38 @@ def active_chrome_matches_profile(profile_dir: str, debug_port: int) -> bool:
         and debug_arg in line
         for line in completed.stdout.splitlines()
     )
+
+
+def kill_chrome_for_profile(profile_dir: str, debug_port: int | None = None) -> None:
+    try:
+        completed = subprocess.run(
+            ["ps", "-eo", "pid=,args="],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            timeout=2,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return
+    user_data_arg = f"--user-data-dir={profile_dir}"
+    debug_arg = f"--remote-debugging-port={debug_port}" if debug_port is not None else None
+    pids: list[str] = []
+    for line in completed.stdout.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        parts = stripped.split(maxsplit=1)
+        if len(parts) != 2:
+            continue
+        pid, args = parts
+        if "chrome" not in args or user_data_arg not in args:
+            continue
+        if debug_arg is not None and debug_arg not in args:
+            continue
+        pids.append(pid)
+    if pids:
+        subprocess.run(["kill", *pids], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
 
 
 @dataclass
@@ -206,6 +261,7 @@ class BrowserControlHandler(BaseHTTPRequestHandler):
         shop_id = safe_segment(query.get("shopId", [""])[0], "unknown-shop")
         session = self.browser_session(phone, shop_id)
         url = query.get("url", [DEFAULT_AUTH_URL])[0].strip() or DEFAULT_AUTH_URL
+        mode = query.get("mode", ["authorization-login"])[0].strip() or "authorization-login"
         viewport_width = clamp_int(
             query.get("width", [str(DEFAULT_WINDOW_WIDTH)])[0],
             DEFAULT_WINDOW_WIDTH,
@@ -245,10 +301,41 @@ class BrowserControlHandler(BaseHTTPRequestHandler):
 
         with self.session_lock(session):
             os.makedirs(session.profile_dir, exist_ok=True)
-            if not self.ensure_display_size(session, render_width, render_height):
+            display_ok, display_recreated = self.ensure_display_size(session, render_width, render_height)
+            if not display_ok:
                 self.respond_json(500, {"ok": False, "error": "display_resize_failed"})
                 return
-            reused = self.session_browser_alive(session)
+            if display_recreated:
+                kill_chrome_for_profile(session.profile_dir, session.debug_port)
+                time.sleep(1)
+            current_url = current_debug_page_url(session.debug_port)
+            reused = (
+                (not display_recreated)
+                and self.session_browser_alive(session)
+                and equivalent_page_url(current_url, url)
+            )
+            if (
+                not display_recreated
+                and current_url is not None
+                and self.session_browser_alive(session)
+                and not equivalent_page_url(current_url, url)
+            ):
+                append_trace(
+                    self.server.trace_file,
+                    {
+                        "event": "open_reuse_rejected",
+                        "phone": phone,
+                        "shopId": shop_id,
+                        "sessionId": session.session_id,
+                        "displayId": session.display_id,
+                        "debugPort": session.debug_port,
+                        "currentUrl": current_url,
+                        "targetUrl": url,
+                        "mode": mode,
+                    },
+                )
+                kill_chrome_for_profile(session.profile_dir, session.debug_port)
+                time.sleep(1)
             if reused:
                 self.pin_existing_window(session, render_width, render_height)
                 stream_ready = self.wait_for_stream(session)
@@ -284,6 +371,7 @@ class BrowserControlHandler(BaseHTTPRequestHandler):
                         "viewportHeight": viewport_height,
                         "renderScale": render_scale,
                         "scale": scale,
+                        "mode": mode,
                         "client": self.client_address[0],
                     },
                 )
@@ -326,6 +414,7 @@ class BrowserControlHandler(BaseHTTPRequestHandler):
                     "renderHeight": render_height,
                     "renderScale": render_scale,
                     "scale": scale,
+                    "mode": mode,
                     "client": self.client_address[0],
                 },
             )
@@ -409,9 +498,9 @@ class BrowserControlHandler(BaseHTTPRequestHandler):
                 render_width,
                 render_height,
                 scale,
-            ) if ok else {
+            ) if ok and mode == "authorization-login" else {
                 "ok": False,
-                "reason": "browser_start_failed",
+                "reason": "remote_backend_no_login_alignment" if ok else "browser_start_failed",
             }
             ready = ok and stream_ready
             append_trace(
@@ -503,6 +592,28 @@ class BrowserControlHandler(BaseHTTPRequestHandler):
                 },
             )
             return
+        with self.session_lock(session):
+            if not (debug_port_alive(session.debug_port) and active_chrome_matches_profile(session.profile_dir, session.debug_port)):
+                bootstrap = self.bootstrap_probe_browser(session, url)
+                if not bootstrap.get("ok"):
+                    self.respond_json(
+                        500,
+                        {
+                            "ok": False,
+                            "status": "FAILED",
+                            "confidence": "LOW",
+                            "error": bootstrap.get("error", "probe_browser_bootstrap_failed"),
+                            "signals": {
+                                "sessionId": session.session_id,
+                                "displayId": session.display_id,
+                                "streamPort": session.xpra_port,
+                                "debugPort": session.debug_port,
+                                "profilePath": session.profile_dir,
+                                "bootstrap": bootstrap,
+                            },
+                        },
+                    )
+                    return
         try:
             completed = subprocess.run(
                 [self.server.probe_script],
@@ -533,6 +644,114 @@ class BrowserControlHandler(BaseHTTPRequestHandler):
         signals["profilePath"] = session.profile_dir
         payload.setdefault("returnCode", completed.returncode)
         self.respond_json(200 if payload.get("ok") else 500, payload)
+
+    def bootstrap_probe_browser(self, session: BrowserSession, url: str) -> dict:
+        append_trace(
+            self.server.trace_file,
+            {
+                "event": "authorization_probe_bootstrap_requested",
+                "phone": session.phone,
+                "shopId": session.shop_id,
+                "sessionId": session.session_id,
+                "displayId": session.display_id,
+                "debugPort": session.debug_port,
+                "profileDir": session.profile_dir,
+                "url": url,
+            },
+        )
+        display_ok, display_recreated = self.ensure_display_size(
+            session,
+            DEFAULT_WINDOW_WIDTH,
+            DEFAULT_WINDOW_HEIGHT,
+        )
+        if not display_ok:
+            return {"ok": False, "error": "display_unavailable"}
+        if display_recreated:
+            kill_chrome_for_profile(session.profile_dir, session.debug_port)
+            time.sleep(1)
+        env = os.environ.copy()
+        env.update(
+            {
+                "DISPLAY_ID": session.display_id,
+                "ZR_SESSION_ID": session.session_id,
+                "ZR_USER_PHONE": session.phone,
+                "ZR_SHOP_ID": session.shop_id,
+                "ZR_AUTH_URL": url,
+                "ZR_BASE_DIR": self.server.base_dir,
+                "ZR_PROFILE_ROOT": self.server.profile_root,
+                "ZR_TRACE_FILE": self.server.trace_file,
+                "ZR_WINDOW_WIDTH": str(DEFAULT_WINDOW_WIDTH),
+                "ZR_WINDOW_HEIGHT": str(DEFAULT_WINDOW_HEIGHT),
+                "ZR_VIEWPORT_WIDTH": str(DEFAULT_WINDOW_WIDTH),
+                "ZR_VIEWPORT_HEIGHT": str(DEFAULT_WINDOW_HEIGHT),
+                "ZR_RENDER_WIDTH": str(DEFAULT_WINDOW_WIDTH),
+                "ZR_RENDER_HEIGHT": str(DEFAULT_WINDOW_HEIGHT),
+                "ZR_RENDER_SCALE": str(DEFAULT_RENDER_SCALE),
+                "ZR_BROWSER_SCALE": str(self.server.browser_scale),
+                "ZR_DEBUG_PORT": str(session.debug_port),
+                "ZR_SKIP_CONTROL": "1",
+            }
+        )
+        try:
+            completed = subprocess.run(
+                [self.server.browser_script],
+                env=env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                timeout=20,
+                check=False,
+            )
+        except subprocess.TimeoutExpired:
+            append_trace(
+                self.server.trace_file,
+                {
+                    "event": "authorization_probe_bootstrap_failed",
+                    "phone": session.phone,
+                    "shopId": session.shop_id,
+                    "sessionId": session.session_id,
+                    "reason": "browser_start_timeout",
+                },
+            )
+            return {"ok": False, "error": "browser_start_timeout"}
+        ok = (
+            completed.returncode == 0
+            and debug_port_alive(session.debug_port)
+            and active_chrome_matches_profile(session.profile_dir, session.debug_port)
+        )
+        stream_ready = self.wait_for_stream(session, attempts=6) if completed.returncode == 0 else False
+        if ok:
+            self.record_session(
+                session,
+                url,
+                DEFAULT_WINDOW_WIDTH,
+                DEFAULT_WINDOW_HEIGHT,
+                DEFAULT_WINDOW_WIDTH,
+                DEFAULT_WINDOW_HEIGHT,
+                DEFAULT_RENDER_SCALE,
+                self.server.browser_scale,
+                "probe-started",
+            )
+        append_trace(
+            self.server.trace_file,
+            {
+                "event": "authorization_probe_bootstrap_finished",
+                "phone": session.phone,
+                "shopId": session.shop_id,
+                "sessionId": session.session_id,
+                "displayId": session.display_id,
+                "debugPort": session.debug_port,
+                "returnCode": completed.returncode,
+                "ok": ok,
+                "streamReady": stream_ready,
+            },
+        )
+        return {
+            "ok": ok,
+            "returnCode": completed.returncode,
+            "streamReady": stream_ready,
+            "output": completed.stdout[-2000:],
+        }
 
     def align_login_form(
         self,
@@ -724,7 +943,7 @@ class BrowserControlHandler(BaseHTTPRequestHandler):
             "streamPort": session.xpra_port,
             "streamPath": f"/zr-stream/{session.xpra_port}/",
             "streamUrl": f"/zr-stream/{session.xpra_port}/",
-            "directStreamUrl": f"http://47.112.170.106:{session.xpra_port}/",
+            "directStreamUrl": f"http://{self.server.public_host}:{session.xpra_port}/",
             "displayId": session.display_id,
             "debugPort": session.debug_port,
             "width": render_width,
@@ -769,10 +988,69 @@ class BrowserControlHandler(BaseHTTPRequestHandler):
         )
         return False
 
-    def ensure_display_size(self, session: BrowserSession, width: int, height: int) -> bool:
+    def read_display_size(self, display_id: str) -> dict:
+        env = os.environ.copy()
+        env["DISPLAY"] = display_id
+        try:
+            completed = subprocess.run(
+                ["xrandr", "-q"],
+                env=env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                timeout=3,
+                check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired) as error:
+            return {"ok": False, "error": str(error), "output": ""}
+        output = completed.stdout or ""
+        match = re.search(r"current\s+(\d+)\s+x\s+(\d+),\s+maximum\s+(\d+)\s+x\s+(\d+)", output)
+        if not match:
+            return {"ok": False, "returnCode": completed.returncode, "output": output[-2000:]}
+        return {
+            "ok": completed.returncode == 0,
+            "width": int(match.group(1)),
+            "height": int(match.group(2)),
+            "maxWidth": int(match.group(3)),
+            "maxHeight": int(match.group(4)),
+            "returnCode": completed.returncode,
+            "output": output[-2000:],
+        }
+
+    def run_display_script(self, session: BrowserSession, width: int, height: int, force_recreate: bool) -> subprocess.CompletedProcess:
+        env = os.environ.copy()
+        env.update(
+            {
+                "ZR_BASE_DIR": self.server.base_dir,
+                "ZR_SESSION_ID": session.session_id,
+                "DISPLAY_ID": session.display_id,
+                "ZR_XPRA_PORT": str(session.xpra_port),
+                "ZR_VNC_PORT": str(session.vnc_port),
+                "ZR_WINDOW_WIDTH": str(width),
+                "ZR_WINDOW_HEIGHT": str(height),
+                "ZR_FORCE_DISPLAY_RECREATE": "1" if force_recreate else "0",
+            }
+        )
+        return subprocess.run(
+            [self.server.display_script],
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            timeout=45 if force_recreate else 35,
+            check=False,
+        )
+
+    def ensure_display_size(self, session: BrowserSession, width: int, height: int) -> tuple[bool, bool]:
         current_size = self.server.session_sizes.get(session.session_id)
-        if current_size == (width, height) and xpra_stream_alive(session.xpra_port):
-            return True
+        actual_before = self.read_display_size(session.display_id)
+        if (
+            current_size == (width, height)
+            and actual_before.get("width") == width
+            and actual_before.get("height") == height
+            and xpra_stream_alive(session.xpra_port)
+        ):
+            return True, False
         append_trace(
             self.server.trace_file,
             {
@@ -785,32 +1063,13 @@ class BrowserControlHandler(BaseHTTPRequestHandler):
                 "vncPort": session.vnc_port,
                 "fromWidth": current_size[0] if current_size else None,
                 "fromHeight": current_size[1] if current_size else None,
+                "actualBefore": actual_before,
                 "width": width,
                 "height": height,
             },
         )
-        env = os.environ.copy()
-        env.update(
-            {
-                "ZR_BASE_DIR": self.server.base_dir,
-                "ZR_SESSION_ID": session.session_id,
-                "DISPLAY_ID": session.display_id,
-                "ZR_XPRA_PORT": str(session.xpra_port),
-                "ZR_VNC_PORT": str(session.vnc_port),
-                "ZR_WINDOW_WIDTH": str(width),
-                "ZR_WINDOW_HEIGHT": str(height),
-            }
-        )
         try:
-            completed = subprocess.run(
-                [self.server.display_script],
-                env=env,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                timeout=35,
-                check=False,
-            )
+            completed = self.run_display_script(session, width, height, False)
         except subprocess.TimeoutExpired:
             append_trace(
                 self.server.trace_file,
@@ -823,8 +1082,14 @@ class BrowserControlHandler(BaseHTTPRequestHandler):
                     "height": height,
                 },
             )
-            return False
-        ok = completed.returncode == 0
+            return False, False
+        actual_after = self.read_display_size(session.display_id)
+        size_ok = (
+            completed.returncode == 0
+            and actual_after.get("width") == width
+            and actual_after.get("height") == height
+            and xpra_stream_alive(session.xpra_port)
+        )
         append_trace(
             self.server.trace_file,
             {
@@ -838,12 +1103,73 @@ class BrowserControlHandler(BaseHTTPRequestHandler):
                 "width": width,
                 "height": height,
                 "returnCode": completed.returncode,
+                "actualAfter": actual_after,
                 "output": completed.stdout[-2000:],
             },
         )
-        if ok:
+        implicit_recreate = "display_recreated=1" in (completed.stdout or "")
+        if size_ok:
             self.server.session_sizes[session.session_id] = (width, height)
-        return ok
+            return True, implicit_recreate
+
+        append_trace(
+            self.server.trace_file,
+            {
+                "event": "display_recreate_requested",
+                "phone": session.phone,
+                "shopId": session.shop_id,
+                "sessionId": session.session_id,
+                "displayId": session.display_id,
+                "xpraPort": session.xpra_port,
+                "vncPort": session.vnc_port,
+                "width": width,
+                "height": height,
+                "previousReturnCode": completed.returncode,
+                "actualBeforeRecreate": actual_after,
+            },
+        )
+        try:
+            recreated = self.run_display_script(session, width, height, True)
+        except subprocess.TimeoutExpired:
+            append_trace(
+                self.server.trace_file,
+                {
+                    "event": "display_recreate_timeout",
+                    "phone": session.phone,
+                    "shopId": session.shop_id,
+                    "sessionId": session.session_id,
+                    "width": width,
+                    "height": height,
+                },
+            )
+            return False, True
+        actual_recreated = self.read_display_size(session.display_id)
+        recreate_ok = (
+            recreated.returncode == 0
+            and actual_recreated.get("width") == width
+            and actual_recreated.get("height") == height
+            and xpra_stream_alive(session.xpra_port)
+        )
+        append_trace(
+            self.server.trace_file,
+            {
+                "event": "display_recreate_finished",
+                "phone": session.phone,
+                "shopId": session.shop_id,
+                "sessionId": session.session_id,
+                "displayId": session.display_id,
+                "xpraPort": session.xpra_port,
+                "vncPort": session.vnc_port,
+                "width": width,
+                "height": height,
+                "returnCode": recreated.returncode,
+                "actualAfter": actual_recreated,
+                "output": recreated.stdout[-2000:],
+            },
+        )
+        if recreate_ok:
+            self.server.session_sizes[session.session_id] = (width, height)
+        return recreate_ok, True
 
     def respond_json(self, status: int, payload: dict) -> None:
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
@@ -867,6 +1193,7 @@ def main() -> None:
     parser.add_argument("--window-width", type=int, default=DEFAULT_WINDOW_WIDTH)
     parser.add_argument("--window-height", type=int, default=DEFAULT_WINDOW_HEIGHT)
     parser.add_argument("--browser-scale", type=float, default=DEFAULT_BROWSER_SCALE)
+    parser.add_argument("--public-host", default=os.environ.get("ZR_PUBLIC_HOST", "47.112.170.106"))
     args = parser.parse_args()
 
     server = ThreadingHTTPServer((args.host, args.port), BrowserControlHandler)
@@ -884,6 +1211,7 @@ def main() -> None:
     server.window_width = args.window_width
     server.window_height = args.window_height
     server.browser_scale = args.browser_scale
+    server.public_host = args.public_host
     server.session_sizes = {}
     server.session_locks = {}
     server.session_slots = load_slot_registry(server.session_slot_file)

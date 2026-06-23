@@ -28,7 +28,7 @@ function trace(event, payload = {}) {
 }
 
 function loadChromium() {
-  const extraProject = process.env.ZR_NODE_PROJECT || "/opt/phase19-xpra/browser";
+  const extraProject = process.env.ZR_NODE_PROJECT || path.join(process.env.HOME || "", "data/browser");
   const requireFromExtra = Module.createRequire(path.join(extraProject, "package.json"));
   try {
     return require("playwright-chromium").chromium;
