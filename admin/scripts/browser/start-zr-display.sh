@@ -7,6 +7,7 @@ XPRA_PORT=${ZR_XPRA_PORT:-14500}
 WIDTH=${ZR_WINDOW_WIDTH:-360}
 HEIGHT=${ZR_WINDOW_HEIGHT:-520}
 VNC_PORT=${ZR_VNC_PORT:-59019}
+ENABLE_VNC=${ZR_ENABLE_VNC:-0}
 FORCE_RECREATE=${ZR_FORCE_DISPLAY_RECREATE:-0}
 BASE_DIR=${ZR_BASE_DIR:-$HOME/data}
 LOG_DIR="$BASE_DIR/logs"
@@ -41,6 +42,39 @@ start_xpra() {
   echo $! >"$SESSION_LOG_DIR/xpra.pid"
 }
 
+vnc_enabled() {
+  case "$ENABLE_VNC" in
+    1|true|TRUE|yes|YES|on|ON) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+stop_vnc() {
+  stop_pid_file "$SESSION_LOG_DIR/x11vnc.pid"
+  pkill -f "x11vnc.*-display $DISPLAY_ID" 2>/dev/null || true
+}
+
+start_vnc_if_enabled() {
+  if ! vnc_enabled; then
+    stop_vnc
+    return 0
+  fi
+  if ! ss -ltn | grep -q ":$VNC_PORT "; then
+    x11vnc -storepasswd zr-vnc "$SESSION_DIR/vnc.pass" >/dev/null
+    nohup x11vnc -display "$DISPLAY_ID" -rfbauth "$SESSION_DIR/vnc.pass" -listen "$BIND_IP" -rfbport "$VNC_PORT" -shared -forever -noxdamage -repeat >"$SESSION_LOG_DIR/x11vnc.log" 2>&1 &
+    echo $! >"$SESSION_LOG_DIR/x11vnc.pid"
+    sleep 1
+  fi
+}
+
+list_listeners() {
+  if vnc_enabled; then
+    ss -ltnp | egrep "($XPRA_PORT|$VNC_PORT)" || true
+  else
+    ss -ltnp | grep ":$XPRA_PORT " || true
+  fi
+}
+
 verify_display_size() {
   DISPLAY="$DISPLAY_ID" xrandr -q >"$SESSION_LOG_DIR/xrandr-current.log" 2>&1
   grep -q "current ${WIDTH} x ${HEIGHT}" "$SESSION_LOG_DIR/xrandr-current.log"
@@ -60,11 +94,10 @@ stop_pid_file() {
 
 stop_display_stack() {
   stop_pid_file "$SESSION_LOG_DIR/xpra.pid"
-  stop_pid_file "$SESSION_LOG_DIR/x11vnc.pid"
+  stop_vnc
   stop_pid_file "$SESSION_LOG_DIR/fluxbox.pid"
   stop_pid_file "$SESSION_LOG_DIR/xvfb.pid"
   pkill -f "xpra.*$DISPLAY_ID" 2>/dev/null || true
-  pkill -f "x11vnc.*-display $DISPLAY_ID" 2>/dev/null || true
   pkill -f "Xvfb $DISPLAY_ID" 2>/dev/null || true
   sleep 1
   rm -f "/tmp/.X${DISPLAY_ID#:}-lock" "/tmp/.X11-unix/X${DISPLAY_ID#:}"
@@ -90,14 +123,9 @@ if [ "$FORCE_RECREATE" != "1" ] && display_ready; then
       sleep 1
     done
   fi
-  if ! ss -ltn | grep -q ":$VNC_PORT "; then
-    x11vnc -storepasswd zr-vnc "$SESSION_DIR/vnc.pass" >/dev/null
-    nohup x11vnc -display "$DISPLAY_ID" -rfbauth "$SESSION_DIR/vnc.pass" -listen "$BIND_IP" -rfbport "$VNC_PORT" -shared -forever -noxdamage -repeat >"$SESSION_LOG_DIR/x11vnc.log" 2>&1 &
-    echo $! >"$SESSION_LOG_DIR/x11vnc.pid"
-    sleep 1
-  fi
+  start_vnc_if_enabled
   verify_display_size
-  ss -ltnp | egrep "($XPRA_PORT|$VNC_PORT)" || true
+  list_listeners
   exit 0
 fi
 
@@ -112,13 +140,11 @@ nohup fluxbox >"$SESSION_LOG_DIR/fluxbox.log" 2>&1 &
 echo $! >"$SESSION_LOG_DIR/fluxbox.pid"
 sleep 1
 
-x11vnc -storepasswd zr-vnc "$SESSION_DIR/vnc.pass" >/dev/null
-nohup x11vnc -display "$DISPLAY_ID" -rfbauth "$SESSION_DIR/vnc.pass" -listen "$BIND_IP" -rfbport "$VNC_PORT" -shared -forever -noxdamage -repeat >"$SESSION_LOG_DIR/x11vnc.log" 2>&1 &
-echo $! >"$SESSION_LOG_DIR/x11vnc.pid"
+start_vnc_if_enabled
 
 start_xpra
 
 sleep 8
 verify_display_size
 xpra_http_ready
-ss -ltnp | egrep "($XPRA_PORT|$VNC_PORT)" || true
+list_listeners

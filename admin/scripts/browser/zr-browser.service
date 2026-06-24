@@ -1,0 +1,22 @@
+[Unit]
+Description=ZR Xpra browser control service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=forking
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/data
+Environment=ZR_BASE_DIR=/home/ubuntu/data
+Environment=ZR_BROWSER_PROXY=http://192.168.0.208:3128
+Environment=ZR_PUBLIC_HOST=1.95.90.236
+ExecStart=/home/ubuntu/data/start-zr-display.sh
+ExecStartPost=/home/ubuntu/data/start-zr.sh
+ExecStop=/bin/sh -c 'pkill -u ubuntu -f zr-browser-control.py || true; pkill -u ubuntu -f xpra.*: || true; pkill -u ubuntu -f x11vnc || true; pkill -u ubuntu -f Xvfb : || true'
+RemainAfterExit=yes
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
