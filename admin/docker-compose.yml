@@ -107,6 +107,8 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     restart: unless-stopped
+    environment:
+      ZR_STREAM_PROXY_HOST: ${ZR_STREAM_PROXY_HOST:-1.95.90.236}
     depends_on:
       - duodian-backend
     ports:
