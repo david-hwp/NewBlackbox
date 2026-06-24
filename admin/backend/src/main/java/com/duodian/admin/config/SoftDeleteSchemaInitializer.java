@@ -26,7 +26,8 @@ public class SoftDeleteSchemaInitializer implements CommandLineRunner {
             "feedbacks",
             "compute_deductions",
             "system_parameters",
-            "advanced_features"
+            "advanced_features",
+            "shop_orders"
     );
 
     private final JdbcTemplate jdbcTemplate;
@@ -43,6 +44,7 @@ public class SoftDeleteSchemaInitializer implements CommandLineRunner {
         ensureComputeDeductionTable();
         ensureSystemParameterTable();
         ensureAdvancedFeatureTable();
+        ensureShopOrderTable();
         for (String table : TABLES) {
             if (!hasColumn(table, "deleted")) {
                 jdbcTemplate.execute("ALTER TABLE " + table + " ADD COLUMN deleted TINYINT NOT NULL DEFAULT 0");
@@ -67,6 +69,124 @@ public class SoftDeleteSchemaInitializer implements CommandLineRunner {
         ensureDefaultSystemParameters();
         ensureDefaultAdvancedFeatures();
         removeLegacyShopFeatureSystemParameters();
+    }
+
+    private void ensureShopOrderTable() {
+        jdbcTemplate.execute("""
+                CREATE TABLE IF NOT EXISTS shop_orders (
+                    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                    shop_id BIGINT NOT NULL,
+                    user_id BIGINT,
+                    channel_id BIGINT,
+                    platform VARCHAR(32) NOT NULL,
+                    platform_name VARCHAR(64),
+                    platform_shop_id VARCHAR(128),
+                    shop_name VARCHAR(128),
+                    platform_order_id VARCHAR(128) NOT NULL,
+                    platform_order_no VARCHAR(64),
+                    order_sequence VARCHAR(64),
+                    source VARCHAR(64),
+                    order_time_text VARCHAR(128),
+                    ordered_at DATETIME,
+                    expected_delivery_at DATETIME,
+                    completed_at DATETIME,
+                    cancelled_at DATETIME,
+                    refunded_at DATETIME,
+                    fetched_at DATETIME,
+                    last_seen_at DATETIME,
+                    status VARCHAR(64),
+                    status_text VARCHAR(128),
+                    order_type VARCHAR(64),
+                    tags_json TEXT,
+                    estimated_income DECIMAL(12,2),
+                    customer_paid_amount DECIMAL(12,2),
+                    merchant_income DECIMAL(12,2),
+                    original_amount DECIMAL(12,2),
+                    discount_amount DECIMAL(12,2),
+                    delivery_fee DECIMAL(12,2),
+                    package_fee DECIMAL(12,2),
+                    refund_amount DECIMAL(12,2),
+                    currency VARCHAR(8) DEFAULT 'CNY',
+                    customer_name VARCHAR(128),
+                    customer_phone_tail VARCHAR(16),
+                    privacy_phone VARCHAR(64),
+                    backup_phone VARCHAR(64),
+                    address TEXT,
+                    recipient_address TEXT,
+                    delivery_type VARCHAR(64),
+                    rider_name VARCHAR(128),
+                    rider_phone VARCHAR(64),
+                    remark VARCHAR(512),
+                    item_summary TEXT,
+                    item_count INT,
+                    items_json TEXT,
+                    raw_text TEXT,
+                    raw_payload TEXT,
+                    ingest_batch_id VARCHAR(128),
+                    deleted TINYINT NOT NULL DEFAULT 0,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE KEY uk_shop_orders_platform_order (shop_id, platform, platform_order_id, deleted),
+                    INDEX idx_shop_orders_shop_id (shop_id),
+                    INDEX idx_shop_orders_user_id (user_id),
+                    INDEX idx_shop_orders_channel_id (channel_id),
+                    INDEX idx_shop_orders_platform (platform),
+                    INDEX idx_shop_orders_status (status),
+                    INDEX idx_shop_orders_completed_at (completed_at),
+                    INDEX idx_shop_orders_last_seen_at (last_seen_at),
+                    INDEX idx_shop_orders_deleted (deleted)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                """);
+        addColumnIfMissing("shop_orders", "platform_name", "VARCHAR(64)");
+        addColumnIfMissing("shop_orders", "platform_shop_id", "VARCHAR(128)");
+        addColumnIfMissing("shop_orders", "platform_order_no", "VARCHAR(64)");
+        addColumnIfMissing("shop_orders", "order_sequence", "VARCHAR(64)");
+        addColumnIfMissing("shop_orders", "source", "VARCHAR(64)");
+        addColumnIfMissing("shop_orders", "order_time_text", "VARCHAR(128)");
+        addColumnIfMissing("shop_orders", "ordered_at", "DATETIME");
+        addColumnIfMissing("shop_orders", "expected_delivery_at", "DATETIME");
+        addColumnIfMissing("shop_orders", "completed_at", "DATETIME");
+        addColumnIfMissing("shop_orders", "cancelled_at", "DATETIME");
+        addColumnIfMissing("shop_orders", "refunded_at", "DATETIME");
+        addColumnIfMissing("shop_orders", "fetched_at", "DATETIME");
+        addColumnIfMissing("shop_orders", "last_seen_at", "DATETIME");
+        addColumnIfMissing("shop_orders", "status_text", "VARCHAR(128)");
+        addColumnIfMissing("shop_orders", "order_type", "VARCHAR(64)");
+        addColumnIfMissing("shop_orders", "tags_json", "TEXT");
+        addColumnIfMissing("shop_orders", "estimated_income", "DECIMAL(12,2)");
+        addColumnIfMissing("shop_orders", "customer_paid_amount", "DECIMAL(12,2)");
+        addColumnIfMissing("shop_orders", "merchant_income", "DECIMAL(12,2)");
+        addColumnIfMissing("shop_orders", "original_amount", "DECIMAL(12,2)");
+        addColumnIfMissing("shop_orders", "discount_amount", "DECIMAL(12,2)");
+        addColumnIfMissing("shop_orders", "delivery_fee", "DECIMAL(12,2)");
+        addColumnIfMissing("shop_orders", "package_fee", "DECIMAL(12,2)");
+        addColumnIfMissing("shop_orders", "refund_amount", "DECIMAL(12,2)");
+        addColumnIfMissing("shop_orders", "currency", "VARCHAR(8) DEFAULT 'CNY'");
+        addColumnIfMissing("shop_orders", "customer_name", "VARCHAR(128)");
+        addColumnIfMissing("shop_orders", "customer_phone_tail", "VARCHAR(16)");
+        addColumnIfMissing("shop_orders", "privacy_phone", "VARCHAR(64)");
+        addColumnIfMissing("shop_orders", "backup_phone", "VARCHAR(64)");
+        addColumnIfMissing("shop_orders", "address", "TEXT");
+        addColumnIfMissing("shop_orders", "recipient_address", "TEXT");
+        addColumnIfMissing("shop_orders", "delivery_type", "VARCHAR(64)");
+        addColumnIfMissing("shop_orders", "rider_name", "VARCHAR(128)");
+        addColumnIfMissing("shop_orders", "rider_phone", "VARCHAR(64)");
+        addColumnIfMissing("shop_orders", "remark", "VARCHAR(512)");
+        addColumnIfMissing("shop_orders", "item_summary", "TEXT");
+        addColumnIfMissing("shop_orders", "item_count", "INT");
+        addColumnIfMissing("shop_orders", "items_json", "TEXT");
+        addColumnIfMissing("shop_orders", "raw_text", "TEXT");
+        addColumnIfMissing("shop_orders", "raw_payload", "TEXT");
+        addColumnIfMissing("shop_orders", "ingest_batch_id", "VARCHAR(128)");
+        if (!hasIndexQuietly("shop_orders", "uk_shop_orders_platform_order")) {
+            jdbcTemplate.execute("CREATE UNIQUE INDEX uk_shop_orders_platform_order ON shop_orders (shop_id, platform, platform_order_id, deleted)");
+        }
+        if (!hasIndexQuietly("shop_orders", "idx_shop_orders_completed_at")) {
+            jdbcTemplate.execute("CREATE INDEX idx_shop_orders_completed_at ON shop_orders (completed_at)");
+        }
+        if (!hasIndexQuietly("shop_orders", "idx_shop_orders_last_seen_at")) {
+            jdbcTemplate.execute("CREATE INDEX idx_shop_orders_last_seen_at ON shop_orders (last_seen_at)");
+        }
     }
 
     private void ensureChannelTable() {

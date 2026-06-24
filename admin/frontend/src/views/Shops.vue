@@ -116,7 +116,7 @@
           </template>
         </el-table-column>
         <el-table-column prop="createdAt" label="创建时间" />
-        <el-table-column v-if="canMutate" label="操作" width="230" fixed="right">
+        <el-table-column v-if="canMutate" label="操作" width="300" fixed="right">
           <template #default="{ row }">
             <el-button
               v-if="isSuperAdmin"
@@ -127,6 +127,7 @@
             >
               远程后台
             </el-button>
+            <el-button v-if="isSuperAdmin" type="warning" link @click="openShopOrders(row)">店铺订单</el-button>
             <el-button type="primary" link @click="showEditDialog(row)">编辑</el-button>
             <el-button type="danger" link @click="handleDelete(row)">删除</el-button>
           </template>
@@ -375,6 +376,11 @@ const formatDateTime = (value) => {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`
 }
 
+const formatQueryMinute = (date) => {
+  const pad = (number) => String(number).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
+
 const formatLoginStateMeta = (row) => {
   const parts = []
   const size = formatBytes(row.loginStateSize)
@@ -494,6 +500,21 @@ const openRemoteBackend = async (row) => {
   } finally {
     openingShopAuthId.value = null
   }
+}
+
+const openShopOrders = (row) => {
+  if (!isSuperAdmin.value || !row?.id) return
+  const now = new Date()
+  const start = new Date(now)
+  start.setHours(0, 0, 0, 0)
+  router.push({
+    name: 'ShopOrders',
+    query: {
+      shopId: row.id,
+      completedStart: formatQueryMinute(start),
+      completedEnd: formatQueryMinute(now)
+    }
+  })
 }
 
 const showAddDialog = () => {

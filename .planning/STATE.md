@@ -2,8 +2,8 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: milestone
-status: Phase 21 planned; requirements traceability restored
-last_updated: "2026-06-24T02:47:16+08:00"
+status: Phase 21 completed and deployed to intranet admin
+last_updated: "2026-06-24T19:16:00+08:00"
 progress:
   total_phases: 11
   completed_phases: 10
@@ -13,6 +13,19 @@ progress:
 ---
 
 ## Recent Changes
+
+### 2026-06-24: Phase 21 shop order ingestion completed
+
+- Implemented `shop_orders` persistence, detailed order snapshots, idempotent upsert, super-admin-only ingestion/list APIs, and sanitized raw business payload storage.
+- Updated `fetch_meituan_orders.py` so Phase 19 Meituan order scraping can still write local JSON and also submit batches to `/api/shop-orders/ingest`.
+- Added the super-admin-only management page `/shop-orders`, sidebar entry, minute-precision completed-time filters, and the shop-list “店铺订单” action with today 00:00-to-now prefilled query parameters.
+- Deployed only the intranet development/test admin environment on `hewp@172.20.0.13`; no online `zhirang-dev` app deployment was performed.
+- Verified through the running GStack headed browser against `http://172.20.0.13:8006`: super-admin order ingestion/listing, “极点披萨” shop-list jump, fixed operation column, sanitized raw payload, 401 unauthenticated API behavior, and 400 invalid ingest behavior.
+- Canonical completion record: `.planning/phases/21-shop-order-ingestion/21-SUMMARY.md`.
+
+### Roadmap Evolution
+
+- Phase 21 completed: 店铺订单入库与超管查询
 
 ### 2026-06-24: Phase 21 shop order ingestion planned
 

@@ -15,6 +15,7 @@ import ReleaseJobs from '../views/ReleaseJobs.vue'
 import SystemParameters from '../views/SystemParameters.vue'
 import AdvancedFeatureOpen from '../views/AdvancedFeatureOpen.vue'
 import ShopAuthorizationWindow from '../views/ShopAuthorizationWindow.vue'
+import ShopOrders from '../views/ShopOrders.vue'
 import { isSuperAdminUser, getAdminUser } from '../utils/adminSession'
 
 const routes = [
@@ -38,6 +39,7 @@ const routes = [
       { path: 'users', name: 'Users', component: Users, meta: { title: '用户管理' } },
       { path: 'platforms', name: 'Platforms', component: Platforms, meta: { title: '支持平台', superAdminOnly: true } },
       { path: 'shops', name: 'Shops', component: Shops, meta: { title: '店铺管理' } },
+      { path: 'shop-orders', name: 'ShopOrders', component: ShopOrders, meta: { title: '店铺订单', superAdminOnly: true } },
       { path: 'logs', name: 'Logs', component: Logs, meta: { title: '交易日志' } },
       { path: 'feedbacks', name: 'Feedbacks', component: Feedbacks, meta: { title: '问题反馈' } },
       { path: 'channels', name: 'Channels', component: Channels, meta: { title: '渠道管理', superAdminOnly: true } },

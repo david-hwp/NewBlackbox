@@ -29,6 +29,10 @@
           <el-icon><Shop /></el-icon>
           <span>店铺管理</span>
         </el-menu-item>
+        <el-menu-item v-if="isSuperAdmin" index="/shop-orders">
+          <el-icon><Tickets /></el-icon>
+          <span>店铺订单</span>
+        </el-menu-item>
         <el-menu-item index="/logs">
           <el-icon><Document /></el-icon>
           <span>交易日志</span>
@@ -109,7 +113,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Shop, Odometer, User, Document, ArrowDown, UserFilled, Bell, Connection, ChatDotRound, Grid, Upload, Promotion, SetUp, Setting } from '@element-plus/icons-vue'
+import { Shop, Odometer, User, Document, ArrowDown, UserFilled, Bell, Connection, ChatDotRound, Grid, Upload, Promotion, SetUp, Setting, Tickets } from '@element-plus/icons-vue'
 import { getPreferredImageObjectUrl } from '../utils/files'
 import { isSuperAdminUser } from '../utils/adminSession'
 

@@ -15,12 +15,13 @@ Example cron entry (every 30 minutes):
         --output-dir /tmp >> /tmp/fetch_meituan_orders.log 2>&1
 """
 
+from __future__ import annotations
+
 import argparse
 import json
 import os
 import re
 import sys
-import time
 import urllib.request
 from datetime import datetime
 from pathlib import Path
@@ -71,8 +72,9 @@ def parse_order_card(text: str) -> dict[str, Any] | None:
         return None
 
     # Time: 06-20 12:45前送达 or 06-20 12:19下单
-    m_time = re.search(r"(\d{2}-\d{2}\s+\d{2}:\d{2})", full_text)
+    m_time = re.search(r"(\d{2}-\d{2}\s+\d{2}:\d{2})(前送达|下单)?", full_text)
     order_time = m_time.group(1) if m_time else None
+    order_time_label = m_time.group(2) if m_time else None
 
     # Customer name: usually right after status tags, before 门店新客/发起聊天/下单N次
     # Heuristic: scan segments left-to-right, pick the first short Chinese token
@@ -114,9 +116,12 @@ def parse_order_card(text: str) -> dict[str, Any] | None:
     if m_tail:
         customer_tail = m_tail.group(1)
 
-    # Address: between 顾客地址 and the next 已出餐/骑手/订单已/备注
+    # Address: between 顾客地址 and the next order/detail label.
     address = None
-    m_addr = re.search(r"顾客地址\|([^|]+?)(?=\|(?:已出餐|骑手|订单已|备注|隐私号码|顾客电话|$))", full_text)
+    m_addr = re.search(
+        r"顾客地址\|([^|]+?)(?=\|(?:已出餐|骑手|订单已|备注|隐私号码|顾客电话|预计收入|顾客商品实付|订单编号|商品|餐品|$))",
+        full_text,
+    )
     if m_addr:
         address = m_addr.group(1).strip()
 
@@ -138,6 +143,7 @@ def parse_order_card(text: str) -> dict[str, Any] | None:
         "order_no": order_no,
         "order_id": order_id,
         "order_time": order_time,
+        "order_time_label": order_time_label,
         "customer_name": customer_name,
         "privacy_phone": privacy_phone,
         "backup_phone": backup_phone,
@@ -148,6 +154,87 @@ def parse_order_card(text: str) -> dict[str, Any] | None:
         "raw_text": full_text[:800],
         "fetched_at": datetime.now().isoformat(),
     }
+
+
+def parse_order_minute(value: str | None, base_year: int | None = None) -> str | None:
+    """Convert Meituan's MM-DD HH:mm text to backend LocalDateTime JSON."""
+    if not value:
+        return None
+    text = value.strip()
+    year = base_year or datetime.now().year
+    try:
+        parsed = datetime.strptime(f"{year}-{text}", "%Y-%m-%d %H:%M")
+        return parsed.strftime("%Y-%m-%dT%H:%M:%S")
+    except ValueError:
+        return None
+
+
+def order_to_ingest_item(order: dict[str, Any], base_year: int | None = None) -> dict[str, Any]:
+    """Map parsed order data to backend /shop-orders/ingest item shape."""
+    order_time = order.get("order_time")
+    order_time_label = order.get("order_time_label")
+    normalized_time = parse_order_minute(order_time, base_year)
+    status = order.get("status")
+    completed_statuses = {"用户已收餐", "已完成"}
+    item = {
+        "platform_order_id": order.get("order_id"),
+        "platform_order_no": order.get("order_no"),
+        "order_sequence": order.get("order_no"),
+        "order_time_text": order_time,
+        "ordered_at": normalized_time if order_time_label == "下单" else None,
+        "expected_delivery_at": normalized_time if order_time_label == "前送达" else None,
+        "completed_at": normalized_time if status in completed_statuses and normalized_time else None,
+        "fetched_at": order.get("fetched_at"),
+        "status": status,
+        "status_text": status,
+        "estimated_income": order.get("estimated_income"),
+        "customer_name": order.get("customer_name"),
+        "privacy_phone": order.get("privacy_phone"),
+        "backup_phone": order.get("backup_phone"),
+        "customer_phone_tail": order.get("customer_phone_tail"),
+        "address": order.get("address"),
+        "recipient_address": order.get("address"),
+        "raw_text": order.get("raw_text"),
+        "raw_payload": {
+            key: value for key, value in order.items()
+            if key not in {"cookie", "cookies", "token", "authorization", "profileDir", "debugPort"}
+        },
+    }
+    return {key: value for key, value in item.items() if value is not None}
+
+
+def build_ingest_payload(args: argparse.Namespace, orders: list[dict[str, Any]]) -> dict[str, Any]:
+    return {
+        "shopId": args.system_shop_id,
+        "source": "fetch_meituan_orders",
+        "ingestBatchId": datetime.now().strftime("meituan-%Y%m%d-%H%M%S"),
+        "orders": [order_to_ingest_item(order) for order in orders],
+    }
+
+
+def submit_orders(args: argparse.Namespace, orders: list[dict[str, Any]]) -> None:
+    if not args.backend_url or not args.system_shop_id:
+        log("backend submission skipped: --backend-url or --system-shop-id not set")
+        return
+    payload = build_ingest_payload(args, orders)
+    endpoint = args.backend_url.rstrip("/") + "/shop-orders/ingest"
+    body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+    headers = {"Content-Type": "application/json"}
+    if args.backend_token:
+        headers["Authorization"] = "Bearer " + args.backend_token
+    req = urllib.request.Request(endpoint, data=body, headers=headers, method="POST")
+    with urllib.request.urlopen(req, timeout=60) as resp:
+        result = json.loads(resp.read().decode("utf-8"))
+    if result.get("code") != 200:
+        raise RuntimeError(f"backend ingest failed: {result.get('message') or result}")
+    data = result.get("data") or {}
+    log(
+        "backend ingest ok: "
+        f"received={data.get('received', 0)} "
+        f"inserted={data.get('inserted', 0)} "
+        f"updated={data.get('updated', 0)} "
+        f"rejected={data.get('rejected', 0)}"
+    )
 
 
 def load_existing_orders(output_dir: Path, shop_name: str) -> dict[str, dict[str, Any]]:
@@ -325,6 +412,7 @@ def fetch_orders(args: argparse.Namespace) -> None:
 
     final_orders = sorted(existing.values(), key=lambda x: (x.get("order_time") or "", x.get("order_no") or ""), reverse=True)
     save_orders(args.output_dir, args.shop_name, final_orders)
+    submit_orders(args, new_orders)
     log(f"total unique orders: {len(final_orders)}")
 
 
@@ -335,10 +423,16 @@ def main() -> int:
     parser.add_argument("--shop-id", default=os.environ.get("ZR_SHOP_ID", ""))
     parser.add_argument("--shop-name", default=os.environ.get("ZR_SHOP_NAME", "shop"))
     parser.add_argument("--output-dir", type=Path, default=Path(os.environ.get("OUTPUT_DIR", "/tmp")))
+    parser.add_argument("--backend-url", default=os.environ.get("ZR_BACKEND_URL", ""))
+    parser.add_argument("--backend-token", default=os.environ.get("ZR_BACKEND_TOKEN", ""))
+    parser.add_argument("--system-shop-id", type=int, default=int(os.environ.get("ZR_SYSTEM_SHOP_ID", "0") or "0"))
     args = parser.parse_args()
 
     if not args.phone or not args.shop_id:
         log("--phone and --shop-id are required")
+        return 1
+    if args.backend_url and not args.system_shop_id:
+        log("--system-shop-id is required when --backend-url is set")
         return 1
 
     fetch_orders(args)
