@@ -4,6 +4,7 @@ import com.duodian.admin.entity.Channel;
 import com.duodian.admin.entity.User;
 import com.duodian.admin.repository.ChannelRepository;
 import com.duodian.admin.repository.UserRepository;
+import com.duodian.admin.service.ExternalCallbackTokenService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.stereotype.Component;
@@ -47,6 +48,14 @@ public class AuthInterceptor implements HandlerInterceptor {
         }
 
         if (isReleaseJobCallback(request.getMethod(), path)) {
+            return true;
+        }
+
+        if (isExternalCallbackTokenRequest(
+                request.getMethod(),
+                path,
+                request.getHeader(ExternalCallbackTokenService.HEADER_NAME)
+        )) {
             return true;
         }
 
@@ -110,6 +119,14 @@ public class AuthInterceptor implements HandlerInterceptor {
             return false;
         }
         return path.endsWith("/callback/progress") || path.endsWith("/callback/complete");
+    }
+
+    private boolean isExternalCallbackTokenRequest(String method, String path, String callbackToken) {
+        if (callbackToken == null || callbackToken.isBlank()) {
+            return false;
+        }
+        return ("POST".equalsIgnoreCase(method) && "/shop-orders/ingest".equals(path))
+                || ("GET".equalsIgnoreCase(method) && "/shop-orders/crawl-targets".equals(path));
     }
 
     private CurrentPrincipal resolvePrincipal(String token) {

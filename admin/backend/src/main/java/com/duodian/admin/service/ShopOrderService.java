@@ -1,11 +1,14 @@
 package com.duodian.admin.service;
 
+import com.duodian.admin.controller.dto.AuthorizedShopOrderCrawlTarget;
 import com.duodian.admin.controller.dto.ShopOrderIngestRequest;
 import com.duodian.admin.controller.dto.ShopOrderIngestResponse;
 import com.duodian.admin.entity.Shop;
 import com.duodian.admin.entity.ShopOrder;
+import com.duodian.admin.entity.User;
 import com.duodian.admin.repository.ShopOrderRepository;
 import com.duodian.admin.repository.ShopRepository;
+import com.duodian.admin.repository.UserRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -15,7 +18,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.math.BigDecimal;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -39,18 +44,22 @@ public class ShopOrderService {
             "browserStorage",
             "shopAuthorizationSignals"
     );
+    private static final Set<String> SUPPORTED_ORDER_CRAWL_PLATFORMS = Set.of("mtwm");
 
     private final ShopOrderRepository shopOrderRepository;
     private final ShopRepository shopRepository;
+    private final UserRepository userRepository;
     private final ObjectMapper objectMapper;
 
     public ShopOrderService(
             ShopOrderRepository shopOrderRepository,
             ShopRepository shopRepository,
+            UserRepository userRepository,
             ObjectMapper objectMapper
     ) {
         this.shopOrderRepository = shopOrderRepository;
         this.shopRepository = shopRepository;
+        this.userRepository = userRepository;
         this.objectMapper = objectMapper;
     }
 
@@ -77,6 +86,17 @@ public class ShopOrderService {
                 completedEnd,
                 pageable
         );
+    }
+
+    @Transactional(readOnly = true)
+    public List<AuthorizedShopOrderCrawlTarget> authorizedCrawlTargets() {
+        return shopRepository.findAuthorizedOrderCrawlTargets(ACTIVE, SUPPORTED_ORDER_CRAWL_PLATFORMS).stream()
+                .map(shop -> AuthorizedShopOrderCrawlTarget.from(
+                        shop,
+                        userRepository.findByIdAndDeleted(shop.getUserId(), ACTIVE).orElse(null)
+                ))
+                .filter(target -> normalize(target.getUserPhone()) != null)
+                .toList();
     }
 
     @Transactional
@@ -144,46 +164,46 @@ public class ShopOrderService {
     ) {
         LocalDateTime now = LocalDateTime.now();
         order.setPlatformOrderId(platformOrderId);
-        order.setPlatformOrderNo(firstNonBlank(item.getPlatformOrderNo(), item.getOrderSequence()));
-        order.setOrderSequence(firstNonBlank(item.getOrderSequence(), item.getPlatformOrderNo()));
-        order.setSource(firstNonBlank(normalize(request.getSource()), "fetch_meituan_orders"));
-        order.setOrderTimeText(normalize(item.getOrderTimeText()));
-        order.setOrderedAt(item.getOrderedAt());
-        order.setExpectedDeliveryAt(item.getExpectedDeliveryAt());
-        order.setCompletedAt(item.getCompletedAt());
-        order.setCancelledAt(item.getCancelledAt());
-        order.setRefundedAt(item.getRefundedAt());
+        setIfPresent(order::setPlatformOrderNo, firstNonBlank(item.getPlatformOrderNo(), item.getOrderSequence()));
+        setIfPresent(order::setOrderSequence, firstNonBlank(item.getOrderSequence(), item.getPlatformOrderNo()));
+        setIfPresent(order::setSource, firstNonBlank(normalize(request.getSource()), "fetch_meituan_orders"));
+        setIfPresent(order::setOrderTimeText, normalize(item.getOrderTimeText()));
+        setIfPresent(order::setOrderedAt, item.getOrderedAt());
+        setIfPresent(order::setExpectedDeliveryAt, item.getExpectedDeliveryAt());
+        setIfPresent(order::setCompletedAt, item.getCompletedAt());
+        setIfPresent(order::setCancelledAt, item.getCancelledAt());
+        setIfPresent(order::setRefundedAt, item.getRefundedAt());
         order.setFetchedAt(item.getFetchedAt() == null ? now : item.getFetchedAt());
         order.setLastSeenAt(now);
-        order.setStatus(normalize(item.getStatus()));
-        order.setStatusText(firstNonBlank(item.getStatusText(), item.getStatus()));
-        order.setOrderType(normalize(item.getOrderType()));
-        order.setTagsJson(toJson(item.getTags()));
-        order.setEstimatedIncome(item.getEstimatedIncome());
-        order.setCustomerPaidAmount(item.getCustomerPaidAmount());
-        order.setMerchantIncome(item.getMerchantIncome());
-        order.setOriginalAmount(item.getOriginalAmount());
-        order.setDiscountAmount(item.getDiscountAmount());
-        order.setDeliveryFee(item.getDeliveryFee());
-        order.setPackageFee(item.getPackageFee());
-        order.setRefundAmount(item.getRefundAmount());
-        order.setCurrency(firstNonBlank(item.getCurrency(), "CNY"));
-        order.setCustomerName(normalize(item.getCustomerName()));
-        order.setCustomerPhoneTail(normalize(item.getCustomerPhoneTail()));
-        order.setPrivacyPhone(normalize(item.getPrivacyPhone()));
-        order.setBackupPhone(normalize(item.getBackupPhone()));
-        order.setAddress(normalize(item.getAddress()));
-        order.setRecipientAddress(firstNonBlank(item.getRecipientAddress(), item.getAddress()));
-        order.setDeliveryType(normalize(item.getDeliveryType()));
-        order.setRiderName(normalize(item.getRiderName()));
-        order.setRiderPhone(normalize(item.getRiderPhone()));
-        order.setRemark(normalize(item.getRemark()));
-        order.setItemSummary(normalize(item.getItemSummary()));
-        order.setItemCount(item.getItemCount());
-        order.setItemsJson(toJson(item.getItems()));
-        order.setRawText(normalize(item.getRawText()));
-        order.setRawPayload(toJson(sanitizePayload(item.getRawPayload())));
-        order.setIngestBatchId(normalize(request.getIngestBatchId()));
+        setIfPresent(order::setStatus, normalize(item.getStatus()));
+        setIfPresent(order::setStatusText, firstNonBlank(item.getStatusText(), item.getStatus()));
+        setIfPresent(order::setOrderType, normalize(item.getOrderType()));
+        setIfPresent(order::setTagsJson, toJson(item.getTags()));
+        setIfPresent(order::setEstimatedIncome, item.getEstimatedIncome());
+        setIfPresent(order::setCustomerPaidAmount, item.getCustomerPaidAmount());
+        setIfPresent(order::setMerchantIncome, item.getMerchantIncome());
+        setIfPresent(order::setOriginalAmount, item.getOriginalAmount());
+        setIfPresent(order::setDiscountAmount, item.getDiscountAmount());
+        setIfPresent(order::setDeliveryFee, item.getDeliveryFee());
+        setIfPresent(order::setPackageFee, item.getPackageFee());
+        setIfPresent(order::setRefundAmount, item.getRefundAmount());
+        setIfPresent(order::setCurrency, firstNonBlank(item.getCurrency(), order.getCurrency(), "CNY"));
+        setIfPresent(order::setCustomerName, normalize(item.getCustomerName()));
+        setIfPresent(order::setCustomerPhoneTail, normalize(item.getCustomerPhoneTail()));
+        setIfPresent(order::setPrivacyPhone, normalize(item.getPrivacyPhone()));
+        setIfPresent(order::setBackupPhone, normalize(item.getBackupPhone()));
+        setIfPresent(order::setAddress, normalize(item.getAddress()));
+        setIfPresent(order::setRecipientAddress, firstNonBlank(item.getRecipientAddress(), item.getAddress()));
+        setIfPresent(order::setDeliveryType, normalize(item.getDeliveryType()));
+        setIfPresent(order::setRiderName, normalize(item.getRiderName()));
+        setIfPresent(order::setRiderPhone, normalize(item.getRiderPhone()));
+        setIfPresent(order::setRemark, normalize(item.getRemark()));
+        setIfPresent(order::setItemSummary, normalize(item.getItemSummary()));
+        setIfPresent(order::setItemCount, item.getItemCount());
+        setIfPresent(order::setItemsJson, toJson(item.getItems()));
+        setIfPresent(order::setRawText, normalize(item.getRawText()));
+        setIfPresent(order::setRawPayload, toJson(sanitizePayload(item.getRawPayload())));
+        setIfPresent(order::setIngestBatchId, normalize(request.getIngestBatchId()));
         order.setDeleted(ACTIVE);
     }
 
@@ -259,5 +279,30 @@ public class ShopOrderService {
             }
         }
         return null;
+    }
+
+    private void setIfPresent(java.util.function.Consumer<String> setter, String value) {
+        String normalized = normalize(value);
+        if (normalized != null) {
+            setter.accept(normalized);
+        }
+    }
+
+    private void setIfPresent(java.util.function.Consumer<LocalDateTime> setter, LocalDateTime value) {
+        if (value != null) {
+            setter.accept(value);
+        }
+    }
+
+    private void setIfPresent(java.util.function.Consumer<BigDecimal> setter, BigDecimal value) {
+        if (value != null) {
+            setter.accept(value);
+        }
+    }
+
+    private void setIfPresent(java.util.function.Consumer<Integer> setter, Integer value) {
+        if (value != null) {
+            setter.accept(value);
+        }
     }
 }

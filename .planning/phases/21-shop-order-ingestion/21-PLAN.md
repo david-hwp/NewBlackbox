@@ -124,23 +124,57 @@ Add order service/API:
   - normalize money to `BigDecimal`.
   - normalize date-times; accept null `completed_at`.
   - upsert by same system shop/platform/platform order ID.
+  - preserve previously captured non-empty detail fields when a later crawl sees the same order but the page omits details such as phone, address, or amount.
+  - update mutable state fields such as order status, fetched time, last seen time, and completion/cancel/refund timestamps on the same row as the order progresses from newly placed to rider handling to delivered.
   - return counts: received, inserted, updated, rejected.
 - Create `ShopOrderController`:
   - `GET /shop-orders` requires `permissionService.requireSuperAdmin()` and returns `PagedResponse<ShopOrderResponse>`.
-  - `POST /shop-orders/ingest` requires `permissionService.requireSuperAdmin()` for the first implementation, unless an explicit crawler credential is added in the same task with tests.
+  - `POST /shop-orders/ingest` accepts a valid `X-External-Callback-Token` for crawler/external-system submissions, and retains super-admin JWT fallback for manual admin verification.
+  - Store the real callback token only in environment-specific secret files. Do not write token values to git, GSD docs, logs, screenshots, or chat transcripts.
   - Do not accept caller-provided `user_id`/`channel_id` as authority.
 </action>
 <acceptance_criteria>
-- Non-super-admin callers are rejected from list and ingestion.
+- Non-super-admin JWT callers are rejected from the order list and from ingestion unless they possess the external callback token.
+- Invalid or missing external callback tokens are rejected before ingestion.
 - Super-admin can list orders with pagination.
 - Completed-time start/end filters include expected rows and exclude rows outside the minute range.
 - Ingesting the same order twice updates the same row and reports updated count.
+- Re-ingesting the same order with a later status updates that row without clearing previously captured phone/address/amount details.
 - Ingestion derives shop/user/channel/platform from backend shop state.
 - Invalid shop and missing order ID are rejected with clear API errors.
 </acceptance_criteria>
 <verify>
 - `cd admin/backend && mvn -Dtest=ShopOrderControllerTest,ShopOrderServiceTest test`
 - `cd admin/backend && mvn test -Dtest=ShopControllerTest`
+</verify>
+</task>
+
+<task id="21-03b" type="execute">
+<title>Schedule all authorized Meituan shop order collection</title>
+<read_first>
+- `admin/scripts/browser/run_authorized_meituan_orders.py`
+- `admin/scripts/browser/fetch_meituan_orders_node_cdp.js`
+- `admin/scripts/browser/run_authorized_meituan_orders.sh`
+</read_first>
+<action>
+- Add `GET /shop-orders/crawl-targets`, protected by `X-External-Callback-Token` or super-admin JWT, returning only the minimal fields needed by the crawler: system shop ID, owner phone, control profile shop ID, shop name, platform, and platform name.
+- Limit automatic targets to `shop_authorization_status = AUTHORIZED` and supported Meituan Waimai platform `mtwm`.
+- The scheduler fetches crawl targets from the intranet admin backend, runs one Node/CDP collection per target, writes per-shop snapshots under `order-output/shop-<systemShopId>/`, then posts each payload to `/shop-orders/ingest`.
+- Before creating new files for a shop, delete regular files in that shop's output directory older than 7 days by default (`ZR_ORDER_OUTPUT_RETENTION_DAYS`; negative disables cleanup). Do not delete subdirectories or symlinks.
+- The runtime wrapper sources `/home/ubuntu/data/secrets/phase21-orders.env`, uses `flock` to prevent overlapping runs, and is intended to run from cron every 30 minutes.
+</action>
+<acceptance_criteria>
+- Every 30 minutes, the crawler server attempts to collect today's orders for all currently authorized supported shops.
+- Unauthorized, unknown, failed, unsupported, or missing-owner-phone shops are skipped.
+- Each shop writes separate local output files so multi-shop runs do not overwrite another shop's payload.
+- Per-shop local output is pruned before each collection so files older than one week do not accumulate indefinitely.
+- Scheduler logs aggregate received/inserted/updated/rejected counts without printing external callback tokens.
+</acceptance_criteria>
+<verify>
+- `python3 -m py_compile admin/scripts/browser/run_authorized_meituan_orders.py admin/scripts/browser/test_run_authorized_meituan_orders.py`
+- `python3 admin/scripts/browser/test_run_authorized_meituan_orders.py`
+- `node --check admin/scripts/browser/fetch_meituan_orders_node_cdp.js`
+- Manual on crawler server: run `/home/ubuntu/data/run_authorized_meituan_orders.sh` once and confirm `/api/shop-orders/ingest` returns success for authorized shops.
 </verify>
 </task>
 
@@ -155,7 +189,8 @@ Add order service/API:
 Update the crawler script:
 - Add CLI/env parameters:
   - `--backend-url` / `ZR_BACKEND_URL`
-  - `--backend-token` / `ZR_BACKEND_TOKEN`
+  - `--external-callback-token` / `ZR_EXTERNAL_CALLBACK_TOKEN`
+  - legacy fallback `--backend-token` / `ZR_BACKEND_TOKEN` only for older backend deployments.
   - `--system-shop-id` / `ZR_SYSTEM_SHOP_ID`
   - keep existing `--shop-id` for Phase 19 profile selection if needed.
 - Build an ingestion payload after parsing visible orders and before/after local JSON save.
@@ -170,6 +205,7 @@ Update the crawler script:
 - Script still works in local-output-only mode when backend parameters are absent, unless implementation chooses to make backend submission required for scheduled jobs.
 - Unit/sample test proves existing Meituan card text maps to expected ingestion fields.
 - Ingestion response is logged without sensitive credentials.
+- The crawler sends `X-External-Callback-Token` when configured and never prints the token.
 </acceptance_criteria>
 <verify>
 - `python3 -m py_compile admin/scripts/browser/fetch_meituan_orders.py`

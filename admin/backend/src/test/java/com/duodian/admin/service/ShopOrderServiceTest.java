@@ -4,8 +4,10 @@ import com.duodian.admin.controller.dto.ShopOrderIngestRequest;
 import com.duodian.admin.controller.dto.ShopOrderIngestResponse;
 import com.duodian.admin.entity.Shop;
 import com.duodian.admin.entity.ShopOrder;
+import com.duodian.admin.entity.User;
 import com.duodian.admin.repository.ShopOrderRepository;
 import com.duodian.admin.repository.ShopRepository;
+import com.duodian.admin.repository.UserRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
@@ -23,8 +25,9 @@ import static org.mockito.Mockito.*;
 class ShopOrderServiceTest {
     private final ShopOrderRepository shopOrderRepository = mock(ShopOrderRepository.class);
     private final ShopRepository shopRepository = mock(ShopRepository.class);
+    private final UserRepository userRepository = mock(UserRepository.class);
     private final ObjectMapper objectMapper = new ObjectMapper();
-    private final ShopOrderService service = new ShopOrderService(shopOrderRepository, shopRepository, objectMapper);
+    private final ShopOrderService service = new ShopOrderService(shopOrderRepository, shopRepository, userRepository, objectMapper);
 
     @Test
     void ingestBatchCreatesDetailedShopOrderAndDerivesShopSnapshots() {
@@ -71,18 +74,70 @@ class ShopOrderServiceTest {
         existing.setShopId(194L);
         existing.setPlatform("mtwm");
         existing.setPlatformOrderId("order-1");
-        existing.setStatus("待配送");
+        existing.setStatus("骑手已取餐");
+        existing.setPrivacyPhone("13800000000 转 1234");
+        existing.setAddress("深圳市南山区");
+        existing.setEstimatedIncome(new BigDecimal("33.50"));
         when(shopRepository.findByIdAndDeleted(194L, (byte) 0)).thenReturn(Optional.of(shop));
         when(shopOrderRepository.findByShopIdAndPlatformAndPlatformOrderIdAndDeleted(194L, "mtwm", "order-1", (byte) 0))
                 .thenReturn(Optional.of(existing));
 
-        ShopOrderIngestResponse response = service.ingestBatch(request(order("order-1", "已完成", LocalDateTime.of(2026, 6, 24, 13, 0))));
+        ShopOrderIngestRequest.OrderItem updated = new ShopOrderIngestRequest.OrderItem();
+        updated.setPlatformOrderId("order-1");
+        updated.setStatus("用户已收餐");
+        updated.setCompletedAt(LocalDateTime.of(2026, 6, 24, 13, 0));
+        updated.setFetchedAt(LocalDateTime.of(2026, 6, 24, 13, 2));
+        ShopOrderIngestResponse response = service.ingestBatch(request(updated));
 
         assertThat(response.getInserted()).isZero();
         assertThat(response.getUpdated()).isEqualTo(1);
         verify(shopOrderRepository).save(argThat(order ->
-                order.getId().equals(99L) && "已完成".equals(order.getStatus())
+                order.getId().equals(99L)
+                        && "用户已收餐".equals(order.getStatus())
+                        && LocalDateTime.of(2026, 6, 24, 13, 0).equals(order.getCompletedAt())
+                        && "13800000000 转 1234".equals(order.getPrivacyPhone())
+                        && "深圳市南山区".equals(order.getAddress())
+                        && new BigDecimal("33.50").compareTo(order.getEstimatedIncome()) == 0
         ));
+    }
+
+    @Test
+    void authorizedCrawlTargetsReturnOnlyAuthorizedSupportedShopsWithSystemProfileIds() {
+        Shop authorized = shop();
+        Shop unsupported = shop();
+        unsupported.setId(195L);
+        unsupported.setPlatform("jdms");
+        User owner = new User();
+        owner.setId(10L);
+        owner.setPhone("15200837196");
+        when(shopRepository.findAuthorizedOrderCrawlTargets((byte) 0, java.util.Set.of("mtwm")))
+                .thenReturn(List.of(authorized));
+        when(userRepository.findByIdAndDeleted(10L, (byte) 0)).thenReturn(Optional.of(owner));
+
+        var targets = service.authorizedCrawlTargets();
+
+        assertThat(targets).hasSize(1);
+        assertThat(targets.get(0).getSystemShopId()).isEqualTo(194L);
+        assertThat(targets.get(0).getUserPhone()).isEqualTo("15200837196");
+        assertThat(targets.get(0).getControlShopId()).isEqualTo("15397100");
+        assertThat(targets.get(0).getPlatform()).isEqualTo("mtwm");
+    }
+
+    @Test
+    void authorizedCrawlTargetsUseSystemProfileIdForPendingPlatformShopIds() {
+        Shop shop = shop();
+        shop.setShopId("NEW-1928cee6efbb9dd2f58ad9d942e4f030");
+        User owner = new User();
+        owner.setId(10L);
+        owner.setPhone("15200837196");
+        when(shopRepository.findAuthorizedOrderCrawlTargets((byte) 0, java.util.Set.of("mtwm")))
+                .thenReturn(List.of(shop));
+        when(userRepository.findByIdAndDeleted(10L, (byte) 0)).thenReturn(Optional.of(owner));
+
+        var targets = service.authorizedCrawlTargets();
+
+        assertThat(targets).hasSize(1);
+        assertThat(targets.get(0).getControlShopId()).isEqualTo("system-194");
     }
 
     @Test

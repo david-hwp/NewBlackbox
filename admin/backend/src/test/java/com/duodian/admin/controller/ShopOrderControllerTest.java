@@ -6,6 +6,7 @@ import com.duodian.admin.controller.dto.ShopOrderIngestRequest;
 import com.duodian.admin.controller.dto.ShopOrderIngestResponse;
 import com.duodian.admin.controller.dto.ShopOrderResponse;
 import com.duodian.admin.entity.ShopOrder;
+import com.duodian.admin.service.ExternalCallbackTokenService;
 import com.duodian.admin.service.PermissionService;
 import com.duodian.admin.service.ShopOrderService;
 import org.junit.jupiter.api.Test;
@@ -25,7 +26,12 @@ import static org.mockito.Mockito.*;
 class ShopOrderControllerTest {
     private final ShopOrderService shopOrderService = mock(ShopOrderService.class);
     private final PermissionService permissionService = mock(PermissionService.class);
-    private final ShopOrderController controller = new ShopOrderController(shopOrderService, permissionService);
+    private final ExternalCallbackTokenService externalCallbackTokenService = new ExternalCallbackTokenService("callback-token");
+    private final ShopOrderController controller = new ShopOrderController(
+            shopOrderService,
+            permissionService,
+            externalCallbackTokenService
+    );
 
     @Test
     void listRequiresSuperAdmin() {
@@ -75,17 +81,63 @@ class ShopOrderControllerTest {
     }
 
     @Test
-    void ingestRequiresSuperAdminAndDelegatesToService() {
+    void ingestAllowsExternalCallbackTokenAndDelegatesToService() {
         ShopOrderIngestRequest request = new ShopOrderIngestRequest();
         request.setShopId(194L);
         when(shopOrderService.ingestBatch(request)).thenReturn(new ShopOrderIngestResponse(1, 1, 0, 0));
 
-        ApiResponse<ShopOrderIngestResponse> response = controller.ingest(request);
+        ApiResponse<ShopOrderIngestResponse> response = controller.ingest("callback-token", request);
 
         assertThat(response.getCode()).isEqualTo(200);
         assertThat(response.getData().getInserted()).isEqualTo(1);
+        verify(permissionService, never()).requireSuperAdmin();
+        verify(shopOrderService).ingestBatch(request);
+    }
+
+    @Test
+    void ingestFallsBackToSuperAdminWhenCallbackTokenIsNotProvided() {
+        ShopOrderIngestRequest request = new ShopOrderIngestRequest();
+        request.setShopId(194L);
+        when(shopOrderService.ingestBatch(request)).thenReturn(new ShopOrderIngestResponse(1, 1, 0, 0));
+
+        ApiResponse<ShopOrderIngestResponse> response = controller.ingest(null, request);
+
+        assertThat(response.getCode()).isEqualTo(200);
         verify(permissionService).requireSuperAdmin();
         verify(shopOrderService).ingestBatch(request);
+    }
+
+    @Test
+    void ingestRejectsInvalidExternalCallbackToken() {
+        ShopOrderIngestRequest request = new ShopOrderIngestRequest();
+        request.setShopId(194L);
+
+        ApiResponse<ShopOrderIngestResponse> response = controller.ingest("wrong-token", request);
+
+        assertThat(response.getCode()).isEqualTo(401);
+        assertThat(response.getMessage()).isEqualTo("外部回调token无效");
+        verify(permissionService, never()).requireSuperAdmin();
+        verify(shopOrderService, never()).ingestBatch(any());
+    }
+
+    @Test
+    void crawlTargetsAllowExternalCallbackToken() {
+        when(shopOrderService.authorizedCrawlTargets()).thenReturn(List.of());
+
+        ApiResponse<?> response = controller.crawlTargets("callback-token");
+
+        assertThat(response.getCode()).isEqualTo(200);
+        verify(permissionService, never()).requireSuperAdmin();
+        verify(shopOrderService).authorizedCrawlTargets();
+    }
+
+    @Test
+    void crawlTargetsRejectInvalidExternalCallbackToken() {
+        ApiResponse<?> response = controller.crawlTargets("wrong-token");
+
+        assertThat(response.getCode()).isEqualTo(401);
+        verify(permissionService, never()).requireSuperAdmin();
+        verify(shopOrderService, never()).authorizedCrawlTargets();
     }
 
     @Test
@@ -93,10 +145,10 @@ class ShopOrderControllerTest {
         ShopOrderIngestRequest request = new ShopOrderIngestRequest();
         when(shopOrderService.ingestBatch(request)).thenThrow(new IllegalArgumentException("缺少系统店铺ID"));
 
-        ApiResponse<ShopOrderIngestResponse> response = controller.ingest(request);
+        ApiResponse<ShopOrderIngestResponse> response = controller.ingest("callback-token", request);
 
         assertThat(response.getCode()).isEqualTo(400);
         assertThat(response.getMessage()).isEqualTo("缺少系统店铺ID");
-        verify(permissionService).requireSuperAdmin();
+        verify(permissionService, never()).requireSuperAdmin();
     }
 }

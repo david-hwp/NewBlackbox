@@ -1,10 +1,12 @@
 package com.duodian.admin.controller;
 
+import com.duodian.admin.controller.dto.AuthorizedShopOrderCrawlTarget;
 import com.duodian.admin.controller.dto.ApiResponse;
 import com.duodian.admin.controller.dto.PagedResponse;
 import com.duodian.admin.controller.dto.ShopOrderIngestRequest;
 import com.duodian.admin.controller.dto.ShopOrderIngestResponse;
 import com.duodian.admin.controller.dto.ShopOrderResponse;
+import com.duodian.admin.service.ExternalCallbackTokenService;
 import com.duodian.admin.service.PermissionService;
 import com.duodian.admin.service.ShopOrderService;
 import org.springframework.data.domain.Page;
@@ -15,16 +17,23 @@ import org.springframework.web.bind.annotation.*;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
+import java.util.List;
 
 @RestController
 @RequestMapping("/shop-orders")
 public class ShopOrderController {
     private final ShopOrderService shopOrderService;
     private final PermissionService permissionService;
+    private final ExternalCallbackTokenService externalCallbackTokenService;
 
-    public ShopOrderController(ShopOrderService shopOrderService, PermissionService permissionService) {
+    public ShopOrderController(
+            ShopOrderService shopOrderService,
+            PermissionService permissionService,
+            ExternalCallbackTokenService externalCallbackTokenService
+    ) {
         this.shopOrderService = shopOrderService;
         this.permissionService = permissionService;
+        this.externalCallbackTokenService = externalCallbackTokenService;
     }
 
     @GetMapping
@@ -60,13 +69,44 @@ public class ShopOrderController {
     }
 
     @PostMapping("/ingest")
-    public ApiResponse<ShopOrderIngestResponse> ingest(@RequestBody ShopOrderIngestRequest request) {
-        permissionService.requireSuperAdmin();
+    public ApiResponse<ShopOrderIngestResponse> ingest(
+            @RequestHeader(value = ExternalCallbackTokenService.HEADER_NAME, required = false) String callbackToken,
+            @RequestBody ShopOrderIngestRequest request
+    ) {
+        if (externalCallbackTokenService.hasProvidedToken(callbackToken)) {
+            if (!externalCallbackTokenService.isValidToken(callbackToken)) {
+                return ApiResponse.error(401, "外部回调token无效");
+            }
+        } else {
+            permissionService.requireSuperAdmin();
+        }
         try {
             return ApiResponse.success(shopOrderService.ingestBatch(request));
         } catch (IllegalArgumentException e) {
             return ApiResponse.error(400, e.getMessage());
         }
+    }
+
+    @GetMapping("/crawl-targets")
+    public ApiResponse<List<AuthorizedShopOrderCrawlTarget>> crawlTargets(
+            @RequestHeader(value = ExternalCallbackTokenService.HEADER_NAME, required = false) String callbackToken
+    ) {
+        ApiResponse<Void> tokenError = requireCallbackTokenOrSuperAdmin(callbackToken);
+        if (tokenError != null) {
+            return ApiResponse.error(tokenError.getCode(), tokenError.getMessage());
+        }
+        return ApiResponse.success(shopOrderService.authorizedCrawlTargets());
+    }
+
+    private ApiResponse<Void> requireCallbackTokenOrSuperAdmin(String callbackToken) {
+        if (externalCallbackTokenService.hasProvidedToken(callbackToken)) {
+            if (!externalCallbackTokenService.isValidToken(callbackToken)) {
+                return ApiResponse.error(401, "外部回调token无效");
+            }
+            return null;
+        }
+        permissionService.requireSuperAdmin();
+        return null;
     }
 
     private LocalDateTime parseMinuteDateTime(String value, boolean end) {

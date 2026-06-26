@@ -90,6 +90,7 @@ def test_submit_orders_posts_backend_ingest(order: dict) -> None:
             length = int(self.headers.get("Content-Length", "0"))
             captured["path"] = self.path
             captured["authorization"] = self.headers.get("Authorization")
+            captured["external_callback_token"] = self.headers.get("X-External-Callback-Token")
             captured["body"] = json.loads(self.rfile.read(length).decode("utf-8"))
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
@@ -110,6 +111,7 @@ def test_submit_orders_posts_backend_ingest(order: dict) -> None:
         args = argparse.Namespace(
             backend_url=f"http://127.0.0.1:{server.server_port}/api",
             backend_token="admin-token",
+            external_callback_token="callback-token",
             system_shop_id=194,
         )
         submit_orders(args, [order])
@@ -118,7 +120,8 @@ def test_submit_orders_posts_backend_ingest(order: dict) -> None:
         thread.join(timeout=5)
 
     assert captured["path"] == "/api/shop-orders/ingest"
-    assert captured["authorization"] == "Bearer admin-token"
+    assert captured["authorization"] is None
+    assert captured["external_callback_token"] == "callback-token"
     assert captured["body"]["shopId"] == 194
     assert captured["body"]["orders"][0]["platform_order_id"] == "1802176573697106215"
 

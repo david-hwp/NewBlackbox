@@ -31,6 +31,7 @@ production_zhirang_dev_deployed: false
 - Added super-admin-only APIs:
   - `POST /api/shop-orders/ingest`
   - `GET /api/shop-orders`
+- Added `X-External-Callback-Token` support on `POST /api/shop-orders/ingest` so crawlers and future external systems do not need a super-admin JWT. Super-admin JWT remains available for manual verification, while the order list API remains super-admin-only.
 - Added minute-precision completed-time filtering for order list queries.
 - Updated `fetch_meituan_orders.py` so Meituan crawler output can still write local JSON and can also submit batches to the admin backend.
 - Added `ShopOrders.vue`, `/shop-orders`, super-admin sidebar entry, and the shop-list operation button text `店铺订单`.
@@ -65,5 +66,13 @@ Intranet deployment verification:
 
 ## Notes
 
-- Live Meituan crawling was not forced during this phase; the authorized profile chain remains Phase 19 infrastructure. The implemented crawler path now submits extracted orders when supplied `ZR_BACKEND_URL`, `ZR_BACKEND_TOKEN`, and `ZR_SYSTEM_SHOP_ID`.
+- Live Meituan crawling was not forced during this phase; the authorized profile chain remains Phase 19 infrastructure. The implemented crawler path now submits extracted orders when supplied `ZR_BACKEND_URL`, `ZR_EXTERNAL_CALLBACK_TOKEN`, and `ZR_SYSTEM_SHOP_ID`.
+- Scheduled all-authorized-shop crawling uses `run_authorized_meituan_orders.sh` on the crawler server. It is designed for a `*/30 * * * *` cron entry and sources `/home/ubuntu/data/secrets/phase21-orders.env`.
+- Each scheduled shop run writes isolated output under `order-output/shop-<systemShopId>/` and prunes regular files older than one week before creating new files. The retention can be changed with `ZR_ORDER_OUTPUT_RETENTION_DAYS`; negative disables cleanup.
+- Order ingestion is idempotent by system shop/platform/platform order ID. Later crawls of the same order update status/timestamps on the same row and preserve previously captured non-empty details when the current page omits them.
+- External callback token values are not stored in this repository. Operational locations:
+  - Intranet admin server `hewp@172.20.0.13`: `admin/.env.product` key `APP_EXTERNAL_CALLBACK_TOKEN`.
+  - Crawler server `ubuntu@192.168.0.210`: `/home/ubuntu/data/secrets/phase21-orders.env` key `ZR_EXTERNAL_CALLBACK_TOKEN`.
+  - HTTP header for callbacks: `X-External-Callback-Token`.
+- To rotate the token, generate a new high-entropy value, update both secret files, redeploy/restart only the intranet admin backend, and update crawler jobs to source the refreshed env file. Never paste the token into GSD docs, git commits, logs, or chat.
 - No online `zhirang-dev` app deployment, upgrade, or restart was performed.

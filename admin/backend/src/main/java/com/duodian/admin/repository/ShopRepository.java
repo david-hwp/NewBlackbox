@@ -24,6 +24,18 @@ public interface ShopRepository extends JpaRepository<Shop, Long> {
             select s
             from Shop s
             where s.deleted = :active
+              and upper(s.shopAuthorizationStatus) = 'AUTHORIZED'
+              and s.platform in :platforms
+            order by s.id asc
+            """)
+    List<Shop> findAuthorizedOrderCrawlTargets(
+            @Param("active") Byte active,
+            @Param("platforms") Collection<String> platforms
+    );
+    @Query("""
+            select s
+            from Shop s
+            where s.deleted = :active
               and (s.expireAt is not null or s.authExpireAt is not null)
             """)
     List<Shop> findActiveShopsWithExpiration(@Param("active") Byte active);

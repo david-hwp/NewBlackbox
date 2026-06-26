@@ -220,7 +220,9 @@ def submit_orders(args: argparse.Namespace, orders: list[dict[str, Any]]) -> Non
     endpoint = args.backend_url.rstrip("/") + "/shop-orders/ingest"
     body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
     headers = {"Content-Type": "application/json"}
-    if args.backend_token:
+    if args.external_callback_token:
+        headers["X-External-Callback-Token"] = args.external_callback_token
+    elif args.backend_token:
         headers["Authorization"] = "Bearer " + args.backend_token
     req = urllib.request.Request(endpoint, data=body, headers=headers, method="POST")
     with urllib.request.urlopen(req, timeout=60) as resp:
@@ -425,6 +427,10 @@ def main() -> int:
     parser.add_argument("--output-dir", type=Path, default=Path(os.environ.get("OUTPUT_DIR", "/tmp")))
     parser.add_argument("--backend-url", default=os.environ.get("ZR_BACKEND_URL", ""))
     parser.add_argument("--backend-token", default=os.environ.get("ZR_BACKEND_TOKEN", ""))
+    parser.add_argument(
+        "--external-callback-token",
+        default=os.environ.get("ZR_EXTERNAL_CALLBACK_TOKEN") or os.environ.get("ZR_BACKEND_INGEST_TOKEN", ""),
+    )
     parser.add_argument("--system-shop-id", type=int, default=int(os.environ.get("ZR_SYSTEM_SHOP_ID", "0") or "0"))
     args = parser.parse_args()
 
