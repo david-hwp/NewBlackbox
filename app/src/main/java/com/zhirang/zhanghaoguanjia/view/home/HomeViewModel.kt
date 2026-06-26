@@ -458,15 +458,16 @@ class HomeViewModel : ViewModel() {
         shop: Shop,
         showMessage: Boolean = true,
         requireVerifiedIdentity: Boolean = true,
-        onComplete: (() -> Unit)? = null
+        onComplete: ((Boolean) -> Unit)? = null
     ) {
         if (!isLoggedIn()) {
             _loadErrorLiveData.value = "请先登录后再更新店铺"
+            onComplete?.invoke(false)
             return
         }
         if (requireVerifiedIdentity && !isVerifiedShopIdentity(shop.shopId, shop.shopName)) {
             _loadErrorLiveData.value = "店铺ID和店铺名称需由引擎识别后再更新"
-            onComplete?.invoke()
+            onComplete?.invoke(false)
             return
         }
         viewModelScope.launch {
@@ -498,11 +499,11 @@ class HomeViewModel : ViewModel() {
                         _operationMessageLiveData.value = if (it.isNew) "店铺已添加" else "店铺已更新"
                     }
                     loadShops()
-                    onComplete?.invoke()
+                    onComplete?.invoke(true)
                 },
                 onFailure = { e ->
                     _loadErrorLiveData.value = e.message
-                    onComplete?.invoke()
+                    onComplete?.invoke(false)
                 }
             )
         }
@@ -562,13 +563,19 @@ class HomeViewModel : ViewModel() {
         }
     }
 
-    fun completePendingShop(pendingShop: Shop, detectedShop: Shop, showMessage: Boolean = pendingShop.isNew) {
+    fun completePendingShop(
+        pendingShop: Shop,
+        detectedShop: Shop,
+        showMessage: Boolean = pendingShop.isNew,
+        onComplete: ((Boolean) -> Unit)? = null
+    ) {
         reportShop(
             detectedShop.copy(
                 cloneInstanceId = detectedShop.cloneInstanceId ?: pendingShop.cloneInstanceId,
                 localVirtualUserId = detectedShop.localVirtualUserId ?: pendingShop.localVirtualUserId
             ),
-            showMessage = showMessage
+            showMessage = showMessage,
+            onComplete = onComplete
         )
     }
 

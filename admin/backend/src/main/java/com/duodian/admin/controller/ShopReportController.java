@@ -55,8 +55,7 @@ public class ShopReportController {
 
         if (cloneInstanceId != null) {
             existing = shopService.findByUserIdAndCloneInstanceId(userId, cloneInstanceId);
-        }
-        if (hasVerifiedIdentity) {
+        } else if (hasVerifiedIdentity) {
             if (existing.isEmpty()) {
                 existing = shopService.findByUserIdAndShopIdAndPackageName(userId, shopId, packageName);
             }
@@ -82,8 +81,11 @@ public class ShopReportController {
         if (!validateCloneOwnership(shop, cloneInstanceId)) {
             return ApiResponse.error(403, "店铺标识校验失败");
         }
-        if (!validateLocalVirtualUser(shop, request.getLocalVirtualUserId())) {
+        if (!validateLocalVirtualUser(request.getLocalVirtualUserId())) {
             return ApiResponse.error(403, "虚拟用户目录号校验失败");
+        }
+        if (hasVerifiedIdentity && !validatePlatformShopBinding(shop, shopId)) {
+            return ApiResponse.error(403, "当前分身已绑定其他店铺，请重新添加店铺卡片");
         }
         boolean wasPending = shop.getShopId() != null && shop.getShopId().startsWith("NEW-");
         if (hasVerifiedIdentity) {
@@ -129,15 +131,19 @@ public class ShopReportController {
         }
     }
 
-    private boolean validateLocalVirtualUser(Shop shop, Integer requestUserId) {
+    private boolean validateLocalVirtualUser(Integer requestUserId) {
         if (requestUserId == null) {
             return true;
         }
-        if (requestUserId < 0) {
-            return false;
+        return requestUserId >= 0;
+    }
+
+    private boolean validatePlatformShopBinding(Shop shop, String requestShopId) {
+        String storedShopId = normalize(shop.getShopId());
+        if (!isRealShopId(storedShopId)) {
+            return true;
         }
-        Integer storedUserId = shop.getLocalVirtualUserId();
-        return storedUserId == null || storedUserId.equals(requestUserId);
+        return storedShopId.equals(requestShopId);
     }
 
     private void fillUserStats(Map<String, Object> result, Long userId) {

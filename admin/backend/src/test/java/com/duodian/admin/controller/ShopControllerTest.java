@@ -436,6 +436,8 @@ class ShopControllerTest {
         User normalUser = user(1L, "USER");
         Shop shop = shop(12L, 1L, "login-state");
         shop.setPackageName("com.jd.mrd.jingming");
+        shop.setCloneInstanceId("CLN-login-state");
+        shop.setShopId("jd-shop-12");
         byte[] payload = "zip-bytes".getBytes();
         MockMultipartFile file = new MockMultipartFile(
                 "file",
@@ -449,7 +451,7 @@ class ShopControllerTest {
         when(shopService.updateLoginState(
                 eq(12L),
                 eq("jd-jingming-prefs-d"),
-                eq("{\"packageName\":\"com.jd.mrd.jingming\",\"profileId\":\"jd-jingming-prefs-d\",\"files\":1}"),
+                eq("{\"systemShopId\":12,\"packageName\":\"com.jd.mrd.jingming\",\"profileId\":\"jd-jingming-prefs-d\",\"cloneInstanceId\":\"CLN-login-state\",\"platformShopId\":\"jd-shop-12\",\"files\":1}"),
                 argThat(bytes -> Arrays.equals(bytes, payload)),
                 argThat(hash -> hash != null && hash.matches("[0-9a-f]{64}")),
                 any()
@@ -468,7 +470,7 @@ class ShopControllerTest {
                 12L,
                 file,
                 "jd-jingming-prefs-d",
-                "{\"packageName\":\"com.jd.mrd.jingming\",\"profileId\":\"jd-jingming-prefs-d\",\"files\":1}"
+                "{\"systemShopId\":12,\"packageName\":\"com.jd.mrd.jingming\",\"profileId\":\"jd-jingming-prefs-d\",\"cloneInstanceId\":\"CLN-login-state\",\"platformShopId\":\"jd-shop-12\",\"files\":1}"
         );
 
         assertThat(response.getCode()).isEqualTo(200);
@@ -503,6 +505,35 @@ class ShopControllerTest {
 
         assertThat(response.getCode()).isEqualTo(500);
         assertThat(response.getMessage()).contains("包名");
+        verify(shopService, never()).updateLoginState(any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void uploadLoginStateRejectsManifestCloneMismatch() {
+        AuthContext.setUserId(1L);
+        User normalUser = user(1L, "USER");
+        Shop shop = shop(13L, 1L, "login-state-clone-mismatch");
+        shop.setPackageName("com.jd.mrd.jingming");
+        shop.setCloneInstanceId("CLN-shop");
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "login-state.zip",
+                "application/zip",
+                "zip-bytes".getBytes()
+        );
+
+        when(userService.findById(1L)).thenReturn(Optional.of(normalUser));
+        when(shopService.findById(13L)).thenReturn(Optional.of(shop));
+
+        ApiResponse<ShopResponse> response = controller.uploadLoginState(
+                13L,
+                file,
+                "jd-jingming-prefs-d",
+                "{\"systemShopId\":13,\"packageName\":\"com.jd.mrd.jingming\",\"profileId\":\"jd-jingming-prefs-d\",\"cloneInstanceId\":\"CLN-other\"}"
+        );
+
+        assertThat(response.getCode()).isEqualTo(500);
+        assertThat(response.getMessage()).contains("店铺标识");
         verify(shopService, never()).updateLoginState(any(), any(), any(), any(), any(), any());
     }
 

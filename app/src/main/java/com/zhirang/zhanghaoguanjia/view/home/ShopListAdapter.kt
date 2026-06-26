@@ -126,6 +126,10 @@ class ShopListAdapter(
 
     fun getShops(): List<Shop> = shops
 
+    fun getOrderScopeShops(anchorShopId: Long?): List<Shop> {
+        return ShopOrderScope.scopeShops(shops, anchorShopId)
+    }
+
     fun getExpandedShopId(): Long? = expandedShopId
 
     fun getShopIdAt(position: Int): Long? = shops.getOrNull(position)?.id

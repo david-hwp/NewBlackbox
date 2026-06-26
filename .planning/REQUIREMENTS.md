@@ -33,6 +33,19 @@
 - [x] **PH21-D11**: 订单相关页面、API 和入库逻辑必须避免泄露授权 profile、cookie、token 或浏览器存储等敏感凭据；原始订单载荷只能保存业务订单内容。
 - [x] **PH21-D12**: Phase 21 必须包含后端测试、爬虫解析/提交测试、前端构建，以及内网环境超管有头浏览器验证。
 
+### Clone Identity Isolation
+
+- [ ] **PH22-D01**: APP、engine 和服务端必须统一使用最小身份规则：服务端以当前 token 的 `userId + cloneInstanceId` 定位店铺卡片，本机以 `cloneInstanceId` 解析运行目录。
+- [ ] **PH22-D02**: `localVirtualUserId` 必须降级为当前设备 engine 的本机目录号，不得再作为跨设备、跨账号或服务端店铺身份校验依据。
+- [ ] **PH22-D03**: Phase 22 实现前必须用小米真机和 OPPO 真机当前真实数据验证兼容性，至少覆盖 `clone-instances.json`、scoped accounts 目录、runtime symlink、auth meta 和登录态 manifest。
+- [ ] **PH22-D04**: `/shops/report` 必须通过 `AuthContext.userId + cloneInstanceId` 定位店铺；带 `cloneInstanceId` 的上报不得再按包名寻找任意 pending 店铺。
+- [ ] **PH22-D05**: 已绑定真实平台店铺 ID 的 clone 不得被另一个平台店铺 ID 覆盖；检测到同一 clone 登录到不同店铺时必须拒绝并返回明确错误。
+- [ ] **PH22-D06**: 登录态上传 manifest 必须携带并校验 `cloneInstanceId`，只允许写入同一 `userId + cloneInstanceId` 对应的店铺。
+- [ ] **PH22-D07**: APP 必须保证店铺基础信息上报成功后才上传登录态，避免 `/shops/report` 失败但 `/login-state` 已覆盖服务端备份。
+- [ ] **PH22-D08**: 历史 `shops.local_virtual_user_id`、授权 token、clone auth 和 scoped engine 目录必须保持兼容，不允许破坏既有可打开店铺。
+- [ ] **PH22-D09**: 完成后必须在 OPPO 真机用二公子和贺伟平两个账号交替登录、刷新和打开店铺，验证店铺基础信息、登录态和 engine 目录不会互相覆盖；测试密码不得写入仓库。
+- [ ] **PH22-D10**: APP 店铺卡片拖拽排序保存时必须只提交同一 `packageName + platform` 范围内的店铺 ID，京东秒送店铺不能因列表中混有其它平台而触发“一次只能调整同一平台下的店铺排序”。
+
 ## v2 Requirements
 
 ### Order Analytics
@@ -76,12 +89,22 @@
 | PH21-D10 | Phase 21 | Complete |
 | PH21-D11 | Phase 21 | Complete |
 | PH21-D12 | Phase 21 | Complete |
+| PH22-D01 | Phase 22 | Pending |
+| PH22-D02 | Phase 22 | Pending |
+| PH22-D03 | Phase 22 | Pending |
+| PH22-D04 | Phase 22 | Pending |
+| PH22-D05 | Phase 22 | Pending |
+| PH22-D06 | Phase 22 | Pending |
+| PH22-D07 | Phase 22 | Pending |
+| PH22-D08 | Phase 22 | Pending |
+| PH22-D09 | Phase 22 | Pending |
+| PH22-D10 | Phase 22 | Pending |
 
 **Coverage:**
-- v1.3 requirements: 21 total
-- Mapped to phases: 21
+- v1.3 requirements: 30 total
+- Mapped to phases: 30
 - Unmapped: 0
 
 ---
 *Requirements restored: 2026-06-24*
-*Last updated: 2026-06-24 for Phase 21 completion*
+*Last updated: 2026-06-26 for Phase 22 planning*

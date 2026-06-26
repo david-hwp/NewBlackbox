@@ -159,6 +159,7 @@ class HomeActivity : AppCompatActivity() {
     private lateinit var shopSwipeHelper: ShopSwipeHelper
     private lateinit var shopItemTouchHelper: ItemTouchHelper
     private var pendingShopOrderSubmit = false
+    private var pendingShopOrderAnchorId: Long? = null
     private val authExpiredReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             if (intent?.action == BaseRepository.ACTION_AUTH_EXPIRED) {
@@ -1147,6 +1148,7 @@ class HomeActivity : AppCompatActivity() {
                 ?: return@setOnLongPressDragStart
             val shopId = shopAdapter.getShopIdAt(position) ?: return@setOnLongPressDragStart
             shopSwipeHelper.collapseExpandedItem(viewBinding.rvShops)
+            pendingShopOrderAnchorId = shopId
             shopAdapter.setReorderMode(true, shopId, refreshItems = false)
             shopItemTouchHelper.startDrag(holder)
             shopAdapter.applyReorderVisualState(holder)
@@ -1845,12 +1847,16 @@ class HomeActivity : AppCompatActivity() {
             return
         }
         pendingShopOrderSubmit = true
-        val orderedShops = shopAdapter.getShops()
+        val anchorShopId = pendingShopOrderAnchorId
+        val orderedShops = shopAdapter.getOrderScopeShops(anchorShopId)
         viewBinding.rvShops.post {
             pendingShopOrderSubmit = false
             shopAdapter.setDraggingShopId(null)
             shopAdapter.setReorderMode(false)
-            viewModel.reorderShops(orderedShops)
+            pendingShopOrderAnchorId = null
+            if (orderedShops.size >= 2) {
+                viewModel.reorderShops(orderedShops)
+            }
         }
     }
 
@@ -1858,10 +1864,11 @@ class HomeActivity : AppCompatActivity() {
         if (!::shopAdapter.isInitialized || !shopAdapter.isReorderMode()) {
             return
         }
-        val orderedShops = shopAdapter.getShops()
+        val orderedShops = shopAdapter.getOrderScopeShops(pendingShopOrderAnchorId)
         shopAdapter.setDraggingShopId(null)
         shopAdapter.setReorderMode(false)
-        if (submit) {
+        pendingShopOrderAnchorId = null
+        if (submit && orderedShops.size >= 2) {
             viewModel.reorderShops(orderedShops)
         }
     }
@@ -2781,6 +2788,10 @@ class HomeActivity : AppCompatActivity() {
             return
         }
         lifecycleScope.launch(Dispatchers.IO) {
+            val cloneInstanceId = shop.cloneInstanceId?.takeIf { it.isNotBlank() } ?: run {
+                uploadedLoginStateKeys.remove(key)
+                return@launch
+            }
             val profile = EngineProxy.defaultLoginStateProfile(packageName) ?: run {
                 uploadedLoginStateKeys.remove(key)
                 return@launch
@@ -2794,6 +2805,8 @@ class HomeActivity : AppCompatActivity() {
                 .put("systemShopId", shop.id)
                 .put("packageName", packageName)
                 .put("profileId", profile)
+                .put("cloneInstanceId", cloneInstanceId)
+                .put("platformShopId", shop.shopId)
                 .put("localVirtualUserId", userId)
                 .put("artifactCreatedAtEpochMillis", createdAt)
                 .put("bytes", artifact.size)
@@ -3222,32 +3235,31 @@ class HomeActivity : AppCompatActivity() {
             }
             return
         }
-        viewModel.markLocalIdentityVerified(sourceShop, packageName, userId, true)
-        buildShopPrepareKey(sourceShop, packageName)?.let { locallyRepairedShopKeys.remove(it) }
-        if (sourceShop.hasVerifiedIdentity &&
-            sourceShop.shopId == shopId &&
-            sourceShop.shopName == shopName &&
-            sourceShop.localVirtualUserId == userId
-        ) {
-            exportAndUploadLoginState(sourceShop, packageName, userId)
-            return
-        }
+        val detectedShop = Shop(
+            id = sourceShop.id,
+            shopName = shopName,
+            shopId = shopId,
+            platform = sourceShop.platform,
+            remainingDays = sourceShop.remainingDays,
+            autoRenew = sourceShop.autoRenew,
+            packageName = packageName,
+            cloneInstanceId = sourceShop.cloneInstanceId?.takeIf { it.isNotBlank() },
+            localVirtualUserId = userId
+        )
         viewModel.completePendingShop(
             sourceShop,
-            Shop(
-                id = sourceShop.id,
-                shopName = shopName,
-                shopId = shopId,
-                platform = sourceShop.platform,
-                remainingDays = sourceShop.remainingDays,
-                autoRenew = sourceShop.autoRenew,
-                packageName = packageName,
-                cloneInstanceId = sourceShop.cloneInstanceId?.takeIf { it.isNotBlank() },
-                localVirtualUserId = userId
-            ),
-            showMessage = sourceShop.isNew
+            detectedShop,
+            showMessage = sourceShop.isNew,
+            onComplete = { success ->
+                if (success) {
+                    viewModel.markLocalIdentityVerified(sourceShop, packageName, userId, true)
+                    buildShopPrepareKey(sourceShop, packageName)?.let { locallyRepairedShopKeys.remove(it) }
+                    exportAndUploadLoginState(detectedShop, packageName, userId)
+                } else if (showFailureToast) {
+                    toast("店铺信息上报失败，已跳过登录态上传")
+                }
+            }
         )
-        exportAndUploadLoginState(sourceShop, packageName, userId)
     }
 
     private fun buildRecognitionKey(shop: Shop, userId: Int): String? {

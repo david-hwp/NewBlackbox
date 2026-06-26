@@ -13,16 +13,19 @@ object LocalShopIdentityStore {
 
     fun read(userId: Long, shop: Shop): Boolean? {
         val key = key(userId, shop) ?: return null
-        return if (prefs.contains(key)) prefs.getBoolean(key, false) else null
+        if (prefs.contains(key)) {
+            return prefs.getBoolean(key, false)
+        }
+        val legacyKey = legacyKey(userId, shop) ?: return null
+        return if (prefs.contains(legacyKey)) prefs.getBoolean(legacyKey, false) else null
     }
 
-    fun mark(userId: Long, shop: Shop, packageName: String, localVirtualUserId: Int, verified: Boolean) {
+    fun mark(userId: Long, shop: Shop, packageName: String, @Suppress("UNUSED_PARAMETER") localVirtualUserId: Int, verified: Boolean) {
         val key = key(
             userId = userId,
             systemShopId = shop.id,
             packageName = packageName,
-            cloneInstanceId = shop.cloneInstanceId,
-            localVirtualUserId = localVirtualUserId
+            cloneInstanceId = shop.cloneInstanceId
         ) ?: return
         prefs.edit().putBoolean(key, verified).apply()
     }
@@ -37,21 +40,25 @@ object LocalShopIdentityStore {
             userId = userId,
             systemShopId = shop.id,
             packageName = shop.packageName,
-            cloneInstanceId = shop.cloneInstanceId,
-            localVirtualUserId = shop.localVirtualUserId
+            cloneInstanceId = shop.cloneInstanceId
         )
+    }
+
+    private fun legacyKey(userId: Long, shop: Shop): String? {
+        val normalizedPackageName = shop.packageName?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+        val normalizedCloneId = shop.cloneInstanceId?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+        val normalizedUserId = shop.localVirtualUserId?.takeIf { it >= 0 } ?: return null
+        return "$userId:${shop.id}:$normalizedPackageName:$normalizedCloneId:$normalizedUserId"
     }
 
     private fun key(
         userId: Long,
         systemShopId: Long,
         packageName: String?,
-        cloneInstanceId: String?,
-        localVirtualUserId: Int?
+        cloneInstanceId: String?
     ): String? {
         val normalizedPackageName = packageName?.trim()?.takeIf { it.isNotEmpty() } ?: return null
         val normalizedCloneId = cloneInstanceId?.trim()?.takeIf { it.isNotEmpty() } ?: return null
-        val normalizedUserId = localVirtualUserId?.takeIf { it >= 0 } ?: return null
-        return "$userId:$systemShopId:$normalizedPackageName:$normalizedCloneId:$normalizedUserId"
+        return "$userId:$systemShopId:$normalizedPackageName:$normalizedCloneId"
     }
 }

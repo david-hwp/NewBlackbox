@@ -781,6 +781,14 @@ public class ShopController {
         return value.trim();
     }
 
+    private boolean isRealShopId(String shopId) {
+        return shopId != null
+                && !shopId.isBlank()
+                && !"-".equals(shopId)
+                && !shopId.startsWith("NEW-")
+                && !shopId.startsWith("phase13-");
+    }
+
     private String validateLoginStateManifest(Shop shop, String profile, String manifest) {
         String shopPackageName = normalize(shop.getPackageName());
         if (shopPackageName == null) {
@@ -806,6 +814,30 @@ public class ShopController {
             if (profileNode != null && !profileNode.asText("").isBlank()
                     && !profile.equals(profileNode.asText().trim())) {
                 return "登录态清单档位与上传档位不匹配";
+            }
+            JsonNode systemShopIdNode = root.get("systemShopId");
+            if (systemShopIdNode != null && !systemShopIdNode.isNull()) {
+                if (!systemShopIdNode.canConvertToLong()) {
+                    return "登录态清单店铺ID格式无效";
+                }
+                Long shopId = shop.getId();
+                if (shopId != null && systemShopIdNode.asLong() > 0 && !shopId.equals(systemShopIdNode.asLong())) {
+                    return "登录态清单店铺ID与店铺不匹配";
+                }
+            }
+            JsonNode cloneNode = root.get("cloneInstanceId");
+            if (cloneNode != null && !cloneNode.asText("").isBlank()) {
+                String shopCloneInstanceId = normalize(shop.getCloneInstanceId());
+                if (shopCloneInstanceId == null || !shopCloneInstanceId.equals(cloneNode.asText().trim())) {
+                    return "登录态清单店铺标识与店铺不匹配";
+                }
+            }
+            JsonNode platformShopIdNode = root.get("platformShopId");
+            if (platformShopIdNode != null && !platformShopIdNode.asText("").isBlank()) {
+                String shopPlatformShopId = normalize(shop.getShopId());
+                if (isRealShopId(shopPlatformShopId) && !shopPlatformShopId.equals(platformShopIdNode.asText().trim())) {
+                    return "登录态清单平台店铺ID与店铺不匹配";
+                }
             }
             return null;
         } catch (Exception e) {

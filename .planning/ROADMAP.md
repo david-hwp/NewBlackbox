@@ -354,3 +354,26 @@
 **上下文文档**: [.planning/phases/21-shop-order-ingestion/21-CONTEXT.md](.planning/phases/21-shop-order-ingestion/21-CONTEXT.md)
 **调研文档**: [.planning/phases/21-shop-order-ingestion/21-RESEARCH.md](.planning/phases/21-shop-order-ingestion/21-RESEARCH.md)
 **完成总结**: [.planning/phases/21-shop-order-ingestion/21-SUMMARY.md](.planning/phases/21-shop-order-ingestion/21-SUMMARY.md)
+
+### Phase 22: Clone 身份唯一性收口与跨账号防串号
+
+**目标**: 将 APP、engine 和服务端的店铺身份判定收敛到同一套最小规则：服务端以 `AuthContext.userId + cloneInstanceId` 定位店铺卡片，本机以 `cloneInstanceId` 解析运行目录；`localVirtualUserId` 只作为当前设备 engine 的本机目录号，不再作为跨设备或跨账号的店铺身份字段。该 phase 必须先用小米真机和 OPPO 真机中的真实分身数据验证兼容性，确认不会破坏现有授权和登录态后再执行代码改造。
+
+**Requirements**: PH22-D01, PH22-D02, PH22-D03, PH22-D04, PH22-D05, PH22-D06, PH22-D07, PH22-D08, PH22-D09, PH22-D10
+**Depends on:** Phase 13 login-state sync; Phase 16 main-app login-state data center; Phase 20 scoped engine storage; current OPPO/Xiaomi real-device clone data
+**Plans:** 1 plan
+
+**关键交付物**:
+
+- 真机数据兼容性报告：从小米和 OPPO 读取当前 `clone-instances.json`、`accounts/<userId>/cards/<cloneInstanceId>`、runtime symlink、auth meta 和登录态 manifest，证明新唯一性规则能覆盖现有数据。
+- 服务端 `/shops/report` 改为优先且强制通过当前 token 用户的 `userId + cloneInstanceId` 定位店铺；禁止同一 clone 上报不同真实平台店铺 ID 时覆盖原店铺。
+- 服务端停止把 `shops.local_virtual_user_id` 作为跨设备校验依据；上报时只允许记录/兼容本机目录号，不因不同设备目录号不同而拒绝。
+- 登录态上传 manifest 增加并校验 `cloneInstanceId`，只允许写入同一 `userId + cloneInstanceId` 对应的店铺；恢复时仍映射到当前设备解析出的本机目录。
+- APP 上报店铺信息和上传登录态必须携带同一份 `cloneInstanceId`，并在 `/shops/report` 成功后再上传登录态，避免基础信息失败但登录态已写入。
+- 引擎目录解析继续使用 `accounts/{serverUserId}/cards/{cloneInstanceId}` 作为物理目录根；运行时查目录不得依赖服务端保存的 `localVirtualUserId` 作为权威身份。
+- 保留旧字段和旧数据兼容，不做破坏性清表或丢弃现有授权；历史 `shops.local_virtual_user_id` 只作为展示/诊断兼容字段。
+- APP 店铺卡片排序保存按 `packageName + platform` 范围提交，京东秒送混排列表不能触发后端同平台排序保护。
+- OPPO 真机双账号验收：使用二公子账号和贺伟平账号来回切换登录，打开/刷新对应店铺，验证不会互相覆盖店铺基础信息和登录态；密码只来自执行会话，不写入仓库。
+- 回归验证覆盖小米真机和 OPPO 真机，以及后端单元测试、APP/engine 编译和登录态上报链路测试。
+
+**验证**: Wave 1 必须先输出小米与 OPPO 当前真实数据矩阵，确认 `userId + cloneInstanceId` 能唯一定位店铺且 `localVirtualUserId` 差异只存在于设备本地；实现后在 OPPO 真机用二公子和贺伟平两个账号交替登录、刷新和打开店铺，确认服务端店铺基础信息、登录态和 engine 目录不串号。

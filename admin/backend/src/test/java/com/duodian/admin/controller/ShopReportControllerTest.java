@@ -69,31 +69,23 @@ class ShopReportControllerTest {
     }
 
     @Test
-    void reportUpdatesExistingCloneEvenWhenRecognizedShopChanges() {
+    void reportRejectsExistingCloneWhenRecognizedShopChanges() {
         AuthContext.setUserId(1L);
         String cloneInstanceId = cloneIdForCode("server-random");
         Shop oldShop = shop(10L, "old-shop", "旧店铺", cloneInstanceId);
         oldShop.setCloneValidationCode("server-random");
         oldShop.setCloneValidationHash(sha256(oldShop.getCloneInstanceId() + ":server-random"));
-        User user = new User();
-        user.setId(1L);
-        user.setComputeBalance(6);
-        user.setShopCount(1);
-        user.setPlatformCount(1);
 
         when(shopService.findByUserIdAndCloneInstanceId(1L, oldShop.getCloneInstanceId())).thenReturn(Optional.of(oldShop));
-        when(shopService.findByUserIdAndShopIdAndPackageName(1L, "new-shop", "com.jd.pingou")).thenReturn(Optional.empty());
-        when(shopService.update(eq(10L), any(Shop.class))).thenAnswer(invocation -> invocation.getArgument(1));
-        when(userService.refreshShopStats(1L)).thenReturn(user);
 
         ApiResponse<Map<String, Object>> response = controller.report(request("new-shop", "新店铺", oldShop.getCloneInstanceId()));
 
-        assertThat(response.getCode()).isEqualTo(200);
-        assertThat(response.getData()).containsEntry("deducted", false);
-        assertThat(response.getData()).containsEntry("switchedShop", false);
-        assertThat(oldShop.getShopId()).isEqualTo("new-shop");
-        assertThat(oldShop.getShopName()).isEqualTo("新店铺");
-        assertThat(oldShop.getIdentityVerified()).isTrue();
+        assertThat(response.getCode()).isEqualTo(403);
+        assertThat(response.getMessage()).contains("已绑定其他店铺");
+        assertThat(oldShop.getShopId()).isEqualTo("old-shop");
+        assertThat(oldShop.getShopName()).isEqualTo("旧店铺");
+        assertThat(oldShop.getIdentityVerified()).isFalse();
+        verify(shopService, never()).update(eq(10L), any(Shop.class));
         verify(shopService, never()).create(any(Shop.class));
     }
 
@@ -130,13 +122,13 @@ class ShopReportControllerTest {
         AuthContext.setUserId(1L);
 
         when(shopService.findByUserIdAndCloneInstanceId(1L, "CLN-missing")).thenReturn(Optional.empty());
-        when(shopService.findByUserIdAndShopIdAndPackageName(1L, "real-shop", "com.jd.pingou")).thenReturn(Optional.empty());
-        when(shopService.findPendingByUserPackage(1L, "com.jd.pingou")).thenReturn(Optional.empty());
 
         ApiResponse<Map<String, Object>> response = controller.report(request("real-shop", "真实店铺", "CLN-missing"));
 
         assertThat(response.getCode()).isEqualTo(500);
         assertThat(response.getMessage()).isEqualTo("待登录店铺不存在，请先添加店铺卡片");
+        verify(shopService, never()).findByUserIdAndShopIdAndPackageName(any(), any(), any());
+        verify(shopService, never()).findPendingByUserPackage(any(), any());
         verify(shopService, never()).update(eq(20L), any(Shop.class));
     }
 
@@ -157,26 +149,33 @@ class ShopReportControllerTest {
     }
 
     @Test
-    void reportRejectsMismatchedLocalVirtualUserIdForExistingClone() {
+    void reportAcceptsDifferentLocalVirtualUserIdForExistingClone() {
         AuthContext.setUserId(1L);
         String cloneInstanceId = cloneIdForCode("server-random");
         Shop oldShop = shop(10L, "old-shop", "旧店铺", cloneInstanceId);
         oldShop.setLocalVirtualUserId(3);
         oldShop.setCloneValidationCode("server-random");
         oldShop.setCloneValidationHash(sha256(oldShop.getCloneInstanceId() + ":server-random"));
-        ShopReportRequest request = request("new-shop", "新店铺", oldShop.getCloneInstanceId());
+        User user = new User();
+        user.setId(1L);
+        user.setComputeBalance(6);
+        user.setShopCount(1);
+        user.setPlatformCount(1);
+        ShopReportRequest request = request("old-shop", "旧店铺", oldShop.getCloneInstanceId());
         request.setLocalVirtualUserId(9);
 
         when(shopService.findByUserIdAndCloneInstanceId(1L, oldShop.getCloneInstanceId())).thenReturn(Optional.of(oldShop));
+        when(shopService.findByUserIdAndShopIdAndPackageName(1L, "old-shop", "com.jd.pingou")).thenReturn(Optional.of(oldShop));
+        when(shopService.update(eq(10L), any(Shop.class))).thenAnswer(invocation -> invocation.getArgument(1));
+        when(userService.refreshShopStats(1L)).thenReturn(user);
 
         ApiResponse<Map<String, Object>> response = controller.report(request);
 
-        assertThat(response.getCode()).isEqualTo(403);
-        assertThat(response.getMessage()).isEqualTo("虚拟用户目录号校验失败");
+        assertThat(response.getCode()).isEqualTo(200);
         assertThat(oldShop.getShopId()).isEqualTo("old-shop");
         assertThat(oldShop.getShopName()).isEqualTo("旧店铺");
-        assertThat(oldShop.getLocalVirtualUserId()).isEqualTo(3);
-        verify(shopService, never()).update(eq(10L), any(Shop.class));
+        assertThat(oldShop.getLocalVirtualUserId()).isEqualTo(9);
+        verify(shopService).update(eq(10L), any(Shop.class));
     }
 
     private ShopReportRequest request(String shopId, String shopName, String cloneInstanceId) {
