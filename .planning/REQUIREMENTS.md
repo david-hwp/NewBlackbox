@@ -56,6 +56,14 @@
 - [x] **PH23-D06**: 调度脚本必须支持按平台选择不同采集器，当前至少支持 `mtwm` 和 `jdms`，并继续跳过未授权、未知、失败或缺少用户手机号/profile ID 的店铺。
 - [x] **PH23-D07**: 京东采集失败、登录态失效、页面结构变化或没有订单时必须写清楚诊断输出，但不能记录 cookie、token、profile 路径、浏览器存储或授权信号等凭据。
 - [x] **PH23-D08**: Phase 23 必须包含京东 parser/collector 单元测试、调度器平台分发测试、后端目标列表测试，以及内网环境真实京东授权店铺的手动或自动化采集入库验证。
+- [x] **PH23-D09**: 淘宝闪购饿了么 `tbwm` PC 远程后台授权检测必须支持 `melody.shop.ele.me`，已授权 profile 不能因为平台配置地址是登录页而误判未授权。
+- [x] **PH23-D10**: `tbwm` 远程后台模式必须打开商家后台首页；用户选择授权时仍打开平台 PC 登录页，保持与 APP 授权流程一致。
+- [x] **PH23-D11**: 订单采集目标接口必须返回已授权 `tbwm` 店铺，继续使用系统 `shops.id` 关联入库，并使用平台店铺 ID 或 `system-<id>` 作为 Phase 19 profile ID。
+- [x] **PH23-D12**: 半小时定时脚本必须按平台分发到 `tbwm` 专用采集器，且不能破坏现有 `mtwm`、`jdms` 采集。
+- [x] **PH23-D13**: `tbwm` 订单采集器必须复用 Phase 19 profile 和 Phase 21 `/shop-orders/ingest` 入库契约，重复采集同一订单时更新同一行。
+- [x] **PH23-D14**: `tbwm` 订单映射必须尽可能填充现有订单字段，包括订单号、状态、下单/完成/取消/退款时间、金额、顾客/地址/商品/配送信息和原始业务载荷。
+- [x] **PH23-D15**: `tbwm` 授权检测和订单采集日志/快照不得记录 cookie、token、请求头、浏览器存储、profile 路径、debug 端口或授权信号。
+- [ ] **PH23-D16**: `tbwm` wave 必须完成本地测试，并在网络/SSH 可用时部署到内网 13 管理后台和 192.168.0.210 爬虫服务器，使用已授权饿了么罗家臭豆腐店铺做真实验证。
 
 ## v2 Requirements
 
@@ -118,12 +126,20 @@
 | PH23-D06 | Phase 23 | Complete |
 | PH23-D07 | Phase 23 | Complete |
 | PH23-D08 | Phase 23 | Complete |
+| PH23-D09 | Phase 23 Wave 2 | Complete |
+| PH23-D10 | Phase 23 Wave 2 | Complete |
+| PH23-D11 | Phase 23 Wave 2 | Complete |
+| PH23-D12 | Phase 23 Wave 2 | Complete |
+| PH23-D13 | Phase 23 Wave 2 | Complete |
+| PH23-D14 | Phase 23 Wave 2 | Complete |
+| PH23-D15 | Phase 23 Wave 2 | Complete |
+| PH23-D16 | Phase 23 Wave 2 | Pending |
 
 **Coverage:**
-- v1.3 requirements: 38 total
-- Mapped to phases: 38
+- v1.3 requirements: 46 total
+- Mapped to phases: 46
 - Unmapped: 0
 
 ---
 *Requirements restored: 2026-06-24*
-*Last updated: 2026-06-27 for Phase 23 completion*
+*Last updated: 2026-06-28 for Phase 23 Wave 2 TBWM planning*

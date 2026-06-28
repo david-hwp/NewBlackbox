@@ -53,6 +53,37 @@ function testJdLoginIsUnauthorized() {
   assert.strictEqual(result.confidence, 'HIGH');
 }
 
+function testTbwmBackendIsAuthorized() {
+  const sample = '饿了么商家中心 工作台 订单管理 商品管理 门店管理 经营数据 罗家臭豆腐';
+  const result = decide(signals('https://melody.shop.ele.me/', sample, {
+    title: '饿了么商家中心',
+    matchingCount: 12,
+    localStorageCount: 4,
+  }));
+
+  assert.strictEqual(result.status, 'AUTHORIZED');
+  assert.strictEqual(result.confidence, 'HIGH');
+}
+
+function testTbwmLoginIsUnauthorized() {
+  const sample = '饿了么商家中心 账号登录 验证码登录 请输入手机号 请输入密码 获取验证码 登录 支付宝登录';
+  const page = signals('https://melody.shop.ele.me/login', sample, {
+    title: '饿了么商家登录',
+    matchingCount: 12,
+    hasLoginText: true,
+    visibleInputCount: 2,
+  });
+  const platform = platformPageSignals(page);
+  const result = decide(page);
+
+  assert.strictEqual(platform.hasConsoleText, false);
+  assert.strictEqual(platform.hasLoginText, true);
+  assert.strictEqual(result.status, 'UNAUTHORIZED');
+  assert.strictEqual(result.confidence, 'HIGH');
+}
+
 testJdBackendIsAuthorized();
 testJdLoginIsUnauthorized();
+testTbwmBackendIsAuthorized();
+testTbwmLoginIsUnauthorized();
 console.log('zr-auth-probe tests passed');

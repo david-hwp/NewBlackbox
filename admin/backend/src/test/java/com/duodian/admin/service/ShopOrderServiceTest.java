@@ -105,16 +105,17 @@ class ShopOrderServiceTest {
     void authorizedCrawlTargetsReturnOnlyAuthorizedSupportedShopsWithSystemProfileIds() {
         Shop authorized = shop();
         Shop jdAuthorized = jdShop();
+        Shop tbwmAuthorized = tbwmShop();
         User owner = new User();
         owner.setId(10L);
         owner.setPhone("15200837196");
-        when(shopRepository.findAuthorizedOrderCrawlTargets((byte) 0, java.util.Set.of("mtwm", "jdms")))
-                .thenReturn(List.of(authorized, jdAuthorized));
+        when(shopRepository.findAuthorizedOrderCrawlTargets((byte) 0, java.util.Set.of("mtwm", "jdms", "tbwm")))
+                .thenReturn(List.of(authorized, jdAuthorized, tbwmAuthorized));
         when(userRepository.findByIdAndDeleted(10L, (byte) 0)).thenReturn(Optional.of(owner));
 
         var targets = service.authorizedCrawlTargets();
 
-        assertThat(targets).hasSize(2);
+        assertThat(targets).hasSize(3);
         assertThat(targets.get(0).getSystemShopId()).isEqualTo(194L);
         assertThat(targets.get(0).getUserPhone()).isEqualTo("15200837196");
         assertThat(targets.get(0).getControlShopId()).isEqualTo("15397100");
@@ -122,6 +123,9 @@ class ShopOrderServiceTest {
         assertThat(targets.get(1).getSystemShopId()).isEqualTo(76L);
         assertThat(targets.get(1).getControlShopId()).isEqualTo("16081572");
         assertThat(targets.get(1).getPlatform()).isEqualTo("jdms");
+        assertThat(targets.get(2).getSystemShopId()).isEqualTo(120L);
+        assertThat(targets.get(2).getControlShopId()).isEqualTo("1184657317");
+        assertThat(targets.get(2).getPlatform()).isEqualTo("tbwm");
     }
 
     @Test
@@ -131,7 +135,7 @@ class ShopOrderServiceTest {
         User owner = new User();
         owner.setId(10L);
         owner.setPhone("15200837196");
-        when(shopRepository.findAuthorizedOrderCrawlTargets((byte) 0, java.util.Set.of("mtwm", "jdms")))
+        when(shopRepository.findAuthorizedOrderCrawlTargets((byte) 0, java.util.Set.of("mtwm", "jdms", "tbwm")))
                 .thenReturn(List.of(shop));
         when(userRepository.findByIdAndDeleted(10L, (byte) 0)).thenReturn(Optional.of(owner));
 
@@ -299,6 +303,18 @@ class ShopOrderServiceTest {
         shop.setShopId("16081572");
         shop.setPlatform("jdms");
         shop.setPlatformName("京东秒送");
+        return shop;
+    }
+
+    private Shop tbwmShop() {
+        Shop shop = new Shop();
+        shop.setId(120L);
+        shop.setUserId(10L);
+        shop.setChannelId(2L);
+        shop.setShopName("罗家臭豆腐（饿了么店）");
+        shop.setShopId("1184657317");
+        shop.setPlatform("tbwm");
+        shop.setPlatformName("淘宝闪购饿了么");
         return shop;
     }
 }

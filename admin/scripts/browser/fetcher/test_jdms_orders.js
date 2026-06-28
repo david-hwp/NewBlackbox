@@ -5,7 +5,7 @@ const {
   extractOrderList,
   extractOrderPageMeta,
   money,
-} = require('./fetch_jd_orders_node_cdp');
+} = require('./jdms_orders');
 
 const SAMPLE_ORDER = {
   basicVo: {
@@ -105,7 +105,7 @@ function main() {
   testParseJdOrderMapsBusinessFields();
   testParseJdOrderFiltersOtherStation();
   testExtractOrderListAndClassifyPage();
-  console.log('fetch_jd_orders_node_cdp tests passed');
+  console.log('jdms_orders tests passed');
 }
 
 main();

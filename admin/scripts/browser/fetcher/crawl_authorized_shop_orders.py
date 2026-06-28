@@ -14,9 +14,10 @@ from typing import Any
 
 
 HEADER_NAME = "X-External-Callback-Token"
-SUPPORTED_PLATFORM_COLLECTORS = {
-    "mtwm": "fetch_meituan_orders_node_cdp.js",
-    "jdms": "fetch_jd_orders_node_cdp.js",
+SUPPORTED_PLATFORM_FETCHERS = {
+    "mtwm": "mtwm_orders.py",
+    "jdms": "jdms_orders.py",
+    "tbwm": "tbwm_orders.py",
 }
 
 
@@ -68,7 +69,7 @@ def is_supported_target(target: dict[str, Any]) -> bool:
         target.get("systemShopId")
         and target.get("userPhone")
         and target.get("controlShopId")
-        and target.get("platform") in SUPPORTED_PLATFORM_COLLECTORS
+        and target.get("platform") in SUPPORTED_PLATFORM_FETCHERS
     )
 
 
@@ -90,21 +91,33 @@ def cleanup_old_shop_files(shop_output: Path, retention_days: int, *, now: datet
     return removed
 
 
-def run_node_collector(args: argparse.Namespace, target: dict[str, Any]) -> dict[str, Any]:
+def with_default_node_path(env: dict[str, str], base_dir: Path) -> dict[str, str]:
+    default_node_path = str(base_dir / "browser" / "node_modules")
+    current = env.get("NODE_PATH", "")
+    if not current:
+        env["NODE_PATH"] = default_node_path
+        return env
+    parts = current.split(os.pathsep)
+    if default_node_path not in parts:
+        env["NODE_PATH"] = current + os.pathsep + default_node_path
+    return env
+
+
+def run_platform_fetcher(args: argparse.Namespace, target: dict[str, Any]) -> dict[str, Any]:
     system_shop_id = str(target["systemShopId"])
     platform = str(target.get("platform") or "")
-    collector_name = SUPPORTED_PLATFORM_COLLECTORS.get(platform)
-    if not collector_name:
+    fetcher_name = SUPPORTED_PLATFORM_FETCHERS.get(platform)
+    if not fetcher_name:
         raise RuntimeError(f"unsupported platform: {platform}")
     shop_output = args.output_dir / f"shop-{system_shop_id}"
     shop_output.mkdir(parents=True, exist_ok=True)
     removed = cleanup_old_shop_files(shop_output, args.output_retention_days)
     if removed:
         log(f"shop={system_shop_id} cleaned old output files={removed}")
-    env = os.environ.copy()
+    env = with_default_node_path(os.environ.copy(), args.base_dir)
     env.update(
         {
-            "NODE_PATH": str(args.base_dir / "browser" / "node_modules"),
+            "ZR_BASE_DIR": str(args.base_dir),
             "ZR_CONTROL_URL": args.control_url,
             "ZR_SYSTEM_SHOP_ID": system_shop_id,
             "ZR_SHOP_PHONE": str(target["userPhone"]),
@@ -114,9 +127,9 @@ def run_node_collector(args: argparse.Namespace, target: dict[str, Any]) -> dict
             "OUTPUT_DIR": str(shop_output),
         }
     )
-    node_script = args.base_dir / collector_name
+    fetcher_script = args.fetcher_dir / fetcher_name
     completed = subprocess.run(
-        ["node", str(node_script)],
+        ["python3", str(fetcher_script)],
         env=env,
         text=True,
         stdout=subprocess.PIPE,
@@ -125,7 +138,7 @@ def run_node_collector(args: argparse.Namespace, target: dict[str, Any]) -> dict
         check=False,
     )
     if completed.returncode != 0:
-        raise RuntimeError(completed.stderr.strip() or f"node collector exited {completed.returncode}")
+        raise RuntimeError(completed.stderr.strip() or f"platform fetcher exited {completed.returncode}")
     for line in reversed([line.strip() for line in completed.stdout.splitlines() if line.strip()]):
         try:
             payload = json.loads(line)
@@ -133,7 +146,7 @@ def run_node_collector(args: argparse.Namespace, target: dict[str, Any]) -> dict
                 return payload
         except json.JSONDecodeError:
             continue
-    raise RuntimeError("node collector did not report payload path")
+    raise RuntimeError("platform fetcher did not report payload path")
 
 
 def submit_payload(args: argparse.Namespace, payload_path: Path) -> dict[str, Any]:
@@ -162,7 +175,7 @@ def run(args: argparse.Namespace) -> int:
         system_shop_id = target.get("systemShopId")
         try:
             log(f"collecting shop={system_shop_id} controlShopId={target.get('controlShopId')}")
-            collection = run_node_collector(args, target)
+            collection = run_platform_fetcher(args, target)
             result = submit_payload(args, Path(collection["payload"]))
             data = result.get("data") or {}
             for key in totals:
@@ -187,7 +200,9 @@ def run(args: argparse.Namespace) -> int:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Collect today's orders for all authorized supported shops")
     base_dir = Path(os.environ.get("ZR_BASE_DIR", "/home/ubuntu/data"))
+    default_fetcher_dir = Path(os.environ.get("ZR_FETCHER_DIR", str(Path(__file__).resolve().parent)))
     parser.add_argument("--base-dir", type=Path, default=base_dir)
+    parser.add_argument("--fetcher-dir", type=Path, default=default_fetcher_dir)
     parser.add_argument("--backend-url", default=os.environ.get("ZR_BACKEND_URL", "http://100.99.88.2:8006/api"))
     parser.add_argument("--external-callback-token", default=os.environ.get("ZR_EXTERNAL_CALLBACK_TOKEN", ""))
     parser.add_argument("--http-proxy", default=os.environ.get("ZR_TS_HTTP_PROXY", ""))

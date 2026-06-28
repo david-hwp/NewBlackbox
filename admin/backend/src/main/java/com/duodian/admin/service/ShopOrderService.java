@@ -44,7 +44,7 @@ public class ShopOrderService {
             "browserStorage",
             "shopAuthorizationSignals"
     );
-    private static final Set<String> SUPPORTED_ORDER_CRAWL_PLATFORMS = Set.of("mtwm", "jdms");
+    private static final Set<String> SUPPORTED_ORDER_CRAWL_PLATFORMS = Set.of("mtwm", "jdms", "tbwm");
 
     private final ShopOrderRepository shopOrderRepository;
     private final ShopRepository shopRepository;

@@ -1,5 +1,4 @@
 const fs = require('fs');
-const { chromium } = require('playwright-core');
 
 const SHOP_ID = Number(process.env.ZR_SYSTEM_SHOP_ID || '0');
 const PHONE = process.env.ZR_SHOP_PHONE || '';
@@ -79,6 +78,7 @@ function parseOrderCard(text) {
 }
 
 async function main() {
+  const { chromium } = require('playwright-core');
   if (!SHOP_ID || !PHONE || !CONTROL_SHOP_ID) {
     throw new Error('ZR_SYSTEM_SHOP_ID, ZR_SHOP_PHONE, and ZR_SHOP_ID are required');
   }
@@ -156,14 +156,21 @@ async function main() {
   fs.writeFileSync(`${OUTPUT_DIR}/meituan_orders_${SHOP_ID}_${ts}.json`, JSON.stringify(snapshot, null, 2));
   fs.writeFileSync(`${OUTPUT_DIR}/meituan_orders_${SHOP_ID}.json`, JSON.stringify(snapshot, null, 2));
 
-  const payload = { shopId: SHOP_ID, source: 'fetch_meituan_orders_node_cdp', ingestBatchId: `meituan-${SHOP_ID}-${ts}`, orders };
-  const payloadPath = `${OUTPUT_DIR}/meituan_ingest_payload.json`;
+  const payload = { shopId: SHOP_ID, source: 'mtwm_orders', ingestBatchId: `mtwm-${SHOP_ID}-${ts}`, orders };
+  const payloadPath = `${OUTPUT_DIR}/mtwm_ingest_payload.json`;
   fs.writeFileSync(payloadPath, JSON.stringify(payload, null, 2));
   console.log(JSON.stringify({ outputDir: OUTPUT_DIR, labels: labels.length, orders: orders.length, emptyHint: snapshot.empty_hint, payload: payloadPath }));
   await browser.close();
 }
 
-main().catch((err) => {
-  console.error(err.stack || err);
-  process.exit(1);
-});
+if (require.main === module) {
+  main().catch((err) => {
+    console.error(err.stack || err);
+    process.exit(1);
+  });
+}
+
+module.exports = {
+  parseOrderCard,
+  parseOrderMinute,
+};

@@ -902,6 +902,57 @@ class ShopControllerTest {
         }
     }
 
+    @Test
+    void tbwmRemoteBackendModeOpensMerchantHomeInsteadOfLogin() throws Exception {
+        AuthContext.setUserId(1L);
+        Shop shop = shop(120L, 1L, "罗家臭豆腐（饿了么店）");
+        shop.setPlatform("tbwm");
+        shop.setShopId("1184657317");
+        User owner = user(1L, "USER");
+        PlatformConfig platform = new PlatformConfig();
+        platform.setPlatformId("tbwm");
+        platform.setAuthorizationUrl("https://melody.shop.ele.me/login");
+        AtomicReference<String> requestedQuery = new AtomicReference<>("");
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/open", exchange -> {
+            requestedQuery.set(exchange.getRequestURI().getRawQuery());
+            byte[] body = """
+                    {"ok":true,"streamUrl":"/zr-stream/15042/","ready":true}
+                    """.getBytes();
+            exchange.getResponseHeaders().add("Content-Type", "application/json");
+            exchange.sendResponseHeaders(200, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.close();
+        });
+        server.start();
+        try {
+            ReflectionTestUtils.setField(controller, "zrControlUrl", "http://127.0.0.1:" + server.getAddress().getPort());
+            when(shopService.findById(120L)).thenReturn(Optional.of(shop));
+            when(userService.findById(1L)).thenReturn(Optional.of(owner));
+            when(platformConfigRepository.findByPlatformIdAndDeleted("tbwm", (byte) 0)).thenReturn(Optional.of(platform));
+            when(shopService.updateShopAuthorizationUrl(eq(120L), any())).thenAnswer(invocation -> {
+                shop.setShopAuthorizationUrl(invocation.getArgument(1));
+                return shop;
+            });
+
+            ApiResponse<java.util.Map<String, String>> response = controller.openShopAuthorizationUrl(
+                    120L,
+                    1440,
+                    900,
+                    1.0,
+                    1.0,
+                    "remote-backend"
+            );
+
+            assertThat(response.getCode()).isEqualTo(200);
+            assertThat(java.net.URLDecoder.decode(requestedQuery.get(), java.nio.charset.StandardCharsets.UTF_8))
+                    .contains("url=https://melody.shop.ele.me/")
+                    .doesNotContain("url=https://melody.shop.ele.me/login");
+        } finally {
+            server.stop(0);
+        }
+    }
+
     private User user(Long id, String role) {
         User user = new User();
         user.setId(id);

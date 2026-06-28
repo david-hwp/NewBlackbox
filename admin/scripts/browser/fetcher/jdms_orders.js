@@ -371,7 +371,7 @@ async function main() {
   fs.writeFileSync(`${OUTPUT_DIR}/jd_orders_${SHOP_ID}_${ts}.json`, JSON.stringify(snapshot, null, 2));
   fs.writeFileSync(`${OUTPUT_DIR}/jd_orders_${SHOP_ID}.json`, JSON.stringify(snapshot, null, 2));
 
-  const payload = { shopId: SHOP_ID, source: 'fetch_jd_orders_node_cdp', ingestBatchId: `jdms-${SHOP_ID}-${ts}`, orders: collection.orders };
+  const payload = { shopId: SHOP_ID, source: 'jdms_orders', ingestBatchId: `jdms-${SHOP_ID}-${ts}`, orders: collection.orders };
   const payloadPath = `${OUTPUT_DIR}/jd_ingest_payload.json`;
   fs.writeFileSync(payloadPath, JSON.stringify(payload, null, 2));
   if (!collection.complete) {

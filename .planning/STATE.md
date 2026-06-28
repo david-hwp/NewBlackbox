@@ -2,8 +2,8 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: milestone
-status: Phase 23 completed with JD ingestion live-verified and JD risk-page limitation documented
-last_updated: "2026-06-27T20:45:00+08:00"
+status: Phase 23 Wave 2 local implementation complete; intranet live verification pending SSH access
+last_updated: "2026-06-28T18:40:00+08:00"
 progress:
   total_phases: 12
   completed_phases: 11
@@ -13,6 +13,21 @@ progress:
 ---
 
 ## Recent Changes
+
+### 2026-06-28: Phase 23 Wave 2 TBWM order ingestion planned
+
+- Added a Phase 23 Wave 2 plan for Taobao Flash Sale / Ele.me (`tbwm`) PC remote-backend authorization detection and scheduled order ingestion.
+- Scope is limited to the existing Phase 19 profile chain, Phase 21 `/shop-orders/ingest` contract, and Phase 23 scheduler dispatch model.
+- Local implementation added TBWM remote-backend probing, backend crawl-target eligibility, scheduler dispatch, and a conservative Node/CDP collector/parser with sanitized payloads.
+- Local verification passed for Node probe/parser tests, Python scheduler tests, backend package build, and diff hygiene.
+- Live deployment/verification remains pending because this environment cannot resolve `zhirang-dev` and direct SSH probes are blocked.
+- Locked the environment boundary again: no online `zhirang-dev` app deployment, upgrade, or restart without explicit user approval.
+- Canonical plan document: `.planning/phases/23-jd-order-ingestion/23-02-PLAN.md`.
+ - Canonical summary document: `.planning/phases/23-jd-order-ingestion/23-02-SUMMARY.md`.
+
+### Roadmap Evolution
+
+- Phase 23 reopened as Wave 2: 淘宝闪购饿了么授权检测与订单采集
 
 ### 2026-06-27: Phase 23 JD order ingestion completed
 

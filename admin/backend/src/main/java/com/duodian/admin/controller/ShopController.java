@@ -67,7 +67,8 @@ public class ShopController {
     private static final int MAX_AUTH_VIEWPORT_HEIGHT = 2160;
     private static final Map<String, String> PLATFORM_REMOTE_BACKEND_URLS = Map.of(
             "mtwm", "https://waimaie.meituan.com/",
-            "jdms", "https://store.jddj.com/"
+            "jdms", "https://store.jddj.com/",
+            "tbwm", "https://melody.shop.ele.me/"
     );
     private static final Map<String, String> PLATFORM_PC_LOGIN_URLS = Map.of(
             "mtwm", "https://waimaie.meituan.com/new_fe/login_gw#/login",

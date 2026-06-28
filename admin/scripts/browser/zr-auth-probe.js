@@ -66,7 +66,7 @@ async function selectPage(browser) {
 
 async function preparePlatformProbePage(page) {
   const platform = classifyPlatform(AUTH_URL || page.url());
-  if (platform !== "jdms" || !AUTH_URL) {
+  if (!["jdms", "tbwm"].includes(platform) || !AUTH_URL) {
     return;
   }
   await page.goto(AUTH_URL, { waitUntil: "domcontentloaded", timeout: TIMEOUT_MS }).catch(() => {});
@@ -185,6 +185,35 @@ function platformPageSignals(signals) {
       /请输入用户名/,
       /请输入密码/,
       /忘记密码/,
+    ]);
+    return { platform, hasConsoleText, hasLoginText };
+  }
+  if (platform === "tbwm") {
+    const hasLoginText = matchAny(text, [
+      /账号登录/,
+      /验证码登录/,
+      /短信登录/,
+      /请输入.*手机号/,
+      /请输入.*密码/,
+      /获取验证码/,
+      /扫码登录/,
+      /淘宝账号/,
+      /支付宝登录/,
+    ]);
+    const hasConsoleText = !hasLoginText && matchAny(text, [
+      /饿了么商家中心/,
+      /商家中心/,
+      /工作台/,
+      /订单管理/,
+      /订单/,
+      /商品管理/,
+      /商品/,
+      /门店管理/,
+      /门店/,
+      /经营数据/,
+      /营业/,
+      /评价管理/,
+      /配送/,
     ]);
     return { platform, hasConsoleText, hasLoginText };
   }
