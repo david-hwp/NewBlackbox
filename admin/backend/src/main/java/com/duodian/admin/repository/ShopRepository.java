@@ -44,6 +44,13 @@ public interface ShopRepository extends JpaRepository<Shop, Long> {
 
     java.util.Optional<Shop> findByUserIdAndShopIdAndDeleted(Long userId, String shopId, Byte deleted);
     java.util.Optional<Shop> findByUserIdAndShopIdAndPackageNameAndDeleted(Long userId, String shopId, String packageName, Byte deleted);
+    java.util.Optional<Shop> findByUserIdAndShopIdAndPackageNameAndIdentityVerifiedAndDeleted(
+            Long userId,
+            String shopId,
+            String packageName,
+            Boolean identityVerified,
+            Byte deleted
+    );
     java.util.Optional<Shop> findByCloneInstanceIdAndDeleted(String cloneInstanceId, Byte deleted);
     java.util.Optional<Shop> findByUserIdAndCloneInstanceIdAndDeleted(Long userId, String cloneInstanceId, Byte deleted);
     java.util.Optional<Shop> findFirstByUserIdAndPackageNameAndShopIdStartingWithAndDeleted(

@@ -95,6 +95,16 @@ public class ShopService {
         return shopRepository.findByUserIdAndShopIdAndPackageNameAndDeleted(userId, shopId, packageName, ACTIVE);
     }
 
+    public Optional<Shop> findVerifiedByUserIdAndShopIdAndPackageName(Long userId, String shopId, String packageName) {
+        return shopRepository.findByUserIdAndShopIdAndPackageNameAndIdentityVerifiedAndDeleted(
+                userId,
+                shopId,
+                packageName,
+                true,
+                ACTIVE
+        );
+    }
+
     public Optional<Shop> findByUserIdAndCloneInstanceId(Long userId, String cloneInstanceId) {
         return shopRepository.findByUserIdAndCloneInstanceIdAndDeleted(userId, cloneInstanceId, ACTIVE);
     }

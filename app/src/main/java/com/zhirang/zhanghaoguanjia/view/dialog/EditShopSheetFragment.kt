@@ -17,6 +17,7 @@ class EditShopSheetFragment : BaseBottomSheetFragment() {
     private var currentAutoRenew: Boolean = false
     private var currentRemark: String = ""
     private var showAutoRenew: Boolean = true
+    private var identityLocked: Boolean = false
     private var onSaveListener: ((String, String, Boolean, String) -> Unit)? = null
 
     fun setOnSaveListener(listener: (String, String, Boolean, String) -> Unit) {
@@ -29,13 +30,15 @@ class EditShopSheetFragment : BaseBottomSheetFragment() {
         private const val ARG_AUTO_RENEW = "auto_renew"
         private const val ARG_REMARK = "remark"
         private const val ARG_SHOW_AUTO_RENEW = "show_auto_renew"
+        private const val ARG_IDENTITY_LOCKED = "identity_locked"
 
         fun newInstance(
             shopName: String,
             shopId: String,
             autoRenew: Boolean,
             remark: String?,
-            showAutoRenew: Boolean = true
+            showAutoRenew: Boolean = true,
+            identityLocked: Boolean = false
         ): EditShopSheetFragment {
             return EditShopSheetFragment().apply {
                 arguments = Bundle().apply {
@@ -44,6 +47,7 @@ class EditShopSheetFragment : BaseBottomSheetFragment() {
                     putBoolean(ARG_AUTO_RENEW, autoRenew)
                     putString(ARG_REMARK, remark.orEmpty())
                     putBoolean(ARG_SHOW_AUTO_RENEW, showAutoRenew)
+                    putBoolean(ARG_IDENTITY_LOCKED, identityLocked)
                 }
             }
         }
@@ -60,9 +64,12 @@ class EditShopSheetFragment : BaseBottomSheetFragment() {
         currentAutoRenew = arguments?.getBoolean(ARG_AUTO_RENEW) ?: false
         currentRemark = arguments?.getString(ARG_REMARK) ?: ""
         showAutoRenew = arguments?.getBoolean(ARG_SHOW_AUTO_RENEW) ?: true
+        identityLocked = arguments?.getBoolean(ARG_IDENTITY_LOCKED) ?: false
 
         binding.etShopName.setText(currentShopName)
         binding.etShopId.setText(currentShopId.takeUnless { it.startsWith("NEW-") }.orEmpty())
+        binding.etShopName.isEnabled = !identityLocked
+        binding.etShopId.isEnabled = !identityLocked
         binding.switchAutoRenew.isChecked = currentAutoRenew
         binding.autoRenewRow.visibility = if (showAutoRenew) View.VISIBLE else View.GONE
         binding.etRemark.setText(currentRemark)

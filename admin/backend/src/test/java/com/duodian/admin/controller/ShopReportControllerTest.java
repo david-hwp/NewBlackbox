@@ -52,11 +52,13 @@ class ShopReportControllerTest {
         user.setPlatformCount(1);
 
         when(shopService.findByUserIdAndCloneInstanceId(1L, pendingShop.getCloneInstanceId())).thenReturn(Optional.of(pendingShop));
-        when(shopService.findByUserIdAndShopIdAndPackageName(1L, "real-shop", "com.jd.pingou")).thenReturn(Optional.empty());
+        when(shopService.findVerifiedByUserIdAndShopIdAndPackageName(1L, "real-shop", "com.jd.pingou")).thenReturn(Optional.empty());
         when(shopService.update(eq(20L), any(Shop.class))).thenAnswer(invocation -> invocation.getArgument(1));
         when(userService.refreshShopStats(1L)).thenReturn(user);
 
-        ApiResponse<Map<String, Object>> response = controller.report(request("real-shop", "真实店铺", pendingShop.getCloneInstanceId()));
+        ShopReportRequest request = request("real-shop", "真实店铺", pendingShop.getCloneInstanceId());
+        request.setConfirmIdentityBinding(true);
+        ApiResponse<Map<String, Object>> response = controller.report(request);
 
         assertThat(response.getCode()).isEqualTo(200);
         assertThat(response.getData()).containsEntry("deducted", false);
@@ -73,6 +75,7 @@ class ShopReportControllerTest {
         AuthContext.setUserId(1L);
         String cloneInstanceId = cloneIdForCode("server-random");
         Shop oldShop = shop(10L, "old-shop", "旧店铺", cloneInstanceId);
+        oldShop.setIdentityVerified(true);
         oldShop.setCloneValidationCode("server-random");
         oldShop.setCloneValidationHash(sha256(oldShop.getCloneInstanceId() + ":server-random"));
 
@@ -81,12 +84,60 @@ class ShopReportControllerTest {
         ApiResponse<Map<String, Object>> response = controller.report(request("new-shop", "新店铺", oldShop.getCloneInstanceId()));
 
         assertThat(response.getCode()).isEqualTo(403);
-        assertThat(response.getMessage()).contains("已绑定其他店铺");
+        assertThat(response.getMessage()).contains("切换回原卡片绑定店铺");
         assertThat(oldShop.getShopId()).isEqualTo("old-shop");
         assertThat(oldShop.getShopName()).isEqualTo("旧店铺");
-        assertThat(oldShop.getIdentityVerified()).isFalse();
+        assertThat(oldShop.getIdentityVerified()).isTrue();
         verify(shopService, never()).update(eq(10L), any(Shop.class));
         verify(shopService, never()).create(any(Shop.class));
+    }
+
+    @Test
+    void reportRequiresConfirmationBeforeBindingPendingShopIdentity() {
+        AuthContext.setUserId(1L);
+        String cloneInstanceId = cloneIdForCode("server-random");
+        Shop pendingShop = shop(20L, "NEW-abc", "新增店铺-[1]", cloneInstanceId);
+        pendingShop.setCloneValidationCode("server-random");
+        pendingShop.setCloneValidationHash(sha256(pendingShop.getCloneInstanceId() + ":server-random"));
+
+        when(shopService.findById(20L)).thenReturn(Optional.of(pendingShop));
+
+        ShopReportRequest request = request("real-shop", "真实店铺", pendingShop.getCloneInstanceId());
+        request.setSystemShopId(20L);
+
+        ApiResponse<Map<String, Object>> response = controller.report(request);
+
+        assertThat(response.getCode()).isEqualTo(409);
+        assertThat(response.getMessage()).contains("确认绑定");
+        assertThat(pendingShop.getShopId()).isEqualTo("NEW-abc");
+        assertThat(pendingShop.getIdentityVerified()).isFalse();
+        verify(shopService, never()).update(eq(20L), any(Shop.class));
+    }
+
+    @Test
+    void reportRejectsDuplicateVerifiedPlatformShopIdForSameUserAndPackage() {
+        AuthContext.setUserId(1L);
+        String cloneInstanceId = cloneIdForCode("server-random");
+        Shop pendingShop = shop(20L, "NEW-abc", "新增店铺-[1]", cloneInstanceId);
+        pendingShop.setCloneValidationCode("server-random");
+        pendingShop.setCloneValidationHash(sha256(pendingShop.getCloneInstanceId() + ":server-random"));
+        Shop duplicate = shop(21L, "real-shop", "已有店铺", "CLN-existing");
+        duplicate.setIdentityVerified(true);
+        duplicate.setIdentityVerifiedAt(LocalDateTime.now().minusDays(1));
+
+        when(shopService.findById(20L)).thenReturn(Optional.of(pendingShop));
+        when(shopService.findVerifiedByUserIdAndShopIdAndPackageName(1L, "real-shop", "com.jd.pingou"))
+                .thenReturn(Optional.of(duplicate));
+
+        ShopReportRequest request = request("real-shop", "真实店铺", pendingShop.getCloneInstanceId());
+        request.setSystemShopId(20L);
+        request.setConfirmIdentityBinding(true);
+
+        ApiResponse<Map<String, Object>> response = controller.report(request);
+
+        assertThat(response.getCode()).isEqualTo(500);
+        assertThat(response.getMessage()).isEqualTo("该店铺已添加");
+        verify(shopService, never()).update(eq(20L), any(Shop.class));
     }
 
     @Test
@@ -153,6 +204,7 @@ class ShopReportControllerTest {
         AuthContext.setUserId(1L);
         String cloneInstanceId = cloneIdForCode("server-random");
         Shop oldShop = shop(10L, "old-shop", "旧店铺", cloneInstanceId);
+        oldShop.setIdentityVerified(true);
         oldShop.setLocalVirtualUserId(3);
         oldShop.setCloneValidationCode("server-random");
         oldShop.setCloneValidationHash(sha256(oldShop.getCloneInstanceId() + ":server-random"));
@@ -165,7 +217,7 @@ class ShopReportControllerTest {
         request.setLocalVirtualUserId(9);
 
         when(shopService.findByUserIdAndCloneInstanceId(1L, oldShop.getCloneInstanceId())).thenReturn(Optional.of(oldShop));
-        when(shopService.findByUserIdAndShopIdAndPackageName(1L, "old-shop", "com.jd.pingou")).thenReturn(Optional.of(oldShop));
+        when(shopService.findVerifiedByUserIdAndShopIdAndPackageName(1L, "old-shop", "com.jd.pingou")).thenReturn(Optional.of(oldShop));
         when(shopService.update(eq(10L), any(Shop.class))).thenAnswer(invocation -> invocation.getArgument(1));
         when(userService.refreshShopStats(1L)).thenReturn(user);
 
@@ -186,6 +238,7 @@ class ShopReportControllerTest {
         request.setPlatformName("京东秒送");
         request.setPackageName("com.jd.pingou");
         request.setCloneInstanceId(cloneInstanceId);
+        request.setSystemShopId(0L);
         request.setRemainingDays(30);
         request.setAutoRenew(false);
         request.setLocalVirtualUserId(3);

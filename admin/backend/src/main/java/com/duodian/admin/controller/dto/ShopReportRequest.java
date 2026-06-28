@@ -4,6 +4,8 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
 public class ShopReportRequest {
+    private Long systemShopId;
+
     @NotNull(message = "用户ID不能为空")
     private Long userId;
 
@@ -29,7 +31,12 @@ public class ShopReportRequest {
 
     private Integer localVirtualUserId;
 
+    private Boolean confirmIdentityBinding = false;
+
     // Getters and Setters
+    public Long getSystemShopId() { return systemShopId; }
+    public void setSystemShopId(Long systemShopId) { this.systemShopId = systemShopId; }
+
     public Long getUserId() { return userId; }
     public void setUserId(Long userId) { this.userId = userId; }
 
@@ -59,4 +66,7 @@ public class ShopReportRequest {
 
     public Integer getLocalVirtualUserId() { return localVirtualUserId; }
     public void setLocalVirtualUserId(Integer localVirtualUserId) { this.localVirtualUserId = localVirtualUserId; }
+
+    public Boolean getConfirmIdentityBinding() { return confirmIdentityBinding; }
+    public void setConfirmIdentityBinding(Boolean confirmIdentityBinding) { this.confirmIdentityBinding = confirmIdentityBinding; }
 }

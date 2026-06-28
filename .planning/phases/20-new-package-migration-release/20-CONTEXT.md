@@ -51,6 +51,14 @@ The phase includes Android main app orchestration, new engine import capability,
 ### D-12 User-visible migration UX
 - After first successful login, the app must show a blocking progress dialog such as "正在迁移数据" while export/import runs. The user should not need to pick files, grant root, or run adb. The dialog should end in success or a recoverable failure state.
 
+### D-13 Shop identity lock for platform shop IDs
+- A shop card is addressed by the server-side `shops.id`; the platform shop identity is the locked business identity after confirmation.
+- Confirmed platform identity must be unique per `user_id + package_name + platform_shop_id`.
+- Before confirmation, app-side shop name and shop ID remain editable and are not treated as authoritative platform identity.
+- When a clone reports a verified platform shop ID for an unconfirmed card, the app must show a second confirmation: "是否确认绑定该店铺，确认后不可修改". Only after confirmation may the app submit the platform identity to the server.
+- After confirmation, app-side shop name and shop ID become read-only. The app must check `detected_platform_shop_id == shops.shop_id` before reporting basic info or uploading login state; mismatches mean the user switched shops inside the cloned app and must be rejected with "请切换回原卡片绑定店铺".
+- Server-side shop update, report, and login-state upload endpoints must enforce the same lock. Client checks are convenience only, not trust boundaries.
+
 ### the agent's Discretion
 - Exact endpoint names, local SharedPreferences keys, and import backup naming can follow existing codebase conventions.
 - The importer can choose a safe implementation strategy between full-root replacement with filtering or targeted clone extraction, as long as it enforces logged-in-user scope and backs up existing new-engine data before destructive writes.
@@ -88,6 +96,10 @@ The phase includes Android main app orchestration, new engine import capability,
 - `.planning/phases/13-meituan-login-state-sync/13-STANDARD.md` — Login-state export/import identity constraints and profile lessons.
 - `.planning/phases/16-app/16-CONTEXT.md` — Main app as login-state data center and server restore policy.
 - `.planning/ROADMAP.md` — Phase 20 scope and acceptance criteria.
+- `admin/backend/src/main/java/com/duodian/admin/controller/ShopReportController.java` — Engine-detected shop report binding and duplicate checks.
+- `admin/backend/src/main/java/com/duodian/admin/controller/ShopController.java` — Shop edit and login-state upload guardrails.
+- `app/src/main/java/com/zhirang/zhanghaoguanjia/view/home/HomeActivity.kt` — App-side detected identity confirmation and mismatch blocking.
+- `app/src/main/java/com/zhirang/zhanghaoguanjia/view/dialog/EditShopSheetFragment.kt` — Read-only locked identity fields in the edit sheet.
 </canonical_refs>
 
 <specifics>

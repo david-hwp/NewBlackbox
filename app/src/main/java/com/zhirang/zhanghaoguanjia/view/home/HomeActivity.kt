@@ -3235,6 +3235,21 @@ class HomeActivity : AppCompatActivity() {
             }
             return
         }
+        if (sourceShop.hasServerLockedIdentity && shopId != sourceShop.shopId) {
+            if (showFailureToast) {
+                toast("请切换回原卡片绑定店铺")
+            } else {
+                Log.w(
+                    TAG,
+                    "Skip shop report because detected platform shop changed card=${sourceShop.id} stored=${sourceShop.shopId} detected=$shopId"
+                )
+            }
+            return
+        }
+        if (!sourceShop.hasServerLockedIdentity && !showFailureToast) {
+            Log.d(TAG, "Skip silent identity binding confirmation for shop=${sourceShop.id} detected=$shopId")
+            return
+        }
         val detectedShop = Shop(
             id = sourceShop.id,
             shopName = shopName,
@@ -3246,10 +3261,50 @@ class HomeActivity : AppCompatActivity() {
             cloneInstanceId = sourceShop.cloneInstanceId?.takeIf { it.isNotBlank() },
             localVirtualUserId = userId
         )
+        if (!sourceShop.hasServerLockedIdentity) {
+            showIdentityBindingConfirmation(sourceShop, detectedShop, packageName, userId, showFailureToast)
+            return
+        }
+        submitDetectedShopInfo(sourceShop, detectedShop, packageName, userId, showFailureToast, confirmIdentityBinding = false)
+    }
+
+    private fun showIdentityBindingConfirmation(
+        sourceShop: Shop,
+        detectedShop: Shop,
+        packageName: String,
+        userId: Int,
+        showFailureToast: Boolean
+    ) {
+        MaterialAlertDialogBuilder(this)
+            .setTitle("确认绑定店铺")
+            .setMessage("是否确认绑定该店铺，确认后不可修改")
+            .setNegativeButton("取消", null)
+            .setPositiveButton("确认") { _, _ ->
+                submitDetectedShopInfo(
+                    sourceShop,
+                    detectedShop,
+                    packageName,
+                    userId,
+                    showFailureToast,
+                    confirmIdentityBinding = true
+                )
+            }
+            .show()
+    }
+
+    private fun submitDetectedShopInfo(
+        sourceShop: Shop,
+        detectedShop: Shop,
+        packageName: String,
+        userId: Int,
+        showFailureToast: Boolean,
+        confirmIdentityBinding: Boolean
+    ) {
         viewModel.completePendingShop(
             sourceShop,
             detectedShop,
             showMessage = sourceShop.isNew,
+            confirmIdentityBinding = confirmIdentityBinding,
             onComplete = { success ->
                 if (success) {
                     viewModel.markLocalIdentityVerified(sourceShop, packageName, userId, true)
@@ -3506,7 +3561,8 @@ class HomeActivity : AppCompatActivity() {
             shop.shopId,
             shop.autoRenew,
             shop.remark,
-            showAutoRenew = showAutoRenew
+            showAutoRenew = showAutoRenew,
+            identityLocked = shop.hasServerLockedIdentity
         )
         sheet.setOnSaveListener { shopName, shopId, autoRenew, remark ->
             viewModel.updateShop(

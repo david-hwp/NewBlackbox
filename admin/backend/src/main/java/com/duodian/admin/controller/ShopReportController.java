@@ -53,7 +53,11 @@ public class ShopReportController {
         boolean hasVerifiedIdentity = hasRealShopId && isVerifiedShopName(shopName);
         Optional<Shop> existing = Optional.empty();
 
-        if (cloneInstanceId != null) {
+        Long systemShopId = request.getSystemShopId();
+        if (systemShopId != null && systemShopId > 0) {
+            existing = shopService.findById(systemShopId)
+                    .filter(shop -> userId.equals(shop.getUserId()));
+        } else if (cloneInstanceId != null) {
             existing = shopService.findByUserIdAndCloneInstanceId(userId, cloneInstanceId);
         } else if (hasVerifiedIdentity) {
             if (existing.isEmpty()) {
@@ -84,12 +88,18 @@ public class ShopReportController {
         if (!validateLocalVirtualUser(request.getLocalVirtualUserId())) {
             return ApiResponse.error(403, "虚拟用户目录号校验失败");
         }
-        if (hasVerifiedIdentity && !validatePlatformShopBinding(shop, shopId)) {
-            return ApiResponse.error(403, "当前分身已绑定其他店铺，请重新添加店铺卡片");
+        if (hasVerifiedIdentity && isIdentityLocked(shop) && !validatePlatformShopBinding(shop, shopId)) {
+            return ApiResponse.error(403, "请切换回原卡片绑定店铺");
+        }
+        if (hasVerifiedIdentity && !isIdentityLocked(shop) && !Boolean.TRUE.equals(request.getConfirmIdentityBinding())) {
+            result.put("requiresIdentityConfirmation", true);
+            result.put("shopId", shopId);
+            result.put("shopName", shopName);
+            return ApiResponse.error(409, "是否确认绑定该店铺，确认后不可修改");
         }
         boolean wasPending = shop.getShopId() != null && shop.getShopId().startsWith("NEW-");
         if (hasVerifiedIdentity) {
-            Optional<Shop> duplicate = shopService.findByUserIdAndShopIdAndPackageName(userId, shopId, packageName);
+            Optional<Shop> duplicate = shopService.findVerifiedByUserIdAndShopIdAndPackageName(userId, shopId, packageName);
             if (duplicate.isPresent() && !duplicate.get().getId().equals(shop.getId())) {
                 return ApiResponse.error("该店铺已添加");
             }
@@ -99,6 +109,7 @@ public class ShopReportController {
         }
         result.put("deducted", false);
         result.put("isNew", wasPending && hasVerifiedIdentity);
+        result.put("identityLocked", hasVerifiedIdentity || isIdentityLocked(shop));
 
         fillShopFromRequest(shop, request, hasVerifiedIdentity);
         if (cloneInstanceId != null && canAssignCloneInstanceId(userId, shop.getId(), cloneInstanceId)) {
@@ -115,7 +126,7 @@ public class ShopReportController {
     }
 
     private void fillShopFromRequest(Shop shop, ShopReportRequest request, boolean hasVerifiedIdentity) {
-        if (hasVerifiedIdentity) {
+        if (hasVerifiedIdentity && !isIdentityLocked(shop)) {
             shop.setShopName(normalize(request.getShopName()));
             shop.setShopId(normalize(request.getShopId()));
             shop.setIdentityVerified(true);
@@ -144,6 +155,10 @@ public class ShopReportController {
             return true;
         }
         return storedShopId.equals(requestShopId);
+    }
+
+    private boolean isIdentityLocked(Shop shop) {
+        return Boolean.TRUE.equals(shop.getIdentityVerified()) && isRealShopId(normalize(shop.getShopId()));
     }
 
     private void fillUserStats(Map<String, Object> result, Long userId) {

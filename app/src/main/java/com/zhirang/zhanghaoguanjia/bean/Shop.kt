@@ -41,6 +41,16 @@ data class Shop(
                 && !shopName.startsWith("User[")
                 && !shopName.startsWith("未知")
 
+    val hasServerLockedIdentity: Boolean
+        get() = identityVerified
+                && hasDisplayableShopId
+                && shopName.isNotBlank()
+                && !shopName.startsWith("新增店铺-[")
+                && !shopName.startsWith("NEW-")
+                && !shopName.startsWith("phase13-")
+                && !shopName.startsWith("User[")
+                && !shopName.startsWith("未知")
+
     val isShopAuthorized: Boolean
         get() = shopAuthorizationStatus.equals("AUTHORIZED", ignoreCase = true)
 }

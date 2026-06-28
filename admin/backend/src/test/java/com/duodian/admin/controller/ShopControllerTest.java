@@ -438,6 +438,7 @@ class ShopControllerTest {
         shop.setPackageName("com.jd.mrd.jingming");
         shop.setCloneInstanceId("CLN-login-state");
         shop.setShopId("jd-shop-12");
+        shop.setIdentityVerified(true);
         byte[] payload = "zip-bytes".getBytes();
         MockMultipartFile file = new MockMultipartFile(
                 "file",
@@ -478,6 +479,51 @@ class ShopControllerTest {
         assertThat(response.getData().getLoginStateProfile()).isEqualTo("jd-jingming-prefs-d");
         assertThat(response.getData().getLoginStateSize()).isEqualTo(payload.length);
         assertThat(response.getData().getLoginStateSha256()).matches("[0-9a-f]{64}");
+    }
+
+    @Test
+    void updateRejectsShopNameAndShopIdChangesAfterIdentityLocked() {
+        AuthContext.setUserId(1L);
+        User normalUser = user(1L, "USER");
+        Shop existing = shop(31L, 1L, "locked-shop");
+        existing.setShopId("locked-platform-shop");
+        existing.setIdentityVerified(true);
+        Shop request = shop(31L, 1L, "changed-shop");
+        request.setShopId("locked-platform-shop");
+
+        when(userService.findById(1L)).thenReturn(Optional.of(normalUser));
+        when(shopService.findById(31L)).thenReturn(Optional.of(existing));
+
+        ApiResponse<Shop> response = controller.update(31L, request);
+
+        assertThat(response.getCode()).isEqualTo(403);
+        assertThat(response.getMessage()).contains("名称不可修改");
+        verify(shopService, never()).update(eq(31L), any(Shop.class));
+    }
+
+    @Test
+    void uploadLoginStateRejectsMissingPlatformShopIdForLockedShop() {
+        AuthContext.setUserId(1L);
+        User normalUser = user(1L, "USER");
+        Shop shop = shop(32L, 1L, "locked-login-state");
+        shop.setPackageName("com.jd.mrd.jingming");
+        shop.setCloneInstanceId("CLN-login-state");
+        shop.setShopId("jd-shop-32");
+        shop.setIdentityVerified(true);
+
+        when(userService.findById(1L)).thenReturn(Optional.of(normalUser));
+        when(shopService.findById(32L)).thenReturn(Optional.of(shop));
+
+        ApiResponse<ShopResponse> response = controller.uploadLoginState(
+                32L,
+                new MockMultipartFile("file", "login-state.zip", "application/zip", "zip".getBytes()),
+                "jd-jingming-prefs-d",
+                "{\"systemShopId\":32,\"packageName\":\"com.jd.mrd.jingming\",\"profileId\":\"jd-jingming-prefs-d\",\"cloneInstanceId\":\"CLN-login-state\"}"
+        );
+
+        assertThat(response.getCode()).isEqualTo(500);
+        assertThat(response.getMessage()).contains("缺少平台店铺ID");
+        verify(shopService, never()).updateLoginState(eq(32L), any(), any(), any(), any(), any());
     }
 
     @Test

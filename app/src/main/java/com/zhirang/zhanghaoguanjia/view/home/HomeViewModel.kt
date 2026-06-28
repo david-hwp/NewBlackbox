@@ -458,6 +458,7 @@ class HomeViewModel : ViewModel() {
         shop: Shop,
         showMessage: Boolean = true,
         requireVerifiedIdentity: Boolean = true,
+        confirmIdentityBinding: Boolean = false,
         onComplete: ((Boolean) -> Unit)? = null
     ) {
         if (!isLoggedIn()) {
@@ -472,6 +473,7 @@ class HomeViewModel : ViewModel() {
         }
         viewModelScope.launch {
             val request = ShopReportRequest(
+                systemShopId = shop.id.takeIf { it > 0 },
                 shopName = shop.shopName,
                 shopId = shop.shopId,
                 platform = shop.platform.id,
@@ -480,7 +482,8 @@ class HomeViewModel : ViewModel() {
                 cloneInstanceId = shop.cloneInstanceId,
                 localVirtualUserId = shop.localVirtualUserId,
                 remainingDays = shop.remainingDays,
-                autoRenew = shop.autoRenew
+                autoRenew = shop.autoRenew,
+                confirmIdentityBinding = confirmIdentityBinding
             )
             val result = shopRepository.reportShop(request)
             result.fold(
@@ -567,6 +570,7 @@ class HomeViewModel : ViewModel() {
         pendingShop: Shop,
         detectedShop: Shop,
         showMessage: Boolean = pendingShop.isNew,
+        confirmIdentityBinding: Boolean = false,
         onComplete: ((Boolean) -> Unit)? = null
     ) {
         reportShop(
@@ -575,6 +579,7 @@ class HomeViewModel : ViewModel() {
                 localVirtualUserId = detectedShop.localVirtualUserId ?: pendingShop.localVirtualUserId
             ),
             showMessage = showMessage,
+            confirmIdentityBinding = confirmIdentityBinding,
             onComplete = onComplete
         )
     }

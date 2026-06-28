@@ -352,6 +352,16 @@ public class ShopController {
             return ApiResponse.error("店铺不存在");
         }
         Shop existing = existingOptional.get();
+        if (isIdentityLocked(existing)) {
+            String requestedShopName = normalize(shop.getShopName());
+            String requestedShopId = normalize(shop.getShopId());
+            if (requestedShopName != null && !requestedShopName.equals(normalize(existing.getShopName()))) {
+                return ApiResponse.error(403, "已绑定店铺名称不可修改");
+            }
+            if (requestedShopId != null && !requestedShopId.equals(normalize(existing.getShopId()))) {
+                return ApiResponse.error(403, "已绑定店铺ID不可修改");
+            }
+        }
         shop.setIdentityVerified(existing.getIdentityVerified());
         shop.setIdentityVerifiedAt(existing.getIdentityVerifiedAt());
         Long ownerId = existing.getUserId();
@@ -789,6 +799,12 @@ public class ShopController {
                 && !shopId.startsWith("phase13-");
     }
 
+    private boolean isIdentityLocked(Shop shop) {
+        return shop != null
+                && Boolean.TRUE.equals(shop.getIdentityVerified())
+                && isRealShopId(normalize(shop.getShopId()));
+    }
+
     private String validateLoginStateManifest(Shop shop, String profile, String manifest) {
         String shopPackageName = normalize(shop.getPackageName());
         if (shopPackageName == null) {
@@ -798,6 +814,9 @@ public class ShopController {
             return "登录态档位与店铺平台不匹配";
         }
         if (manifest == null) {
+            if (isIdentityLocked(shop)) {
+                return "登录态清单缺少平台店铺ID";
+            }
             return null;
         }
         try {
@@ -833,8 +852,11 @@ public class ShopController {
                 }
             }
             JsonNode platformShopIdNode = root.get("platformShopId");
+            String shopPlatformShopId = normalize(shop.getShopId());
+            if (isIdentityLocked(shop) && (platformShopIdNode == null || platformShopIdNode.asText("").isBlank())) {
+                return "登录态清单缺少平台店铺ID";
+            }
             if (platformShopIdNode != null && !platformShopIdNode.asText("").isBlank()) {
-                String shopPlatformShopId = normalize(shop.getShopId());
                 if (isRealShopId(shopPlatformShopId) && !shopPlatformShopId.equals(platformShopIdNode.asText().trim())) {
                     return "登录态清单平台店铺ID与店铺不匹配";
                 }

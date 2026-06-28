@@ -19,6 +19,13 @@ files_modified:
   - app/src/main/java/com/zhirang/zhanghaoguanjia/network/ApiService.kt
   - app/src/main/java/com/zhirang/zhanghaoguanjia/migration/LegacyEngineMigrationCoordinator.kt
   - app/src/main/java/com/zhirang/zhanghaoguanjia/view/home/HomeActivity.kt
+  - app/src/main/java/com/zhirang/zhanghaoguanjia/view/home/HomeViewModel.kt
+  - app/src/main/java/com/zhirang/zhanghaoguanjia/view/dialog/EditShopSheetFragment.kt
+  - admin/backend/src/main/java/com/duodian/admin/controller/ShopReportController.java
+  - admin/backend/src/main/java/com/duodian/admin/controller/ShopController.java
+  - admin/backend/src/main/java/com/duodian/admin/controller/dto/ShopReportRequest.java
+  - admin/backend/src/test/java/com/duodian/admin/controller/ShopReportControllerTest.java
+  - admin/backend/src/test/java/com/duodian/admin/controller/ShopControllerTest.java
 autonomous: false
 requirements:
   - PH20-D01
@@ -30,6 +37,7 @@ requirements:
   - PH20-D07
   - PH20-D08
   - PH20-D09
+  - PH20-D10
 ---
 
 <objective>
@@ -46,6 +54,7 @@ Ship a new package-name release APK that migrates old-engine clone data after th
 - PH20-D07: Admin UI does not display or edit the hidden migration field.
 - PH20-D08: Release APK uses `com.zhirang.zhanghaoguanjia.new` and `com.zhirang.zhanghaoguanjia.new.engine`, connected to the internal API environment.
 - PH20-D09: Xiaomi MIX 2S real-device verification proves migration, shop opening, and no repeat migration.
+- PH20-D10: Confirmed shop cards lock platform identity; uniqueness is enforced by `user_id + package_name + platform_shop_id`, and switched in-app shop identities cannot overwrite a locked card or its login state.
 </must_haves>
 
 <threat_model>
@@ -265,6 +274,47 @@ Run acceptance on Xiaomi MIX 2S `3ca26684`:
 </verify>
 </task>
 
+<task id="20-07" type="execute">
+<title>Shop identity lock and platform shop ID uniqueness</title>
+<read_first>
+- `admin/backend/src/main/java/com/duodian/admin/controller/ShopReportController.java`
+- `admin/backend/src/main/java/com/duodian/admin/controller/ShopController.java`
+- `admin/backend/src/main/java/com/duodian/admin/service/ShopService.java`
+- `admin/backend/src/main/java/com/duodian/admin/repository/ShopRepository.java`
+- `admin/backend/src/test/java/com/duodian/admin/controller/ShopReportControllerTest.java`
+- `admin/backend/src/test/java/com/duodian/admin/controller/ShopControllerTest.java`
+- `app/src/main/java/com/zhirang/zhanghaoguanjia/bean/dto/ShopReportRequest.kt`
+- `app/src/main/java/com/zhirang/zhanghaoguanjia/view/home/HomeActivity.kt`
+- `app/src/main/java/com/zhirang/zhanghaoguanjia/view/home/HomeViewModel.kt`
+- `app/src/main/java/com/zhirang/zhanghaoguanjia/view/dialog/EditShopSheetFragment.kt`
+</read_first>
+<action>
+Implement identity locking for store cards:
+- Treat `shops.id` as the card locator for report/update flows; treat `shop_id` from the engine as the platform shop identity.
+- Add an app request signal that distinguishes user-confirmed first binding from ordinary detected identity reports.
+- For unverified cards, require the app to show "是否确认绑定该店铺，确认后不可修改" before submitting the verified platform identity.
+- For verified cards, require `detected_platform_shop_id == shops.shop_id` before reporting info or uploading login state; on mismatch show "请切换回原卡片绑定店铺".
+- Enforce backend duplicate checks by `user_id + package_name + platform_shop_id`; no duplicate confirmed cards may exist for the same user/platform/shop.
+- Enforce backend read-only behavior for confirmed shop name and shop ID in the normal shop update endpoint.
+- Enforce login-state upload manifest checks so `platformShopId` must match a locked card's `shop_id`.
+</action>
+<acceptance_criteria>
+- Pending/new cards can edit shop name and shop ID before identity confirmation.
+- First verified identity report for a pending card requires explicit confirmation from the app.
+- Confirmed cards cannot have shop name or shop ID changed through app edit or backend update.
+- Server rejects confirmed-card reports when the detected platform shop ID differs from the locked `shops.shop_id`.
+- Server rejects a second confirmed card for the same `user_id + package_name + platform_shop_id`.
+- Server rejects login-state upload when manifest `platformShopId` is absent or mismatched for a confirmed card.
+- Xiaomi real-device debug validation confirms first binding prompt, mismatch prompt, and no login-state overwrite after switching stores inside the cloned platform app.
+</acceptance_criteria>
+<verify>
+- `cd admin/backend && mvn -Dtest=ShopReportControllerTest,ShopControllerTest test`
+- `./gradlew :app:compileDebugKotlin :app:testDebugUnitTest --no-daemon`
+- `./gradlew :app:assembleDebug -PDUODIAN_APP_APPLICATION_ID=com.zhirang.zhanghaoguanjia.new -PDUODIAN_ENGINE_APPLICATION_ID=com.zhirang.zhanghaoguanjia.new.engine -PDUODIAN_API_BASE_URL=http://172.20.0.13:8006/api/ --no-daemon`
+- Install the debug APK on Xiaomi real device and verify the binding and switched-shop rejection flow.
+</verify>
+</task>
+
 </tasks>
 
 <verification>
@@ -273,7 +323,8 @@ Run acceptance on Xiaomi MIX 2S `3ca26684`:
 1. Backend test suite for auth/user migration state passes.
 2. Android app and Bcore release builds pass with new package names.
 3. Xiaomi real-device acceptance proves first-login migration and no-repeat semantics.
-4. The final git commit includes planning, backend, Android app, engine importer, release metadata, and verification notes.
+4. Shop identity tests prove confirmed cards are locked by platform shop ID, duplicates are rejected by `user_id + package_name + platform_shop_id`, and login-state upload cannot overwrite a locked card after in-app store switching.
+5. The final git commit includes planning, backend, Android app, engine importer, release metadata, and verification notes.
 </verification>
 
 <success_criteria>
@@ -282,6 +333,7 @@ Run acceptance on Xiaomi MIX 2S `3ca26684`:
 - New engine can import the logged-in user's matching clone data.
 - Migration starts only after login and only once per server user.
 - Server stores hidden migration state and admin UI does not expose it.
+- A user who switches stores inside a cloned platform app cannot silently change the original card binding or upload the wrong store's login state.
 - Xiaomi real-device verification passes.
 </success_criteria>
 
