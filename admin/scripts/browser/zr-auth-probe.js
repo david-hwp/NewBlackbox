@@ -64,6 +64,15 @@ async function selectPage(browser) {
   }) || pages[0] || null;
 }
 
+async function preparePlatformProbePage(page) {
+  const platform = classifyPlatform(AUTH_URL || page.url());
+  if (platform !== "jdms" || !AUTH_URL) {
+    return;
+  }
+  await page.goto(AUTH_URL, { waitUntil: "domcontentloaded", timeout: TIMEOUT_MS }).catch(() => {});
+  await page.waitForTimeout(2000);
+}
+
 function classifyCookie(cookie) {
   return {
     domain: cookie.domain,
@@ -89,6 +98,14 @@ function domainHost(url) {
   } catch (error) {
     return "";
   }
+}
+
+function classifyPlatform(url) {
+  const host = domainHost(url);
+  if (host.endsWith("store.jddj.com")) return "jdms";
+  if (host.endsWith("melody.shop.ele.me")) return "tbwm";
+  if (host.endsWith("waimaie.meituan.com")) return "mtwm";
+  return "";
 }
 
 function cookieMatchesHost(cookie, host) {
@@ -145,19 +162,57 @@ async function collectPageSignals(page) {
   }).catch((error) => ({ error: error.message }));
 }
 
+function matchAny(text, patterns) {
+  return patterns.some((pattern) => pattern.test(text));
+}
+
+function platformPageSignals(signals) {
+  const page = signals.page || {};
+  const text = `${page.title || ""} ${page.url || ""} ${page.textSample || ""}`;
+  const platform = classifyPlatform(signals.url || page.url || "");
+  if (platform === "jdms") {
+    const hasConsoleText = matchAny(text, [
+      /商家首页/,
+      /订单管理/,
+      /商品管理/,
+      /全部门店/,
+      /今日有效订单/,
+      /经营罗盘/,
+    ]);
+    const hasLoginText = matchAny(text, [
+      /账号登录/,
+      /验证码登录/,
+      /请输入用户名/,
+      /请输入密码/,
+      /忘记密码/,
+    ]);
+    return { platform, hasConsoleText, hasLoginText };
+  }
+  return { platform, hasConsoleText: false, hasLoginText: false };
+}
+
 function decide(signals) {
   let positive = 0;
   let negative = 0;
+  const platformSignals = platformPageSignals(signals);
   if (signals.page && signals.page.hasConsoleText) positive += 1;
   if (signals.page && signals.page.hasLogoutText) positive += 1;
+  if (platformSignals.hasConsoleText) positive += 2;
   if (signals.cookies && signals.cookies.matchingCount >= 2) positive += 1;
   if (signals.storage && (
     signals.storage.localStorageSignalKeys?.length > 0 ||
     signals.storage.sessionStorageSignalKeys?.length > 0 ||
     signals.storage.localStorageCount > 0
   )) positive += 1;
-  if (signals.page && signals.page.hasLoginText && signals.page.visibleInputCount >= 1) negative += 2;
+  if (platformSignals.hasLoginText) negative += 2;
+  else if (!platformSignals.hasConsoleText && signals.page && signals.page.hasLoginText && signals.page.visibleInputCount >= 1) negative += 2;
 
+  if (platformSignals.hasLoginText && !platformSignals.hasConsoleText) {
+    return { status: "UNAUTHORIZED", confidence: "HIGH" };
+  }
+  if (platformSignals.hasConsoleText && positive >= 2 && negative <= 1) {
+    return { status: "AUTHORIZED", confidence: positive >= 3 ? "HIGH" : "MEDIUM" };
+  }
   if (positive >= 2 && negative === 0) {
     return { status: "AUTHORIZED", confidence: positive >= 3 ? "HIGH" : "MEDIUM" };
   }
@@ -170,7 +225,7 @@ function decide(signals) {
   return { status: "UNKNOWN", confidence: "LOW" };
 }
 
-(async () => {
+async function main() {
   let browser = null;
   try {
     browser = await connectBrowser();
@@ -179,6 +234,7 @@ function decide(signals) {
     if (!context || !page) throw new Error("page_not_found");
     await page.waitForLoadState("domcontentloaded", { timeout: TIMEOUT_MS }).catch(() => {});
     await page.waitForTimeout(1000);
+    await preparePlatformProbePage(page);
 
     const host = domainHost(AUTH_URL || page.url());
     const cookies = await context.cookies().catch(() => []);
@@ -219,4 +275,13 @@ function decide(signals) {
   } finally {
     // Keep the remote browser alive for Xpra.
   }
-})();
+}
+
+if (require.main === module) {
+  main();
+}
+
+module.exports = {
+  decide,
+  platformPageSignals,
+};

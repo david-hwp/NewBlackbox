@@ -9,6 +9,7 @@ import com.duodian.admin.controller.dto.PagedResponse;
 import com.duodian.admin.controller.dto.ShopRenewRequest;
 import com.duodian.admin.controller.dto.ShopRenewResponse;
 import com.duodian.admin.controller.dto.ShopAuthTokenRequest;
+import com.duodian.admin.controller.dto.ShopAuthorizationProbeResponse;
 import com.duodian.admin.controller.dto.ShopResponse;
 import com.duodian.admin.entity.ComputeDeduction;
 import com.duodian.admin.entity.PlatformConfig;
@@ -797,6 +798,105 @@ class ShopControllerTest {
             assertThat(java.net.URLDecoder.decode(requestedQuery.get(), java.nio.charset.StandardCharsets.UTF_8))
                     .contains("url=https://waimaie.meituan.com/new_fe/login_gw#/login");
             assertThat(response.getData().get("mode")).isEqualTo("authorization-login");
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void jdRemoteBackendModeOpensMerchantHomeInsteadOfLogin() throws Exception {
+        AuthContext.setUserId(1L);
+        Shop shop = shop(76L, 1L, "罗家臭豆腐（万家丽店）");
+        shop.setPlatform("jdms");
+        shop.setShopId("16081572");
+        User owner = user(1L, "USER");
+        PlatformConfig platform = new PlatformConfig();
+        platform.setPlatformId("jdms");
+        platform.setAuthorizationUrl("https://store.jddj.com/base/login");
+        AtomicReference<String> requestedQuery = new AtomicReference<>("");
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/open", exchange -> {
+            requestedQuery.set(exchange.getRequestURI().getRawQuery());
+            byte[] body = """
+                    {"ok":true,"streamUrl":"/zr-stream/15037/","ready":true}
+                    """.getBytes();
+            exchange.getResponseHeaders().add("Content-Type", "application/json");
+            exchange.sendResponseHeaders(200, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.close();
+        });
+        server.start();
+        try {
+            ReflectionTestUtils.setField(controller, "zrControlUrl", "http://127.0.0.1:" + server.getAddress().getPort());
+            when(shopService.findById(76L)).thenReturn(Optional.of(shop));
+            when(userService.findById(1L)).thenReturn(Optional.of(owner));
+            when(platformConfigRepository.findByPlatformIdAndDeleted("jdms", (byte) 0)).thenReturn(Optional.of(platform));
+            when(shopService.updateShopAuthorizationUrl(eq(76L), any())).thenAnswer(invocation -> {
+                shop.setShopAuthorizationUrl(invocation.getArgument(1));
+                return shop;
+            });
+
+            ApiResponse<java.util.Map<String, String>> response = controller.openShopAuthorizationUrl(
+                    76L,
+                    1440,
+                    900,
+                    1.0,
+                    1.0,
+                    "remote-backend"
+            );
+
+            assertThat(response.getCode()).isEqualTo(200);
+            assertThat(requestedQuery.get()).contains("mode=remote-backend");
+            assertThat(java.net.URLDecoder.decode(requestedQuery.get(), java.nio.charset.StandardCharsets.UTF_8))
+                    .contains("url=https://store.jddj.com/")
+                    .doesNotContain("url=https://store.jddj.com/base/login");
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void jdProbeUsesMerchantHomeInsteadOfLoginUrl() throws Exception {
+        AuthContext.setUserId(1L);
+        Shop shop = shop(76L, 1L, "罗家臭豆腐（万家丽店）");
+        shop.setPlatform("jdms");
+        shop.setShopId("16081572");
+        User owner = user(1L, "USER");
+        PlatformConfig platform = new PlatformConfig();
+        platform.setPlatformId("jdms");
+        platform.setAuthorizationUrl("https://store.jddj.com/base/login");
+        AtomicReference<String> requestedQuery = new AtomicReference<>("");
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/probe", exchange -> {
+            requestedQuery.set(exchange.getRequestURI().getRawQuery());
+            byte[] body = """
+                    {"ok":true,"status":"AUTHORIZED","confidence":"HIGH","signals":{"page":{"url":"https://store.jddj.com/"}}}
+                    """.getBytes();
+            exchange.getResponseHeaders().add("Content-Type", "application/json");
+            exchange.sendResponseHeaders(200, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.close();
+        });
+        server.start();
+        try {
+            ReflectionTestUtils.setField(controller, "zrControlUrl", "http://127.0.0.1:" + server.getAddress().getPort());
+            when(shopService.findById(76L)).thenReturn(Optional.of(shop));
+            when(userService.findById(1L)).thenReturn(Optional.of(owner));
+            when(platformConfigRepository.findByPlatformIdAndDeleted("jdms", (byte) 0)).thenReturn(Optional.of(platform));
+            when(shopService.updateShopAuthorizationStatus(eq(76L), eq("AUTHORIZED"), any(), any())).thenAnswer(invocation -> {
+                shop.setShopAuthorizationStatus(invocation.getArgument(1));
+                shop.setShopAuthorizationSignals(invocation.getArgument(2));
+                shop.setShopAuthorizationCheckedAt(invocation.getArgument(3));
+                return shop;
+            });
+
+            ApiResponse<ShopAuthorizationProbeResponse> response = controller.probeShopAuthorization(76L);
+
+            assertThat(response.getCode()).isEqualTo(200);
+            assertThat(response.getData().getStatus()).isEqualTo("AUTHORIZED");
+            assertThat(java.net.URLDecoder.decode(requestedQuery.get(), java.nio.charset.StandardCharsets.UTF_8))
+                    .contains("url=https://store.jddj.com/")
+                    .doesNotContain("url=https://store.jddj.com/base/login");
         } finally {
             server.stop(0);
         }

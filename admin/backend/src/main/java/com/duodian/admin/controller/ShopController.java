@@ -66,7 +66,8 @@ public class ShopController {
     private static final int MAX_AUTH_VIEWPORT_WIDTH = 3840;
     private static final int MAX_AUTH_VIEWPORT_HEIGHT = 2160;
     private static final Map<String, String> PLATFORM_REMOTE_BACKEND_URLS = Map.of(
-            "mtwm", "https://waimaie.meituan.com/"
+            "mtwm", "https://waimaie.meituan.com/",
+            "jdms", "https://store.jddj.com/"
     );
     private static final Map<String, String> PLATFORM_PC_LOGIN_URLS = Map.of(
             "mtwm", "https://waimaie.meituan.com/new_fe/login_gw#/login",
@@ -682,7 +683,8 @@ public class ShopController {
             return saveAuthorizationProbeResult(id, "FAILED", "HIGH", errorSignals("missing_authorization_url"));
         }
         try {
-            JsonNode payload = requestBrowserControl("probe", owner, shop, authorizationUrl, Map.of());
+            String targetUrl = resolveAuthorizationTargetUrl(shop, authorizationUrl, "remote-backend");
+            JsonNode payload = requestBrowserControl("probe", owner, shop, targetUrl, Map.of());
             String status = normalizeAuthorizationStatus(payload.path("status").asText("UNKNOWN"));
             if (!payload.path("ok").asBoolean(false) && !"UNAUTHORIZED".equals(status)) {
                 status = "FAILED";
