@@ -2,17 +2,42 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: milestone
-status: Phase 21 completed and deployed to intranet admin
-last_updated: "2026-06-24T19:16:00+08:00"
+status: Phase 23 completed with JD ingestion live-verified and JD risk-page limitation documented
+last_updated: "2026-06-27T20:45:00+08:00"
 progress:
-  total_phases: 11
-  completed_phases: 10
-  total_plans: 11
-  completed_plans: 11
+  total_phases: 12
+  completed_phases: 11
+  total_plans: 12
+  completed_plans: 12
   percent: 100
 ---
 
 ## Recent Changes
+
+### 2026-06-27: Phase 23 JD order ingestion completed
+
+- Implemented JD 秒送 `jdms` support in backend crawl targets, platform-dispatch scheduler, and a new Node/CDP collector using the existing Phase 19 profile chain and Phase 21 `/shop-orders/ingest` contract.
+- Live JD evidence used `https://store.jddj.com/plus/order/all` and `dsm.o2o.order.cater.pcAllOrderListQuery`; orders are filtered by `basicVo.stationNo` to avoid 京东“全部门店”串店.
+- Deployed only the intranet development/test stack: backend on `hewp@172.20.0.13`, scripts on crawler `ubuntu@192.168.0.210` via `ubuntu@zhirang-dev`.
+- Manual scheduler verification inserted 6 JD rows for `shop_id=76/platform=jdms`; a separate collector sample captured 4 pages, 34 raw orders, and 7 target-shop orders without sensitive field leakage.
+- Documented the current JD platform limitation: repeated paging can redirect to 京东 risk verification (`验证一下，购物无忧 快速验证`). The collector now treats incomplete pagination as failure and does not submit partial payloads.
+- Canonical completion record: `.planning/phases/23-jd-order-ingestion/23-SUMMARY.md`.
+
+### Roadmap Evolution
+
+- Phase 23 completed: 京东秒送订单采集入库
+
+### 2026-06-27: Phase 23 JD order ingestion planned
+
+- Promoted the Phase 21 V2 idea for non-Meituan order collectors into Phase 23, focused specifically on JD 秒送 authorized-order ingestion.
+- Locked the scope to reuse the existing Phase 21 `shop_orders` table, `/shop-orders/ingest` API, and super-admin order page instead of adding a separate JD order surface.
+- Planned backend crawl-target eligibility for `jdms`, scheduler platform dispatch, a new JD Node/CDP collector/parser, JD idempotent update tests, and intranet verification on `172.20.0.13` plus crawler server `192.168.0.210`.
+- Preserved the environment boundary: no online `zhirang-dev` app deployment or restart without explicit user approval.
+- Canonical plan document: `.planning/phases/23-jd-order-ingestion/23-PLAN.md`.
+
+### Roadmap Evolution
+
+- Phase 23 added: 京东秒送订单采集入库
 
 ### 2026-06-24: Phase 21 shop order ingestion completed
 

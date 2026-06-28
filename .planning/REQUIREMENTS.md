@@ -46,12 +46,23 @@
 - [ ] **PH22-D09**: 完成后必须在 OPPO 真机用二公子和贺伟平两个账号交替登录、刷新和打开店铺，验证店铺基础信息、登录态和 engine 目录不会互相覆盖；测试密码不得写入仓库。
 - [ ] **PH22-D10**: APP 店铺卡片拖拽排序保存时必须只提交同一 `packageName + platform` 范围内的店铺 ID，京东秒送店铺不能因列表中混有其它平台而触发“一次只能调整同一平台下的店铺排序”。
 
+### JD Order Ingestion
+
+- [x] **PH23-D01**: 定时订单采集必须支持京东秒送 `jdms` 已授权店铺，不能只采集美团 `mtwm` 店铺。
+- [x] **PH23-D02**: 京东订单采集必须复用 Phase 19 授权 profile 和 Phase 21 `/shop-orders/ingest` 入库契约，每条订单继续关联系统 `shops.id`。
+- [x] **PH23-D03**: 京东采集器实现前必须先用真实已授权京东 profile 抓取订单页 DOM/API 样本，确认订单列表入口、字段来源、空订单状态和登录失效状态。
+- [x] **PH23-D04**: 京东订单映射必须尽可能填充现有 `shop_orders` 字段，包括平台订单号、订单序号、状态、下单/完成/取消/退款时间、金额、顾客/地址/商品/配送信息和原始业务载荷。
+- [x] **PH23-D05**: 京东重复采集必须按 `shop_id + platform + platform_order_id` 更新同一订单；订单状态从新下单、配送中到完成/取消/退款变化时不得新增重复行。
+- [x] **PH23-D06**: 调度脚本必须支持按平台选择不同采集器，当前至少支持 `mtwm` 和 `jdms`，并继续跳过未授权、未知、失败或缺少用户手机号/profile ID 的店铺。
+- [x] **PH23-D07**: 京东采集失败、登录态失效、页面结构变化或没有订单时必须写清楚诊断输出，但不能记录 cookie、token、profile 路径、浏览器存储或授权信号等凭据。
+- [x] **PH23-D08**: Phase 23 必须包含京东 parser/collector 单元测试、调度器平台分发测试、后端目标列表测试，以及内网环境真实京东授权店铺的手动或自动化采集入库验证。
+
 ## v2 Requirements
 
 ### Order Analytics
 
 - **PH21-V2-01**: 后续可以在订单入库基础上增加经营日报、复购分析、菜品排行和异常订单告警。
-- **PH21-V2-02**: 后续可以支持非美团平台订单采集器，但 Phase 21 只要求基于现有美团爬虫链路落地。
+- [promoted to Phase 23] **PH21-V2-02**: 后续可以支持非美团平台订单采集器，但 Phase 21 只要求基于现有美团爬虫链路落地。
 - **PH21-V2-03**: 后续可以为渠道管理员提供渠道范围订单统计，但 Phase 21 只开放给超管。
 
 ## Out of Scope
@@ -99,12 +110,20 @@
 | PH22-D08 | Phase 22 | Pending |
 | PH22-D09 | Phase 22 | Pending |
 | PH22-D10 | Phase 22 | Pending |
+| PH23-D01 | Phase 23 | Complete |
+| PH23-D02 | Phase 23 | Complete |
+| PH23-D03 | Phase 23 | Complete |
+| PH23-D04 | Phase 23 | Complete |
+| PH23-D05 | Phase 23 | Complete |
+| PH23-D06 | Phase 23 | Complete |
+| PH23-D07 | Phase 23 | Complete |
+| PH23-D08 | Phase 23 | Complete |
 
 **Coverage:**
-- v1.3 requirements: 30 total
-- Mapped to phases: 30
+- v1.3 requirements: 38 total
+- Mapped to phases: 38
 - Unmapped: 0
 
 ---
 *Requirements restored: 2026-06-24*
-*Last updated: 2026-06-26 for Phase 22 planning*
+*Last updated: 2026-06-27 for Phase 23 completion*

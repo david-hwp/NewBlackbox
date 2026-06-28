@@ -377,3 +377,29 @@
 - 回归验证覆盖小米真机和 OPPO 真机，以及后端单元测试、APP/engine 编译和登录态上报链路测试。
 
 **验证**: Wave 1 必须先输出小米与 OPPO 当前真实数据矩阵，确认 `userId + cloneInstanceId` 能唯一定位店铺且 `localVirtualUserId` 差异只存在于设备本地；实现后在 OPPO 真机用二公子和贺伟平两个账号交替登录、刷新和打开店铺，确认服务端店铺基础信息、登录态和 engine 目录不串号。
+
+### Phase 23: 京东秒送订单采集入库 ✅ 已完成 (2026-06-27)
+
+**目标**: 将 Phase 21 已落地的订单入库/查询能力从美团外卖扩展到京东秒送，让半小时定时脚本采集所有已授权 `jdms` 店铺的今日订单并通过现有 `/shop-orders/ingest` 入库，订单继续关联后台系统 `shops.id`，并在现有“店铺订单”页面中可按平台/店铺筛选查看。
+
+**Requirements**: PH23-D01, PH23-D02, PH23-D03, PH23-D04, PH23-D05, PH23-D06, PH23-D07, PH23-D08
+**Depends on:** Phase 19 remote browser/profile chain; Phase 21 shop order ingestion; current JD remote backend authorization detection
+**Plans:** 1 plan
+
+**关键交付物**:
+
+- 后端 `/shop-orders/crawl-targets` 支持返回已授权京东秒送 `jdms` 店铺，同时保留美团 `mtwm` 行为。
+- 定时调度脚本从美团单平台改为按平台分发采集器，当前支持 `mtwm` 和 `jdms`，并继续跳过未授权、未知、失败或缺少 profile 信息的店铺。
+- 新增京东秒送 Node/CDP 订单采集器，基于真实已授权 JD profile 先抓取订单页 DOM/API 样本，再实现字段解析和入库 payload 映射。
+- 京东订单通过现有 `shop_orders` 表和 `/shop-orders/ingest` 入库，按 `shop_id + platform + platform_order_id` 幂等 upsert，订单状态变化更新同一行。
+- 京东采集输出和 raw payload 只保存业务订单数据，不记录 cookie、token、profile 路径、浏览器 storage、CDP debugPort 或授权信号。
+- 内网开发测试环境验证：`172.20.0.13` 管理后台和 `192.168.0.210` 爬虫服务器手动跑一次调度，确认京东授权店铺被尝试采集并能在“店铺订单”页面按 `platform=jdms` 查看。
+
+**验证**: 后端 `ShopOrderControllerTest`/`ShopOrderServiceTest` 通过；调度器 Python 测试通过；京东 Node/CDP parser 测试通过；爬虫服务器手动运行调度并验证 JD 目标，内网 `shop_orders` 已插入 `shop_id=76/platform=jdms` 的 6 条订单；不部署或重启线上 `zhirang-dev` app 环境。
+
+**已知限制**: 京东连续翻页采集会触发平台风控页 `验证一下，购物无忧 快速验证`。采集器已改为分页不完整时失败退出，不提交部分 payload，避免误报成功或覆盖已有订单；后续优化应优先做单店筛选后再采集，减少分页次数。
+
+**计划文档**: [.planning/phases/23-jd-order-ingestion/23-PLAN.md](.planning/phases/23-jd-order-ingestion/23-PLAN.md)
+**上下文文档**: [.planning/phases/23-jd-order-ingestion/23-CONTEXT.md](.planning/phases/23-jd-order-ingestion/23-CONTEXT.md)
+**调研文档**: [.planning/phases/23-jd-order-ingestion/23-RESEARCH.md](.planning/phases/23-jd-order-ingestion/23-RESEARCH.md)
+**完成总结**: [.planning/phases/23-jd-order-ingestion/23-SUMMARY.md](.planning/phases/23-jd-order-ingestion/23-SUMMARY.md)

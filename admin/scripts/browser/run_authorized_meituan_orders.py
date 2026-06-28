@@ -14,6 +14,10 @@ from typing import Any
 
 
 HEADER_NAME = "X-External-Callback-Token"
+SUPPORTED_PLATFORM_COLLECTORS = {
+    "mtwm": "fetch_meituan_orders_node_cdp.js",
+    "jdms": "fetch_jd_orders_node_cdp.js",
+}
 
 
 def log(message: str) -> None:
@@ -64,7 +68,7 @@ def is_supported_target(target: dict[str, Any]) -> bool:
         target.get("systemShopId")
         and target.get("userPhone")
         and target.get("controlShopId")
-        and target.get("platform") == "mtwm"
+        and target.get("platform") in SUPPORTED_PLATFORM_COLLECTORS
     )
 
 
@@ -88,6 +92,10 @@ def cleanup_old_shop_files(shop_output: Path, retention_days: int, *, now: datet
 
 def run_node_collector(args: argparse.Namespace, target: dict[str, Any]) -> dict[str, Any]:
     system_shop_id = str(target["systemShopId"])
+    platform = str(target.get("platform") or "")
+    collector_name = SUPPORTED_PLATFORM_COLLECTORS.get(platform)
+    if not collector_name:
+        raise RuntimeError(f"unsupported platform: {platform}")
     shop_output = args.output_dir / f"shop-{system_shop_id}"
     shop_output.mkdir(parents=True, exist_ok=True)
     removed = cleanup_old_shop_files(shop_output, args.output_retention_days)
@@ -102,11 +110,13 @@ def run_node_collector(args: argparse.Namespace, target: dict[str, Any]) -> dict
             "ZR_SHOP_PHONE": str(target["userPhone"]),
             "ZR_SHOP_ID": str(target["controlShopId"]),
             "ZR_SHOP_NAME": str(target.get("shopName") or f"shop-{system_shop_id}"),
+            "ZR_PLATFORM": platform,
             "OUTPUT_DIR": str(shop_output),
         }
     )
+    node_script = args.base_dir / collector_name
     completed = subprocess.run(
-        ["node", str(args.node_script)],
+        ["node", str(node_script)],
         env=env,
         text=True,
         stdout=subprocess.PIPE,
@@ -141,7 +151,11 @@ def submit_payload(args: argparse.Namespace, payload_path: Path) -> dict[str, An
 
 def run(args: argparse.Namespace) -> int:
     targets = load_targets(args)
-    log(f"authorized mtwm crawl targets={len(targets)}")
+    by_platform: dict[str, int] = {}
+    for target in targets:
+        platform = str(target.get("platform") or "")
+        by_platform[platform] = by_platform.get(platform, 0) + 1
+    log(f"authorized order crawl targets={len(targets)} platforms={by_platform}")
     failures = 0
     totals = {"received": 0, "inserted": 0, "updated": 0, "rejected": 0}
     for target in targets:
@@ -154,14 +168,14 @@ def run(args: argparse.Namespace) -> int:
             for key in totals:
                 totals[key] += int(data.get(key) or 0)
             log(
-                f"shop={system_shop_id} ok labels={collection.get('labels', 0)} "
+                f"platform={target.get('platform')} shop={system_shop_id} ok labels={collection.get('labels', 0)} "
                 f"orders={collection.get('orders', 0)} "
                 f"received={data.get('received', 0)} inserted={data.get('inserted', 0)} "
                 f"updated={data.get('updated', 0)} rejected={data.get('rejected', 0)}"
             )
         except Exception as exc:
             failures += 1
-            log(f"shop={system_shop_id} failed: {exc}")
+            log(f"platform={target.get('platform')} shop={system_shop_id} failed: {exc}")
     log(
         f"done targets={len(targets)} failures={failures} "
         f"received={totals['received']} inserted={totals['inserted']} "
@@ -171,7 +185,7 @@ def run(args: argparse.Namespace) -> int:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Collect today's Meituan orders for all authorized shops")
+    parser = argparse.ArgumentParser(description="Collect today's orders for all authorized supported shops")
     base_dir = Path(os.environ.get("ZR_BASE_DIR", "/home/ubuntu/data"))
     parser.add_argument("--base-dir", type=Path, default=base_dir)
     parser.add_argument("--backend-url", default=os.environ.get("ZR_BACKEND_URL", "http://100.99.88.2:8006/api"))
@@ -185,7 +199,6 @@ def parse_args() -> argparse.Namespace:
         default=int(os.environ.get("ZR_ORDER_OUTPUT_RETENTION_DAYS", "7")),
         help="Delete per-shop output files older than this many days before writing new files; negative disables cleanup.",
     )
-    parser.add_argument("--node-script", type=Path, default=base_dir / "fetch_meituan_orders_node_cdp.js")
     parser.add_argument("--collect-timeout-seconds", type=int, default=int(os.environ.get("ZR_COLLECT_TIMEOUT_SECONDS", "180")))
     args = parser.parse_args()
     if not args.external_callback_token:

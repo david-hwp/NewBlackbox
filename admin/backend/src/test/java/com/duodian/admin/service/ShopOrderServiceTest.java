@@ -104,23 +104,24 @@ class ShopOrderServiceTest {
     @Test
     void authorizedCrawlTargetsReturnOnlyAuthorizedSupportedShopsWithSystemProfileIds() {
         Shop authorized = shop();
-        Shop unsupported = shop();
-        unsupported.setId(195L);
-        unsupported.setPlatform("jdms");
+        Shop jdAuthorized = jdShop();
         User owner = new User();
         owner.setId(10L);
         owner.setPhone("15200837196");
-        when(shopRepository.findAuthorizedOrderCrawlTargets((byte) 0, java.util.Set.of("mtwm")))
-                .thenReturn(List.of(authorized));
+        when(shopRepository.findAuthorizedOrderCrawlTargets((byte) 0, java.util.Set.of("mtwm", "jdms")))
+                .thenReturn(List.of(authorized, jdAuthorized));
         when(userRepository.findByIdAndDeleted(10L, (byte) 0)).thenReturn(Optional.of(owner));
 
         var targets = service.authorizedCrawlTargets();
 
-        assertThat(targets).hasSize(1);
+        assertThat(targets).hasSize(2);
         assertThat(targets.get(0).getSystemShopId()).isEqualTo(194L);
         assertThat(targets.get(0).getUserPhone()).isEqualTo("15200837196");
         assertThat(targets.get(0).getControlShopId()).isEqualTo("15397100");
         assertThat(targets.get(0).getPlatform()).isEqualTo("mtwm");
+        assertThat(targets.get(1).getSystemShopId()).isEqualTo(76L);
+        assertThat(targets.get(1).getControlShopId()).isEqualTo("16081572");
+        assertThat(targets.get(1).getPlatform()).isEqualTo("jdms");
     }
 
     @Test
@@ -130,7 +131,7 @@ class ShopOrderServiceTest {
         User owner = new User();
         owner.setId(10L);
         owner.setPhone("15200837196");
-        when(shopRepository.findAuthorizedOrderCrawlTargets((byte) 0, java.util.Set.of("mtwm")))
+        when(shopRepository.findAuthorizedOrderCrawlTargets((byte) 0, java.util.Set.of("mtwm", "jdms")))
                 .thenReturn(List.of(shop));
         when(userRepository.findByIdAndDeleted(10L, (byte) 0)).thenReturn(Optional.of(owner));
 
@@ -162,9 +163,71 @@ class ShopOrderServiceTest {
                 .hasMessage("店铺不存在");
     }
 
+    @Test
+    void ingestBatchUpsertsJdOrderAndPreservesExistingDetails() {
+        Shop jdShop = jdShop();
+        when(shopRepository.findByIdAndDeleted(76L, (byte) 0)).thenReturn(Optional.of(jdShop));
+        when(shopOrderRepository.findByShopIdAndPlatformAndPlatformOrderIdAndDeleted(76L, "jdms", "3542401007390110", (byte) 0))
+                .thenReturn(Optional.empty());
+        when(shopOrderRepository.save(any(ShopOrder.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        ShopOrderIngestRequest.OrderItem first = jdOrder("3542401007390110", "骑手已取餐", LocalDateTime.of(2026, 6, 27, 20, 49));
+        ObjectNode raw = objectMapper.createObjectNode();
+        raw.put("orderId", "3542401007390110");
+        raw.put("stationNo", "16081572");
+        raw.put("token", "secret");
+        first.setRawPayload(raw);
+
+        ShopOrderIngestResponse inserted = service.ingestBatch(requestForShop(76L, first));
+
+        assertThat(inserted.getInserted()).isEqualTo(1);
+        verify(shopOrderRepository).save(argThat(order ->
+                "jdms".equals(order.getPlatform())
+                        && "3542401007390110".equals(order.getPlatformOrderId())
+                        && "骑手已取餐".equals(order.getStatus())
+                        && "罗家臭豆腐（万家丽店）".equals(order.getShopName())
+                        && "16081572".equals(order.getPlatformShopId())
+                        && order.getRawPayload().contains("stationNo")
+                        && !order.getRawPayload().contains("token")
+        ));
+
+        ShopOrder existing = new ShopOrder();
+        existing.setId(77L);
+        existing.setShopId(76L);
+        existing.setPlatform("jdms");
+        existing.setPlatformOrderId("3542401007390110");
+        existing.setCustomerName("李**");
+        existing.setAddress("长沙市");
+        existing.setEstimatedIncome(new BigDecimal("15.95"));
+        reset(shopOrderRepository);
+        when(shopOrderRepository.findByShopIdAndPlatformAndPlatformOrderIdAndDeleted(76L, "jdms", "3542401007390110", (byte) 0))
+                .thenReturn(Optional.of(existing));
+
+        ShopOrderIngestRequest.OrderItem second = new ShopOrderIngestRequest.OrderItem();
+        second.setPlatformOrderId("3542401007390110");
+        second.setStatus("用户已收餐");
+        second.setCompletedAt(LocalDateTime.of(2026, 6, 27, 21, 4));
+        ShopOrderIngestResponse updated = service.ingestBatch(requestForShop(76L, second));
+
+        assertThat(updated.getInserted()).isZero();
+        assertThat(updated.getUpdated()).isEqualTo(1);
+        verify(shopOrderRepository).save(argThat(order ->
+                order.getId().equals(77L)
+                        && "用户已收餐".equals(order.getStatus())
+                        && LocalDateTime.of(2026, 6, 27, 21, 4).equals(order.getCompletedAt())
+                        && "李**".equals(order.getCustomerName())
+                        && "长沙市".equals(order.getAddress())
+                        && new BigDecimal("15.95").compareTo(order.getEstimatedIncome()) == 0
+        ));
+    }
+
     private ShopOrderIngestRequest request(ShopOrderIngestRequest.OrderItem... orders) {
+        return requestForShop(194L, orders);
+    }
+
+    private ShopOrderIngestRequest requestForShop(Long shopId, ShopOrderIngestRequest.OrderItem... orders) {
         ShopOrderIngestRequest request = new ShopOrderIngestRequest();
-        request.setShopId(194L);
+        request.setShopId(shopId);
         request.setSource("fetch_meituan_orders");
         request.setIngestBatchId("batch-1");
         request.setOrders(List.of(orders));
@@ -192,6 +255,29 @@ class ShopOrderServiceTest {
         return order;
     }
 
+    private ShopOrderIngestRequest.OrderItem jdOrder(String orderId, String status, LocalDateTime expectedAt) {
+        ShopOrderIngestRequest.OrderItem order = new ShopOrderIngestRequest.OrderItem();
+        order.setPlatformOrderId(orderId);
+        order.setPlatformOrderNo("8");
+        order.setOrderSequence("8");
+        order.setOrderTimeText("06-27 20:49前送达");
+        order.setExpectedDeliveryAt(expectedAt);
+        order.setOrderedAt(LocalDateTime.of(2026, 6, 27, 19, 58));
+        order.setFetchedAt(LocalDateTime.of(2026, 6, 27, 20, 50));
+        order.setStatus(status);
+        order.setEstimatedIncome(new BigDecimal("15.95"));
+        order.setMerchantIncome(new BigDecimal("15.95"));
+        order.setCustomerName("李**");
+        order.setCustomerPhoneTail("2650");
+        order.setAddress("长沙市");
+        order.setRecipientAddress("长沙市");
+        order.setDeliveryType("达达专送");
+        order.setItemSummary("2种商品，共2件");
+        order.setItemCount(2);
+        order.setRawText("订单编号：" + orderId);
+        return order;
+    }
+
     private Shop shop() {
         Shop shop = new Shop();
         shop.setId(194L);
@@ -201,6 +287,18 @@ class ShopOrderServiceTest {
         shop.setShopId("15397100");
         shop.setPlatform("mtwm");
         shop.setPlatformName("美团外卖");
+        return shop;
+    }
+
+    private Shop jdShop() {
+        Shop shop = new Shop();
+        shop.setId(76L);
+        shop.setUserId(10L);
+        shop.setChannelId(2L);
+        shop.setShopName("罗家臭豆腐（万家丽店）");
+        shop.setShopId("16081572");
+        shop.setPlatform("jdms");
+        shop.setPlatformName("京东秒送");
         return shop;
     }
 }
