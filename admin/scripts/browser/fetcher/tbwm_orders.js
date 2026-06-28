@@ -41,7 +41,7 @@ function money(value) {
   if (typeof value === 'object') {
     const cent = firstNonBlank(value.cent, value.cents, value.amountCent, value.priceCent, value.feeCent);
     if (cent !== null && /^-?\d+(\.\d+)?$/.test(cent)) return Number(cent) / 100;
-    return money(firstNonBlank(value.amount, value.price, value.fee, value.value, value.text));
+    return money(firstNonBlank(value.amount, value.price, value.fee, value.total, value.totalAmount, value.value, value.text));
   }
   const normalized = text(value).replace(/,/g, '');
   const match = normalized.match(/-?\d+(?:\.\d+)?/);
@@ -127,8 +127,34 @@ function objectText(value, maxLength = 3000) {
   }
 }
 
+function getPath(object, path) {
+  if (!object || !path) return null;
+  return String(path).split('.').reduce((current, key) => {
+    if (!current || typeof current !== 'object') return null;
+    return current[key];
+  }, object);
+}
+
+function firstMoney(...values) {
+  for (const value of values) {
+    const parsed = money(value);
+    if (parsed !== null) return parsed;
+  }
+  return null;
+}
+
+function looksLikeTbwmFulfillOrder(object) {
+  if (!object || typeof object !== 'object' || Array.isArray(object)) return false;
+  return Boolean(
+    text(object.id)
+    && text(object.shopId)
+    && (object.header || object.userInfo || object.foodInfo || object.settlementInfo || object.deliveryInfo || object.printDataInfo)
+  );
+}
+
 function hasOrderIdentity(object) {
   if (!object || typeof object !== 'object' || Array.isArray(object)) return false;
+  if (looksLikeTbwmFulfillOrder(object)) return true;
   return Object.entries(object).some(([key, value]) => (
     /(order|wmorder|bizorder|trade).*(id|no|number)|^(orderId|orderNo|wmOrderId|bizOrderId|tradeId)$/i.test(key)
     && text(value)
@@ -137,6 +163,7 @@ function hasOrderIdentity(object) {
 
 function looksLikeOrder(object) {
   if (!object || typeof object !== 'object' || Array.isArray(object)) return false;
+  if (looksLikeTbwmFulfillOrder(object)) return true;
   if (!hasOrderIdentity(object)) return false;
   const sample = objectText(object);
   return /(status|state|time|amount|price|fee|customer|buyer|receiver|address|goods|item|dish|订单|顾客|商品|地址)/i.test(sample);
@@ -227,37 +254,60 @@ function extractPhoneTail(value) {
 }
 
 function parseTbwmOrder(order, targetShopId = CONTROL_SHOP_ID) {
+  const isFulfillOrder = looksLikeTbwmFulfillOrder(order);
   const shopId = firstNonBlank(findDeep(order, [
     'shopId', 'shop_id', 'storeId', 'store_id', 'restaurantId', 'restaurant_id',
     'sellerId', 'seller_id', 'poiId', 'poi_id', 'wmPoiId', 'wm_poi_id',
   ]));
   if (targetShopId && shopId && shopId !== String(targetShopId)) return null;
-  const orderId = firstNonBlank(findDeep(order, [
+  const orderId = firstNonBlank(
+    isFulfillOrder ? order.id : null,
+    findDeep(order, [
     'orderId', 'order_id', 'wmOrderId', 'wm_order_id', 'bizOrderId', 'biz_order_id',
     'tradeId', 'trade_id', 'platformOrderId', 'platform_order_id',
-  ]));
+    ]),
+  );
   if (!orderId) return null;
-  const orderNo = firstNonBlank(findDeep(order, [
+  const orderNo = firstNonBlank(
+    isFulfillOrder ? getPath(order, 'header.daySn') : null,
+    isFulfillOrder ? getPath(order, 'header.historyDaySn') : null,
+    findDeep(order, [
     'orderNo', 'order_no', 'orderNumber', 'order_number', 'displayOrderNo',
-    'sequence', 'orderSequence', 'serialNo', 'daySeq',
-  ]));
-  const status = firstNonBlank(findDeep(order, [
+    'sequence', 'orderSequence', 'serialNo', 'daySeq', 'daySn',
+    ]),
+  );
+  const status = firstNonBlank(
+    isFulfillOrder ? getPath(order, 'header.orderLatestStatus') : null,
+    isFulfillOrder ? getPath(order, 'headerExtraInfo.statusDesc') : null,
+    findDeep(order, [
     'statusText', 'status_text', 'orderStatusText', 'order_status_text',
     'statusDesc', 'status_desc', 'stateDesc', 'state_desc', 'statusName',
     'orderStatus', 'status', 'state',
-  ]));
-  const orderedAt = parseTime(findDeep(order, [
+    ]),
+  );
+  const orderedAt = parseTime(firstNonBlank(
+    isFulfillOrder ? order.activeTime : null,
+    findDeep(order, [
     'orderedAt', 'ordered_at', 'orderTime', 'order_time', 'createTime', 'createdAt',
-    'gmtCreate', 'placeOrderTime', 'orderCreatedAt', 'bookTime',
-  ]));
-  const expectedAt = parseTime(findDeep(order, [
+    'gmtCreate', 'placeOrderTime', 'orderCreatedAt', 'bookTime', 'activeTime',
+    ]),
+  ));
+  const expectedAt = parseTime(firstNonBlank(
+    isFulfillOrder ? getPath(order, 'header.planDeliverTime') : null,
+    isFulfillOrder ? getPath(order, 'header.historyPredictDeliveryTime') : null,
+    findDeep(order, [
     'expectedDeliveryAt', 'expected_delivery_at', 'expectTime', 'expectedTime',
     'promiseTime', 'deliveryTime', 'estimatedDeliveryTime', 'estimateArriveTime',
-  ]));
-  const completedAt = parseTime(findDeep(order, [
+    'planDeliverTime', 'historyPredictDeliveryTime',
+    ]),
+  ));
+  const completedAt = parseTime(firstNonBlank(
+    isFulfillOrder ? order.settledTime : null,
+    findDeep(order, [
     'completedAt', 'completed_at', 'finishTime', 'completeTime', 'completedTime',
-    'arriveTime', 'deliveredTime',
-  ]));
+    'arriveTime', 'deliveredTime', 'settledTime',
+    ]),
+  ));
   const cancelledAt = parseTime(findDeep(order, ['cancelledAt', 'cancelled_at', 'cancelTime', 'cancelledTime']));
   const refundedAt = parseTime(findDeep(order, ['refundedAt', 'refunded_at', 'refundTime', 'refundedTime']));
   const customerName = firstNonBlank(findDeep(order, [
@@ -266,7 +316,8 @@ function parseTbwmOrder(order, targetShopId = CONTROL_SHOP_ID) {
   ]));
   const customerPhone = firstNonBlank(findDeep(order, [
     'privacyPhone', 'privacy_phone', 'virtualPhone', 'phone', 'customerPhone',
-    'receiverPhone', 'recipientPhone', 'consigneePhone',
+    'receiverPhone', 'recipientPhone', 'consigneePhone', 'consigneeSecretPhones',
+    'ticketCustomerPhones',
   ]));
   const address = firstNonBlank(findDeep(order, [
     'address', 'recipientAddress', 'recipient_address', 'receiverAddress',
@@ -305,20 +356,20 @@ function parseTbwmOrder(order, targetShopId = CONTROL_SHOP_ID) {
     status_text: status,
     order_type: firstNonBlank(findDeep(order, ['orderType', 'order_type', 'bizType', 'type'])),
     tags_json: buildTags(order),
-    estimated_income: money(findDeep(order, ['estimatedIncome', 'estimated_income', 'merchantIncome', 'merchant_income', 'shopAmount', 'settleAmount', 'income'])),
-    customer_paid_amount: money(findDeep(order, ['customerPaidAmount', 'customer_paid_amount', 'userPayAmount', 'payAmount', 'actualPayAmount', 'customerAmount', 'totalAmount'])),
-    merchant_income: money(findDeep(order, ['merchantIncome', 'merchant_income', 'shopAmount', 'settleAmount', 'income', 'estimatedIncome'])),
-    original_amount: money(findDeep(order, ['originalAmount', 'original_amount', 'originAmount', 'totalAmount', 'orderAmount'])),
-    discount_amount: money(findDeep(order, ['discountAmount', 'discount_amount', 'discountFee', 'activityDiscount'])),
-    delivery_fee: money(findDeep(order, ['deliveryFee', 'delivery_fee', 'shippingFee', 'freight'])),
-    package_fee: money(findDeep(order, ['packageFee', 'package_fee', 'packingFee', 'boxFee'])),
+    estimated_income: firstMoney(getPath(order, 'settlementInfo.expectedIncomeInfo'), findDeep(order, ['estimatedIncome', 'estimated_income', 'merchantIncome', 'merchant_income', 'shopAmount', 'settleAmount', 'income'])),
+    customer_paid_amount: firstMoney(getPath(order, 'settlementInfo.customerPaidInfo'), getPath(order, 'printDataInfo.payAmount'), findDeep(order, ['customerPaidAmount', 'customer_paid_amount', 'userPayAmount', 'payAmount', 'actualPayAmount', 'customerAmount', 'totalAmount'])),
+    merchant_income: firstMoney(getPath(order, 'settlementInfo.expectedIncomeInfo'), findDeep(order, ['merchantIncome', 'merchant_income', 'shopAmount', 'settleAmount', 'income', 'estimatedIncome'])),
+    original_amount: firstMoney(getPath(order, 'settlementInfo.orderTotalPrice'), getPath(order, 'settlementInfo.subTotalFeeInfo'), getPath(order, 'printDataInfo.ticketPrintContext.totalAmount'), findDeep(order, ['originalAmount', 'original_amount', 'originAmount', 'totalAmount', 'orderAmount'])),
+    discount_amount: firstMoney(getPath(order, 'settlementInfo.merchantItemActivityInfo'), findDeep(order, ['discountAmount', 'discount_amount', 'discountFee', 'activityDiscount'])),
+    delivery_fee: firstMoney(getPath(order, 'foodInfo.deliveryFee'), findDeep(order, ['deliveryFee', 'delivery_fee', 'shippingFee', 'freight'])),
+    package_fee: firstMoney(getPath(order, 'foodInfo.packageFee'), findDeep(order, ['packageFee', 'package_fee', 'packingFee', 'boxFee'])),
     refund_amount: money(findDeep(order, ['refundAmount', 'refund_amount', 'refundFee'])),
     customer_name: customerName,
     customer_phone_tail: extractPhoneTail(customerPhone),
     privacy_phone: customerPhone,
     address,
     recipient_address: address,
-    delivery_type: firstNonBlank(findDeep(order, ['deliveryType', 'delivery_type', 'logisticsType', 'shippingType'])),
+    delivery_type: firstNonBlank(findDeep(order, ['deliveryType', 'delivery_type', 'logisticsType', 'shippingType', 'disDeliveryName'])),
     rider_name: firstNonBlank(findDeep(order, ['riderName', 'rider_name', 'courierName', 'deliverymanName'])),
     rider_phone: firstNonBlank(findDeep(order, ['riderPhone', 'rider_phone', 'courierPhone', 'deliverymanPhone'])),
     remark: firstNonBlank(findDeep(order, ['remark', 'note', 'buyerRemark', 'customerRemark'])),
@@ -360,7 +411,49 @@ function safeUrl(url) {
   }
 }
 
+async function clickExactMenuEntry(page, label) {
+  return page.evaluate((targetLabel) => {
+    const normalize = (value) => (value || '').replace(/\s+/g, '');
+    const isVisible = (el) => {
+      const rect = el.getBoundingClientRect();
+      const style = getComputedStyle(el);
+      return rect.width > 1
+        && rect.height > 1
+        && style.display !== 'none'
+        && style.visibility !== 'hidden';
+    };
+    const candidates = Array.from(document.querySelectorAll('a,button,[role=menuitem],li,div,span'))
+      .filter((el) => {
+        const textValue = normalize(el.innerText || el.textContent || '');
+        return isVisible(el) && textValue === targetLabel;
+      })
+      .map((el) => {
+        const rect = el.getBoundingClientRect();
+        const role = el.getAttribute('role') || '';
+        const tag = el.tagName || '';
+        const score = (role === 'menuitem' ? 0 : 10)
+          + (tag === 'LI' ? 1 : tag === 'SPAN' ? 2 : tag === 'A' ? 3 : tag === 'BUTTON' ? 3 : 5)
+          + ((rect.width * rect.height) / 100000);
+        return { el, rect, role, tag, score };
+      })
+      .sort((left, right) => left.score - right.score);
+    if (!candidates.length) return { clicked: false, label: targetLabel };
+    const target = candidates[0];
+    target.el.scrollIntoView({ block: 'center', inline: 'center' });
+    target.el.click();
+    return {
+      clicked: true,
+      label: targetLabel,
+      tag: target.tag,
+      role: target.role,
+      text: (target.el.innerText || target.el.textContent || '').trim().slice(0, 80),
+    };
+  }, label).catch((error) => ({ clicked: false, label, error: text(error?.message) }));
+}
+
 async function clickOrderEntry(page) {
+  const exactOrderManagement = await clickExactMenuEntry(page, '订单管理');
+  if (exactOrderManagement.clicked) return exactOrderManagement;
   return page.evaluate(() => {
     const candidates = Array.from(document.querySelectorAll('a,button,[role=menuitem],li,div,span'))
       .filter((el) => {
@@ -371,14 +464,15 @@ async function clickOrderEntry(page) {
           && rect.height > 1
           && style.display !== 'none'
           && style.visibility !== 'hidden'
-          && /订单|订单管理|历史订单|订单列表/.test(textValue);
+          && /订单管理|订单查询|历史订单|订单列表/.test(textValue)
+          && textValue.length <= 12;
       })
       .slice(0, 8);
-    if (!candidates.length) return { clicked: false };
+    if (!candidates.length) return { clicked: false, label: '订单管理' };
     const target = candidates[0];
     target.scrollIntoView({ block: 'center', inline: 'center' });
     target.click();
-    return { clicked: true, text: (target.innerText || target.textContent || '').trim().slice(0, 80) };
+    return { clicked: true, label: '订单管理', text: (target.innerText || target.textContent || '').trim().slice(0, 80) };
   }).catch((error) => ({ clicked: false, error: text(error?.message) }));
 }
 
@@ -410,6 +504,8 @@ async function collectOrders(page) {
   const clicks = [];
   clicks.push(await clickOrderEntry(page));
   await page.waitForTimeout(5000);
+  clicks.push(await clickExactMenuEntry(page, '订单查询'));
+  await page.waitForTimeout(10000);
   for (const url of ORDER_URLS) {
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => null);
     await page.waitForTimeout(5000);

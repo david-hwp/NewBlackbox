@@ -36,6 +36,55 @@ const SAMPLE_ORDER = {
   headers: { cookie: 'secret' },
 };
 
+const FULFILL_ORDER = {
+  id: '8075506179451027748',
+  shopId: '1184657317',
+  status: 'VALID',
+  activeTime: '2026-06-28T20:37:35',
+  settledTime: null,
+  header: {
+    daySn: '32',
+    orderType: 'ORDER_NORMAL',
+    orderPromptDesc: '21:25 前送达',
+    orderLatestStatus: '商家已出餐',
+    planDeliverTime: '1782653135000',
+  },
+  headerExtraInfo: { statusDesc: '' },
+  userInfo: {
+    consigneeName: '肖**',
+    consigneeSecretPhones: ['收餐人 137****8809'],
+    consigneeAddress: '开宇大厦(劳动西路)**D-**',
+    phoneAlertDescription: '18620418421转786（分机号）',
+  },
+  deliveryInfo: {
+    disDeliveryName: '蜂鸟专送',
+    distTraceView: {
+      timelines: [
+        { time: '20:37', status: '待分配配送商', keyTimeForSorted: '2026-06-28T20:37:36' },
+      ],
+    },
+  },
+  foodInfo: {
+    groups: [
+      {
+        name: '',
+        items: [
+          { name: '臭豆腐小份', price: '12.80', quantity: '1', total: '12.80' },
+        ],
+      },
+    ],
+    packageFee: '0',
+    deliveryFee: '0',
+  },
+  remarkInfo: { remark: '多加配菜和汤' },
+  settlementInfo: {
+    merchantItemActivityInfo: { total: '3.42', totalSign: 'NEGATIVE' },
+    expectedIncomeInfo: { total: '12.90' },
+    customerPaidInfo: { total: '16.90' },
+    orderTotalPrice: '20.32',
+  },
+};
+
 function testParseTbwmOrderMapsBusinessFields() {
   const item = parseTbwmOrder(SAMPLE_ORDER, '1184657317');
   assert(item);
@@ -66,6 +115,27 @@ function testParseTbwmOrderMapsBusinessFields() {
   assert(!raw.includes('secret-rider'));
 }
 
+function testParseTbwmFulfillOrderMapsBusinessFields() {
+  const item = parseTbwmOrder(FULFILL_ORDER, '1184657317');
+  assert(item);
+  assert.strictEqual(item.platform_order_id, '8075506179451027748');
+  assert.strictEqual(item.platform_order_no, '32');
+  assert.strictEqual(item.order_sequence, '32');
+  assert.strictEqual(item.status, '商家已出餐');
+  assert.strictEqual(item.ordered_at, '2026-06-28T20:37:35');
+  assert.strictEqual(item.customer_name, '肖**');
+  assert.strictEqual(item.customer_phone_tail, '8809');
+  assert.strictEqual(item.address, '开宇大厦(劳动西路)**D-**');
+  assert.strictEqual(item.delivery_type, '蜂鸟专送');
+  assert.strictEqual(item.remark, '多加配菜和汤');
+  assert.strictEqual(item.estimated_income, 12.9);
+  assert.strictEqual(item.customer_paid_amount, 16.9);
+  assert.strictEqual(item.original_amount, 20.32);
+  assert.strictEqual(item.discount_amount, 3.42);
+  assert.strictEqual(item.item_count, 1);
+  assert.strictEqual(item.items_json.length, 1);
+}
+
 function testParseTbwmOrderFiltersOtherShop() {
   assert.strictEqual(parseTbwmOrder(SAMPLE_ORDER, 'other-shop'), null);
 }
@@ -78,13 +148,15 @@ function testCollectOrderObjectsFindsNestedOrderLists() {
         rows: [
           SAMPLE_ORDER,
           { orderId: '501982734650272', shopId: '1184657317', statusText: '待配送', goodsList: [] },
+          FULFILL_ORDER,
         ],
       },
     },
   };
   const orders = collectOrderObjects(payload);
-  assert.strictEqual(orders.length, 2);
+  assert.strictEqual(orders.length, 3);
   assert.strictEqual(orders[0].orderId, '501982734650271');
+  assert.strictEqual(orders[2].id, '8075506179451027748');
 }
 
 function testClassifyPageAndMoney() {
@@ -111,6 +183,7 @@ function testSanitizeRemovesSensitiveKeysDeeply() {
 
 function main() {
   testParseTbwmOrderMapsBusinessFields();
+  testParseTbwmFulfillOrderMapsBusinessFields();
   testParseTbwmOrderFiltersOtherShop();
   testCollectOrderObjectsFindsNestedOrderLists();
   testClassifyPageAndMoney();
