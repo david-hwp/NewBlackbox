@@ -616,7 +616,7 @@ class BrowserControlHandler(BaseHTTPRequestHandler):
                     return
         try:
             completed = subprocess.run(
-                [self.server.probe_script],
+                ["node", self.server.probe_script],
                 env=env,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
