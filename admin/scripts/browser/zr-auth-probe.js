@@ -40,6 +40,62 @@ async function fetchJson(url) {
   return response.json();
 }
 
+function loadWebSocket() {
+  try {
+    return require("playwright-core/lib/utilsBundle").ws;
+  } catch (error) {
+    const extraProject = process.env.ZR_NODE_PROJECT || path.join(process.env.HOME || "", "data/browser");
+    const requireFromExtra = Module.createRequire(path.join(extraProject, "package.json"));
+    return requireFromExtra("playwright-core/lib/utilsBundle").ws;
+  }
+}
+
+function withTimeout(promise, timeoutMs, label) {
+  let timer = null;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${label}_timeout`)), timeoutMs);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
+async function connectWebSocket(url, timeoutMs = 3000) {
+  const WebSocket = loadWebSocket();
+  const socket = new WebSocket(url);
+  await withTimeout(new Promise((resolve, reject) => {
+    socket.once("open", resolve);
+    socket.once("error", reject);
+  }), timeoutMs, "cdp_connect");
+  return socket;
+}
+
+function sendCdp(socket, method, params = {}, timeoutMs = 3000) {
+  const id = ++sendCdp.nextId;
+  socket.send(JSON.stringify({ id, method, params }));
+  return withTimeout(new Promise((resolve, reject) => {
+    const cleanup = () => {
+      socket.off("message", onMessage);
+      socket.off("error", onError);
+    };
+    const onMessage = (data) => {
+      const message = JSON.parse(String(data));
+      if (message.id !== id) return;
+      cleanup();
+      if (message.error) {
+        reject(new Error(JSON.stringify(message.error)));
+      } else {
+        resolve(message.result || {});
+      }
+    };
+    const onError = (error) => {
+      cleanup();
+      reject(error);
+    };
+    socket.on("message", onMessage);
+    socket.once("error", onError);
+  }), timeoutMs, method);
+}
+sendCdp.nextId = 0;
+
 async function connectBrowser() {
   const started = Date.now();
   let lastError = null;
@@ -69,8 +125,31 @@ async function preparePlatformProbePage(page) {
   if (!["jdms", "tbwm"].includes(platform) || !AUTH_URL) {
     return;
   }
+  const currentUrl = page.url();
+  if (isLikelyBackendPage(platform, currentUrl)) {
+    return;
+  }
   await page.goto(AUTH_URL, { waitUntil: "domcontentloaded", timeout: TIMEOUT_MS }).catch(() => {});
   await page.waitForTimeout(2000);
+}
+
+function isLikelyBackendPage(platform, url) {
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch (error) {
+    return false;
+  }
+  const path = parsed.pathname.toLowerCase();
+  const hash = parsed.hash.toLowerCase();
+  if (path.includes("login") || hash.includes("login")) return false;
+  if (platform === "tbwm") return path.startsWith("/app/") || hash.startsWith("#app.");
+  if (platform === "jdms") return path.startsWith("/plus/");
+  return false;
+}
+
+function isLikelyPlatformUrl(platform, url) {
+  return classifyPlatform(url) === platform;
 }
 
 function classifyCookie(cookie) {
@@ -224,6 +303,11 @@ function decide(signals) {
   let positive = 0;
   let negative = 0;
   const platformSignals = platformPageSignals(signals);
+  const cookieBackedProfile = platformSignals.platform
+    && !platformSignals.hasLoginText
+    && !(signals.page && signals.page.hasLoginText)
+    && (signals.cookies && signals.cookies.matchingCount >= 4)
+    && isLikelyPlatformUrl(platformSignals.platform, signals.page?.url || signals.url || "");
   if (signals.page && signals.page.hasConsoleText) positive += 1;
   if (signals.page && signals.page.hasLogoutText) positive += 1;
   if (platformSignals.hasConsoleText) positive += 2;
@@ -242,6 +326,9 @@ function decide(signals) {
   if (platformSignals.hasConsoleText && positive >= 2 && negative <= 1) {
     return { status: "AUTHORIZED", confidence: positive >= 3 ? "HIGH" : "MEDIUM" };
   }
+  if (cookieBackedProfile) {
+    return { status: "AUTHORIZED", confidence: "MEDIUM" };
+  }
   if (positive >= 2 && negative === 0) {
     return { status: "AUTHORIZED", confidence: positive >= 3 ? "HIGH" : "MEDIUM" };
   }
@@ -254,9 +341,88 @@ function decide(signals) {
   return { status: "UNKNOWN", confidence: "LOW" };
 }
 
+function selectTarget(targets) {
+  const targetHost = domainHost(AUTH_URL);
+  const pages = targets.filter((target) => target.type === "page" && target.url && !target.url.startsWith("about:"));
+  return pages.find((target) => {
+    const host = domainHost(target.url);
+    return host && (host === targetHost || host.endsWith(`.${targetHost}`) || targetHost.endsWith(`.${host}`));
+  }) || pages[0] || null;
+}
+
+function pageSignalsFromTarget(target) {
+  const url = target?.url || "";
+  const title = target?.title || "";
+  const platform = classifyPlatform(AUTH_URL || url);
+  const text = `${title} ${url}`;
+  const loginPattern = /(账号登录|验证码登录|请输入.*密码|请输入.*手机号|获取验证码|登录|login)/i;
+  const hasLoginText = loginPattern.test(text) || isLikelyBackendPage(platform, url) === false && /\/login|#.*login/i.test(url);
+  const hasConsoleText = isLikelyBackendPage(platform, url) || /(商家中心|商家版|订单管理|商品管理|门店管理|工作台|plus\/order)/i.test(text);
+  return {
+    title,
+    url,
+    hasLoginText,
+    hasConsoleText,
+    hasLogoutText: false,
+    visibleInputCount: 0,
+    textSample: text.slice(0, 240),
+  };
+}
+
+async function probeWithBrowserCdp() {
+  const version = await fetchJson(`http://127.0.0.1:${DEBUG_PORT}/json/version`);
+  if (!version.webSocketDebuggerUrl) throw new Error("missing browser websocket url");
+  const socket = await connectWebSocket(version.webSocketDebuggerUrl);
+  try {
+    const targets = await sendCdp(socket, "Target.getTargets", {}, 3000);
+    const target = selectTarget(targets.targetInfos || []);
+    if (!target) throw new Error("page_not_found");
+    const cookiesResult = await sendCdp(socket, "Storage.getCookies", {}, 3000).catch(() => ({ cookies: [] }));
+    const host = domainHost(AUTH_URL || target.url);
+    const cookies = Array.isArray(cookiesResult.cookies) ? cookiesResult.cookies : [];
+    const matchingCookies = cookies.filter((cookie) => cookieMatchesHost(cookie, host));
+    const signals = {
+      profilePath: PROFILE_DIR,
+      checkedAt: new Date().toISOString(),
+      page: pageSignalsFromTarget(target),
+      storage: {
+        localStorageCount: 0,
+        sessionStorageCount: 0,
+        localStorageSignalKeys: [],
+        sessionStorageSignalKeys: [],
+        indexedDbAvailable: null,
+        cacheStorageAvailable: null,
+        source: "browser_cdp_target_only",
+      },
+      cookies: {
+        host,
+        totalCount: cookies.length,
+        matchingCount: matchingCookies.length,
+        matching: matchingCookies.slice(0, 30).map(classifyCookie),
+      },
+    };
+    const decision = decide(signals);
+    return { ok: true, ...decision, signals };
+  } finally {
+    socket.close();
+  }
+}
+
 async function main() {
   let browser = null;
   try {
+    if (process.env.ZR_PROBE_ENGINE !== "playwright") {
+      const result = await probeWithBrowserCdp();
+      trace("authorization_probe_finished", {
+        status: result.status,
+        confidence: result.confidence,
+        cookieCount: result.signals.cookies.matchingCount,
+        page: result.signals.page,
+        engine: "browser_cdp",
+      });
+      console.log(JSON.stringify(result, null, 2));
+      process.exit(0);
+    }
     browser = await connectBrowser();
     const context = browser.contexts()[0];
     const page = await selectPage(browser);

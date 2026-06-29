@@ -172,7 +172,65 @@ def current_debug_page_url(debug_port: int) -> str | None:
 def equivalent_page_url(current_url: str | None, target_url: str) -> bool:
     if not current_url:
         return False
-    return current_url.rstrip("/") == target_url.rstrip("/")
+    if current_url.rstrip("/") == target_url.rstrip("/"):
+        return True
+    return same_platform_site(current_url, target_url) and not is_login_page_url(current_url)
+
+
+def normalized_host(value: str | None) -> str:
+    if not value:
+        return ""
+    try:
+        host = urlparse(value).hostname or ""
+    except Exception:
+        return ""
+    return host.lower().removeprefix("www.")
+
+
+def same_platform_site(current_url: str | None, target_url: str | None) -> bool:
+    current_host = normalized_host(current_url)
+    target_host = normalized_host(target_url)
+    if not current_host or not target_host:
+        return False
+    if current_host == target_host:
+        return True
+    platform_hosts = (
+        ("melody.shop.ele.me",),
+        ("store.jddj.com",),
+        ("waimaie.meituan.com",),
+    )
+    return any(current_host in hosts and target_host in hosts for hosts in platform_hosts)
+
+
+def is_login_page_url(value: str | None) -> bool:
+    if not value:
+        return False
+    try:
+        parsed = urlparse(value)
+    except Exception:
+        return False
+    path = (parsed.path or "").lower()
+    fragment = (parsed.fragment or "").lower()
+    return "login" in path or "login" in fragment
+
+
+def is_authorized_backend_url(value: str | None, target_url: str | None) -> bool:
+    if not same_platform_site(value, target_url) or is_login_page_url(value):
+        return False
+    try:
+        parsed = urlparse(value or "")
+    except Exception:
+        return False
+    host = normalized_host(value)
+    path = (parsed.path or "").lower()
+    fragment = (parsed.fragment or "").lower()
+    if host == "melody.shop.ele.me":
+        return path.startswith("/app/") or fragment.startswith("app.")
+    if host == "store.jddj.com":
+        return path.startswith("/plus/")
+    if host == "waimaie.meituan.com":
+        return path.startswith("/new_fe/")
+    return False
 
 
 def active_chrome_matches_profile(profile_dir: str, debug_port: int) -> bool:
@@ -625,6 +683,10 @@ class BrowserControlHandler(BaseHTTPRequestHandler):
                 check=False,
             )
         except subprocess.TimeoutExpired:
+            fallback = self.probe_current_backend_url(session, url, "probe_timeout")
+            if fallback is not None:
+                self.respond_json(200, fallback)
+                return
             self.respond_json(504, {"ok": False, "status": "FAILED", "error": "probe_timeout"})
             return
         payload = parse_json_payload(completed.stdout) or {
@@ -633,6 +695,10 @@ class BrowserControlHandler(BaseHTTPRequestHandler):
             "error": "invalid_probe_output",
             "output": completed.stdout[-2000:],
         }
+        if not payload.get("ok"):
+            fallback = self.probe_current_backend_url(session, url, str(payload.get("error") or "probe_failed"))
+            if fallback is not None:
+                payload = fallback
         signals = payload.get("signals")
         if not isinstance(signals, dict):
             signals = {}
@@ -644,6 +710,27 @@ class BrowserControlHandler(BaseHTTPRequestHandler):
         signals["profilePath"] = session.profile_dir
         payload.setdefault("returnCode", completed.returncode)
         self.respond_json(200 if payload.get("ok") else 500, payload)
+
+    def probe_current_backend_url(self, session: BrowserSession, target_url: str, reason: str) -> dict | None:
+        current_url = current_debug_page_url(session.debug_port)
+        if not is_authorized_backend_url(current_url, target_url):
+            return None
+        return {
+            "ok": True,
+            "status": "AUTHORIZED",
+            "confidence": "MEDIUM",
+            "signals": {
+                "sessionId": session.session_id,
+                "displayId": session.display_id,
+                "streamPort": session.xpra_port,
+                "debugPort": session.debug_port,
+                "profilePath": session.profile_dir,
+                "page": {
+                    "url": current_url,
+                },
+                "reason": f"{reason}_current_backend_url",
+            },
+        }
 
     def bootstrap_probe_browser(self, session: BrowserSession, url: str) -> dict:
         append_trace(

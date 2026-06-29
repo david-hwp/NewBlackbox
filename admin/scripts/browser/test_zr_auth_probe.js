@@ -82,8 +82,20 @@ function testTbwmLoginIsUnauthorized() {
   assert.strictEqual(result.confidence, 'HIGH');
 }
 
+function testTbwmCookieBackedRootIsAuthorized() {
+  const page = signals('https://melody.shop.ele.me/', 'melody.shop.ele.me', {
+    title: 'melody.shop.ele.me',
+    matchingCount: 8,
+  });
+  const result = decide(page);
+
+  assert.strictEqual(result.status, 'AUTHORIZED');
+  assert.strictEqual(result.confidence, 'MEDIUM');
+}
+
 testJdBackendIsAuthorized();
 testJdLoginIsUnauthorized();
 testTbwmBackendIsAuthorized();
 testTbwmLoginIsUnauthorized();
+testTbwmCookieBackedRootIsAuthorized();
 console.log('zr-auth-probe tests passed');
