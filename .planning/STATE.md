@@ -2,8 +2,8 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: milestone
-status: Phase 23 Wave 2 local implementation complete; intranet live verification pending SSH access
-last_updated: "2026-06-28T18:40:00+08:00"
+status: Phase 24 Wave 2 review-callout callback and billing implemented locally
+last_updated: "2026-06-30T09:53:47+08:00"
 progress:
   total_phases: 12
   completed_phases: 11
@@ -13,6 +13,34 @@ progress:
 ---
 
 ## Recent Changes
+
+### 2026-06-30: Phase 24 Wave 2 callback billing implemented locally
+
+- Implemented the Gooki-compatible external review-callout callback endpoint with independent callback token auth, disabled-by-default runtime gating, tolerant CDR/form DTO parsing, sanitized callback summaries, and JWT whitelist isolation.
+- Added `shop_order_review_callouts` minimal outbox schema plus `shop_order_review_callout_results` result schema so callbacks can correlate through local callout/order IDs carried in Gooki `params`.
+- Added idempotent billing flow: connected call results deduct user phone balance once, duplicate callbacks return success without duplicate deductions, unmatched and insufficient-balance callbacks remain auditable without negative balances.
+- Extended `TransactionLog` with external callout relationship fields and wrote successful deductions as `PHONE_CONSUME` logs; management logs now show callout/order/CDR/call-time details, and APP logs now expose a “话费消耗” filter chip.
+- Local verification passed for targeted backend tests, admin frontend build, APP debug build with Android Studio JBR 21, and `git diff --check`.
+- Intranet deployment remains deferred until Phase 24 Wave 1 sender/outbox scheduling is deployed; no online `zhirang-dev` app deployment, upgrade, or restart was performed.
+- Canonical Wave 2 summary document: `.planning/phases/24-review-callout/24-02-SUMMARY.md`.
+
+### 2026-06-29: Phase 24 Wave 2 callback billing planned
+
+- Added Phase 24 Wave 2 for receiving external review-callout results, correlating them to local callout/order IDs, and deducting user phone balance based on actual call outcome.
+- Locked callback identity to Gooki `params`/Wave 1 `phonetic_variables` values such as local callout ID and system order ID; customer name or phone is diagnostic only and cannot be the primary match key.
+- Locked deduction idempotency to external CDR ID or a deterministic fallback, so external callback retries cannot duplicate `PHONE_CONSUME` transaction logs or user-balance deductions.
+- Chose the existing `TransactionLog` ledger as the user-visible accounting surface, with type `PHONE_CONSUME`; APP logs need a visible “话费消耗” filter chip, while management logs already have the type option and may need precise relationship fields.
+- Required insufficient-balance, unmatched-callback, and non-billable callback states to be persisted for audit without making phone balance negative.
+- Canonical Wave 2 plan document: `.planning/phases/24-review-callout/24-02-PLAN.md`.
+
+### 2026-06-29: Phase 24 delivered-order review callout planned
+
+- Added Phase 24 for sending delivered takeout orders from authorized shops to the Gooki review-callout platform every 30 minutes.
+- Confirmed the user-referenced eighth API in `docs/智能外呼机器人接口文档V1.8.2.docx` is Gooki `POST /task/external/add` for creating outbound-call tasks; token acquisition remains through `/token/secret` or `/token`.
+- Locked the implementation shape to a backend-owned durable outbox keyed by `shop_orders.id`, with at-most-once behavior: ambiguous post-send failures become `UNKNOWN` and are not auto-retried, prioritizing no duplicate customer calls.
+- Locked conservative phone eligibility: full mobile numbers only by default; masked/tail-only values are skipped, and platform privacy transfer numbers require explicit support/config before sending.
+- Preserved the environment boundary: Phase 24 verification targets only the intranet development/test backend on `hewp@172.20.0.13`; no online `zhirang-dev` app deployment, upgrade, or restart without explicit user approval.
+- Canonical plan document: `.planning/phases/24-review-callout/24-PLAN.md`.
 
 ### 2026-06-28: Phase 23 Wave 2 TBWM order ingestion planned
 

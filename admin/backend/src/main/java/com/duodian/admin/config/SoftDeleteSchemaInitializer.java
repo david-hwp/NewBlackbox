@@ -27,7 +27,9 @@ public class SoftDeleteSchemaInitializer implements CommandLineRunner {
             "compute_deductions",
             "system_parameters",
             "advanced_features",
-            "shop_orders"
+            "shop_orders",
+            "shop_order_review_callouts",
+            "shop_order_review_callout_results"
     );
 
     private final JdbcTemplate jdbcTemplate;
@@ -45,6 +47,8 @@ public class SoftDeleteSchemaInitializer implements CommandLineRunner {
         ensureSystemParameterTable();
         ensureAdvancedFeatureTable();
         ensureShopOrderTable();
+        ensureShopOrderReviewCalloutTable();
+        ensureShopOrderReviewCalloutResultTable();
         for (String table : TABLES) {
             if (!hasColumn(table, "deleted")) {
                 jdbcTemplate.execute("ALTER TABLE " + table + " ADD COLUMN deleted TINYINT NOT NULL DEFAULT 0");
@@ -61,6 +65,7 @@ public class SoftDeleteSchemaInitializer implements CommandLineRunner {
         backfillMainChannel();
         ensureUserPhoneChannelUniqueIndex();
         migrateLegacyAdminRole();
+        ensureTransactionLogReviewCalloutColumns();
         ensureCloneColumns();
         ensureShopLoginStateColumns();
         ensureShopAuthorizationColumns();
@@ -186,6 +191,106 @@ public class SoftDeleteSchemaInitializer implements CommandLineRunner {
         }
         if (!hasIndexQuietly("shop_orders", "idx_shop_orders_last_seen_at")) {
             jdbcTemplate.execute("CREATE INDEX idx_shop_orders_last_seen_at ON shop_orders (last_seen_at)");
+        }
+    }
+
+    private void ensureShopOrderReviewCalloutTable() {
+        jdbcTemplate.execute("""
+                CREATE TABLE IF NOT EXISTS shop_order_review_callouts (
+                    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                    shop_order_id BIGINT NOT NULL,
+                    shop_id BIGINT,
+                    user_id BIGINT,
+                    channel_id BIGINT,
+                    platform VARCHAR(32),
+                    platform_shop_id VARCHAR(128),
+                    platform_order_id VARCHAR(128),
+                    shop_name VARCHAR(128),
+                    customer_name VARCHAR(128),
+                    phone_masked VARCHAR(64),
+                    phone_hash VARCHAR(128),
+                    status VARCHAR(32) NOT NULL DEFAULT 'PENDING',
+                    external_task_id VARCHAR(128),
+                    request_batch_id VARCHAR(128),
+                    deleted TINYINT NOT NULL DEFAULT 0,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE KEY uk_review_callout_order (shop_order_id, deleted),
+                    INDEX idx_review_callout_shop_id (shop_id),
+                    INDEX idx_review_callout_user_id (user_id),
+                    INDEX idx_review_callout_external_task (external_task_id),
+                    INDEX idx_review_callout_status (status),
+                    INDEX idx_review_callout_deleted (deleted)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                """);
+        addColumnIfMissing("shop_order_review_callouts", "phone_hash", "VARCHAR(128)");
+        addColumnIfMissing("shop_order_review_callouts", "request_batch_id", "VARCHAR(128)");
+        if (!hasIndexQuietly("shop_order_review_callouts", "uk_review_callout_order")) {
+            jdbcTemplate.execute("CREATE UNIQUE INDEX uk_review_callout_order ON shop_order_review_callouts (shop_order_id, deleted)");
+        }
+    }
+
+    private void ensureShopOrderReviewCalloutResultTable() {
+        jdbcTemplate.execute("""
+                CREATE TABLE IF NOT EXISTS shop_order_review_callout_results (
+                    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                    review_callout_id BIGINT,
+                    shop_order_id BIGINT,
+                    shop_id BIGINT,
+                    user_id BIGINT,
+                    channel_id BIGINT,
+                    platform VARCHAR(32),
+                    platform_shop_id VARCHAR(128),
+                    platform_order_id VARCHAR(128),
+                    shop_name VARCHAR(128),
+                    external_cdr_id VARCHAR(128),
+                    external_task_id VARCHAR(128),
+                    callback_idempotency_key VARCHAR(255) NOT NULL,
+                    phone_masked VARCHAR(64),
+                    phone_hash VARCHAR(128),
+                    call_state VARCHAR(64),
+                    call_state_text VARCHAR(128),
+                    connected TINYINT,
+                    call_time DATETIME,
+                    duration_seconds INT,
+                    billed_minutes INT,
+                    external_money_cent INT,
+                    grade VARCHAR(255),
+                    remark VARCHAR(512),
+                    billing_status VARCHAR(32) NOT NULL DEFAULT 'PENDING',
+                    billable_reason VARCHAR(128),
+                    deduction_amount INT,
+                    billing_rate_units_per_minute INT,
+                    minimum_charge_units INT,
+                    deducted_at DATETIME,
+                    transaction_log_id BIGINT,
+                    params_summary TEXT,
+                    raw_summary TEXT,
+                    last_error VARCHAR(512),
+                    deleted TINYINT NOT NULL DEFAULT 0,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE KEY uk_review_callout_result_key (callback_idempotency_key, deleted),
+                    INDEX idx_review_callout_result_callout (review_callout_id),
+                    INDEX idx_review_callout_result_order (shop_order_id),
+                    INDEX idx_review_callout_result_shop (shop_id),
+                    INDEX idx_review_callout_result_user (user_id),
+                    INDEX idx_review_callout_result_billing (billing_status),
+                    INDEX idx_review_callout_result_call_time (call_time),
+                    INDEX idx_review_callout_result_task (external_task_id),
+                    INDEX idx_review_callout_result_deleted (deleted)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                """);
+        addColumnIfMissing("shop_order_review_callout_results", "external_cdr_id", "VARCHAR(128)");
+        addColumnIfMissing("shop_order_review_callout_results", "callback_idempotency_key", "VARCHAR(255) NOT NULL");
+        addColumnIfMissing("shop_order_review_callout_results", "billing_rate_units_per_minute", "INT");
+        addColumnIfMissing("shop_order_review_callout_results", "minimum_charge_units", "INT");
+        addColumnIfMissing("shop_order_review_callout_results", "raw_summary", "TEXT");
+        if (!hasIndexQuietly("shop_order_review_callout_results", "uk_review_callout_result_key")) {
+            jdbcTemplate.execute("CREATE UNIQUE INDEX uk_review_callout_result_key ON shop_order_review_callout_results (callback_idempotency_key, deleted)");
+        }
+        if (!hasIndexQuietly("shop_order_review_callout_results", "uk_review_callout_result_cdr")) {
+            jdbcTemplate.execute("CREATE UNIQUE INDEX uk_review_callout_result_cdr ON shop_order_review_callout_results (external_cdr_id, deleted)");
         }
     }
 
@@ -320,6 +425,27 @@ public class SoftDeleteSchemaInitializer implements CommandLineRunner {
         }
         if (!hasIndexQuietly("transaction_logs", "idx_related_log_id")) {
             jdbcTemplate.execute("CREATE INDEX idx_related_log_id ON transaction_logs (related_log_id)");
+        }
+    }
+
+    private void ensureTransactionLogReviewCalloutColumns() {
+        addColumnIfMissing("transaction_logs", "shop_order_id", "BIGINT");
+        addColumnIfMissing("transaction_logs", "review_callout_id", "BIGINT");
+        addColumnIfMissing("transaction_logs", "external_task_id", "VARCHAR(128)");
+        addColumnIfMissing("transaction_logs", "external_cdr_id", "VARCHAR(128)");
+        addColumnIfMissing("transaction_logs", "called_at", "DATETIME");
+        addColumnIfMissing("transaction_logs", "billing_rate", "INT");
+        if (!hasIndexQuietly("transaction_logs", "idx_transaction_logs_shop_order_id")) {
+            jdbcTemplate.execute("CREATE INDEX idx_transaction_logs_shop_order_id ON transaction_logs (shop_order_id)");
+        }
+        if (!hasIndexQuietly("transaction_logs", "idx_transaction_logs_review_callout_id")) {
+            jdbcTemplate.execute("CREATE INDEX idx_transaction_logs_review_callout_id ON transaction_logs (review_callout_id)");
+        }
+        if (!hasIndexQuietly("transaction_logs", "idx_transaction_logs_external_cdr_id")) {
+            jdbcTemplate.execute("CREATE INDEX idx_transaction_logs_external_cdr_id ON transaction_logs (external_cdr_id)");
+        }
+        if (!hasIndexQuietly("transaction_logs", "idx_transaction_logs_called_at")) {
+            jdbcTemplate.execute("CREATE INDEX idx_transaction_logs_called_at ON transaction_logs (called_at)");
         }
     }
 

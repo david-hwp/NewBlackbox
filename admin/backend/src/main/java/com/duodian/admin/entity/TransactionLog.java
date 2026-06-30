@@ -19,6 +19,24 @@ public class TransactionLog {
     @Column(name = "related_log_id")
     private Long relatedLogId;
 
+    @Column(name = "shop_order_id")
+    private Long shopOrderId;
+
+    @Column(name = "review_callout_id")
+    private Long reviewCalloutId;
+
+    @Column(name = "external_task_id")
+    private String externalTaskId;
+
+    @Column(name = "external_cdr_id")
+    private String externalCdrId;
+
+    @Column(name = "called_at")
+    private LocalDateTime calledAt;
+
+    @Column(name = "billing_rate")
+    private Integer billingRate;
+
     @Column(nullable = false)
     private String type; // CONSUME, OUT, IN, PHONE_CONSUME, PHONE_OUT, PHONE_IN
 
@@ -71,6 +89,24 @@ public class TransactionLog {
 
     public Long getRelatedLogId() { return relatedLogId; }
     public void setRelatedLogId(Long relatedLogId) { this.relatedLogId = relatedLogId; }
+
+    public Long getShopOrderId() { return shopOrderId; }
+    public void setShopOrderId(Long shopOrderId) { this.shopOrderId = shopOrderId; }
+
+    public Long getReviewCalloutId() { return reviewCalloutId; }
+    public void setReviewCalloutId(Long reviewCalloutId) { this.reviewCalloutId = reviewCalloutId; }
+
+    public String getExternalTaskId() { return externalTaskId; }
+    public void setExternalTaskId(String externalTaskId) { this.externalTaskId = externalTaskId; }
+
+    public String getExternalCdrId() { return externalCdrId; }
+    public void setExternalCdrId(String externalCdrId) { this.externalCdrId = externalCdrId; }
+
+    public LocalDateTime getCalledAt() { return calledAt; }
+    public void setCalledAt(LocalDateTime calledAt) { this.calledAt = calledAt; }
+
+    public Integer getBillingRate() { return billingRate; }
+    public void setBillingRate(Integer billingRate) { this.billingRate = billingRate; }
 
     public String getType() { return type; }
     public void setType(String type) { this.type = type; }

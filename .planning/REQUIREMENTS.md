@@ -65,6 +65,28 @@
 - [x] **PH23-D15**: `tbwm` 授权检测和订单采集日志/快照不得记录 cookie、token、请求头、浏览器存储、profile 路径、debug 端口或授权信号。
 - [ ] **PH23-D16**: `tbwm` wave 必须完成本地测试，并在网络/SSH 可用时部署到内网 13 管理后台和 192.168.0.210 爬虫服务器，使用已授权饿了么罗家臭豆腐店铺做真实验证。
 
+### Delivered Order Review Callout
+
+- [ ] **PH24-D01**: 各授权店铺通过 Phase 21/23 定时采集入库的外卖订单中，只有已送达/已完成订单才允许进入好评外呼候选集。
+- [ ] **PH24-D02**: 好评外呼对接必须使用 `docs/智能外呼机器人接口文档V1.8.2.docx` 中的 Gooki Open API，默认通过第八个接口 `POST /task/external/add` 创建外呼任务发送号码。
+- [ ] **PH24-D03**: 外呼调度必须每半小时执行一次，扫描所有授权店铺最新入库订单，不能依赖用户打开管理后台。
+- [ ] **PH24-D04**: 同一系统订单只能成功发送一次外呼；幂等边界必须绑定后台 `shop_orders.id` 或等价的 `shop_id + platform + platform_order_id`，重复采集、状态更新和调度重跑都不能重复外呼。
+- [ ] **PH24-D05**: 外呼只允许发送具备顾客姓名和可拨打联系方式的订单；缺失手机号、只有尾号、格式无效或外呼平台未验证支持的隐私转接号必须跳过并保留可审计原因。
+- [ ] **PH24-D06**: 订单从新下单、配送中变为已送达后，应在下一次半小时调度中进入外呼；取消、退款、关闭或非完成状态订单不得外呼。
+- [ ] **PH24-D07**: 后端必须持久化外呼发送状态、尝试次数、外呼平台任务 ID、请求批次、响应摘要和错误原因，便于排查但不得保存外呼平台密钥、token 或未脱敏日志。
+- [ ] **PH24-D08**: 外呼平台 base URL、密钥/token、话术 ID、线路 ID 或线路组 ID、任务名称前缀、是否启用外呼、批量大小和呼前过滤配置必须通过环境变量或系统参数配置，真实密钥不得写入仓库、GSD 文档或聊天记录。
+- [ ] **PH24-D09**: Phase 24 必须包含后端单元测试/集成测试，覆盖已送达判定、手机号归一化、幂等防重、Gooki 客户端请求契约、定时任务禁用/启用行为和敏感信息不落日志。
+- [ ] **PH24-D10**: 内网验证只允许部署到 `hewp@172.20.0.13` 开发测试管理后台；不得更新、重启或部署线上 `zhirang-dev` app 环境，除非用户明确批准。
+- [x] **PH24-D11**: 后端必须提供外呼系统回调接口，供 Gooki 或后续外呼平台在外呼任务完成后回传每个订单的实际外呼结果；接口必须使用独立回调 token/signature 鉴权，不能依赖管理后台 JWT。
+- [x] **PH24-D12**: 外呼结果必须优先通过发送任务中的 `phonetic_variables/params` 携带的本地外呼记录 ID、系统订单 ID 或系统店铺 ID 关联，禁止只按顾客姓名或手机号模糊匹配订单。
+- [x] **PH24-D13**: 外呼回调必须持久化话单明细，包括外部话单 ID、外部任务 ID、系统订单 ID、店铺 ID、用户 ID、外呼时间、通话状态、接通状态、通话时长、计费分钟、外部费用、评价等级、备注和脱敏原始摘要。
+- [x] **PH24-D14**: 相同外部话单或相同订单外呼结果重复回调时必须幂等处理，不得重复扣除用户话费余额，也不得生成重复话费消耗流水。
+- [x] **PH24-D15**: 后端必须根据实际外呼情况和配置费率扣除对应用户的话费余额；扣费规则、最小扣费和外部费用换算必须可配置，并保留扣费基数、费率和最终扣费金额。
+- [x] **PH24-D16**: 每次成功话费扣除都必须写入 `TransactionLog` 的 `PHONE_CONSUME` 流水，精确记录用户、渠道、平台、店铺、订单、外呼记录、外部话单、外呼时间、扣费金额和备注。
+- [x] **PH24-D17**: 当话费余额不足或外呼结果无法关联订单时，系统必须保存失败原因和回调明细，不得把余额扣成负数，也不得静默丢弃外呼平台结果。
+- [x] **PH24-D18**: APP 侧交易日志必须可查看并筛选“话费消耗”分类，展示外呼扣费流水的店铺、时间、金额和备注；现有算力消费/转入/转出筛选不能被破坏。
+- [x] **PH24-D19**: 管理后台交易日志必须可查看并筛选“话费消耗”流水，并能从流水中判断是哪家店铺、哪笔订单、什么时候外呼、扣了多少话费；权限边界沿用现有超管/渠道过滤规则。
+
 ## v2 Requirements
 
 ### Order Analytics
@@ -134,12 +156,31 @@
 | PH23-D14 | Phase 23 Wave 2 | Complete |
 | PH23-D15 | Phase 23 Wave 2 | Complete |
 | PH23-D16 | Phase 23 Wave 2 | Pending |
+| PH24-D01 | Phase 24 | Pending |
+| PH24-D02 | Phase 24 | Pending |
+| PH24-D03 | Phase 24 | Pending |
+| PH24-D04 | Phase 24 | Pending |
+| PH24-D05 | Phase 24 | Pending |
+| PH24-D06 | Phase 24 | Pending |
+| PH24-D07 | Phase 24 | Pending |
+| PH24-D08 | Phase 24 | Pending |
+| PH24-D09 | Phase 24 | Pending |
+| PH24-D10 | Phase 24 | Pending |
+| PH24-D11 | Phase 24 Wave 2 | Complete |
+| PH24-D12 | Phase 24 Wave 2 | Complete |
+| PH24-D13 | Phase 24 Wave 2 | Complete |
+| PH24-D14 | Phase 24 Wave 2 | Complete |
+| PH24-D15 | Phase 24 Wave 2 | Complete |
+| PH24-D16 | Phase 24 Wave 2 | Complete |
+| PH24-D17 | Phase 24 Wave 2 | Complete |
+| PH24-D18 | Phase 24 Wave 2 | Complete |
+| PH24-D19 | Phase 24 Wave 2 | Complete |
 
 **Coverage:**
-- v1.3 requirements: 46 total
-- Mapped to phases: 46
+- v1.3 requirements: 66 total
+- Mapped to phases: 66
 - Unmapped: 0
 
 ---
 *Requirements restored: 2026-06-24*
-*Last updated: 2026-06-28 for Phase 23 Wave 2 TBWM planning*
+*Last updated: 2026-06-30 for Phase 24 Wave 2 local callback and phone-balance ledger implementation*

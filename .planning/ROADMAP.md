@@ -403,3 +403,35 @@
 **上下文文档**: [.planning/phases/23-jd-order-ingestion/23-CONTEXT.md](.planning/phases/23-jd-order-ingestion/23-CONTEXT.md)
 **调研文档**: [.planning/phases/23-jd-order-ingestion/23-RESEARCH.md](.planning/phases/23-jd-order-ingestion/23-RESEARCH.md)
 **完成总结**: [.planning/phases/23-jd-order-ingestion/23-SUMMARY.md](.planning/phases/23-jd-order-ingestion/23-SUMMARY.md)
+
+### Phase 24: 已送达订单好评外呼对接 🚧 进行中
+
+**目标**: 将各授权店铺半小时采集入库的已送达外卖订单对接到 Gooki 好评外呼平台，把具备可拨打联系方式的顾客姓名和电话发送给外呼任务，让顾客给予好评；同一订单只能发送一次，重复采集和订单状态更新不能重复触发外呼。外呼完成后接收外呼平台回调，按实际外呼情况对用户话费余额做幂等扣除，并在 APP 和管理后台交易日志中展示话费消耗流水。
+
+**Requirements**: PH24-D01, PH24-D02, PH24-D03, PH24-D04, PH24-D05, PH24-D06, PH24-D07, PH24-D08, PH24-D09, PH24-D10, PH24-D11, PH24-D12, PH24-D13, PH24-D14, PH24-D15, PH24-D16, PH24-D17, PH24-D18, PH24-D19
+**Depends on:** Phase 21 shop order ingestion; Phase 23 multi-platform order ingestion; `docs/智能外呼机器人接口文档V1.8.2.docx`
+**Plans:** 2 plans / 2 waves
+
+**关键交付物**:
+
+- 新增订单好评外呼 outbox/状态表，绑定 `shop_orders.id` 并用唯一键保证同一订单只成功发送一次。
+- 后端半小时定时任务扫描已授权店铺中已送达/已完成且未外呼的订单，跳过取消、退款、未完成和无可拨打号码订单。
+- Gooki Open API 客户端支持密钥换 token、创建外呼任务 `POST /task/external/add`，并可配置话术、线路或线路组、任务名称前缀、批量大小、重拨和呼前过滤。
+- 号码归一化策略先保守处理：优先使用完整手机号；只有在确认 Gooki 支持平台隐私转接号格式后才发送 `隐私号 转 分机`；只有尾号的订单不发送。
+- `phones[].phonetic_variables` 透传顾客姓名、店铺名称、平台、系统店铺 ID、平台订单 ID、订单完成时间和本地订单外呼记录 ID，便于后续话单回查。
+- 外呼发送状态持久化为 `PENDING/SENT/SKIPPED/FAILED` 等，记录平台任务 ID、尝试次数、响应摘要和错误原因，但不记录外呼密钥、token 或敏感日志。
+- 配置和凭据只来自环境变量或系统参数；开发/测试环境可通过禁用开关或 mock 客户端验证，不把真实密钥写入仓库。
+- 新增外呼结果回调接口，支持 Gooki 话单/表单推送格式和后续外呼平台扩展，使用独立回调 token 鉴权，返回外呼平台可识别的成功响应。
+- 外呼结果通过发送时透传的本地外呼记录 ID/订单 ID 关联，持久化外部话单、接通状态、通话时长、计费分钟、外部费用、评价等级、备注和脱敏原始摘要。
+- 根据实际外呼结果和配置费率扣除对应用户的话费余额，以外部话单 ID 或本地外呼结果唯一键做幂等，重复回调不重复扣费。
+- 话费扣除必须写入 `PHONE_CONSUME` 交易流水，精确关联用户、渠道、平台、店铺、订单、外呼时间、外呼记录和外部话单。
+- APP 交易日志补充“话费消耗”筛选入口，管理后台交易日志继续支持“话费消耗”筛选并展示店铺、订单/话单和扣费备注。
+- 内网开发测试环境验证只部署到 `hewp@172.20.0.13`，不更新、重启或部署线上 `zhirang-dev` app 环境。
+
+**验证**: 后端测试覆盖已送达判定、号码归一化、outbox 幂等、防重复调度、Gooki 请求契约、禁用开关、回调鉴权、回调幂等、扣费幂等、余额不足和敏感信息过滤；APP 构建验证“话费消耗”日志入口；管理后台构建验证日志筛选展示；内网 13 管理后台使用测试配置或 mock 外呼平台验证半小时任务可生成/发送外呼记录，同一订单重跑不重复发送，重复回调不重复扣费。
+
+**计划文档**: [.planning/phases/24-review-callout/24-PLAN.md](.planning/phases/24-review-callout/24-PLAN.md)
+**Wave 2 计划文档**: [.planning/phases/24-review-callout/24-02-PLAN.md](.planning/phases/24-review-callout/24-02-PLAN.md)
+**Wave 2 完成总结**: [.planning/phases/24-review-callout/24-02-SUMMARY.md](.planning/phases/24-review-callout/24-02-SUMMARY.md)
+**上下文文档**: [.planning/phases/24-review-callout/24-CONTEXT.md](.planning/phases/24-review-callout/24-CONTEXT.md)
+**调研文档**: [.planning/phases/24-review-callout/24-RESEARCH.md](.planning/phases/24-review-callout/24-RESEARCH.md)

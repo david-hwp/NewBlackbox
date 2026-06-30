@@ -189,6 +189,39 @@ public class ComputeService {
     }
 
     @Transactional
+    public DeductionResult consumePhoneMinutesForReviewCallout(PhoneConsumeRequest request) {
+        if (request == null || request.amount() == null || request.amount() <= 0) {
+            throw new RuntimeException("话费扣除数量必须大于0");
+        }
+        User user = userRepository.findWithLockByIdAndDeleted(request.userId(), ACTIVE)
+                .orElseThrow(() -> new RuntimeException("用户不存在"));
+        int balance = phoneMinutesBalanceOf(user);
+        if (balance < request.amount()) {
+            return DeductionResult.insufficient();
+        }
+
+        user.setPhoneMinutesBalance(balance - request.amount());
+        userRepository.save(user);
+
+        TransactionLog log = new TransactionLog();
+        log.setUserId(user.getId());
+        log.setChannelId(user.getChannelId());
+        log.setType("PHONE_CONSUME");
+        log.setAmount(request.amount());
+        log.setPlatform(request.platform());
+        log.setShopName(request.shopName());
+        log.setRemark(request.remark());
+        log.setShopOrderId(request.shopOrderId());
+        log.setReviewCalloutId(request.reviewCalloutId());
+        log.setExternalTaskId(request.externalTaskId());
+        log.setExternalCdrId(request.externalCdrId());
+        log.setCalledAt(request.calledAt());
+        log.setBillingRate(request.billingRate());
+        TransactionLog saved = transactionLogRepository.save(log);
+        return new DeductionResult(true, true, saved.getId());
+    }
+
+    @Transactional
     public boolean deductCompute(Long userId, String shopId, String shopName, String platform) {
         return deductCompute(userId, shopId, shopName, platform, "店铺上报扣减: ");
     }
@@ -718,6 +751,20 @@ public class ComputeService {
         public boolean isSuccess() { return success; }
         public Long getTransactionLogId() { return transactionLogId; }
     }
+
+    public record PhoneConsumeRequest(
+            Long userId,
+            Integer amount,
+            String platform,
+            String shopName,
+            Long shopOrderId,
+            Long reviewCalloutId,
+            String externalTaskId,
+            String externalCdrId,
+            LocalDateTime calledAt,
+            Integer billingRate,
+            String remark
+    ) {}
 
     public static class AllocationResult {
         private final Integer channelAdminBalance;

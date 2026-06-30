@@ -76,7 +76,8 @@ class LogsActivity : AppCompatActivity() {
             binding.chipAll to null,
             binding.chipOut to LogType.OUT,
             binding.chipIn to LogType.IN,
-            binding.chipConsume to LogType.CONSUME
+            binding.chipConsume to LogType.CONSUME,
+            binding.chipPhoneConsume to LogType.PHONE_CONSUME
         )
 
         chips.forEach { (chip, type) ->
@@ -89,7 +90,13 @@ class LogsActivity : AppCompatActivity() {
     }
 
     private fun selectChip(selected: android.widget.TextView) {
-        val allChips = listOf(binding.chipAll, binding.chipOut, binding.chipIn, binding.chipConsume)
+        val allChips = listOf(
+            binding.chipAll,
+            binding.chipOut,
+            binding.chipIn,
+            binding.chipConsume,
+            binding.chipPhoneConsume
+        )
         allChips.forEach { chip ->
             if (chip == selected) {
                 chip.setBackgroundResource(R.drawable.bg_chip_selected)

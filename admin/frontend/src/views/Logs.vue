@@ -70,6 +70,18 @@
         <el-table-column prop="fromPhone" label="转出方" />
         <el-table-column prop="toPhone" label="接收方" />
         <el-table-column prop="remark" label="备注" />
+        <el-table-column label="外呼关联" min-width="180">
+          <template #default="{ row }">
+            <div v-if="row.reviewCalloutId || row.externalCdrId || row.calledAt" class="callout-meta">
+              <span v-if="row.shopOrderId">订单 {{ row.shopOrderId }}</span>
+              <span v-if="row.reviewCalloutId">外呼 {{ row.reviewCalloutId }}</span>
+              <span v-if="row.externalCdrId">话单 {{ row.externalCdrId }}</span>
+              <span v-if="row.calledAt">外呼时间 {{ row.calledAt }}</span>
+              <span v-if="row.billingRate">费率 {{ row.billingRate }}/分钟</span>
+            </div>
+            <span v-else>-</span>
+          </template>
+        </el-table-column>
         <el-table-column prop="createdAt" label="时间" />
         <el-table-column v-if="isSuperAdmin" label="操作" width="100">
           <template #default="{ row }">
@@ -317,6 +329,15 @@ onMounted(() => {
   background: #f8fafc;
   border: 1px solid #e5e7eb;
   border-radius: 6px;
+}
+
+.callout-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: #475569;
+  font-size: 12px;
+  line-height: 1.35;
 }
 
 .pagination-row {

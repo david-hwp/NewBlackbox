@@ -143,6 +143,7 @@
     <string name="tab_out">转出</string>
     <string name="tab_in">转入</string>
     <string name="tab_consume">消耗</string>
+    <string name="tab_phone_consume">话费消耗</string>
     <string name="edit_shop_title">编辑店铺</string>
     <string name="delete_shop_title">删除店铺</string>
     <string name="delete_shop_confirm">确定要删除该店铺吗？</string>

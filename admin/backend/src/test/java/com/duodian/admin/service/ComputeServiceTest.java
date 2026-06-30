@@ -271,6 +271,66 @@ class ComputeServiceTest {
     }
 
     @Test
+    void consumePhoneMinutesForReviewCalloutDeductsAndWritesLedgerFields() {
+        User user = user(1L, "13800000001", 5, 0);
+        user.setPhoneMinutesBalance(10);
+        when(userRepository.findWithLockByIdAndDeleted(1L, (byte) 0)).thenReturn(Optional.of(user));
+        when(transactionLogRepository.save(argThat(log -> true))).thenAnswer(invocation -> {
+            TransactionLog log = invocation.getArgument(0);
+            log.setId(301L);
+            return log;
+        });
+
+        ComputeService.DeductionResult result = computeService.consumePhoneMinutesForReviewCallout(
+                new ComputeService.PhoneConsumeRequest(
+                        1L,
+                        3,
+                        "美团外卖",
+                        "极点披萨",
+                        194L,
+                        88L,
+                        "task-1",
+                        "cdr-1",
+                        LocalDateTime.of(2026, 6, 30, 12, 0),
+                        2,
+                        "好评外呼扣费"
+                )
+        );
+
+        assertThat(result.isSuccess()).isTrue();
+        assertThat(result.getTransactionLogId()).isEqualTo(301L);
+        assertThat(user.getPhoneMinutesBalance()).isEqualTo(7);
+        verify(userRepository).save(user);
+        verify(transactionLogRepository).save(argThat(log ->
+                "PHONE_CONSUME".equals(log.getType())
+                        && log.getAmount().equals(3)
+                        && log.getShopOrderId().equals(194L)
+                        && log.getReviewCalloutId().equals(88L)
+                        && "cdr-1".equals(log.getExternalCdrId())
+                        && log.getBillingRate().equals(2)
+        ));
+    }
+
+    @Test
+    void consumePhoneMinutesForReviewCalloutDoesNotGoNegative() {
+        User user = user(1L, "13800000001", 5, 0);
+        user.setPhoneMinutesBalance(1);
+        when(userRepository.findWithLockByIdAndDeleted(1L, (byte) 0)).thenReturn(Optional.of(user));
+
+        ComputeService.DeductionResult result = computeService.consumePhoneMinutesForReviewCallout(
+                new ComputeService.PhoneConsumeRequest(
+                        1L, 3, "美团外卖", "极点披萨", 194L, 88L,
+                        "task-1", "cdr-1", LocalDateTime.now(), 2, "好评外呼扣费"
+                )
+        );
+
+        assertThat(result.isSuccess()).isFalse();
+        assertThat(user.getPhoneMinutesBalance()).isEqualTo(1);
+        verify(userRepository, never()).save(user);
+        verify(transactionLogRepository, never()).save(argThat(log -> true));
+    }
+
+    @Test
     void getLatestReclaimableSubtractsReceiverConsumptionAndAlreadyReclaimedAmount() {
         User fromUser = user(1L, "13800000001", 2, 0);
         User receiver = user(2L, "13800000002", 7, 0);

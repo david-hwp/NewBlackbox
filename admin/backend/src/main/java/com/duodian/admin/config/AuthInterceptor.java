@@ -26,7 +26,8 @@ public class AuthInterceptor implements HandlerInterceptor {
             "/auth/register",
             "/feedbacks/log-upload",
             "/system-parameters/app",
-            "/advanced-features/app"
+            "/advanced-features/app",
+            "/external/review-callouts/gooki/callback"
     );
 
     public AuthInterceptor(JwtUtil jwtUtil, UserRepository userRepository, ChannelRepository channelRepository) {
