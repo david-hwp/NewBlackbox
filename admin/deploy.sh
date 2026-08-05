@@ -3,7 +3,17 @@ set -euo pipefail
 
 ADMIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENV_FILE="${ENV_FILE:-}"
+SKIP_ADMIN_BUILD="${SKIP_ADMIN_BUILD:-0}"
 COMPOSE_ENV_ARGS=()
+
+# Parse CLI arguments
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --skip-build) SKIP_ADMIN_BUILD=1; shift ;;
+    --env-file) ENV_FILE="$2"; shift 2 ;;
+    *) echo "Unknown argument: $1" >&2; exit 1 ;;
+  esac
+done
 
 if [ -z "$ENV_FILE" ]; then
   if [ -f "$ADMIN_DIR/.env.product" ]; then
@@ -26,7 +36,6 @@ if [ -n "$ENV_FILE" ]; then
 fi
 
 export DUODIAN_DATA_DIR="${DUODIAN_DATA_DIR:-$HOME/zhanghaoguanjia}"
-SKIP_ADMIN_BUILD="${SKIP_ADMIN_BUILD:-0}"
 
 require_cmd() {
   if ! command -v "$1" >/dev/null 2>&1; then
