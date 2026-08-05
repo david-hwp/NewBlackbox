@@ -13,7 +13,7 @@
         text-color="#94a3b8"
         active-text-color="#059669"
       >
-        <el-menu-item index="/dashboard">
+        <el-menu-item v-if="isAdmin" index="/dashboard">
           <el-icon><Odometer /></el-icon>
           <span>概览</span>
         </el-menu-item>
@@ -25,7 +25,7 @@
           <el-icon><Grid /></el-icon>
           <span>支持平台</span>
         </el-menu-item>
-        <el-menu-item index="/shops">
+        <el-menu-item v-if="isAdmin" index="/shops">
           <el-icon><Shop /></el-icon>
           <span>店铺管理</span>
         </el-menu-item>
@@ -33,7 +33,7 @@
           <el-icon><Document /></el-icon>
           <span>交易日志</span>
         </el-menu-item>
-        <el-menu-item index="/feedbacks">
+        <el-menu-item v-if="isAdmin" index="/feedbacks">
           <el-icon><ChatDotRound /></el-icon>
           <span>问题反馈</span>
         </el-menu-item>
@@ -52,19 +52,19 @@
           </template>
           <el-menu-item index="/advanced-features/open">开放设置</el-menu-item>
         </el-sub-menu>
-        <el-menu-item index="/system-parameters">
+        <el-menu-item v-if="isAdmin" index="/system-parameters">
           <el-icon><Setting /></el-icon>
           <span>系统参数</span>
         </el-menu-item>
-        <el-menu-item index="/announcements">
+        <el-menu-item v-if="isAdmin" index="/announcements">
           <el-icon><Bell /></el-icon>
           <span>公告管理</span>
         </el-menu-item>
-        <el-menu-item index="/app-versions">
+        <el-menu-item v-if="isAdmin" index="/app-versions">
           <el-icon><Upload /></el-icon>
           <span>主 APK 版本</span>
         </el-menu-item>
-        <el-menu-item index="/engine-versions">
+        <el-menu-item v-if="isAdmin" index="/engine-versions">
           <el-icon><Connection /></el-icon>
           <span>引擎版本</span>
         </el-menu-item>

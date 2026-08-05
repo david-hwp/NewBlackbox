@@ -9,7 +9,7 @@
       </template>
 
       <el-form class="filter-bar" :model="filters" inline @submit.prevent>
-        <el-form-item v-if="isSuperAdmin" label="渠道">
+        <el-form-item v-if="isAdmin && isSuperAdmin" label="渠道">
           <el-select v-model="filters.channelId" clearable filterable placeholder="全部渠道" style="width: 190px">
             <el-option
               v-for="channel in channels"
@@ -29,10 +29,10 @@
             <el-option label="话费转入" value="PHONE_IN" />
           </el-select>
         </el-form-item>
-        <el-form-item label="手机号">
+        <el-form-item v-if="isAdmin" label="手机号">
           <el-input v-model="filters.phone" clearable placeholder="用户/转入/转出手机号" style="width: 200px" @keyup.enter="handleSearch" />
         </el-form-item>
-        <el-form-item label="店铺">
+        <el-form-item v-if="isAdmin" label="店铺">
           <el-input v-model="filters.shopName" clearable placeholder="输入店铺名称" style="width: 180px" @keyup.enter="handleSearch" />
         </el-form-item>
         <el-form-item>
@@ -55,23 +55,23 @@
             </span>
           </template>
         </el-table-column>
-        <el-table-column prop="platform" label="关联平台" />
-        <el-table-column prop="shopName" label="关联店铺" />
-        <el-table-column label="关联用户" min-width="150">
+        <el-table-column v-if="isAdmin" prop="platform" label="关联平台" />
+        <el-table-column v-if="isAdmin" prop="shopName" label="关联店铺" />
+        <el-table-column v-if="isAdmin" label="关联用户" min-width="150">
           <template #default="{ row }">
             {{ formatAssociatedUser(row) }}
           </template>
         </el-table-column>
-        <el-table-column label="渠道" min-width="130">
+        <el-table-column v-if="isAdmin" label="渠道" min-width="130">
           <template #default="{ row }">
             <el-tag size="small">{{ channelText(row) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="fromPhone" label="转出方" />
-        <el-table-column prop="toPhone" label="接收方" />
+        <el-table-column v-if="isAdmin" prop="fromPhone" label="转出方" />
+        <el-table-column v-if="isAdmin" prop="toPhone" label="接收方" />
         <el-table-column prop="remark" label="备注" />
         <el-table-column prop="createdAt" label="时间" />
-        <el-table-column v-if="isSuperAdmin" label="操作" width="100">
+        <el-table-column v-if="isAdmin && isSuperAdmin" label="操作" width="100">
           <template #default="{ row }">
             <el-button type="danger" link @click="handleDelete(row)">删除</el-button>
           </template>
@@ -137,10 +137,10 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import request from '../utils/request'
-import { channelFilterParam, formatChannelLabel, useAdminSession } from '../utils/adminSession'
+import { channelFilterParam, formatChannelLabel, useAdminSession, isChannelAdminUser, isSuperAdminUser, getAdminUser } from '../utils/adminSession'
 
 const logs = ref([])
 const users = ref([])
@@ -161,6 +161,8 @@ const pagination = ref({
 const form = ref({ type: '', amount: 0, userId: '', platform: '', shopName: '', fromPhone: '', toPhone: '', remark: '' })
 const { channels, isSuperAdmin, fetchChannels, channelText } = useAdminSession()
 
+const isAdmin = computed(() => isSuperAdminUser(getAdminUser()) || isChannelAdminUser(getAdminUser()))
+
 const rules = {
   type: [{ required: true, message: '请选择类型', trigger: 'change' }],
   amount: [{ required: true, message: '请输入金额', trigger: 'blur' }],
@@ -170,18 +172,30 @@ const rules = {
 const fetchLogs = async () => {
   loading.value = true
   try {
-    const result = await request.get('/logs', {
-      params: {
-        page: pagination.value.page,
-        size: pagination.value.size,
-        type: filters.value.type || undefined,
-        phone: filters.value.phone || undefined,
-        shopName: filters.value.shopName || undefined,
-        channelId: channelFilterParam(isSuperAdmin.value, filters.value.channelId)
-      }
-    })
-    logs.value = result.list || result.content || []
-    pagination.value.total = Number(result.total ?? result.totalElements ?? 0)
+    if (isAdmin.value) {
+      const result = await request.get('/logs', {
+        params: {
+          page: pagination.value.page,
+          size: pagination.value.size,
+          type: filters.value.type || undefined,
+          phone: filters.value.phone || undefined,
+          shopName: filters.value.shopName || undefined,
+          channelId: channelFilterParam(isSuperAdmin.value, filters.value.channelId)
+        }
+      })
+      logs.value = result.list || result.content || []
+      pagination.value.total = Number(result.total ?? result.totalElements ?? 0)
+    } else {
+      const result = await request.get('/logs/my', {
+        params: {
+          page: pagination.value.page,
+          size: pagination.value.size,
+          type: filters.value.type || undefined
+        }
+      })
+      logs.value = result.list || result.content || []
+      pagination.value.total = Number(result.total ?? result.totalElements ?? 0)
+    }
   } finally {
     loading.value = false
   }
@@ -294,10 +308,14 @@ const handleDelete = async (row) => {
 }
 
 onMounted(() => {
-  fetchChannels().finally(() => {
+  if (isAdmin.value) {
+    fetchChannels().finally(() => {
+      fetchLogs()
+      fetchUsers()
+    })
+  } else {
     fetchLogs()
-    fetchUsers()
-  })
+  }
 })
 </script>
 

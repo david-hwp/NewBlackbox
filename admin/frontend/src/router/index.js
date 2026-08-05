@@ -27,19 +27,19 @@ const routes = [
     component: Layout,
     redirect: '/dashboard',
     children: [
-      { path: 'dashboard', name: 'Dashboard', component: Dashboard, meta: { title: '概览' } },
+      { path: 'dashboard', name: 'Dashboard', component: Dashboard, meta: { title: '概览', adminOnly: true } },
       { path: 'users', name: 'Users', component: Users, meta: { title: '用户管理', adminOnly: true } },
       { path: 'platforms', name: 'Platforms', component: Platforms, meta: { title: '支持平台', superAdminOnly: true } },
-      { path: 'shops', name: 'Shops', component: Shops, meta: { title: '店铺管理' } },
+      { path: 'shops', name: 'Shops', component: Shops, meta: { title: '店铺管理', adminOnly: true } },
       { path: 'logs', name: 'Logs', component: Logs, meta: { title: '交易日志' } },
-      { path: 'feedbacks', name: 'Feedbacks', component: Feedbacks, meta: { title: '问题反馈' } },
+      { path: 'feedbacks', name: 'Feedbacks', component: Feedbacks, meta: { title: '问题反馈', adminOnly: true } },
       { path: 'channels', name: 'Channels', component: Channels, meta: { title: '渠道管理', superAdminOnly: true } },
       { path: 'release-jobs', name: 'ReleaseJobs', component: ReleaseJobs, meta: { title: '发布任务', superAdminOnly: true } },
       { path: 'advanced-features/open', name: 'AdvancedFeatureOpen', component: AdvancedFeatureOpen, meta: { title: '开放设置', superAdminOnly: true } },
-      { path: 'system-parameters', name: 'SystemParameters', component: SystemParameters, meta: { title: '系统参数' } },
-      { path: 'announcements', name: 'Announcements', component: Announcements, meta: { title: '公告管理' } },
-      { path: 'app-versions', name: 'AppVersions', component: AppVersions, meta: { title: '主 APK 版本' } },
-      { path: 'engine-versions', name: 'EngineVersions', component: EngineVersions, meta: { title: '引擎版本' } }
+      { path: 'system-parameters', name: 'SystemParameters', component: SystemParameters, meta: { title: '系统参数', adminOnly: true } },
+      { path: 'announcements', name: 'Announcements', component: Announcements, meta: { title: '公告管理', adminOnly: true } },
+      { path: 'app-versions', name: 'AppVersions', component: AppVersions, meta: { title: '主 APK 版本', adminOnly: true } },
+      { path: 'engine-versions', name: 'EngineVersions', component: EngineVersions, meta: { title: '引擎版本', adminOnly: true } }
     ]
   }
 ]
@@ -56,12 +56,13 @@ router.beforeEach((to, from, next) => {
     return
   }
   const user = getAdminUser()
+  const isAdmin = isSuperAdminUser(user) || isChannelAdminUser(user)
   if (to.meta?.superAdminOnly && !isSuperAdminUser(user)) {
-    next('/dashboard')
+    next(isAdmin ? '/dashboard' : '/logs')
     return
   }
-  if (to.meta?.adminOnly && !isSuperAdminUser(user) && !isChannelAdminUser(user)) {
-    next('/dashboard')
+  if (to.meta?.adminOnly && !isAdmin) {
+    next('/logs')
     return
   }
   next()
