@@ -14,7 +14,7 @@ import Channels from '../views/Channels.vue'
 import ReleaseJobs from '../views/ReleaseJobs.vue'
 import SystemParameters from '../views/SystemParameters.vue'
 import AdvancedFeatureOpen from '../views/AdvancedFeatureOpen.vue'
-import { isSuperAdminUser, getAdminUser } from '../utils/adminSession'
+import { isSuperAdminUser, isChannelAdminUser, getAdminUser } from '../utils/adminSession'
 
 const routes = [
   {
@@ -28,7 +28,7 @@ const routes = [
     redirect: '/dashboard',
     children: [
       { path: 'dashboard', name: 'Dashboard', component: Dashboard, meta: { title: '概览' } },
-      { path: 'users', name: 'Users', component: Users, meta: { title: '用户管理' } },
+      { path: 'users', name: 'Users', component: Users, meta: { title: '用户管理', adminOnly: true } },
       { path: 'platforms', name: 'Platforms', component: Platforms, meta: { title: '支持平台', superAdminOnly: true } },
       { path: 'shops', name: 'Shops', component: Shops, meta: { title: '店铺管理' } },
       { path: 'logs', name: 'Logs', component: Logs, meta: { title: '交易日志' } },
@@ -53,11 +53,18 @@ router.beforeEach((to, from, next) => {
   const token = localStorage.getItem('admin_token')
   if (to.path !== '/login' && !token) {
     next('/login')
-  } else if (to.meta?.superAdminOnly && !isSuperAdminUser(getAdminUser())) {
-    next('/dashboard')
-  } else {
-    next()
+    return
   }
+  const user = getAdminUser()
+  if (to.meta?.superAdminOnly && !isSuperAdminUser(user)) {
+    next('/dashboard')
+    return
+  }
+  if (to.meta?.adminOnly && !isSuperAdminUser(user) && !isChannelAdminUser(user)) {
+    next('/dashboard')
+    return
+  }
+  next()
 })
 
 export default router

@@ -17,7 +17,7 @@
           <el-icon><Odometer /></el-icon>
           <span>概览</span>
         </el-menu-item>
-        <el-menu-item index="/users">
+        <el-menu-item v-if="isAdmin" index="/users">
           <el-icon><User /></el-icon>
           <span>用户管理</span>
         </el-menu-item>
@@ -111,7 +111,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Shop, Odometer, User, Document, ArrowDown, UserFilled, Bell, Connection, ChatDotRound, Grid, Upload, Promotion, SetUp, Setting } from '@element-plus/icons-vue'
 import { getPreferredImageObjectUrl } from '../utils/files'
-import { isSuperAdminUser } from '../utils/adminSession'
+import { isSuperAdminUser, isChannelAdminUser } from '../utils/adminSession'
 
 const route = useRoute()
 const router = useRouter()
@@ -123,6 +123,7 @@ const userInfo = ref(JSON.parse(localStorage.getItem('admin_user') || '{}'))
 const avatarObjectUrl = ref('')
 const objectUrlCache = new Map()
 const isSuperAdmin = computed(() => isSuperAdminUser(userInfo.value))
+const isAdmin = computed(() => isSuperAdminUser(userInfo.value) || isChannelAdminUser(userInfo.value))
 
 const loadAvatar = async () => {
   const avatarUrl = userInfo.value?.avatarUrl
