@@ -78,10 +78,11 @@
         </el-table-column>
         <el-table-column prop="shopCount" label="店铺数" />
         <el-table-column prop="createdAt" label="创建时间" />
-        <el-table-column v-if="canMutate" label="操作" width="180">
+        <el-table-column v-if="canMutate || canResetPassword" label="操作" width="240">
           <template #default="{ row }">
-            <el-button type="primary" link @click="showEditDialog(row)">编辑</el-button>
-            <el-button type="danger" link @click="handleDelete(row)">删除</el-button>
+            <el-button v-if="canMutate" type="primary" link @click="showEditDialog(row)">编辑</el-button>
+            <el-button v-if="canResetPassword" type="warning" link @click="showResetPasswordDialog(row)">重置密码</el-button>
+            <el-button v-if="canMutate" type="danger" link @click="handleDelete(row)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -145,11 +146,29 @@
         <el-button type="primary" @click="handleSubmit">确定</el-button>
       </template>
     </el-dialog>
+
+    <el-dialog v-model="resetPasswordVisible" title="重置密码" width="400px">
+      <el-form :model="resetPasswordForm" :rules="resetPasswordRules" ref="resetPasswordFormRef" label-width="80px">
+        <el-form-item label="目标用户">
+          <span>{{ resetPasswordTarget?.username }}（{{ resetPasswordTarget?.phone }}）</span>
+        </el-form-item>
+        <el-form-item label="新密码" prop="newPassword">
+          <el-input v-model="resetPasswordForm.newPassword" type="password" show-password placeholder="请输入新密码" />
+        </el-form-item>
+        <el-form-item label="确认密码" prop="confirmPassword">
+          <el-input v-model="resetPasswordForm.confirmPassword" type="password" show-password placeholder="请再次输入新密码" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="resetPasswordVisible = false">取消</el-button>
+        <el-button type="primary" @click="handleResetPassword">确定重置</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import request from '../utils/request'
 import { channelFilterParam, formatChannelLabel, normalizeRole, useAdminSession } from '../utils/adminSession'
@@ -159,6 +178,13 @@ const loading = ref(false)
 const dialogVisible = ref(false)
 const isEdit = ref(false)
 const formRef = ref()
+const resetPasswordFormRef = ref()
+const resetPasswordVisible = ref(false)
+const resetPasswordTarget = ref(null)
+const resetPasswordForm = ref({
+  newPassword: '',
+  confirmPassword: ''
+})
 const originalSubscriptionPlan = ref('NONE')
 const subscriptionForm = ref({ plan: 'NONE' })
 const subscriptionTouched = ref(false)
@@ -187,13 +213,34 @@ const emptyUserForm = () => ({
 
 const form = ref(emptyUserForm())
 
-const { channels, isSuperAdmin, fetchChannels, channelText } = useAdminSession()
+const { channels, isSuperAdmin, isChannelAdmin, fetchChannels, channelText } = useAdminSession()
 const canMutate = isSuperAdmin
+const canResetPassword = computed(() => isSuperAdmin.value || isChannelAdmin.value)
 
 const rules = {
   username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
   phone: [{ required: true, message: '请输入手机号', trigger: 'blur' }],
   password: [{ required: true, message: '请输入密码', trigger: 'blur' }]
+}
+
+const resetPasswordRules = {
+  newPassword: [
+    { required: true, message: '请输入新密码', trigger: 'blur' },
+    { min: 6, message: '新密码至少6位', trigger: 'blur' }
+  ],
+  confirmPassword: [
+    { required: true, message: '请再次输入新密码', trigger: 'blur' },
+    {
+      validator: (rule, value, callback) => {
+        if (value !== resetPasswordForm.value.newPassword) {
+          callback(new Error('两次输入的密码不一致'))
+        } else {
+          callback()
+        }
+      },
+      trigger: 'blur'
+    }
+  ]
 }
 
 const adminRoles = ['SUPER_ADMIN', 'CHANNEL']
@@ -338,6 +385,31 @@ const handleDelete = async (row) => {
     await request.delete(`/users/${row.id}`)
     ElMessage.success('删除成功')
     fetchUsers()
+  } catch (e) {
+    if (e !== 'cancel') console.error(e)
+  }
+}
+
+const showResetPasswordDialog = (row) => {
+  if (!canResetPassword.value) return
+  resetPasswordTarget.value = row
+  resetPasswordForm.value = { newPassword: '', confirmPassword: '' }
+  resetPasswordVisible.value = true
+}
+
+const handleResetPassword = async () => {
+  const valid = await resetPasswordFormRef.value.validate().catch(() => false)
+  if (!valid) return
+
+  try {
+    await ElMessageBox.confirm(
+      `确定要重置用户「${resetPasswordTarget.value.username}」的密码吗？`,
+      '提示',
+      { type: 'warning' }
+    )
+    await request.put(`/users/${resetPasswordTarget.value.id}/reset-password`, resetPasswordForm.value)
+    ElMessage.success('密码重置成功')
+    resetPasswordVisible.value = false
   } catch (e) {
     if (e !== 'cancel') console.error(e)
   }

@@ -5,6 +5,7 @@ import com.duodian.admin.controller.dto.ApiResponse;
 import com.duodian.admin.controller.dto.ChangePasswordRequest;
 import com.duodian.admin.controller.dto.LoginRequest;
 import com.duodian.admin.controller.dto.PagedResponse;
+import com.duodian.admin.controller.dto.ResetPasswordRequest;
 import com.duodian.admin.controller.dto.SubscriptionUpdateRequest;
 import com.duodian.admin.entity.User;
 import com.duodian.admin.repository.UserRepository;
@@ -151,6 +152,18 @@ public class UserController {
             return ApiResponse.error(400, "原密码错误");
         }
         userService.updatePassword(userId, request.getNewPassword());
+        return ApiResponse.success();
+    }
+
+    @PutMapping("/{id}/reset-password")
+    public ApiResponse<Void> resetUserPassword(@PathVariable Long id, @Valid @RequestBody ResetPasswordRequest request) {
+        permissionService.requireAdminRole();
+        if (!request.getNewPassword().equals(request.getConfirmPassword())) {
+            return ApiResponse.error("两次输入的新密码不一致");
+        }
+        User targetUser = userService.findById(id)
+                .orElseThrow(() -> new RuntimeException("用户不存在"));
+        userService.updatePassword(id, request.getNewPassword());
         return ApiResponse.success();
     }
 
